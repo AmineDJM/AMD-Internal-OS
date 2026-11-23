@@ -128,7 +128,7 @@ describe("un montant recopié d'une pièce se saisit au centime, pas au millier"
     // ne reprenne pas de pas grossier s'il redevenait numérique.
     const attendus: { fichier: string; designe: (b: string) => boolean; quoi: string; texte?: true }[] = [
       { fichier: "src/modules/ad-pro/ecrans/prise-en-charge/care-panel.tsx", designe: (b) => attribut(b, "aria-label") === "Montant du devis", quoi: "montant d'un devis de prise en charge", texte: true },
-      { fichier: "src/modules/ad-pro/ecrans/postes/formulaires.tsx", designe: (b) => attribut(b, "name") === "amountEstimated", quoi: "montant estimé d'un poste (ajout et correction)" },
+      { fichier: "src/modules/ad-pro/ecrans/postes/formulaires.tsx", designe: (b) => attribut(b, "name") === "amountEstimated", quoi: "montant estimé d'un poste (correction)" },
       { fichier: "src/modules/ad-pro/ecrans/postes/formulaires.tsx", designe: (b) => (attribut(b, "aria-label") ?? "").startsWith("Montant affecté au poste"), quoi: "montant accordé d'un poste" },
     ];
     for (const a of attendus) {
@@ -142,10 +142,10 @@ describe("un montant recopié d'une pièce se saisit au centime, pas au millier"
         } else expect(attribut(b, "step"), `${a.quoi} : pas attendu au centime`).toBe("0.01");
       }
     }
-    // Ajout ET correction d'un poste : DEUX champs `amountEstimated`, pas un.
+    // La correction d'un poste seulement : l'AJOUT ne chiffre plus (Direction, 23/11/2026 — le montant vient des pièces).
     const POSTE = "src/modules/ad-pro/ecrans/postes/formulaires.tsx";
     const champs = toutes.filter(({ f, b }) => f === POSTE && attribut(b, "name") === "amountEstimated");
-    expect(champs.length).toBe(2);
+    expect(champs.length).toBe(1);
     for (const { b } of champs) {
       expect(estUnMontant(b), "montant estimé : le détecteur ne le reconnaît plus comme montant").toBe(true);
       expect(attribut(b, "step"), "montant estimé : pas attendu au centime").toBe("0.01");

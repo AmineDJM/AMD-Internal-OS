@@ -11,29 +11,31 @@ import { sansBloquer } from "@/lib/journal";
 import { clientIp } from "@/lib/device";
 import { getBlob } from "@/lib/drive-storage";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
-import { lienPosteAdPro } from "@/lib/chemins/ad-pro";
+import { lienPosteAdPro, lienPosteAssistante } from "@/lib/chemins/ad-pro";
 import { CHEMIN_BC_A_SIGNER } from "@/lib/bons-de-commande/aiguillage";
 import { etatDuBC } from "@/lib/bons-de-commande/etat";
 import { controleRenforce, REFUS_VUE_EXACTE } from "@/lib/signature-en-ligne/second-facteur";
 import { apposerSignatureEnLigne, enSuppleance, titreSignataire } from "@/lib/signature-en-ligne/signer-bc";
-import { PARENTS, revalidate, audit, loadItem, REFUS_HISTORIQUE, peutTrancherSur, refusAvantPrevalidation, refusDemandeFermee, devisDuPoste, estAssistanteDuPoste, ouvrirDeclarationSiPostesValides } from "./infra/postes/commun";
+import { PARENTS, revalidate, audit, loadItem, REFUS_HISTORIQUE, peutTrancherSur, refusAvantPrevalidation, refusDemandeFermee, devisDuPoste, estAssistanteDuPoste, ouvrirDeclarationSiPostesValides, refusPosteApresDeclaration, refusSiClos, reprojeterMontantDemande } from "./infra/postes/commun";
+import { ecrireChoixDesAgences, defaireLesLignesRetenues, RefusChoixAgences } from "./infra/postes/scission-agence";
+import { devisDesPostes, refusCategoriePourLaDemande } from "@/modules/ad-pro/api";
+import { libellePosteScinde, lireLignesCochees, nomAgence, planDuChoix } from "./domaine/choix-agences";
 import { decideAdProItem } from "./actions-postes-decision";
-import { validerLignesDuDevis, preparerBrouillonPoste, validerEtEnvoyerBcPoste } from "./actions-postes-lignes";
+import { preparerBrouillonPoste, validerEtEnvoyerBcPoste } from "./actions-postes-lignes";
 
 /**
  * POSTES AD & PRO — LE PARCOURS AGENCE, DE LA PROSPECTION AU BC SIGNÉ (Direction, 15/11/2026).
  *
  *   1. la Direction Marketing demande la PROSPECTION (cahier des charges, assistante) ;
  *   2. l'assistante dépose les devis des agences sur le poste (`ajouterDevisPoste`) et les TRANSMET ;
- *   3. la Direction Marketing CHOISIT l'agence : les lignes du devis retenu sont validées, le poste est accepté au montant du
- *      devis avec son budget, les autres devis sont « non retenus », le BC naît en brouillon chez l'assistante ;
+ *   3. la Direction Marketing CHOISIT : elle coche les lignes qu'elle commande dans chaque devis — un BC par agence, rien que
+ *      ces lignes (23/11/2026). Une agence : le poste est accepté au total de ses lignes, avec son budget ; plusieurs : il est
+ *      SCINDÉ, un poste par agence. Les devis sans ligne cochée sont « non retenus », chaque BC naît en brouillon chez l'assistante ;
  *   4. l'assistante FINALISE le BC (composeur) et le SOUMET ;
  *   5. la Direction Marketing le VALIDE, le SIGNE et le CACHETTE (mot de passe + code) — il part au centre Ad & Pro au-dessus
  *      du seuil, puis à la signature des Finances.
  * Morceau de la clé `ad-pro-item-actions` (voir `actions-postes.ts`).
  */
-
-const lienAssistante = (itemId: string) => `/agences/${itemId}`;
 
 async function cadreAgence(user: SessionUser, id: string | null) {
   if (!id) return { error: "Poste non précisé." } as const;
@@ -61,6 +63,9 @@ export async function demanderProspection(formData: FormData): Promise<ActionRes
   if (avant) return { ok: false, error: avant };
   if (exec?.prospectionDemandeeAt) return { ok: false, error: "La prospection est déjà demandée pour ce poste." };
   if (!["DRAFT", "REVISION", "PENDING"].includes(item.status)) return { ok: false, error: "Ce poste est déjà décidé : la prospection n'a plus lieu d'être." };
+  // UN BROUILLON NE BLOQUE PAS LA DÉCLARATION (23/11/2026) — et ne s'y glisse donc plus une fois qu'elle est ouverte.
+  const declare = item.status === "DRAFT" ? await refusPosteApresDeclaration(owner.parent, owner.id) : null;
+  if (declare) return { ok: false, error: declare };
   const assistanteId = fdStr(formData, "assistanteId");
   const cahier = fdStr(formData, "cahierDesCharges");
   if (!assistanteId) return { ok: false, error: "Choisissez l'assistante de direction qui prospecte les agences." };
@@ -82,7 +87,7 @@ export async function demanderProspection(formData: FormData): Promise<ActionRes
   ]);
   await notifyUser({
     userId: assistante.id, type: "ASSIGNMENT", title: "Prospection d'agences à faire",
-    body: `${info.ref} — « ${item.label} » : ${cahier.slice(0, 180)}`, link: lienAssistante(item.id),
+    body: `${info.ref} — « ${item.label} » : ${cahier.slice(0, 180)}`, link: lienPosteAssistante(item.id),
   }).catch(sansBloquer("ad-pro.demanderProspection.notifyUser"));
   await audit(user, owner.parent, owner.id, "UPDATE", `Prospection d'agences demandée à ${assistante.name} pour le poste « ${item.label} ».`);
   revalidate(owner.parent, owner.id);
@@ -124,74 +129,143 @@ export async function transmettreDevisAgences(formData: FormData): Promise<Actio
   return { ok: true, id: item.id, message: `${devis.length} devis transmis à la Direction Marketing.${peu}` };
 }
 
-/** 3. CHOISIR L'AGENCE — la Direction Marketing : le devis retenu fait le montant accordé ; le BC naît chez l'assistante. */
-export async function choisirAgencePoste(formData: FormData): Promise<ActionResult> {
+type DevisDuChoix = Parameters<typeof planDuChoix>[0][number];
+type LectureDuChoix = (devis: readonly DevisDuChoix[]) => ReturnType<typeof lireLignesCochees>;
+
+type PosteDuChoix = { id: string; label: string; supplier: string | null };
+
+/**
+ * ACCORDER UN POSTE À SON AGENCE — ses lignes cochées sont déjà validées pour lui : le poste est accepté à leur total, avec
+ * son budget, par la décision ordinaire (mêmes gardes, même historique). Si l'accord ne tient pas, les lignes ne restent
+ * pas validées pour rien : le poste redevient « à choisir », avec ses devis.
+ */
+async function accorderLePoste(
+  poste: PosteDuChoix, r: { pieceId: string; agence: string }, budgetCategoryId: string,
+): Promise<{ ok: true; montant: number; fournisseur: string | null } | { ok: false; error: string }> {
+  const apres = await devisDuPoste(poste.id, r.pieceId);
+  const montant = apres ? (apres.entete.tvaRate === null ? apres.totalValideHt : apres.totalValideTtc) : 0;
+  const fdDecision = new FormData();
+  fdDecision.set("id", poste.id);
+  fdDecision.set("decision", "APPROVED");
+  fdDecision.set("amountGranted", String(Math.round(montant * 100) / 100));
+  fdDecision.set("budgetCategoryId", budgetCategoryId);
+  fdDecision.set("note", `Agence retenue : ${r.agence}`);
+  const decision = await decideAdProItem(undefined, fdDecision);
+  if (decision.ok) return { ok: true, montant, fournisseur: apres?.fournisseur ?? null };
+  await defaireLesLignesRetenues(poste.id, r.pieceId).catch(sansBloquer("ad-pro.choisirAgencePoste.annulerLignes"));
+  return { ok: false, error: decision.error ?? "La décision n'a pas pu être enregistrée." };
+}
+
+/**
+ * LE CHOIX DE LA DIRECTION MARKETING, ÉCRIT — un devis entier (`choisirAgencePoste`) ou des lignes cochées dans plusieurs
+ * devis (`retenirLignesDesAgences`) : les mêmes gardes, le même plan (`planDuChoix`), la même écriture tout-ou-rien
+ * (`ecrireChoixDesAgences`), puis chaque poste accordé à son agence. Une agence : le poste reste un poste. Plusieurs : il
+ * est scindé, un poste par agence — chacune sera payée à part, avec son BC, sa réception, sa facture.
+ */
+async function retenirLesAgences(formData: FormData, lire: LectureDuChoix): Promise<ActionResult> {
   const user = await requireUser();
-  const id = fdStr(formData, "id");
-  const c = await cadreAgence(user, id);
+  const c = await cadreAgence(user, fdStr(formData, "id"));
   if ("error" in c) return { ok: false, error: c.error };
-  const { item, owner, info, exec } = c;
+  const { item, owner, exec } = c;
   if (!(await marketing(user, owner))) return { ok: false, error: "L'agence se choisit par la Direction Marketing." };
   if (!exec?.devisTransmisAt) return { ok: false, error: "Les devis ne sont pas encore transmis par l'assistante." };
   if (exec.agenceRetenueAt) return { ok: false, error: "L'agence est déjà choisie pour ce poste." };
   if (item.status !== "PENDING") return { ok: false, error: "Ce poste n'attend pas de choix : rouvrez la fiche." };
-  const pieceId = fdStr(formData, "pieceId");
+  const devis: DevisDuChoix[] = ((await devisDesPostes([item.id])).get(item.id) ?? [])
+    .filter((d) => !d.annule)
+    .map((d) => ({ pieceId: d.pieceId, agence: nomAgence(d), entete: d.entete, lignes: d.lignes }));
+  const lu = lire(devis);
+  if (!lu.ok) return lu;
   const budgetCategoryId = fdStr(formData, "budgetCategoryId");
-  if (!pieceId) return { ok: false, error: "Choisissez le devis de l'agence retenue." };
   if (!budgetCategoryId) return { ok: false, error: "Choisissez le budget qui portera ce poste." };
-  const devis = await devisDuPoste(item.id, pieceId);
-  if (!devis?.structure || devis.lignes.length === 0) return { ok: false, error: "Ce devis n'a pas de lignes lisibles : demandez à l'assistante de les saisir." };
-
-  // a. Les lignes du devis retenu sont validées pour ce poste (l'assistante a attesté les avoir comparées au papier).
-  const fdLignes = new FormData();
-  fdLignes.set("id", item.id);
-  fdLignes.set("pieceId", pieceId);
-  fdLignes.set("compare", "on");
-  for (const l of devis.lignes) fdLignes.append("ligneId", l.id);
-  const lignes = await validerLignesDuDevis(fdLignes);
-  if (!lignes.ok) return lignes;
-  const apres = await devisDuPoste(item.id, pieceId);
-  const montant = apres ? (apres.entete.tvaRate === null ? apres.totalValideHt : apres.totalValideTtc) : 0;
-  // b. Le poste est accepté au montant du devis, avec son budget — par la décision ordinaire (mêmes gardes, même historique).
-  const fdDecision = new FormData();
-  fdDecision.set("id", item.id);
-  fdDecision.set("decision", "APPROVED");
-  fdDecision.set("amountGranted", String(Math.round(montant * 100) / 100));
-  fdDecision.set("budgetCategoryId", budgetCategoryId);
-  fdDecision.set("note", `Agence retenue : ${devis.fournisseur ?? devis.reference ?? devis.titre}`);
-  const decision = await decideAdProItem(undefined, fdDecision);
-  if (!decision.ok) {
-    // L'accord n'a pas tenu : les lignes ne restent pas validées pour rien.
-    const annule = new FormData();
-    annule.set("id", item.id);
-    annule.set("pieceId", pieceId);
-    await validerLignesDuDevis(annule).catch(sansBloquer("ad-pro.choisirAgencePoste.annulerLignes"));
-    return decision;
+  const plan = planDuChoix(devis, lu.parDevis);
+  if (!plan.ok) return plan;
+  // CE QUE LA DÉCISION REFUSERAIT se lit AVANT d'écrire : une scission ne doit pas naître pour un accord impossible.
+  const avant = (await refusSiClos(owner.parent, owner.id, { partir: true })) ?? (await refusCategoriePourLaDemande(budgetCategoryId, owner.parent, owner.id));
+  if (avant) return { ok: false, error: avant };
+  const scission = plan.retenues.length > 1;
+  if (scission) {
+    const declare = await refusPosteApresDeclaration(owner.parent, owner.id);
+    if (declare) return { ok: false, error: `${declare} Retenez les lignes d'un seul devis.` };
   }
-  // c. L'agence est nommée sur le poste ; les autres devis sont « non retenus ».
-  const maintenant = new Date();
-  await prisma.$transaction([
-    prisma.adProItem.update({ where: { id: item.id }, data: { supplier: devis.fournisseur ?? item.supplier, updatedById: user.id } }),
-    prisma.adProItemPiece.updateMany({ where: { itemId: item.id, nature: "DEVIS", legalDocumentId: { not: pieceId }, nonRetenuAt: null }, data: { nonRetenuAt: maintenant, nonRetenuParId: user.id } }),
-    prisma.adProExecutionPoste.update({ where: { itemId: item.id }, data: { agenceDevisId: pieceId, agenceRetenueAt: maintenant, agenceRetenueParId: user.id } }),
-  ]);
-  // d. Le BC naît en brouillon (aucun numéro) : l'assistante, qui a déposé le devis, le finalise.
-  const fdBc = new FormData();
-  fdBc.set("id", item.id);
-  const bc = await preparerBrouillonPoste(fdBc);
-  if (exec.assistanteId) {
-    await notifyUser({
-      userId: exec.assistanteId, type: "ASSIGNMENT", title: "Bon de commande à finaliser",
-      body: `${info.ref} — « ${item.label} » : agence retenue ${devis.fournisseur ?? ""}. Finalisez le BC puis soumettez-le à la Direction Marketing.`, link: lienAssistante(item.id),
-    }).catch(sansBloquer("ad-pro.choisirAgencePoste.notifyUser"));
+
+  // a. Tout ou rien : les postes de la scission, les devis déplacés, les lignes cochées validées pour le poste de leur agence.
+  let posteDe: Map<string, string>;
+  try {
+    posteDe = await ecrireChoixDesAgences({ origineId: item.id, userId: user.id, retenues: plan.retenues });
+  } catch (e) {
+    if (e instanceof RefusChoixAgences) return { ok: false, error: e.message };
+    throw e;
+  }
+  if (scission) {
+    // LES POSTES NÉS CHANGENT LA DEMANDE comme un poste ajouté : son montant, l'estimation déclarée, la porte du DG.
+    await reprojeterMontantDemande(owner.parent, owner.id);
+    const parAgence = plan.retenues.map((r, i) => `${i === 0 ? `« ${item.label} »` : `« ${libellePosteScinde(item.label, r.agence)} »`} : ${r.agence} (${r.ligneIds.length} ligne${r.ligneIds.length > 1 ? "s" : ""}, ${r.montant.toLocaleString("fr-FR")} DZD)`);
+    await audit(user, owner.parent, owner.id, "UPDATE", `Poste « ${item.label} » scindé par agence en ${plan.retenues.length} postes — ${parAgence.join(" ; ")}.${plan.ecartes.length ? ` ${plan.ecartes.length} devis non retenu${plan.ecartes.length > 1 ? "s" : ""}.` : ""}`);
+  }
+
+  // b. Chaque poste est accordé à son agence — l'origine d'abord (elle garde l'agence au plus gros total).
+  const faits: string[] = [];
+  const echecs: string[] = [];
+  for (const [i, r] of plan.retenues.entries()) {
+    const poste = i === 0
+      ? { id: item.id, label: item.label, supplier: item.supplier }
+      : { id: posteDe.get(r.pieceId)!, label: libellePosteScinde(item.label, r.agence), supplier: r.agence };
+    const accord = await accorderLePoste(poste, r, budgetCategoryId);
+    if (!accord.ok) {
+      echecs.push(`« ${poste.label} » n'est pas accordé (${accord.error}) : il reste à choisir, avec son devis.`);
+      continue;
+    }
+    // L'agence est nommée sur le poste ; ses autres devis sont « non retenus ».
+    const maintenant = new Date();
+    await prisma.$transaction([
+      prisma.adProItem.update({ where: { id: poste.id }, data: { supplier: accord.fournisseur ?? poste.supplier, updatedById: user.id } }),
+      prisma.adProItemPiece.updateMany({ where: { itemId: poste.id, nature: "DEVIS", legalDocumentId: { not: r.pieceId }, nonRetenuAt: null }, data: { nonRetenuAt: maintenant, nonRetenuParId: user.id } }),
+      prisma.adProExecutionPoste.update({ where: { itemId: poste.id }, data: { agenceDevisId: r.pieceId, agenceRetenueAt: maintenant, agenceRetenueParId: user.id } }),
+    ]);
+    // Le BC naît en brouillon (aucun numéro) : l'assistante, qui a déposé le devis, le finalise — elle est prévenue par la
+    // préparation elle-même (« Bon de commande à finaliser », sur SA page), une seule fois, et seulement si le BC est prêt.
+    const fdBc = new FormData();
+    fdBc.set("id", poste.id);
+    const brouillon = await preparerBrouillonPoste(fdBc);
+    const bc = brouillon.ok ? "Le BC est chez l'assistante pour finalisation." : brouillon.error ?? "";
+    await audit(user, owner.parent, owner.id, "UPDATE", `Agence retenue pour le poste « ${poste.label} » : ${r.agence} — ${accord.montant.toLocaleString("fr-FR")} DZD.`);
+    faits.push(scission
+      ? `« ${poste.label} » : ${r.agence} (${accord.montant.toLocaleString("fr-FR")} DZD)${brouillon.ok ? "" : ` — ${bc}`}.`
+      : `Agence retenue : ${r.agence} (${accord.montant.toLocaleString("fr-FR")} DZD). ${bc}`.trim());
   }
   // L'AGENCE CHOISIE VALIDE LE POSTE « AGENCE » : s'il était le dernier, la déclaration s'ouvre (Direction, 19/11/2026).
   await ouvrirDeclarationSiPostesValides(owner.parent, owner.id)
     .catch(sansBloquer("ad-pro.choisirAgencePoste.ouvrirDeclaration"));
-  await audit(user, owner.parent, owner.id, "UPDATE", `Agence retenue pour le poste « ${item.label} » : ${devis.fournisseur ?? devis.titre} — ${montant.toLocaleString("fr-FR")} DZD.`);
   revalidate(owner.parent, owner.id);
   revalidatePath("/agences");
-  return { ok: true, id: item.id, message: `Agence retenue : ${devis.fournisseur ?? devis.titre} (${montant.toLocaleString("fr-FR")} DZD). ${bc.ok ? "Le BC est chez l'assistante pour finalisation." : bc.error ?? ""}`.trim() };
+  const tete = scission ? `Poste scindé en ${plan.retenues.length} postes, un BC par agence.` : "";
+  const message = [tete, ...faits, ...(scission && faits.length ? ["Chaque BC prêt est chez l'assistante pour finalisation."] : [])].filter(Boolean).join(" ");
+  if (echecs.length > 0) return { ok: false, error: [message, ...echecs].filter(Boolean).join(" ") };
+  return { ok: true, id: item.id, message };
+}
+
+/** 3. CHOISIR L'AGENCE — un devis ENTIER (toutes ses lignes) : le chemin d'avant, gardé pour ses appelants. */
+export async function choisirAgencePoste(formData: FormData): Promise<ActionResult> {
+  const pieceId = fdStr(formData, "pieceId");
+  const toutLeDevis: LectureDuChoix = (devis) => {
+    if (!pieceId) return { ok: false, error: "Choisissez le devis de l'agence retenue." };
+    const d = devis.find((x) => x.pieceId === pieceId);
+    if (!d || d.lignes.length === 0) return { ok: false, error: "Ce devis n'a pas de lignes lisibles : demandez à l'assistante de les saisir." };
+    return { ok: true, parDevis: new Map([[pieceId, d.lignes.map((l) => l.id)]]) };
+  };
+  return retenirLesAgences(formData, toutLeDevis);
+}
+
+/**
+ * 3 bis. RETENIR LES LIGNES DES AGENCES (Direction, 23/11/2026) — la Direction Marketing coche, dans chaque devis transmis,
+ * les lignes qu'elle commande (champ `ligne` répété : « <pieceId>:<ligneId> ») : un BC par agence, rien que les lignes
+ * cochées ; un devis sans ligne cochée n'est pas retenu. Plusieurs agences : le poste est scindé, un poste par agence.
+ */
+export async function retenirLignesDesAgences(formData: FormData): Promise<ActionResult> {
+  const cochees = lireLignesCochees(formData.getAll("ligne"));
+  const lignesCochees: LectureDuChoix = () => cochees;
+  return retenirLesAgences(formData, lignesCochees);
 }
 
 /** 4. SOUMETTRE LE BC — l'assistante, une fois le brouillon finalisé dans le composeur. */

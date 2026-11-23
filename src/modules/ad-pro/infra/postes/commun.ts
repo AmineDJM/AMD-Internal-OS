@@ -1,8 +1,8 @@
-import { lienPosteAdPro, lienLigneCentreAdPro } from "@/lib/chemins/ad-pro";
+import { lienPosteAdPro, lienLigneCentreAdPro, lienPosteAssistante } from "@/lib/chemins/ad-pro";
 import { revalidatePath } from "next/cache";
 import type { AdProItemKind, AdProItemStatus, UserRole } from "@prisma/client";
-import { userCan, hasGlobalView, rolesWithModule, type SessionUser } from "@/lib/rbac";
-import { canAccessEntity } from "@/lib/entity-access";
+import { userCan, hasGlobalView, rolesWithModule, anyRoleFilter, type SessionUser } from "@/lib/rbac";
+import { canAccessEntity, canModerateEntity } from "@/lib/entity-access";
 import { prisma } from "@/lib/prisma";
 import { reporterLesPostesSurLaDeclaration, ouvrirDeclarationSiPostesValides, refusPosteApresDeclaration } from "@/lib/workflow/engine";
 export { ouvrirDeclarationSiPostesValides, refusPosteApresDeclaration };
@@ -798,3 +798,40 @@ export async function devisDuPoste(itemId: string, pieceId: string | null) {
   return ((await devisDesPostes([itemId])).get(itemId) ?? []).find((d) => d.pieceId === pieceId && !d.annule) ?? null;
 }
 
+/** Qui MODÈRE le fil des postes d'une demande (le message d'un autre) — la porte même des actions canoniques
+ *  (`canModerateEntity(AD_PRO_ITEM)` délègue à la demande), lue une fois pour tous ses postes (23/11/2026). */
+export function modereLaDemande(user: SessionUser, parent: AdProParent, parentId: string): Promise<boolean> {
+  return canModerateEntity(user, PARENT_ENTITE[parent], parentId);
+}
+
+/**
+ * LA DISCUSSION D'UN POSTE : PRÉVENIR LES PARTICIPANTS D'UN NOUVEAU MESSAGE (Direction, 23/11/2026) — le demandeur, qui a
+ * ajouté le poste, l'assistante qui le prospecte, ceux qui ont déjà écrit dans le fil, et la Direction Marketing (qui
+ * l'accepte) ; jamais l'auteur. Le lien mène au POSTE — sur la fiche de la demande, et pour l'assistante qui le prospecte (qui
+ * n'a pas les modules Ad & Pro) sur SA page, « Prospection d'agences ». Best-effort : un envoi qui échoue ne retire pas le message.
+ */
+export async function prevenirLeFilDuPoste(a: {
+  itemId: string; owner: { parent: AdProParent; id: string }; auteur: SessionUser & { name?: string | null }; corps: string | null; pieces: number;
+}): Promise<void> {
+  const [poste, info, execution, auteurs, marketing] = await Promise.all([
+    prisma.adProItem.findUnique({ where: { id: a.itemId }, select: { label: true, createdById: true } }),
+    PARENTS[a.owner.parent].load(a.owner.id),
+    prisma.adProExecutionPoste.findUnique({ where: { itemId: a.itemId }, select: { assistanteId: true } }),
+    prisma.comment.findMany({ where: { entityType: "AD_PRO_ITEM", entityId: a.itemId }, select: { authorId: true }, distinct: ["authorId"] }),
+    prisma.user.findMany({ where: { isActive: true, ...anyRoleFilter(rolesAPrevenir("MARKETING", null) as UserRole[]) }, select: { id: true } }),
+  ]);
+  if (!poste) return;
+  const destinataires = new Set(
+    [info?.requesterId, poste.createdById, execution?.assistanteId, ...auteurs.map((x) => x.authorId), ...marketing.map((u) => u.id)]
+      .filter((x): x is string => Boolean(x) && x !== a.auteur.id),
+  );
+  const extrait = (a.corps ?? "").trim().slice(0, 160);
+  const joint = a.pieces > 0 ? `${a.pieces} pièce${a.pieces > 1 ? "s" : ""} jointe${a.pieces > 1 ? "s" : ""}` : "";
+  const corps = `${info?.ref ?? "Demande Ad & Pro"} — « ${poste.label} » · ${a.auteur.name ?? "Quelqu'un"} : ${[extrait, joint].filter(Boolean).join(" — ")}`;
+  const lien = lienPosteAdPro(a.owner.parent, a.owner.id, a.itemId);
+  const deLaDirectionMarketing = new Set(marketing.map((u) => u.id));
+  const lienPour = (userId: string) => (userId === execution?.assistanteId && !deLaDirectionMarketing.has(userId) ? lienPosteAssistante(a.itemId) : lien);
+  await Promise.all([...destinataires].map((userId) =>
+    notifyUser({ userId, type: "GENERIC", title: "Nouveau message sur un poste", body: corps, link: lienPour(userId) })
+      .catch(sansBloquer("ad-pro.prevenirLeFilDuPoste.notifyUser"))));
+}

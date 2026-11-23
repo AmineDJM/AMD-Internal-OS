@@ -91,11 +91,12 @@ suite("Postes Ad & Pro — ceux qui décident sont prévenus (validation et lect
     expect((await prisma.adProItem.findUniqueOrThrow({ where: { id: r.ok ? r.id! : "" } })).addedAfterDecision).toBe(false);
   });
 
-  it("un poste HORS BUDGET est dit en lecture, et sa soumission demande la validation", async () => {
+  it("PLUS DE RALLONGE À L'AJOUT (Direction, 23/11/2026) : un « hors budget » envoyé naît inclus, sans bruit — sa soumission demande la validation", async () => {
     ACTOR = await acteur(u.kam, "MEDICAL_DELEGATE");
     const r = await addAdProItem(undefined, fd({ parent: "CONGRESS_NATIONAL", parentId: congres, label: `${RUN} Billet d'avion`, kind: "TICKETING", amountEstimated: "45000", budgetKind: "ADDITIONAL" }));
     expect(r.ok, JSON.stringify(r)).toBe(true);
-    expect(await recues("GENERIC")).toBe(1);
+    expect((await prisma.adProItem.findUniqueOrThrow({ where: { id: r.ok ? r.id! : "" } })).budgetKind, "le budgetKind envoyé est ignoré").toBe("INCLUDED");
+    expect(await recues("GENERIC")).toBe(0);
     // UNE BILLETTERIE SE SOUMET AVEC AU MOINS UN VOYAGEUR (Direction, 06/10).
     await prisma.adProVoyageur.create({ data: { itemId: r.ok ? r.id! : "", nom: "Haddad", prenom: "Amel" } });
     const s = await submitAdProItem(undefined, fd({ id: r.ok ? r.id! : "" }));
@@ -111,7 +112,7 @@ suite("Postes Ad & Pro — ceux qui décident sont prévenus (validation et lect
     const ligne = (await file("dm", "PRODUCT_MANAGER")).find((i) => i.key === cle);
     expect(ligne?.href, "la Direction Marketing voit le poste à décider").toBe(`/congress-national/${congres}`);
     // La ligne ne prétend pas qu'une Direction des opérations l'a validé : `opsDecidedAt` est posé d'office.
-    expect(ligne?.subtitle).toMatch(/^hors budget · poste à accepter — montant et budget à décider/);
+    expect(ligne?.subtitle).toMatch(/^poste à accepter — montant et budget à décider/);
     expect(ligne?.subtitle).not.toMatch(/Direction des opérations/);
     expect((await file("ops", "DIRECTION")).some((i) => i.key === cle), "la Direction des opérations n'a rien à faire").toBe(false);
     expect((await file("kam", "MEDICAL_DELEGATE")).some((i) => i.key === cle), "le demandeur ne le décide pas").toBe(false);

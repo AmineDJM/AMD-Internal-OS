@@ -71,7 +71,7 @@ describe("(re)soumettre sa lecture", () => {
   });
 });
 
-describe("le dépôt au ministère", () => {
+describe("le dépôt à l'ANPP", () => {
   it("FERMÉ TANT QUE LA LECTURE N'EST PAS ACCORDÉE", () => {
     expect(canFileWithAuthorities(input({ intent: "DECLARE" }))).toBe(false);
     expect(canFileWithAuthorities(input({ validationId: "v1", validationStatus: "PENDING", intent: "DECLARE" }))).toBe(false);
@@ -92,7 +92,7 @@ describe("valider le dossier", () => {
     expect(canValidateEvent(input({ validationId: "v1", validationStatus: "PENDING", intent: "SKIP" }), RIEN)).toBe(false);
   });
 
-  it("« à déclarer » exige le DÉPÔT — la référence du ministère", () => {
+  it("« à déclarer » exige le DÉPÔT — la référence ANPP", () => {
     expect(canValidateEvent(ACCORDEE_DECLARE, RIEN)).toBe(false);
     expect(canValidateEvent(ACCORDEE_DECLARE, { authorityRef: "   " })).toBe(false);
     expect(canValidateEvent(ACCORDEE_DECLARE, DEPOSE)).toBe(true);
@@ -105,7 +105,7 @@ describe("valider le dossier", () => {
 
 describe("ce que l'écran dit", () => {
   it("nomme le geste attendu à chaque étape", () => {
-    expect(declareMessage(input(), RIEN)).toMatch(/ministère de l'Industrie pharmaceutique/i);
+    expect(declareMessage(input(), RIEN)).toMatch(/à l'ANPP/);
     expect(declareMessage(input({ validationId: "v1", validationStatus: "PENDING" }), RIEN)).toMatch(/rien à faire/i);
     // Le message disait « reprenez-la là-bas » : un geste qui n'existait pas (audit 360°, I9).
     expect(declareMessage(input({ validationId: "v1", validationStatus: "CHANGES_REQUESTED" }), RIEN)).toMatch(/soumettez-la de nouveau ici/i);

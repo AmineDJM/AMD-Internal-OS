@@ -273,7 +273,9 @@ export function etapesDuPoste(p: FaitsPoste): Etape[] {
   const factures = p.factures ?? 0;
   const justificatifPose = (p.devis ?? 0) > 0 || factures > 0;
   const etapes: Etape[] = [
-    { cle: "CHIFFRE", libelle: "Chiffré", etat: chiffre(p) ? "FAIT" : "EN_COURS" },
+    // SOUMIS, PLUS « CHIFFRÉ » (Direction, 23/11/2026) : le montant vient des pièces et la Direction Marketing le fixe en
+    // acceptant — un poste soumis sans chiffre n'a pas une première étape « en cours » sous une seconde qui l'est aussi.
+    { cle: "CHIFFRE", libelle: "Soumis", etat: chiffre(p) || !["DRAFT", "REVISION"].includes(p.status) ? "FAIT" : "EN_COURS" },
     // UN SEUL ACCORD, celui de la Direction Marketing (27/10/2026) : le Directeur des opérations a déjà
     // validé la DEMANDE en amont ; il ne revalide plus chaque poste.
     {
@@ -376,10 +378,11 @@ export function prochainPas(p: FaitsPoste, r: RegardPoste): ProchainPas {
         geste: null,
         attente: p.status === "REVISION" ? "À revoir par le demandeur."
           : p.status === "REJECTED" ? "Refusé — le demandeur peut le corriger et le resoumettre."
-          : "Brouillon — le demandeur le chiffre et le soumet pour validation.",
+          : "Brouillon — le demandeur le soumet pour validation.",
       };
     }
-    if (!chiffre(p)) return { geste: { cle: "CHIFFRER", libelle: "Chiffrer le poste" }, attente: null };
+    // PLUS DE « CHIFFRER » AVANT DE SOUMETTRE (Direction, 23/11/2026) : le montant vient des pièces — devis retenus, pro
+    // forma ou facture — et la Direction Marketing le fixe en acceptant le poste (`canSubmitItem` ne l'exige plus).
     // UNE FICHE PAR PERSONNE (Direction, 06/10) — la même règle que `canSubmitItem` : jamais
     // « Soumettre » quand l'action refuserait (§118.83).
     const fiches = refusFichesPersonnes({ kind: p.kind, fichesPersonnes: p.fichesPersonnes, priseEnChargeIndirecte: p.priseEnChargeIndirecte });

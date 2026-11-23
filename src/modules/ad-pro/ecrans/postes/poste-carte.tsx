@@ -41,6 +41,7 @@ import { choisirVoiePoste } from "../../actions-postes-execution";
 import { voieParDefaut } from "../../domaine/parcours-agence";
 import { SIGNATURE_RIEN_DE_PRET, type SignaturePrete } from "@/lib/signature-en-ligne/partage";
 import { SectionRepliable } from "@/components/shared/section-repliable";
+import { DiscussionDuPoste } from "./discussion-poste";
 
 // La carte d'un poste, montée par `AdProItemsPanel` (`../items-panel.tsx`) — une par poste de la demande.
 
@@ -78,7 +79,7 @@ function titreDuPoste(item: ItemRow): { titre: string; nature: string | null } {
  * Tout le reste (modifier, révision, demandes au secrétariat, fichiers joints, historique, retirer)
  * vit dans le menu « ⋯ » : rien ne disparaît, rien ne crie.
  */
-export function PosteCarte({ item, parent, parentId, regard, freres, assistantes, budgetOptions, promoOptions, materiel, busy, run, parentLink, moduleLibelle, porteDg, infoMed = false, signature = SIGNATURE_RIEN_DE_PRET }: {
+export function PosteCarte({ item, parent, parentId, regard, freres, assistantes, budgetOptions, promoOptions, materiel, busy, run, parentLink, moduleLibelle, porteDg, infoMed = false, signature = SIGNATURE_RIEN_DE_PRET, modereLeFil = false }: {
   item: ItemRow;
   parent: AdProParent;
   parentId: string;
@@ -96,6 +97,8 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
   porteDg?: ContexteDesPostes["porteDg"];
   infoMed?: boolean;
   signature?: SignaturePrete;
+  /** Modère la discussion du poste (le message d'un autre). */
+  modereLeFil?: boolean;
 }) {
   const [panneau, setPanneau] = React.useState<Panneau | null>(null);
   const [naturePiece, setNaturePiece] = React.useState<NaturePieceSecretariat>("DEVIS");
@@ -354,10 +357,11 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
 
       {!stock && (
         <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm text-muted-foreground">
-          <span className="tabular-nums">{item.amountEstimated != null ? formatCurrency(item.amountEstimated) : "Non chiffré"}</span>
+          {/* LE MONTANT VIENT DES PIÈCES (23/11/2026) : sans estimation, le poste ne dit pas « non chiffré » sous un accordé. */}
+          {(item.amountEstimated != null || item.amountGranted == null) && <span className="tabular-nums">{item.amountEstimated != null ? formatCurrency(item.amountEstimated) : "Montant d'après les devis"}</span>}
           {item.amountGranted != null && (
             <>
-              <span aria-hidden>→</span>
+              {item.amountEstimated != null && <span aria-hidden>→</span>}
               <span className="tabular-nums font-semibold text-foreground" title="Montant accordé">{formatCurrency(item.amountGranted)} accordé</span>
             </>
           )}
@@ -548,7 +552,7 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
           libelleFichier={direct ? LIBELLE_JUSTIFICATIF_DIRECT : undefined}
           fichierObligatoire={!(direct && (item.pieces?.devis ?? []).some((d) => !d.annulee && d.fichiers > 0))}
           factureFacultative={direct}
-          montantObligatoire montantMax={item.amountGranted} montantInitial={item.amountGranted}
+          montantObligatoire montantMax={item.amountGranted} montantInitial={item.amountGranted} lirePoste={item.id}
           bouton="Demander le paiement" busy={busy === `pay:${item.id}`} onCancel={fermer}
           onSubmit={(fd) => {
             fd.set("id", item.id);
@@ -858,7 +862,8 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
                     peutTraiter={peutTraiterBC}
                     moi={{ id: regard.moiId ?? "", superAdmin: regard.superAdmin === true }}
                     peutJoindre={peutJoindreBC}
-                    peutModifier={regard.canEdit && !regard.fige && !item.expenseOrderId}
+                    // L'ASSISTANTE QUI PROSPECTE corrige le BC que les Finances renvoient (23/11/2026) — la porte de `modifierBcDuPoste`.
+                    peutModifier={(regard.canEdit || (assistanteAgence && item.pieces.bc?.etape === "A_CORRIGER")) && !regard.fige && !item.expenseOrderId}
                     busy={busy}
                     run={run}
                     onJoindre={() => basculer("DEMANDER_BC")}
@@ -938,6 +943,8 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
             </SectionRepliable>
           );
         })()}
+        {/* LA DISCUSSION DU POSTE (Direction, 23/11/2026) — messages et fichiers, ouverte à tous ceux qui ouvrent la demande. */}
+        <DiscussionDuPoste item={item} moiId={regard.moiId} modere={modereLeFil} chemin={parentLink} />
       </div>
     </li>
   );

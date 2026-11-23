@@ -10,16 +10,19 @@ import { getMyCompanies } from "@/lib/company";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { articleDansMonPerimetre, faitsStock, gestionnairesDuMagasin, peutRecevoirDuStock } from "@/lib/queries/promo-stock";
 import { familleAValidite, familleQuantifiee, type PromoFamille } from "@/lib/promo/catalogue";
-import { libelleArticleStock, lireDateJour, natureDuTransfert, parseQuantity, NATURE_TRANSFERT_LABEL } from "@/lib/promo/stock";
+import {
+  allouer, libelleArticleStock, lireDateJour, lireRepartition, natureDuTransfert, parseQuantity, NATURE_TRANSFERT_LABEL,
+} from "@/lib/promo/stock";
 import {
   REFUS, peutAnnulerDemande, peutAnnulerMouvement, peutAnnulerTransfert, peutConfirmerReception, peutCorriger, peutDeclarerPerte,
   peutDemander, peutDoter, peutEntrerAlaMain, peutGererArticles, peutPoserOuverture, peutServirDemande,
   peutTransfererVers, peutSortirDe,
 } from "@/lib/promo/stock-acces";
 import {
-  annulerMouvementEcrit, confirmerArrivee, corrigerAuCompte, entrerLot, fairePartir, renvoyer,
+  annulerMouvementEcrit, confirmerArrivee, corrigerAuCompte, entrerLot, fairePartir, lotsDe, renvoyer,
   sortirSansContrepartie, sousVerrou, trouverOuCreerArticle,
 } from "@/lib/promo/stock-ecriture";
+import { trouverOuCreerAuCatalogue } from "@/lib/promo/catalogue-ecriture";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -93,17 +96,21 @@ async function societeAutorisee(userId: string, companyId: string | null): Promi
 // ─────────────────────────────── ENTRER DU MATÉRIEL ───────────────────────────────
 
 /**
- * ENTRER DU MATÉRIEL À LA MAIN au magasin central (don, retour fournisseur, stock trouvé…).
- * Super Admin seul : c'est la seule ligne, avec l'inventaire d'ouverture, qui crée du stock sans
- * facture ni transfert. Elle crée un LOT : la date, le coût et la fin de validité voyagent avec.
+ * ENTRER DU MATÉRIEL À LA MAIN au magasin central (don, retour fournisseur, stock trouvé…). C'est
+ * la seule ligne, avec l'inventaire d'ouverture, qui crée du stock sans facture ni transfert :
+ * celle qui tient le magasin et le Super Admin (Direction, 23/11/2026 — `peutEntrerAlaMain`).
+ * Elle crée un LOT : la date, le coût et la fin de validité voyagent avec.
+ *
+ * UN SUPPORT ABSENT DU CATALOGUE (`catalogueId` = « AUTRE », avec son nom et sa famille) y est
+ * ajouté — ou retrouvé sous le même nom — APRÈS que tout le reste de la saisie a été jugé : une
+ * entrée refusée ne laisse pas une ligne de catalogue orpheline (`promo/catalogue-ecriture.ts`).
  */
 export async function entrerEnStock(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   const f = await faitsStock(user);
-  if (!peutEntrerAlaMain(f)) return { ok: false, error: REFUS.superAdmin };
+  if (!peutEntrerAlaMain(f)) return { ok: false, error: REFUS.entree };
   const produitIds = formData.getAll("produitIds").map(String).filter(Boolean);
-  const v = await articleCataloguePourEntree(fdStr(formData, "catalogueId"), produitIds, "QUANTIFIE");
-  if ("error" in v) return { ok: false, error: v.error };
+  const autre = fdStr(formData, "catalogueId") === "AUTRE";
   const companyId = fdStr(formData, "companyId");
   if (!(await societeAutorisee(user.id, companyId))) return { ok: false, error: "Cette société ne vous est pas ouverte." };
   const quantite = parseQuantity(fdStr(formData, "quantite"));
@@ -113,10 +120,20 @@ export async function entrerEnStock(formData: FormData): Promise<ActionResult> {
   const brutValidite = fdStr(formData, "valableJusquau");
   const valableJusquau = lireDateJour(brutValidite);
   if (brutValidite && !valableJusquau) return { ok: false, error: "Date de fin de validité illisible (format attendu : AAAA-MM-JJ)." };
-  if (valableJusquau && !familleAValidite(v.catalogue.famille as PromoFamille)) return { ok: false, error: "Un article durable ne périme pas : laissez la fin de validité vide." };
   const brutCout = fdStr(formData, "coutUnitaire");
   const coutUnitaire = brutCout ? parseQuantity(brutCout) : null;
   if (brutCout && (coutUnitaire == null || coutUnitaire < 0)) return { ok: false, error: "Coût unitaire illisible." };
+  if (autre && valableJusquau && fdStr(formData, "autreFamille") !== "CONSOMMABLE") return { ok: false, error: "Un article durable ne périme pas : laissez la fin de validité vide." };
+
+  let catalogueId = autre ? null : fdStr(formData, "catalogueId");
+  if (autre) {
+    const c = await trouverOuCreerAuCatalogue(user.id, { nom: fdStr(formData, "autreNom"), famille: fdStr(formData, "autreFamille"), exigeProduit: produitIds.length > 0 });
+    if (!c.ok) return { ok: false, error: c.error };
+    catalogueId = c.id;
+  }
+  const v = await articleCataloguePourEntree(catalogueId, produitIds, "QUANTIFIE");
+  if ("error" in v) return { ok: false, error: v.error };
+  if (valableJusquau && !familleAValidite(v.catalogue.famille as PromoFamille)) return { ok: false, error: "Un article durable ne périme pas : laissez la fin de validité vide." };
 
   const nomsProduits = produitIds.length
     ? (await prisma.product.findMany({ where: { id: { in: produitIds } }, select: { canonicalName: true } })).map((p) => p.canonicalName)
@@ -146,7 +163,7 @@ export async function entrerEnStock(formData: FormData): Promise<ActionResult> {
 export async function poserInventaireOuverture(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   const f = await faitsStock(user);
-  if (!peutPoserOuverture(f)) return { ok: false, error: REFUS.superAdmin };
+  if (!peutPoserOuverture(f)) return { ok: false, error: REFUS.entree };
   const produitIds = formData.getAll("produitIds").map(String).filter(Boolean);
   const v = await articleCataloguePourEntree(fdStr(formData, "catalogueId"), produitIds, "QUANTIFIE");
   if ("error" in v) return { ok: false, error: v.error };
@@ -333,8 +350,71 @@ export async function doter(formData: FormData): Promise<ActionResult> {
   if (refus(r)) return { ok: false, error: `Le magasin ne peut pas doter : ${r.refus}` };
   const libelle = await libelleDe(itemId);
   await recordAudit({ actorId: user.id, action: "CREATE", module: MODULE, entityId: itemId, summary: `Dotation — ${libelle} : ${nombre(quantite)} vers ${dest.nom} (en route)` });
-  await prevenir([versId], "Matériel promotionnel en route vers vous", `${nombre(quantite)} × ${libelle} vous ont été dotés. Confirmez la réception quand vous les avez en main.`, user.id);
+  await prevenirDotation(versId, quantite, libelle, user.id);
   return reussi(r.transfertId, `${nombre(quantite)} en route vers ${dest.nom} — il confirmera la réception.`);
+}
+
+/** La personne dotée l'apprend — la même phrase pour une dotation seule et pour chaque ligne d'une répartition. */
+async function prevenirDotation(versId: string, quantite: number, libelle: string, auteurId: string) {
+  await prevenir([versId], "Matériel promotionnel en route vers vous", `${nombre(quantite)} × ${libelle} vous ont été dotés. Confirmez la réception quand vous les avez en main.`, auteurId);
+}
+
+/** Le refus d'une ligne de répartition après le départ des précédentes — levé pour annuler la transaction ENTIÈRE. */
+class RefusRepartition extends Error {}
+
+/**
+ * RÉPARTIR UN ARTICLE ENTRE PLUSIEURS PERSONNES (Direction, 23/11/2026 : « Assia décide à qui donner
+ * chaque quantité de chaque matériel pour les délégués ») — à côté de « Doter », qui en sert une.
+ *
+ * Une DOTATION par personne, chacune « en route » jusqu'à la confirmation de celui qui la reçoit, et
+ * annoncée comme une dotation seule : rien ne change pour le délégué. Mais TOUT OU RIEN : chaque
+ * destinataire est jugé AVANT la transaction ; sous UN verrou de l'article, le total est comparé au
+ * distribuable du magasin (hors lots périmés), puis chaque ligne part. Une ligne qui échouerait
+ * encore annule la répartition entière — trois délégués dotés sur cinq, et deux qui attendent ce
+ * qu'on croit leur avoir envoyé, serait pire qu'un refus. Les lignes à zéro sont ignorées.
+ */
+export async function repartirArticle(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  const f = await faitsStock(user);
+  if (!peutDoter(f)) return { ok: false, error: REFUS.magasin };
+  const itemId = fdStr(formData, "itemId");
+  if (!itemId) return { ok: false, error: "Choisissez l'article à répartir." };
+  const versIds = formData.getAll("versId").map(String);
+  const quantites = formData.getAll("quantite").map(String);
+  if (versIds.length !== quantites.length) return { ok: false, error: "Saisie incomplète : chaque personne doit avoir sa quantité. Rechargez la page." };
+  const lecture = lireRepartition(versIds.map((versId, i) => ({ versId, quantite: quantites[i] })));
+  if (!lecture.ok) return { ok: false, error: lecture.error };
+  const it = await articleDansMonPerimetre(user.id, itemId);
+  if (!it || !it.isActive) return { ok: false, error: "Article introuvable ou archivé." };
+  if (!familleQuantifiee(it.catalogue.famille as PromoFamille)) return { ok: false, error: "Un support numérique ne se répartit pas : il n'a pas de quantité." };
+  const noms = new Map<string, string>();
+  for (const [i, d] of (await Promise.all(lecture.lignes.map((l) => peutRecevoirDuStock(l.versId)))).entries()) {
+    if (!d.ok) return { ok: false, error: `${d.error} Rien n'est parti.` };
+    noms.set(lecture.lignes[i]!.versId, d.nom);
+  }
+  const note = fdStr(formData, "note");
+  const maintenant = new Date();
+  const r = await sousVerrou(itemId, async (tx) => {
+    const place = allouer(await lotsDe(tx, itemId, null), lecture.total, { maintenant, inclurePerimes: false });
+    if (!place.ok) return { refus: `${nombre(lecture.total)} demandées au total. ${place.raison} Rien n'est parti.` };
+    const transferts: string[] = [];
+    for (const l of lecture.lignes) {
+      const p = await fairePartir(tx, itemId, { nature: "DOTATION", deId: null, versId: l.versId, quantite: l.quantite, note, initiateurId: user.id, maintenant });
+      if (!p.ok) throw new RefusRepartition(`${noms.get(l.versId)} : ${p.refus} Rien n'est parti.`);
+      transferts.push(p.transfertId);
+    }
+    return { transferts };
+  }).catch((e: unknown) => {
+    if (e instanceof RefusRepartition) return { refus: e.message };
+    throw e;
+  });
+  if (refus(r)) return { ok: false, error: `Le magasin ne peut pas répartir : ${r.refus}` };
+  const libelle = await libelleDe(itemId);
+  for (const l of lecture.lignes) {
+    await recordAudit({ actorId: user.id, action: "CREATE", module: MODULE, entityId: itemId, summary: `Dotation (répartition) — ${libelle} : ${nombre(l.quantite)} vers ${noms.get(l.versId)} (en route)` });
+    await prevenirDotation(l.versId, l.quantite, libelle, user.id);
+  }
+  return reussi(itemId, `${nombre(lecture.total)} en route, réparties entre ${lecture.lignes.length} personne(s) — chacune confirmera la réception.`);
 }
 
 /**

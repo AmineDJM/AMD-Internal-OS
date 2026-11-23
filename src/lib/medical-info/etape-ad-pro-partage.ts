@@ -37,9 +37,14 @@ export interface EtapeDeclaration {
   lienDossier: string | null;
   /** Le pharmacien (ou le Super Admin) : déposer les déclarations, enregistrer la référence. */
   peutAgir: boolean;
+  /**
+   * C'EST SON TOUR (23/11/2026) — sa lecture à soumettre, le dépôt ANPP, sa validation, ou la déclaration à ouvrir. Faux
+   * pendant que le Directeur des Opérations tranche, ou que des pièces sont attendues d'autres : « À vous » dit le tour.
+   */
+  aVous: boolean;
   /** Aucune déclaration n'existe pour cette demande conclue : le pharmacien peut l'ouvrir. */
   peutOuvrir: boolean;
-  /** La référence du ministère ne s'enregistre qu'une fois la lecture « à déclarer » accordée. */
+  /** La référence ANPP — et le dépôt des déclarations — ne s'ouvrent qu'une fois la lecture « à déclarer » accordée. */
   depot: { ouvert: boolean; motif: string | null };
   pieces: PieceDeDeclaration[];
   /**

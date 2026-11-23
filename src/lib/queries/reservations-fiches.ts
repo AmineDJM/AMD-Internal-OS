@@ -148,6 +148,8 @@ export interface TravailAdPro {
   sousTitre: string;
   statut: string;
   depuis: string;
+  /** ISO — depuis quand (la demande) ; `null` quand rien ne le date. Range « Prospection d'agences », la plus ancienne d'abord. */
+  le: string | null;
   href: string;
 }
 
@@ -169,7 +171,14 @@ const depuisJ = (d: Date, maintenant: Date) => {
 /** Les états qu'on montre dans la file (une fiche réservée reste trente jours, pour qu'on la retrouve). */
 const RETENUE_RESERVEES_MS = 30 * 24 * 3600 * 1000;
 
-async function travauxAdPro(user: SessionUser): Promise<TravailAdPro[]> {
+/** Les fiches de voyage qui attendent l'assistante (à prendre, prises, devis reçu, modifiées après l'envoi) — le compteur de l'onglet. */
+export const ETATS_FICHES_A_TRAITER: EtatDemande[] = ["ENVOYEE", "PRISE", "DEVIS_RECU", "MODIFIEE_APRES_ENVOI"];
+
+/**
+ * LES BC DE POSTE À ÉTABLIR ET LES DEVIS À OBTENIR — l'onglet « Ad & Pro » du bureau, et les « autres tâches » de l'assistante
+ * sur « Prospection d'agences » (23/11/2026) : une lecture, deux écrans.
+ */
+export async function travauxAdPro(user: SessionUser): Promise<TravailAdPro[]> {
   const maintenant = new Date();
   const toutes = user.role === "SUPER_ADMIN";
   const [piecesBc, bcSecretariat, devisSecretariat, promo] = await Promise.all([
@@ -200,16 +209,16 @@ async function travauxAdPro(user: SessionUser): Promise<TravailAdPro[]> {
   return [
     ...piecesBc.map((p) => ({
       id: p.id, type: "BC" as const, titre: p.label, sousTitre: `${p.reference}${postes.get(p.entityId) ? ` · poste « ${postes.get(p.entityId)} »` : ""}`,
-      statut: p.status === "DECLINED" ? "à redéposer" : "à établir", depuis: depuisJ(p.createdAt, maintenant), href: `/pieces/${p.id}`,
+      statut: p.status === "DECLINED" ? "à redéposer" : "à établir", depuis: depuisJ(p.createdAt, maintenant), le: p.createdAt.toISOString(), href: `/pieces/${p.id}`,
     })),
     ...bcSecretariat.map((r) => ({
-      id: r.id, type: "BC" as const, titre: r.title, sousTitre: r.reference, statut: "à établir", depuis: depuisJ(r.createdAt, maintenant), href: `/demandes/${r.id}`,
+      id: r.id, type: "BC" as const, titre: r.title, sousTitre: r.reference, statut: "à établir", depuis: depuisJ(r.createdAt, maintenant), le: r.createdAt.toISOString(), href: `/demandes/${r.id}`,
     })),
     ...devisSecretariat.map((r) => ({
-      id: r.id, type: "DEVIS" as const, titre: r.title, sousTitre: r.reference, statut: "devis à obtenir", depuis: depuisJ(r.createdAt, maintenant), href: `/demandes/${r.id}`,
+      id: r.id, type: "DEVIS" as const, titre: r.title, sousTitre: r.reference, statut: "devis à obtenir", depuis: depuisJ(r.createdAt, maintenant), le: r.createdAt.toISOString(), href: `/demandes/${r.id}`,
     })),
     ...promo.map((d) => ({
-      id: d.id, type: "DEVIS" as const, titre: d.title, sousTitre: `${d.reference} · matériel promotionnel`, statut: "à retranscrire", depuis: "", href: `/promo-material/${d.id}`,
+      id: d.id, type: "DEVIS" as const, titre: d.title, sousTitre: `${d.reference} · matériel promotionnel`, statut: "à retranscrire", depuis: "", le: null, href: `/promo-material/${d.id}`,
     })),
   ];
 }
@@ -217,7 +226,7 @@ async function travauxAdPro(user: SessionUser): Promise<TravailAdPro[]> {
 /** LE COMPTEUR de l'onglet « Ad & Pro » — sans charger les fiches. */
 export async function compteurBureauAdPro(user: SessionUser): Promise<number> {
   const [fiches, travaux] = await Promise.all([
-    prisma.demandeReservation.count({ where: { etat: { in: ["ENVOYEE", "PRISE", "DEVIS_RECU", "MODIFIEE_APRES_ENVOI"] } } }),
+    prisma.demandeReservation.count({ where: { etat: { in: ETATS_FICHES_A_TRAITER } } }),
     travauxAdPro(user),
   ]);
   return fiches + travaux.length;

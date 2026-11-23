@@ -27,7 +27,7 @@ import { sansBloquer } from "@/lib/journal";
 import { PARENTS, revalidate, canEditItems, canAllocate, audit, refusDemandeFermee, loadItem, REFUS_HISTORIQUE, lireModificationsDuBc, filePoste, devisDuPoste, peutTrancherSur, estAssistanteDuPoste } from "./infra/postes/commun";
 import type { AdProItemKind } from "@prisma/client";
 import { notifyUser } from "@/lib/notify";
-import { lienPosteAdPro } from "@/lib/chemins/ad-pro";
+import { lienPosteAdPro, lienPosteAssistante } from "@/lib/chemins/ad-pro";
 
 /**
  * POSTES AD & PRO — LES LIGNES DES DEVIS ET LE BC GÉNÉRÉ (§118.206) : lire, corriger et valider les lignes
@@ -615,6 +615,21 @@ async function preparerLesBrouillons(user: Awaited<ReturnType<typeof requireUser
       if (r.count === 0) continue;
       await inscrireVersionBrouillon({ itemId: id, pieceId: d.pieceId, geste: "CREE", auteur: user, changements: [] });
       prets.push(nom);
+      // UN POSTE « AGENCE » (23/11/2026) : c'est l'assistante qui le prospecte qui finalise son BC — prévenue UNE fois, sur SA
+      // page (« Prospection d'agences »), jamais vers la fiche de la demande qu'elle n'ouvre pas. « À vérifier » au déposant
+      // doublait « À finaliser ».
+      const assistante = p.item.voie === "AGENCE"
+        ? (await prisma.adProExecutionPoste.findUnique({ where: { itemId: id }, select: { assistanteId: true } }))?.assistanteId ?? null
+        : null;
+      if (assistante) {
+        if (assistante !== user.id) {
+          await notifyUser({
+            userId: assistante, type: "ASSIGNMENT", title: "Bon de commande à finaliser", link: lienPosteAssistante(id),
+            body: `${info.ref} — « ${p.item.label} » : agence retenue ${d.fournisseur ?? nom}. Finalisez le BC puis soumettez-le à la Direction Marketing.`,
+          }).catch(sansBloquer("ad-pro.preparerLesBrouillons.notifyUser.assistante"));
+        }
+        continue;
+      }
       // LE DÉPOSANT est prévenu : c'est lui qui vérifie, modifie et valide.
       const deposant = await deposantDuDevis(id, d.pieceId);
       if (deposant && deposant.id !== user.id) {

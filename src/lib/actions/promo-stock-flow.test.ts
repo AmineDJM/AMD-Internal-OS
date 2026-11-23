@@ -14,7 +14,7 @@ import { creerArticleCatalogue, modifierArticleCatalogue } from "./promo-catalog
 import {
   annulerDemande, annulerMouvement, annulerTransfert, confirmerReception, corrigerInventaire, declarerPerte, declarerSupportNumerique,
   demanderMateriel, doter, entrerEnStock, modifierArticleStock, modifierLot, poserInventaireOuverture, refuserDemande, refuserReception,
-  servirDemande, transferer,
+  repartirArticle, servirDemande, transferer,
 } from "./promo-stock-actions";
 import { chargerPageStock, faitsStock } from "@/lib/queries/promo-stock";
 import { relancerReceptionsStock, JOURS_AVANT_RAPPEL } from "@/lib/promo-stock-rappels";
@@ -153,6 +153,7 @@ suite("Stock promotionnel — magasin, dotations confirmées, équipes, attestat
     const fDm = await faitsStock(await actorFor(ids.dm!));
     const fPm2 = await faitsStock(await actorFor(ids.pm2!));
     expect(fDm.gereLeMagasin).toBe(true);
+    expect(fDm.module.creer, "dm a le droit « Créer » du module — sinon l'entrée manuelle qu'on lui ouvre ne prouverait rien").toBe(true);
     expect(fPm2.gereLeMagasin, "pm2 a la directrice au-dessus d'elle dans l'organigramme").toBe(false);
     const fOps = await faitsStock(await actorFor(ids.ops!));
     expect([...fOps.equipe].sort()).toEqual([ids.sup, ids.k1, ids.k2].sort());
@@ -212,12 +213,15 @@ suite("Stock promotionnel — magasin, dotations confirmées, équipes, attestat
     expect((await lire()).description).toBeNull();
   });
 
-  it("entrée manuelle : le Super Admin seul ; un article « par produit » exige son produit", async () => {
-    await comme("dm");
-    const r0 = await entrerEnStock(form({ catalogueId: fiche, produitIds: [produit], quantite: "100", motif: "don" }));
-    expect(r0).toEqual({ ok: false, error: REFUS.superAdmin });
+  it("entrée manuelle : la directrice qui tient le magasin (Direction, 23/11/2026) et le Super Admin — ni un délégué, ni pm2 ; un article « par produit » exige son produit", async () => {
+    for (const qui of ["k1", "pm2"]) {
+      await comme(qui);
+      const r0 = await entrerEnStock(form({ catalogueId: fiche, produitIds: [produit], quantite: "100", motif: "don" }));
+      expect(r0, qui).toEqual({ ok: false, error: REFUS.entree });
+    }
+    expect(await prisma.promoStockItem.count({ where: { catalogueId: fiche } }), "un refus n'a rien créé").toBe(0);
 
-    await comme("sa");
+    await comme("dm");
     const sansProduit = await entrerEnStock(form({ catalogueId: fiche, quantite: "100", motif: "don" }));
     expect(sansProduit.ok).toBe(false);
     expect(sansProduit.error).toMatch(/produit/);
@@ -438,8 +442,14 @@ suite("Stock promotionnel — magasin, dotations confirmées, équipes, attestat
     const r2 = await poserInventaireOuverture(form({ catalogueId: fiche, produitIds: [produit], detenteurId: ids.k3!, quantite: "15" }));
     expect(r2.ok).toBe(false);
     expect(r2.error).toMatch(/déjà posé/);
+    // La directrice peut désormais poser un inventaire d'ouverture (23/11) : le magasin est refusé ici
+    // parce que le SIEN est déjà posé ; un délégué, lui, est refusé par la règle.
     await comme("dm");
-    expect((await poserInventaireOuverture(form({ catalogueId: fiche, produitIds: [produit], quantite: "1" }))).ok).toBe(false);
+    const dejaPose = await poserInventaireOuverture(form({ catalogueId: fiche, produitIds: [produit], quantite: "1" }));
+    expect(dejaPose.ok).toBe(false);
+    expect(dejaPose.error).toMatch(/déjà posé/);
+    await comme("k1");
+    expect(await poserInventaireOuverture(form({ catalogueId: stylo, quantite: "1" }))).toEqual({ ok: false, error: REFUS.entree });
   });
 
   it("annuler un mouvement écrit son INVERSE ; il ne passe pas s'il creusait un lot, ni deux fois", async () => {
@@ -575,5 +585,75 @@ suite("Stock promotionnel — magasin, dotations confirmées, équipes, attestat
     expect(a.enRoute).toBe(Number(enRoute._sum.quantite ?? 0));
     const somme = a.soldes.reduce((t, s) => t + s.quantite, 0);
     expect(Math.round(somme * 1000) / 1000, "les soldes visibles en vue globale additionnent le registre").toBe(a.total);
+  });
+
+  it("entrée manuelle d'un support ABSENT du catalogue (23/11) : la directrice l'y ajoute — une fois ; un délégué, non", async () => {
+    const nom = `${TAG}Porte-badge`;
+    await comme("k1");
+    expect(await entrerEnStock(form({ catalogueId: "AUTRE", autreNom: nom, autreFamille: "DURABLE", quantite: "5", motif: "Don" }))).toEqual({ ok: false, error: REFUS.entree });
+    expect(await prisma.promoCatalogueArticle.count({ where: { nom } }), "le refus n'a rien ajouté au catalogue").toBe(0);
+
+    await comme("dm");
+    const sansNom = await entrerEnStock(form({ catalogueId: "AUTRE", autreFamille: "DURABLE", quantite: "5", motif: "Don" }));
+    expect(sansNom.error).toMatch(/nom du nouvel article/);
+    const numerique = await entrerEnStock(form({ catalogueId: "AUTRE", autreNom: nom, autreFamille: "NUMERIQUE", quantite: "5", motif: "Don" }));
+    expect(numerique.ok, "un support numérique se déclare, il n'entre pas en stock").toBe(false);
+    const durableDate = await entrerEnStock(form({ catalogueId: "AUTRE", autreNom: nom, autreFamille: "DURABLE", quantite: "5", motif: "Don", valableJusquau: "2027-01-01" }));
+    expect(durableDate.error).toMatch(/durable ne périme pas/);
+    expect(await prisma.promoCatalogueArticle.count({ where: { nom } }), "une entrée refusée ne laisse pas de ligne de catalogue orpheline").toBe(0);
+
+    const r = await entrerEnStock(form({ catalogueId: "AUTRE", autreNom: nom, autreFamille: "DURABLE", quantite: "12", motif: "Don du congrès" }));
+    expect(r.ok, r.error).toBe(true);
+    const cat = await prisma.promoCatalogueArticle.findFirstOrThrow({ where: { nom }, select: { reference: true, famille: true, actif: true, exigeProduit: true, createdById: true } });
+    expect(cat).toMatchObject({ famille: "DURABLE", actif: true, exigeProduit: false, createdById: ids.dm });
+    expect(cat.reference).toMatch(/^CAT-\d{4,}$/);
+    expect(await solde(null, r.id!)).toBe(12);
+    // Le même nom, à la casse près, retombe sur la MÊME ligne du catalogue et le MÊME article de stock.
+    const r2 = await entrerEnStock(form({ catalogueId: "AUTRE", autreNom: ` ${TAG}PORTE-BADGE `, autreFamille: "DURABLE", quantite: "3", motif: "Reliquat" }));
+    expect(r2.ok, r2.error).toBe(true);
+    expect(r2.id).toBe(r.id);
+    expect(await prisma.promoCatalogueArticle.count({ where: { nom: { equals: nom, mode: "insensitive" } } })).toBe(1);
+    expect(await solde(null, r.id!)).toBe(15);
+  });
+
+  it("RÉPARTIR (23/11) : 30 unités entre trois délégués — trois dotations en route, le magasin −30 ; trop, et rien ne part", async () => {
+    await comme("dm");
+    const e = await entrerEnStock(form({ catalogueId: stylo, quantite: "40", motif: "Réassort à répartir" }));
+    expect(e.ok, e.error).toBe(true);
+    const item = e.id!;
+    expect(await solde(null, item), "le lot périmé du stylo a été détruit plus haut : 40 distribuables").toBe(40);
+    const transferts = () => prisma.promoStockTransfer.findMany({ where: { itemId: item } });
+
+    for (const qui of ["k1", "pm2"]) {
+      await comme(qui);
+      expect(await repartirArticle(form({ itemId: item, versId: [ids.k1!], quantite: ["5"] })), `${qui} ne répartit pas : c'est un geste du magasin`).toEqual({ ok: false, error: REFUS.magasin });
+    }
+
+    await comme("dm");
+    const trop = await repartirArticle(form({ itemId: item, versId: [ids.k1!, ids.k2!, ids.k3!], quantite: ["20", "11", "10"] }));
+    expect(trop.ok, "41 pour 40 distribuables").toBe(false);
+    expect(trop.error).toMatch(/40 de distribuable/);
+    const sansModule = await repartirArticle(form({ itemId: item, versId: [ids.k1!, ids.reg!], quantite: ["5", "5"] }));
+    expect(sansModule.error, "un destinataire qui ne pourrait pas confirmer refuse TOUT").toMatch(/n'a pas accès au stock promotionnel/);
+    expect((await repartirArticle(form({ itemId: item, versId: [ids.k1!], quantite: ["0"] }))).error).toMatch(/Rien à répartir/);
+    expect(await transferts(), "aucun refus n'a rien fait partir").toEqual([]);
+    expect(await solde(null, item)).toBe(40);
+
+    // La ligne à zéro (reg, sans le module) est IGNORÉE, pas jugée.
+    const r = await repartirArticle(form({ itemId: item, versId: [ids.k1!, ids.k2!, ids.reg!, ids.k3!], quantite: ["10", "12", "0", "8"], note: "Tournée de décembre" }));
+    expect(r.ok, r.error).toBe(true);
+    const parties = await transferts();
+    expect(Object.fromEntries(parties.map((t) => [t.versId, Number(t.quantite)]))).toEqual({ [ids.k1!]: 10, [ids.k2!]: 12, [ids.k3!]: 8 });
+    for (const t of parties) {
+      expect([t.nature, t.statut, t.deId, t.initiateurId, t.note]).toEqual(["DOTATION", "EN_ROUTE", null, ids.dm, "Tournée de décembre"]);
+    }
+    expect(await solde(null, item), "le magasin −30").toBe(10);
+    for (const k of ["k1", "k2", "k3"]) {
+      expect(await solde(ids[k]!, item), `rien n'entre chez ${k} avant SA confirmation`).toBe(0);
+      expect(await prisma.notification.count({ where: { userId: ids[k]!, title: "Matériel promotionnel en route vers vous", body: { contains: "Stylo" } } }), `${k} est prévenu`).toBe(1);
+    }
+    await comme("k2");
+    expect((await confirmerReception(form({ transfertId: parties.find((t) => t.versId === ids.k2)!.id }))).ok).toBe(true);
+    expect(await solde(ids.k2!, item)).toBe(12);
   });
 });

@@ -531,13 +531,15 @@ export function classerExclusionsCircuits(): void {
   ]);
   X("LE STOCK PROMOTIONNEL (§118.164) : chaque geste ATTESTE un fait physique — « je l'ai reçu » (confirmer "
     + "une réception), « je l'ai remis » (doter, transférer, rendre), « je l'ai perdu », « je l'ai compté » "
-    + "(inventaire d'ouverture, correction), « il est entré au magasin ». Un modèle ne voit ni le magasin ni la "
+    + "(inventaire d'ouverture, correction), « il est entré au magasin », « je le répartis entre ces délégués ». "
+    + "Un modèle ne voit ni le magasin ni la "
     + "voiture d'un délégué : lui confier ces gestes ferait porter au nom d'une personne un stock qu'elle n'a "
     + "jamais vu, et une confirmation de réception est précisément ce qu'un document injecté demanderait (§118.15). "
     + "Adam est de plus en pause de développement. Un clic sur Sales & Marketing › Stock promotionnel.", [
     "promo-stock-actions:entrerEnStock", "promo-stock-actions:poserInventaireOuverture",
     "promo-stock-actions:declarerSupportNumerique", "promo-stock-actions:modifierArticleStock",
-    "promo-stock-actions:modifierLot", "promo-stock-actions:doter", "promo-stock-actions:transferer",
+    "promo-stock-actions:modifierLot", "promo-stock-actions:doter", "promo-stock-actions:repartirArticle",
+    "promo-stock-actions:transferer",
     "promo-stock-actions:confirmerReception", "promo-stock-actions:refuserReception",
     "promo-stock-actions:annulerTransfert", "promo-stock-actions:declarerPerte",
     "promo-stock-actions:corrigerInventaire", "promo-stock-actions:annulerMouvement",

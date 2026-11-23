@@ -37,6 +37,7 @@ import { sitsOnPaymentCentre } from "@/modules/finances/partage";
 import { moduleDeLEntite } from "./modules";
 import { AD_PRO_TYPES, adProStakeholders, dansLaPorteeAdPro, isRequestOwner, societeOuverteAdPro, trancheAdPro } from "./ad-pro";
 import { GESTES_D_ECRITURE_DE_PIECE, lecteurDeLaDemandeDeValidation } from "./demande-validation";
+import { lecturePourConformite } from "./conformite-bat";
 
 /**
  * LES PIÈCES LEGAL qu'une personne peut ouvrir, alimenter ou gérer — EN LOT, par LA règle de la
@@ -83,6 +84,8 @@ import { GESTES_D_ECRITURE_DE_PIECE, lecteurDeLaDemandeDeValidation } from "./de
  *    DÉSIGNÉS, comme partout — un devis restreint le reste. Le matériel
  *    promotionnel a sa propre règle, plus étroite (la directrice du dossier, lue sur
  *    l'organigramme) : il n'entre pas ici. Un contrat de consulting passé aux RH non plus (§118.150).
+ *  • En LECTURE seulement, pour l'ASSISTANTE qui prospecte un poste (parcours agence, 23/11/2026) :
+ *    les pièces rattachées à CE poste (devis des agences, BC), qu'elle ait Legal ou non.
  *
  * ── CE QUE LA FICHE LEGAL N'OUVRE PAS ───────────────────────────────────────────────────────
  *
@@ -204,6 +207,17 @@ export async function accesAuxPiecesLegalDetaille(
     }
   }
 
+  // L'ASSISTANTE QUI PROSPECTE UN POSTE (parcours agence, 23/11/2026) LIT les pièces d'achat de CE poste — les devis des agences,
+  // le BC à finaliser ou à corriger — depuis sa page « Prospection d'agences », sans Legal ni Finances, et quelle que soit la
+  // société que Legal lui ouvre : les pièces rattachées au poste qu'on lui a confié (`AdProItemPiece`), en LECTURE, rien d'autre.
+  if (actions.includes("VIEW")) {
+    const confiees = await prisma.adProItemPiece.findMany({
+      where: { legalDocumentId: { in: uniques }, item: { execution: { assistanteId: user.id } } },
+      select: { legalDocumentId: true },
+    });
+    for (const l of confiees) parException.add(l.legalDocumentId);
+  }
+
   // LA PORTE DE LA FICHE, par nature : les mêmes trois entrées que `/legal/[id]`.
   const portee = legalViewScope({
     onLegal: userCan(user, "LEGAL", "VIEW"),
@@ -282,7 +296,7 @@ export async function canAccessEntity(
   // UNE DÉCLARATION D'INFORMATION MÉDICALE : la règle de SA FICHE (§118.184 — audit 360°, S12).
   //
   // Ce type tombait dans le `default` — le droit de module suffisait : tout porteur du module téléchargeait
-  // les pièces de n'importe quelle déclaration (attestations, récépissés du ministère, pièces demandées à
+  // les pièces de n'importe quelle déclaration (attestations, récépissés de l'ANPP, pièces demandées à
   // un organisateur), alors que la fiche ne s'ouvre qu'au pharmacien en charge, à qui valide, à la vue
   // globale — et à la personne SOLLICITÉE pour une pièce, qui doit pouvoir relire ce qu'elle a déposé
   // (`canViewDeclaration`, la même fonction que la fiche : une seconde écriture divergerait, §118.5).
@@ -331,6 +345,10 @@ export async function canAccessEntity(
   // On DÉLÈGUE, on ne recopie pas : la règle d'une opération Ad & Pro est déjà écrite plus bas
   // (parties prenantes, demandeur, droits de module) et la redire ici en ferait une seconde
   // vérité qui prendrait du retard au premier ajustement (§118.5).
+  // LE BAT QUE LE PHARMACIEN CONTRÔLE (23/11/2026) — le poste et sa demande, EN LECTURE, même une « Autre demande » dont il
+  // n'a pas le module : sans quoi la décision de conformité répondait « Poste introuvable » (`conformite-bat.ts`).
+  if (await lecturePourConformite(user, entityType, entityId, action)) return true;
+
   if (entityType === "AD_PRO_ITEM") {
     const poste = await prisma.adProItem.findUnique({
       where: { id: entityId },

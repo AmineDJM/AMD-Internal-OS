@@ -729,9 +729,14 @@ async function payerLesFacturesDuPoste(a: {
  * LE BC D'UN POSTE QU'ON PEUT MODIFIER — la porte de « Modifier le BC » et de son aperçu, une seule fois : le poste existe et
  * s'édite, son paiement n'est pas demandé, le BC lui est rattaché et n'est PAS SIGNÉ (un BC signé ne se modifie plus depuis
  * le poste : il se remplace avec les Finances).
+ *
+ * L'ASSISTANTE QUI PROSPECTE LE POSTE (parcours agence, 23/11/2026) y entre aussi, sans les modules Ad & Pro — sur CE poste,
+ * et à UNE étape : le BC que les Finances ont RENVOYÉ pour correction (« Corriger le bon de commande renvoyé », sa page
+ * « Prospection d'agences »). Avant, c'est le brouillon qu'elle finalise ; après la signature de la Direction Marketing, le
+ * BC ne se retouche que si le signataire le renvoie.
  */
 async function bcModifiableDuPoste(user: Awaited<ReturnType<typeof requireUser>>, formData: FormData): Promise<
-  | { ok: true; item: NonNullable<Awaited<ReturnType<typeof loadItem>>>["item"]; owner: NonNullable<Awaited<ReturnType<typeof loadItem>>>["owner"]; info: { ref: string }; legalDocumentId: string }
+  | { ok: true; item: NonNullable<Awaited<ReturnType<typeof loadItem>>>["item"]; owner: NonNullable<Awaited<ReturnType<typeof loadItem>>>["owner"]; info: { ref: string }; legalDocumentId: string; qui: string }
   | { ok: false; error: string }
 > {
   const id = fdStr(formData, "id");
@@ -741,18 +746,22 @@ async function bcModifiableDuPoste(user: Awaited<ReturnType<typeof requireUser>>
   if (!found) return { ok: false, error: "Poste introuvable." };
   if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
-  if (!canEditItems(user, owner.parent)) return { ok: false, error: "Non autorisé." };
+  const parLeDemandeur = canEditItems(user, owner.parent);
+  if (!parLeDemandeur && !(await estAssistanteDuPoste(user.id, item.id))) return { ok: false, error: "Non autorisé." };
   if (item.expenseOrderId) return { ok: false, error: "Le paiement de ce poste est déjà demandé : son bon de commande ne se modifie plus." };
   const info = await PARENTS[owner.parent].load(owner.id);
   if (!info) return { ok: false, error: "Opération introuvable." };
   const lien = await prisma.adProItemPiece.findFirst({ where: { itemId: id, legalDocumentId, nature: "BON_DE_COMMANDE" }, select: { legalDocument: { select: { signedAt: true, reference: true } } } });
   if (!lien) return { ok: false, error: "Ce bon de commande n'est pas rattaché à ce poste." };
+  if (!parLeDemandeur && (await piecesDesPostes([id])).get(id)?.bcs.find((b) => b.id === legalDocumentId)?.etape !== "A_CORRIGER") {
+    return { ok: false, error: "Ce bon de commande se corrige ici quand les Finances vous le renvoient — il n'est pas renvoyé." };
+  }
   // SIGNÉ, SEUL SON NUMÉRO SE MODIFIE ENCORE (Direction, 14/10/2026) — jugé au serveur en comparant la pièce et la saisie : le
   // BC garde alors son état et sa signature. Toute autre modification se fait avec les Finances.
   if (lien.legalDocument.signedAt && !(await estRevisionDeNumeroSeul(user, legalDocumentId, lireModificationsDuBc(formData)))) {
     return { ok: false, error: `Le bon de commande ${lien.legalDocument.reference ?? ""} est signé : il ne se modifie plus (seul son numéro de référence peut encore changer). Voyez avec les Finances pour le remplacer.` };
   }
-  return { ok: true, item, owner, info, legalDocumentId };
+  return { ok: true, item, owner, info, legalDocumentId, qui: parLeDemandeur ? "le demandeur du poste" : "l'assistante qui prospecte le poste" };
 }
 
 /**
@@ -765,7 +774,7 @@ export async function previsualiserBcDuPoste(formData: FormData): Promise<Apercu
   if (!lu.ok) return { ok: false, error: lu.error };
   const modifications = lireModificationsDuBc(formData);
   const r = await previsualiserRevision(user, { legalDocumentId: lu.legalDocumentId, modifications }, {
-    delegation: `${lu.info.ref} — poste « ${lu.item.label} » : aperçu de son bon de commande par le demandeur du poste`,
+    delegation: `${lu.info.ref} — poste « ${lu.item.label} » : aperçu de son bon de commande par ${lu.qui}`,
   });
   if (!r.ok) return { ok: false, error: r.motif };
   return apercuPourEcran(r, true);
@@ -781,7 +790,7 @@ export async function modifierBcDuPoste(formData: FormData): Promise<ActionResul
   const user = await requireUser();
   const lu = await bcModifiableDuPoste(user, formData);
   if (!lu.ok) return { ok: false, error: lu.error };
-  const { item, owner, info, legalDocumentId } = lu;
+  const { item, owner, info, legalDocumentId, qui } = lu;
   // TOUT SE MODIFIE (Direction, 10/2026 — « chaque écriture et détail ») : le formulaire est celui du composeur de pièces,
   // lu champ par champ — ce qu'il ne porte pas garde sa valeur (§118.152).
   const modifications = lireModificationsDuBc(formData);
@@ -790,7 +799,7 @@ export async function modifierBcDuPoste(formData: FormData): Promise<ActionResul
   if (refusSaisie) return { ok: false, error: refusSaisie };
   const champ = (cle: string): string | null => { const v = fdStr(formData, cle); return v && v.trim() ? v.trim() : null; };
   const accorde = item.amountGranted != null ? toNumber(item.amountGranted) : null;
-  const delegation = `${info.ref} — poste « ${item.label} » : son bon de commande, modifié par le demandeur du poste`;
+  const delegation = `${info.ref} — poste « ${item.label} » : son bon de commande, modifié par ${qui}`;
   // LE PLAFOND DE L'ACCORDÉ, LE MÊME QU'À LA GÉNÉRATION (audit M-03) : le TTC que la fabrique composera pour CE BC révisé —
   // remises, TVA, taxes comprises — prend la place des lignes de son devis, et l'accordé s'entend TTC. Le HT seul laissait passer
   // un BC de 440 000 HT (523 600 TTC) pour 450 000 accordés, que la génération aurait refusé.

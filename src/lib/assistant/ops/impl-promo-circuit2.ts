@@ -375,7 +375,7 @@ export const PROMO2_OPS_IMPL: Record<string, OpImpl> = {
       const d = await dossierALEtape(user, input, EXECUTION, PHRASE_EXECUTION);
       if ("error" in d) return d;
       const formalite = formaliteDe(opStr(input, "mode"));
-      if (!formalite) return { error: "Quelle formalité accompagne ce paiement (champ « mode ») : demande de visa publicitaire, ou déclaration au ministère ?" };
+      if (!formalite) return { error: "Quelle formalité accompagne ce paiement (champ « mode ») : demande de visa publicitaire, ou déclaration à l'ANPP ?" };
       const f = designerFacture(await executionDuDossier(d.id), opStr(input, "invoiceRef") || opStr(input, "supplier"));
       if ("error" in f) return f;
       if (f.facture.paiementDemande) return { error: `Le paiement de la facture ${f.facture.reference ?? ""} est déjà demandé (${f.facture.etatReglement}).` };
@@ -409,7 +409,7 @@ export const PROMO2_OPS_IMPL: Record<string, OpImpl> = {
       const d = await dossierALEtape(user, input, EXECUTION, PHRASE_EXECUTION);
       if ("error" in d) return d;
       const formalite = formaliteDe(opStr(input, "mode"));
-      if (!formalite) return { error: "Quelle formalité (champ « mode ») : demande de visa publicitaire, ou déclaration au ministère ?" };
+      if (!formalite) return { error: "Quelle formalité (champ « mode ») : demande de visa publicitaire, ou déclaration à l'ANPP ?" };
       const f = designerFacture(await executionDuDossier(d.id), opStr(input, "invoiceRef") || opStr(input, "supplier"));
       if ("error" in f) return f;
       if (f.facture.demandeInfoMedicale) return { error: `La facture ${f.facture.reference ?? ""} a déjà sa demande à l'information médicale (${f.facture.demandeInfoMedicale.reference}).` };
@@ -426,10 +426,10 @@ export const PROMO2_OPS_IMPL: Record<string, OpImpl> = {
   },
 };
 
-/** « visa », « déclaration », « ministère » — la formalité en clair ; rien de reconnu = on demande. */
+/** « visa », « déclaration », « ANPP » (ou « ministère ») — la formalité en clair ; rien de reconnu = on demande. */
 function formaliteDe(brut: string): { code: "AD_VISA" | "MIP"; libelle: string } | null {
   const b = brut.toLowerCase();
   if (/visa/.test(b)) return { code: "AD_VISA", libelle: "demande de visa publicitaire" };
-  if (/d[ée]clar|minist|mip/.test(b)) return { code: "MIP", libelle: "déclaration au ministère" };
+  if (/d[ée]clar|minist|anpp|mip/.test(b)) return { code: "MIP", libelle: "déclaration à l'ANPP" };
   return null;
 }

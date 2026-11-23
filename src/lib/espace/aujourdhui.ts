@@ -1,4 +1,6 @@
 import { joursCivilsDepuis } from "@/lib/calendar-tz";
+import { CHEMIN_AGENCES, LIBELLE_AGENCES } from "@/lib/chemins/ad-pro";
+import { RACCOURCIS, type CleRaccourci } from "@/lib/espace/raccourcis";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -9,7 +11,7 @@ import { joursCivilsDepuis } from "@/lib/calendar-tz";
  * GROUPÉE PAR LOT et triée par urgence, « Ma semaine », l'encart « Mon équipe » pour un N+1,
  * les rappels, les raccourcis du métier et un bloc « Moi » discret.
  *
- * Ce module porte les RÈGLES, sans base et sans import lourd (il ne lit que `calendar-tz`, pur) :
+ * Ce module porte les RÈGLES, sans base et sans import lourd (il ne lit que des modules purs : `calendar-tz`, `chemins/ad-pro`, `espace/raccourcis`) :
  * la page serveur le nourrit avec ce que le centre d'actions a déjà filtré par les droits de la
  * personne (`getActionCenter`), et le composant client de la file en relit les types. Rien n'y
  * est estimé : un chiffre qu'aucune donnée ne porte n'a pas de tuile (`null`), on ne le fabrique
@@ -61,7 +63,7 @@ export type NatureLot =
   | "paiement" | "declaration" | "declaration-prete" | "declaration-pieces" | "declaration-finale"
   | "validation" | "conge" | "achat" | "demande" | "adpro" | "correction" | "plan" | "mission"
   | "invitation" | "formation" | "regulatory" | "piece" | "directive" | "tache" | "stock" | "promo"
-  | "prise-en-charge" | "support" | "dossier" | "agence" | "total-dg" | "autre";
+  | "prise-en-charge" | "support" | "dossier" | "agence" | "bat" | "total-dg" | "autre";
 
 interface DefNature {
   /** Le chapeau — le filtre de la file et l'étiquette du lot. */
@@ -127,6 +129,12 @@ export const NATURES: Record<NatureLot, DefNature> = {
   agence: {
     chapeau: "Ad & Pro", titre: (n) => `${n} ${pl(n, "geste")} du parcours agence`,
     sousTitre: "Devis, bon de commande, BAT — c'est à vous", verbe: "Ouvrir", liste: "/ad-pro", decision: false,
+  },
+  // LES BAT DE L'INFORMATION MÉDICALE (23/11/2026) : contrôler un BAT n'est pas « un geste du parcours agence » — c'est le
+  // travail du pharmacien, qu'il fait sur SON écran (« À faire — Information médicale »), décision sur la ligne.
+  bat: {
+    chapeau: "Information médicale", titre: (n) => `${n} BAT à contrôler`,
+    sousTitre: "Conformité avant impression — décidez sur la ligne", verbe: "Contrôler", liste: "/information-medicale#bat", decision: true,
   },
   // LE TOTAL D'UNE DEMANDE AU-DESSUS DU SEUIL (recette du 21/11/2026) : le DG ne le voyait que sur la fiche.
   "total-dg": {
@@ -228,6 +236,7 @@ export function natureDe(e: ElementFile): NatureLot {
   if (o.startsWith("PORTE_DG:")) return "total-dg";
   // Les gestes du parcours agence (`file-agences.ts`, clé `agence-…`) — pas les postes à décider, qui sont des arbitrages.
   if (o.startsWith("AD_PRO_ITEM:") && e.key.startsWith("agence-")) return "agence";
+  if (o.startsWith("AD_PRO_ITEM:") && e.key.startsWith("bat-")) return "bat";
   if (e.module === "Ad & Pro") return "adpro";
   if (o.startsWith("CONGRESS_NATIONAL:") || o.startsWith("CONGRESS_INTERNATIONAL:")) return "prise-en-charge";
   // Les lignes « reste » des files de décision : la file dont elles ferment la liste.
@@ -402,8 +411,8 @@ function echeanceDansDe(e: ElementFile, now: Date, retard: number | null): numbe
   return Math.max(0, joursCivilsDepuis(now, d));
 }
 
-/** Le lien qui ouvre le lot : l'écran de la nature, filtré quand l'écran sait l'être. */
-function gesteDuLot(nature: NatureLot, lignes: LigneLot[]): Geste {
+/** Le lien qui ouvre le lot : l'écran de la nature, filtré quand l'écran sait l'être — « Prospection d'agences » pour qui l'ouvre. */
+function gesteDuLot(nature: NatureLot, lignes: LigneLot[], module: string): Geste {
   const def = NATURES[nature];
   if (nature === "paiement") {
     // « Régler les N » OUVRE l'écran des paiements, ces ordres mis en évidence : le règlement reste
@@ -417,7 +426,7 @@ function gesteDuLot(nature: NatureLot, lignes: LigneLot[]): Geste {
     return { libelle, href: ids.length ? `/finances/paiements-a-faire?focus=${ids.join(",")}#ord-${ids[0]}` : "/finances/paiements-a-faire" };
   }
   if (lignes.length === 1) return { libelle: def.verbe, href: lignes[0].geste.href };
-  return { libelle: `${def.verbe} — tout voir`, href: def.liste ?? lignes[0].geste.href };
+  return { libelle: `${def.verbe} — tout voir`, href: (nature === "agence" && module === LIBELLE_AGENCES ? CHEMIN_AGENCES : def.liste) ?? lignes[0].geste.href };
 }
 
 /**
@@ -506,7 +515,7 @@ export function construireLot(g: GroupeFile): Lot | null {
     return {
       id, nature: g.nature, module: g.module, chapeau: g.nature === "autre" ? g.module : def.chapeau, recent, urgents, titre, sousTitre,
       n, montant, enRetard, retardMax, retardCumule, attenteMax, ton, lignes, familles,
-      geste: n === 0 && g.suite ? g.suite : gesteDuLot(g.nature, lignes),
+      geste: n === 0 && g.suite ? g.suite : gesteDuLot(g.nature, lignes, g.module),
       suite: n > 0 ? g.suite : null,
     };
   }
@@ -679,50 +688,6 @@ export interface Tuile {
   ton: "late" | "warn" | "ok" | "";
 }
 
-export type CleRaccourci =
-  | "validations" | "paiements" | "centre_paiement" | "info_med" | "adoption" | "admin" | "ad_pro"
-  | "budget_marketing" | "budgets" | "directives" | "regulatory" | "pipeline" | "stocks" | "logistique"
-  | "ventes" | "non_servi" | "pch" | "moyens_generaux" | "ma_journee" | "plan_tournee" | "coaching"
-  | "rapports_terrain" | "secretariat" | "legal" | "drive" | "documents" | "bd" | "demandes_rh"
-  | "conges_rh" | "formations" | "pieces" | "taches" | "promo";
-
-/** Le raccourci : un libellé, une adresse, et le module dont la porte décide (filtré par l'appelant). */
-export const RACCOURCIS: Record<CleRaccourci, { label: string; href: string; module: string }> = {
-  validations: { label: "Centre de validations", href: "/validations", module: "VALIDATIONS" },
-  paiements: { label: "Paiements à faire", href: "/finances/paiements-a-faire", module: "FINANCES" },
-  centre_paiement: { label: "Centre de paiement", href: "/centre-de-paiement", module: "PAYMENT_CENTRE" },
-  info_med: { label: "Information médicale", href: "/information-medicale", module: "MEDICAL_INFO" },
-  adoption: { label: "Score d'adoption", href: "/admin/adoption", module: "ADMIN" },
-  admin: { label: "Administration", href: "/admin", module: "ADMIN" },
-  ad_pro: { label: "Ad & Pro", href: "/ad-pro", module: "SPONSORING" },
-  budget_marketing: { label: "Budget Marketing", href: "/budget-marketing", module: "BUDGET_MARKETING" },
-  budgets: { label: "Budgets", href: "/budgets", module: "BUDGETS" },
-  directives: { label: "Directives", href: "/directives", module: "DIRECTIVES" },
-  regulatory: { label: "Suivi des dossiers", href: "/regulatory", module: "REGULATORY" },
-  pipeline: { label: "Pipeline", href: "/regulatory/pipeline", module: "REGULATORY_PIPELINE" },
-  stocks: { label: "Stocks", href: "/stocks", module: "STOCKS" },
-  logistique: { label: "Logistique", href: "/logistics", module: "LOGISTICS" },
-  ventes: { label: "Ventes PCH", href: "/sales", module: "PCH_VENTES" },
-  non_servi: { label: "Non servi", href: "/sales/non-servi", module: "PCH_VENTES" },
-  pch: { label: "Marchés PCH", href: "/pch", module: "PCH" },
-  moyens_generaux: { label: "Moyens généraux", href: "/moyens-generaux", module: "GENERAL_MEANS" },
-  ma_journee: { label: "Ma journée", href: "/medical/ma-journee", module: "MEDICAL" },
-  plan_tournee: { label: "Plan de tournée", href: "/medical/plan-de-tournee", module: "MEDICAL" },
-  coaching: { label: "Coaching", href: "/medical/coaching", module: "MEDICAL" },
-  rapports_terrain: { label: "Rapports terrain", href: "/medical/rapports", module: "FIELD_REPORTS" },
-  secretariat: { label: "Bureau du secrétariat", href: "/demandes", module: "ADMIN_REQUESTS" },
-  legal: { label: "Legal", href: "/legal", module: "LEGAL" },
-  drive: { label: "Drive", href: "/drive", module: "DRIVE" },
-  documents: { label: "Documents", href: "/documents", module: "DOCUMENTS" },
-  bd: { label: "Business Development", href: "/business-development/projets", module: "BD_PROJECTS" },
-  demandes_rh: { label: "Demandes RH", href: "/rh/demandes", module: "HR_REQUESTS" },
-  conges_rh: { label: "Congés et absences", href: "/rh/conges", module: "HR_REQUESTS" },
-  formations: { label: "Formations", href: "/formations", module: "TRAINING" },
-  pieces: { label: "Pièces demandées", href: "/pieces", module: "WORKSPACE" },
-  taches: { label: "Mes tâches", href: "/mon-espace/taches", module: "WORKSPACE" },
-  promo: { label: "Matériel promotionnel", href: "/promo-material", module: "PROMO_MATERIAL" },
-};
-
 interface Composition {
   tuiles: CleTuile[];
   raccourcis: CleRaccourci[];
@@ -746,7 +711,7 @@ export const METIERS: Record<string, Composition> = {
   HEAD_OF_SALES: { tuiles: ["a_traiter", "directives", "en_retard", "equipe_retards"], raccourcis: ["ventes", "non_servi", "stocks"] },
   SALES_USER: { tuiles: ["stocks", "en_retard", "taches"], raccourcis: ["ventes", "stocks", "pch"] },
   LOGISTICS_MANAGER: { tuiles: ["a_traiter", "en_retard", "taches", "plus_longue_attente"], raccourcis: ["logistique", "stocks", "moyens_generaux"] },
-  DIRECTION_ASSISTANT: { tuiles: ["demandes", "en_retard", "a_traiter", "plus_longue_attente"], raccourcis: ["secretariat", "moyens_generaux", "legal", "promo"] },
+  DIRECTION_ASSISTANT: { tuiles: ["demandes", "en_retard", "a_traiter", "plus_longue_attente"], raccourcis: ["agences", "secretariat", "moyens_generaux", "legal", "promo"] },
   COORDINATOR: { tuiles: ["courses_ouvertes", "courses_30j", "courses_retard_30j"], raccourcis: ["taches", "secretariat", "drive"] },
   VIEWER: { tuiles: ["pieces", "taches", "rappels"], raccourcis: ["pieces", "documents", "drive"] },
 };

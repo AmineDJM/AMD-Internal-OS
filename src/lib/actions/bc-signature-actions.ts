@@ -25,6 +25,7 @@ import { controleRenforce, REFUS_VUE_EXACTE, commencerEnrolement, confirmerEnrol
 import { qrPng } from "@/lib/qr";
 import { deposerVisuel, type NatureVisuel } from "@/lib/signature-en-ligne/visuels";
 import { CHEMIN_MA_SIGNATURE } from "@/lib/signature-en-ligne/partage";
+import { lienPosteAssistante } from "@/lib/chemins/ad-pro";
 import { apposerSignatureEnLigne, exigeSignatureMarketing, REFUS_SIGNATURE_MARKETING_ABSENTE } from "@/lib/signature-en-ligne/signer-bc";
 
 /**
@@ -259,13 +260,22 @@ export async function renvoyerBonDeCommande(formData: FormData): Promise<ActionR
   });
   // L'ÉMETTEUR EST PRÉVENU, et le geste qui le rend à la signature est NOMMÉ (§118.30). Sans émetteur
   // connu (une pièce ancienne), la phrase le DIT plutôt que de laisser croire que quelqu'un sait.
-  const prevenu = Boolean(etat.createdById && etat.createdById !== user.id);
-  if (prevenu) {
+  // LE BC D'UN POSTE « AGENCE » (23/11/2026) : c'est l'assistante qui prospecte le poste qui le corrige — prévenue elle aussi,
+  // et sur SA page (« Prospection d'agences ») : elle n'ouvre ni Legal ni la fiche de la demande.
+  const poste = await prisma.adProItemPiece.findFirst({
+    where: { legalDocumentId: id, nature: "BON_DE_COMMANDE", item: { voie: "AGENCE" } },
+    select: { itemId: true, item: { select: { execution: { select: { assistanteId: true } } } } },
+  });
+  const assistante = poste?.item.execution?.assistanteId ?? null;
+  const destinataires = [...new Set([etat.createdById, assistante].filter((x): x is string => Boolean(x) && x !== user.id))];
+  const prevenu = destinataires.length > 0;
+  for (const userId of destinataires) {
+    const surLePoste = poste && userId === assistante;
     await notifyUser({
-      userId: etat.createdById!, type: "GENERIC",
+      userId, type: "GENERIC",
       title: "Bon de commande renvoyé pour correction",
-      body: `${ref} : « ${note} ». Modifiez-le dans Legal — sa modification le rend à la signature.`,
-      link: `/legal/${id}`,
+      body: `${ref} : « ${note} ». ${surLePoste ? "Corrigez-le sur le poste" : "Modifiez-le dans Legal"} — sa modification le rend à la signature.`,
+      link: surLePoste ? lienPosteAssistante(poste.itemId) : `/legal/${id}`,
     }).catch(sansBloquer("bc-signature-actions.renvoyerBonDeCommande.notifyUser"));
   }
   revalidatePath(CHEMIN_BC_A_SIGNER);

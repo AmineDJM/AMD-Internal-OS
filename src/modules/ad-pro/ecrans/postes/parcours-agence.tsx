@@ -4,16 +4,17 @@ import * as React from "react";
 import { Check, Clock, X, Hand, Mail, Copy, Building2, FileSignature, Send, ShieldCheck, PackageCheck, Receipt, Search, ExternalLink, BadgeCheck, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
-import { cn, formatCurrency, formatDate } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import { FormulaireSignature } from "@/components/signature/formulaire-signature";
 import type { SignaturePrete } from "@/lib/signature-en-ligne/partage";
 import { friseAgence, pasAgence, type FaitsPosteAgence, type GesteAgence, type RegardAgence } from "../../domaine/parcours-agence";
-import { demanderProspection, transmettreDevisAgences, choisirAgencePoste, soumettreBcMarketing, validerSignerBcMarketing, signerBcMarketing } from "../../actions-postes-agence";
+import { demanderProspection, transmettreDevisAgences, retenirLignesDesAgences, soumettreBcMarketing, validerSignerBcMarketing, signerBcMarketing } from "../../actions-postes-agence";
 import { marquerBcEnvoye, envoyerBatConformite, deciderConformitePoste, signerReceptionPoste } from "../../actions-postes-execution";
 import { preparerBrouillonPoste } from "../../actions-postes-lignes";
 import { lienFichierEmis } from "@/lib/lecteurs/fichiers-emis";
 import { emailDeProspection } from "../../domaine/email-prospection";
 import type { ItemRow, Run } from "../items-panel";
+import { ChoixLignesAgences } from "./choix-lignes-agences";
 
 /** Les gestes dont le formulaire vit AILLEURS sur la carte (la case des devis, le visa, la facture) : la carte les ouvre. */
 export type GesteDelegue = "DEVIS" | "VISER_BC" | "DEMANDER_PAIEMENT" | "BC";
@@ -31,21 +32,14 @@ export function faitsAgenceDuPoste(item: ItemRow): FaitsPosteAgence | null {
   if (!item.agence) return null;
   return {
     status: item.status, orderStage: item.orderStage,
-    bc: item.pieces.bc ? (item.pieces.bc.etape ?? "HORS_CIRCUIT") : null,
+    // UN BC ANNULÉ N'EST PAS LE BC DU POSTE (recette de bout en bout, 23/11/2026) : après « Annuler la demande de BC »,
+    // le plus récent annulé se montre dans la case pièce, mais le parcours repart de « pas de BC vivant ».
+    bc: item.pieces.bc && !item.pieces.bc.annulee ? (item.pieces.bc.etape ?? "HORS_CIRCUIT") : null,
     factures: item.pieces.factures.length, expenseOrderId: item.expenseOrderId,
     expenseOrderStatus: item.expenseOrder?.status ?? null, expenseOrderCentral: item.expenseOrder?.centralStatus ?? null,
     orderDecisionNote: item.orderDecisionNote ?? null,
     agence: item.agence.faits,
   };
-}
-
-/** Le total d'un devis tel que le comparatif le montre — TTC quand la TVA est imprimée, HT sinon (jamais devinée). */
-function totalDuDevis(d: ItemRow["devisLignes"][number]): { montant: number; ttc: boolean } {
-  // `announcedTotal` est le total HT IMPRIMÉ (recette du 21/11/2026 : il s'affichait « 1 180 000 DZD TTC » pour un devis de
-  // 1 404 200 TTC). C'est la BASE : la TVA et la taxe s'y ajoutent, comme pour le total lu des lignes.
-  const ht = d.entete.announcedTotal ?? d.totalDevisHt;
-  const taux = (d.entete.tvaRate ?? 0) + (d.entete.extraTaxRate ?? 0);
-  return { montant: Math.round(ht * (1 + taux / 100) * 100) / 100, ttc: d.entete.tvaRate != null };
 }
 
 /** LA FRISE — sept étapes, l'étape en cours nommée en clair. */
@@ -143,7 +137,6 @@ export function ParcoursAgence({ item, regard, assistantes, budgetOptions, signa
 }) {
   const faits = faitsAgenceDuPoste(item);
   const [ouvert, setOuvert] = React.useState<GesteAgence | null>(null);
-  const [devisChoisi, setDevisChoisi] = React.useState<string>("");
   const [emailOuvert, setEmailOuvert] = React.useState(false);
   if (!faits || !item.agence) return null;
   const a = item.agence;
@@ -219,7 +212,8 @@ export function ParcoursAgence({ item, regard, assistantes, budgetOptions, signa
           </div>
           <div className="space-y-1">
             <Label htmlFor={`agd-cdc-${item.id}`}>Ce qu&apos;il faut commander</Label>
-            <Textarea id={`agd-cdc-${item.id}`} name="cahierDesCharges" required rows={3} placeholder="Ex. : stand 9 m² avec comptoir, 4 kakémonos, livraison sur site le 11/12." />
+            {/* SAISI AVEC LE POSTE (23/11/2026) : le cahier des charges d'une partie prenante attend ici — il ne reste qu'à choisir l'assistante. */}
+            <Textarea id={`agd-cdc-${item.id}`} name="cahierDesCharges" required rows={3} defaultValue={a.cahierDesCharges ?? ""} placeholder="Ex. : stand 9 m² avec comptoir, 4 kakémonos, livraison sur site le 11/12." />
           </div>
           <div className="flex gap-2"><Button size="sm" type="submit" disabled={enCours}>Envoyer à l&apos;assistante</Button><Button size="sm" type="button" variant="ghost" onClick={fermer}>Annuler</Button></div>
         </form>
@@ -236,41 +230,14 @@ export function ParcoursAgence({ item, regard, assistantes, budgetOptions, signa
         />
       )}
 
-      {/* LE COMPARATIF — la Direction Marketing choisit l'agence et le budget. */}
+      {/* LE COMPARATIF — la Direction Marketing coche les lignes qu'elle commande dans chaque devis, et le budget (23/11/2026) :
+          un BC par agence ; plusieurs agences retenues, le poste est scindé, un poste par agence. */}
       {ouvert === "CHOISIR_AGENCE" && (
-        <form className="space-y-2 rounded-lg border border-border bg-card p-3" onSubmit={(e) => {
-          e.preventDefault();
-          const f = new FormData(e.currentTarget);
-          f.set("id", item.id);
-          void run(`agc:${item.id}`, () => choisirAgencePoste(f), "Agence retenue.").then(fermer);
-        }}>
-          <p className="text-sm font-semibold">Comparer les devis</p>
-          <div className="space-y-1.5">
-            {devis.map((d) => {
-              const t = totalDuDevis(d);
-              return (
-                <label key={d.pieceId} className={cn("flex cursor-pointer items-center gap-3 rounded-lg border p-2.5 text-sm", devisChoisi === d.pieceId ? "border-primary bg-primary/5" : "border-border")}>
-                  <input type="radio" name="pieceId" value={d.pieceId} checked={devisChoisi === d.pieceId} onChange={() => setDevisChoisi(d.pieceId)} className="h-4 w-4" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block font-medium">{d.fournisseur ?? d.titre}</span>
-                    <span className="block text-xs text-muted-foreground">{d.reference ?? d.titre} · {d.lignes.length} ligne{d.lignes.length > 1 ? "s" : ""}</span>
-                  </span>
-                  <span className="text-right tabular-nums font-semibold">{formatCurrency(t.montant)}<span className="block text-[10px] font-normal text-muted-foreground">{t.ttc ? "TTC" : "HT, sans TVA"}</span></span>
-                  {d.fichierId && <a href={`/api/documents/${d.fichierId}`} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-primary" aria-label="Ouvrir le devis"><ExternalLink className="h-4 w-4" /></a>}
-                </label>
-              );
-            })}
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor={`agc-bud-${item.id}`}>Budget qui porte ce poste</Label>
-            <select id={`agc-bud-${item.id}`} name="budgetCategoryId" required defaultValue={item.budgetCategoryId ?? ""} className="w-full rounded-lg border border-border bg-background px-2 py-2 text-sm">
-              <option value="">Choisir le budget (enveloppe › catégorie)…</option>
-              {budgetOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-            </select>
-          </div>
-          <p className="text-xs text-muted-foreground">Le montant accordé est celui du devis retenu. Les autres devis sont marqués « non retenus ».</p>
-          <div className="flex gap-2"><Button size="sm" type="submit" disabled={!devisChoisi || enCours}>Retenir cette agence</Button><Button size="sm" type="button" variant="ghost" onClick={fermer}>Annuler</Button></div>
-        </form>
+        <ChoixLignesAgences
+          itemId={item.id} devis={devis} budgetCategoryId={item.budgetCategoryId ?? null} budgetOptions={budgetOptions} enCours={enCours}
+          onAnnuler={fermer}
+          onRetenir={(f) => void run(`agc:${item.id}`, () => retenirLignesDesAgences(f), "Lignes retenues.").then(fermer)}
+        />
       )}
 
       {/* L'ASSISTANTE SOUMET LE BC FINALISÉ */}

@@ -12,7 +12,8 @@ import { suitSansDetails } from "./domaine/suivi-delegue";
 import { toNumber } from "@/lib/utils";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
-import { ITEM_KIND_LABELS, REFUS_INDIRECT_NON_REPARTI, type AdProParent, lireRepartition, ecrireRepartition, STATUTS_EDITABLES, gesteVisaPoste, tempsEnAttente, opsFranchiALaSoumission, libelleTemps } from "@/modules/ad-pro/partage";
+import { ITEM_KIND_LABELS, REFUS_INDIRECT_NON_REPARTI, type AdProParent, lireRepartition, ecrireRepartition, STATUTS_EDITABLES, gesteVisaPoste, tempsEnAttente, opsFranchiALaSoumission, libelleTemps, sansBonDeCommande } from "@/modules/ad-pro/partage";
+import { ajouterDevisPoste } from "./actions-postes-paiement";
 import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
 import { annulerDemandesPiecesDuPoste, annulerBcNonSigne, bcEtablisDuPoste, bcVivantsDesPostes, refusAnnulationBcDuPoste, refusBcEtabli, refusCategoriePourLaDemande } from "@/modules/ad-pro/api";
 import { getAppSettings } from "@/lib/settings";
@@ -209,6 +210,25 @@ export async function decideAdProItem(_prev: ActionResult | undefined, formData:
   if (argent && status === "APPROVED" && !(montantAccorde != null && montantAccorde > 0)) {
     return { ok: false, error: "Indiquez le montant accordé à ce poste." };
   }
+  // LE BÉNÉFICIAIRE ET LA PIÈCE D'UN POSTE PAYÉ DIRECTEMENT (Direction, 23/11/2026) : lus sur la pro forma ou la facture
+  // (l'écran les pré-remplit), confirmés par qui accepte.
+  const accordArgent = argent && status === "APPROVED";
+  const payeA = accordArgent ? fdStr(formData, "supplier") : null;
+  const proforma = accordArgent ? formData.getAll("proforma").filter((v): v is File => v instanceof File && v.size > 0) : [];
+  if (proforma.length > 0 && !sansBonDeCommande(item)) return { ok: false, error: "La pro forma se joint à l'accord d'un poste payé directement ; les autres déposent leurs devis sur le poste." };
+  // LA PIÈCE PART D'ABORD, par l'action de l'écran (ses portes, son contrôle du fichier, sa lecture) : refusée, rien n'est
+  // décidé ; jointe, elle reste dans la case « Justificatif » du poste — la demande de paiement la trouvera là.
+  let phrasePiece = "";
+  if (proforma.length > 0) {
+    const fdPiece = new FormData();
+    fdPiece.set("id", id);
+    fdPiece.set("proforma", "on");
+    if (payeA) fdPiece.set("fournisseur", payeA);
+    for (const f of proforma) fdPiece.append("attachment", f);
+    const r = await ajouterDevisPoste(undefined, fdPiece);
+    if (!r.ok) return { ok: false, error: `Pièce non jointe, poste non accordé — ${r.error}` };
+    phrasePiece = " Pro forma jointe au poste.";
+  }
 
   // `tx` et non un autre nom : la dérivation des contrats lit `prisma.X` et `tx.X` pour dire ce que
   // l'action écrit (§118.137) — un paramètre nommé autrement faisait disparaître le poste de la
@@ -228,7 +248,7 @@ export async function decideAdProItem(_prev: ActionResult | undefined, formData:
       decidedAt: new Date(),
       decidedById: user.id,
       decisionNote: note,
-      ...(status === "APPROVED" && item.kind !== "STOCK_MATERIAL" ? { amountGranted: montantAccorde, budgetCategoryId } : {}),
+      ...(status === "APPROVED" && item.kind !== "STOCK_MATERIAL" ? { amountGranted: montantAccorde, budgetCategoryId, ...(payeA ? { supplier: payeA } : {}) } : {}),
       ...(quitteLAccord && bcEnCours
         ? {
             orderStage: "NONE" as const, orderDirectionAt: null, orderDirectionById: null,
@@ -271,11 +291,12 @@ export async function decideAdProItem(_prev: ActionResult | undefined, formData:
   }
   // UN ACCORD REDONNÉ À UN AUTRE MONTANT, BC en cours : le visa ne couvre que ce qu'il a vu.
   if (status === "APPROVED" && bcEnCours && montantAccorde != null) {
-    const apres = { montant: montantAccorde, fournisseur: item.supplier };
+    const apres = { montant: montantAccorde, fournisseur: payeA ?? item.supplier };
     const geste = gesteVisaPoste(etatBcDe(item), apres, (await getAppSettings()).bcValidationThreshold);
     const phrase = await appliquerGesteVisa(item, geste, apres, { user, owner, ref: info?.ref ?? null });
     if (phrase) suite += ` ${phrase}`;
   }
+  suite += phrasePiece;
   if (info?.requesterId && info.requesterId !== user.id) {
     // LE DÉLÉGUÉ SUIT SANS LES DÉTAILS (`suitSansDetails`) : la note d'un ACCORD (« Agence retenue : … », montants) ne lui
     // est pas écrite ; le motif d'un refus ou d'une révision, si — c'est ce qu'il doit savoir.
@@ -404,6 +425,9 @@ export async function retirerDemandeBC(_prev: ActionResult | undefined, formData
         },
       });
       if (r.count === 0) throw new RefusPoste(changee);
+      // LE BC D'UN POSTE AGENCE SE REFAIT PAR L'ASSISTANTE (recette de bout en bout, 23/11/2026) : la demande retirée, le
+      // BC n'est plus « soumis » — l'assistante le finalise à nouveau, puis la Direction Marketing le valide et le signe.
+      await tx.adProExecutionPoste.updateMany({ where: { itemId: id }, data: { bcSoumisAt: null, bcSoumisParId: null } });
     });
   } catch (e) {
     if (e instanceof RefusPoste) return { ok: false, error: e.message };

@@ -10,6 +10,7 @@ import { AD_PRO_ENTITY_TYPE } from "@/modules/ad-pro/partage";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { attachFiles, validateAttachments } from "@/lib/attach-files";
 import { clePieceMessage, messageRecevable } from "@/lib/fil-pieces";
+import { loadItem, prevenirLeFilDuPoste, revalidate } from "./infra/postes/commun";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -56,7 +57,8 @@ import { clePieceMessage, messageRecevable } from "@/lib/fil-pieces";
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-const ENTITES_AD_PRO: ReadonlySet<string> = new Set(Object.values(AD_PRO_ENTITY_TYPE));
+// LE FIL D'UN POSTE (Direction, 23/11/2026) : le même fil, attaché au poste (`AD_PRO_ITEM`) — voir `infra/postes/discussion.ts`.
+const ENTITES_AD_PRO: ReadonlySet<string> = new Set([...Object.values(AD_PRO_ENTITY_TYPE), "AD_PRO_ITEM"]);
 
 /** L'entité visée est-elle bien une demande du pôle ? Sinon on refuse, on ne devine pas. */
 function entiteDuPole(brut: string | null): EntityType | null {
@@ -89,8 +91,10 @@ export async function addAdProComment(formData: FormData): Promise<ActionResult>
   if (!entite || !id) return { ok: false, error: "Demande Ad & Pro non précisée." };
   // LA MÊME PORTE QUE LA FICHE : écrire dans le fil d'une demande qu'on ne peut pas lire serait
   // une porte à côté de la porte gardée.
-  if (!(await canAccessEntity(user, entite, id, "VIEW"))) {
-    return { ok: false, error: "Cette demande ne vous est pas ouverte." };
+  // Un POSTE : la porte du poste (`loadItem`) — qui ouvre sa demande, ou l'assistante qui le prospecte.
+  const poste = entite === "AD_PRO_ITEM" ? await loadItem(id, user) : null;
+  if (entite === "AD_PRO_ITEM" ? !poste : !(await canAccessEntity(user, entite, id, "VIEW"))) {
+    return { ok: false, error: entite === "AD_PRO_ITEM" ? "Ce poste ne vous est pas ouvert." : "Cette demande ne vous est pas ouverte." };
   }
   const refus = await validateAttachments(fichiers);
   if (refus) return { ok: false, error: `Message non publié — ${refus}` };
@@ -107,7 +111,14 @@ export async function addAdProComment(formData: FormData): Promise<ActionResult>
     // Le message EXISTE : on ne le refait pas (il serait en double). Ce qui n'a pas suivi est dit.
     if (r.error) avertissement = `Message publié, mais ${r.saved > 0 ? `seulement ${r.saved} pièce${r.saved > 1 ? "s" : ""} jointe${r.saved > 1 ? "s" : ""}` : "sans ses pièces"} : ${r.error}`;
   }
-  const path = chemin(entite, id);
-  if (path) revalidatePath(path);
+  if (poste) {
+    // Un poste n'a pas d'écran à lui : sa demande, et l'écran de l'assistante qui le prospecte, se relisent.
+    revalidate(poste.owner.parent, poste.owner.id);
+    revalidatePath(`/agences/${id}`);
+    await prevenirLeFilDuPoste({ itemId: id, owner: poste.owner, auteur: user, corps: body, pieces: pieces.length });
+  } else {
+    const path = chemin(entite, id);
+    if (path) revalidatePath(path);
+  }
   return { ok: true, id: message.id, ...(avertissement ? { message: avertissement } : {}) };
 }

@@ -23,12 +23,15 @@ export function classerExclusionsAttestations(): void {
     + "ni humain ni IA, ne le fait pour un autre.", [
     "bc-signature-actions:deposerMonVisuel", "bc-signature-actions:commencerMonCode", "bc-signature-actions:confirmerMonCode",
   ]);
+  X("GESTES D'ÉCRAN DE LA RECETTE DU 23/11/2026 — RANGER LES PIÈCES AD & PRO PAR DEMANDE est un rattrapage d'armoire réservé au Super Admin, lancé une fois depuis Legal en voyant le résultat ; ARRÊTER UN RAPPEL POSÉ PAR L'ASSISTANT se fait depuis « Mes rappels », devant le rappel (le créer, lui, passe déjà par l'assistant). Ni l'un ni l'autre n'a de sens hors de l'écran.", [
+    "legal-folder-actions:rangerPiecesAdPro", "reminder-actions:arreterRappelAssistant",
+  ]);
   X("LE PARCOURS AGENCE D'UN POSTE (Direction, 15/11/2026) — demander la prospection, transmettre les devis, choisir l'agence au "
     + "vu du comparatif, soumettre le BC finalisé, choisir la voie de paiement, envoyer le BC, transmettre le BAT, décider de sa "
     + "conformité, signer le PV de réception — sont des gestes d'ÉCRAN, chacun posé par la personne dont c'est le tour, devant la "
     + "pièce qu'elle juge (devis, BAT, marchandise reçue) : la carte du poste, « Prospection d'agences », « Contrôles de conformité ».", [
     "ad-pro-agence-actions:demanderProspection", "ad-pro-agence-actions:transmettreDevisAgences", "ad-pro-agence-actions:choisirAgencePoste",
-    "ad-pro-agence-actions:soumettreBcMarketing",
+    "ad-pro-agence-actions:retenirLignesDesAgences", "ad-pro-agence-actions:soumettreBcMarketing",
     "ad-pro-execution-actions:choisirVoiePoste", "ad-pro-execution-actions:marquerBcEnvoye", "ad-pro-execution-actions:envoyerBatConformite",
     "ad-pro-execution-actions:deciderConformitePoste", "ad-pro-execution-actions:signerReceptionPoste",
   ]);

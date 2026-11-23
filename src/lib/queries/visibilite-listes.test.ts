@@ -149,7 +149,7 @@ const LECTEURS_DU_COOKIE: Record<string, string> = {
   "src/lib/regulatory/intelligence/access.ts": "la résolution CTD le valide par `resolveScope`",
   "src/app/(app)/courriers/page.tsx": "le NOM de l'entité affichée, cherché parmi les entités de la personne",
   "src/app/(app)/organigramme/page.tsx": "le NOM de l'entité affichée, cherché parmi les entités de la personne",
-  "src/app/(app)/information-medicale/page.tsx": "le NOM de l'entité affichée, cherché parmi les entités de la personne",
+  "src/app/(app)/information-medicale/registre.tsx": "le NOM de l'entité affichée, cherché parmi les entités de la personne",
 };
 
 describe("Le cookie d'entité est une DEMANDE, jamais une autorisation (§118.177)", () => {
@@ -163,7 +163,7 @@ describe("Le cookie d'entité est une DEMANDE, jamais une autorisation (§118.17
   });
 
   it("les lecteurs d'affichage ne s'en servent que pour NOMMER une entité parmi les leurs", () => {
-    for (const f of ["src/app/(app)/courriers/page.tsx", "src/app/(app)/organigramme/page.tsx", "src/app/(app)/information-medicale/page.tsx"]) {
+    for (const f of ["src/app/(app)/courriers/page.tsx", "src/app/(app)/organigramme/page.tsx", "src/app/(app)/information-medicale/registre.tsx"]) {
       const src = code(f);
       const variable = src.match(/const (\w+) = await getCompanyScope\(\);/)?.[1];
       expect(variable, `${f} : lecture du cookie introuvable`).toBeTruthy();

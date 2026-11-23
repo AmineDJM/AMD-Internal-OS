@@ -3,7 +3,7 @@
 import { deposerLettreDevis } from "@/lib/demande-devis-depot";
 import { lienPosteAdPro } from "@/lib/chemins/ad-pro";
 import { revalidatePath } from "next/cache";
-import type { AdProItemKind, AdProItemBudgetKind } from "@prisma/client";
+import type { AdProItemKind } from "@prisma/client";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { reporterLesPostesSurLaDeclaration, refusPosteApresDeclaration } from "@/lib/workflow/engine";
@@ -29,6 +29,7 @@ import { sansBloquer } from "@/lib/journal";
 import { PARENTS, isParent, revalidate, canEditItems, canAllocate, valideursDuPoste, demandeurDe, peutTrancherSur, prevenirLeTemps, audit, refusSiClos, refusDemandeFermee, refusAvantPrevalidation, refusPostesClos, reprojeterMontantDemande, demandeVisible, loadItem, REFUS_HISTORIQUE, compterFichesPersonnes, priseEnChargeIndirecte, etatBcDe, appliquerGesteVisa, cloreDemandesAuBureau, resumeRepartition, postesRepartis, recordDecision, piecesOuvertes, envoyerDemandeBC, pieceComptee, depassementDuPoste } from "./infra/postes/commun";
 import { actionReversible } from "@/lib/effets/reversible";
 import { conformiteParDefaut, voieAgencePossible } from "./domaine/parcours-agence";
+import { lancerLePosteAgence } from "./infra/postes/agence-ajout";
 
 /**
  * POSTES D'UNE DEMANDE AD & PRO — le poste et ses demandes : ajouter, modifier, retirer, rattacher un matériel
@@ -85,9 +86,9 @@ export async function addAdProItem(_prev: ActionResult | undefined, formData: Fo
   // magasin, il ne s'achète pas. Un montant saisi y serait additionné au montant de la demande.
   const sansMontant = amountEstimated != null && amountEstimated > 0 ? refusArgentSurPosteStock(kind, "un montant") : null;
   if (sansMontant) return { ok: false, error: sansMontant };
-  // « Ce poste est-il DANS le budget accordé, ou EN PLUS ? » — question posée dès l'ajout : sans
-  // elle, une rallonge assumée serait lue comme un dépassement subi.
-  const budgetKind = (fdStr(formData, "budgetKind") === "ADDITIONAL" ? "ADDITIONAL" : "INCLUDED") as AdProItemBudgetKind;
+  // PLUS DE « DÉJÀ COUVERT PAR LE BUDGET ACCORDÉ ? » (Direction, 23/11/2026) : tout poste naît « inclus » ; les rallonges
+  // d'avant gardent leur nature (colonne conservée), aucune ne naît plus d'ici — un `budgetKind` envoyé est ignoré.
+  const budgetKind = "INCLUDED" as const;
 
   // UN SPONSORING INDIRECT NAÎT RÉPARTI PAR NATURE (§118.175) — « 1 000 000 DZD répartis en
   // 400 000 d'imprimerie et 600 000 d'hôtellerie ». Il ne devient pas UN poste « sponsoring
@@ -155,15 +156,13 @@ export async function addAdProItem(_prev: ActionResult | undefined, formData: Fo
     }
 
     await audit(user, parentRaw, parentId, "CREATE",
-      `Poste ajouté — ${ITEM_KIND_LABELS[kind]} « ${label} » (${budgetKind === "ADDITIONAL" ? "budget supplémentaire" : "inclus dans le budget accordé"})${late ? " — APRÈS la décision définitive" : ""}${detailFiches}.`);
-    // UN POSTE HORS BUDGET OU APRÈS LA DÉCISION SE DIT, EN LECTURE, À CEUX QUI DÉCIDENT (§118.200) :
-    // il n'est pas encore à valider (la validation partira à sa soumission), mais il change ce que
-    // la demande coûtera. Le dire seulement là : un poste inclus avant la décision est le détail
-    // ordinaire du besoin, et une notification par ligne serait du bruit qu'on cesse de lire.
-    if (budgetKind === "ADDITIONAL" || late) {
+      `Poste ajouté — ${ITEM_KIND_LABELS[kind]} « ${label} »${late ? " — APRÈS la décision définitive" : ""}${detailFiches}.`);
+    // UN POSTE AJOUTÉ APRÈS LA DÉCISION SE DIT, EN LECTURE, À CEUX QUI DÉCIDENT (§118.200) : il change ce que la demande coûtera.
+    // Avant la décision, c'est le détail ordinaire du besoin : une notification par ligne serait du bruit.
+    if (late) {
       await notifyRoles(valideursDuPoste(parentRaw), {
         type: "GENERIC",
-        title: budgetKind === "ADDITIONAL" ? "Poste hors budget ajouté" : "Poste ajouté après la décision",
+        title: "Poste ajouté après la décision",
         body: `${info.ref} — ${ITEM_KIND_LABELS[kind]} « ${label} »${amountEstimated != null ? ` (${amountEstimated.toLocaleString("fr-FR")} DZD)` : ""} — pour information ; la validation vous parviendra à sa soumission.`,
         link: lienPosteAdPro(parentRaw, parentId, created.id),
       }).catch(sansBloquer("ad-pro-item-actions.addAdProItem.notifyRoles"));
@@ -174,8 +173,11 @@ export async function addAdProItem(_prev: ActionResult | undefined, formData: Fo
     // UN POSTE AJOUTÉ CHANGE LE TOTAL (27/10/2026) : s'il franchit le seuil — ou dépasse ce que le DG a
     // validé —, la porte se ferme ; le DG est prévenu de ce nouveau total, comme pour tout changement de montant.
     await signalerPorteDgSiBesoin(parentRaw, parentId);
+    // LE POSTE « PAR UNE AGENCE » EN UN GESTE (23/11/2026) : soumis avec son cahier des charges, prospection demandée.
+    const cahier = voie === "AGENCE" ? fdStr(formData, "cahierDesCharges") : null;
+    const suite = cahier ? await lancerLePosteAgence({ user, itemId: created.id, owner: { parent: parentRaw, id: parentId }, cahier, assistanteId: fdStr(formData, "assistanteId"), soumettre: (fd) => submitAdProItem(undefined, fd) }) : null;
     revalidate(parentRaw, parentId);
-    return { ok: true, id: created.id, ...(detailFiches ? { message: `Poste ajouté${detailFiches}.` } : {}) };
+    return { ok: true, id: created.id, ...(suite || detailFiches ? { message: suite ?? `Poste ajouté${detailFiches}.` } : {}) };
   } catch (err) {
     console.error("[ad-pro-item] création impossible", err);
     return { ok: false, error: "Le poste n'a pas pu être ajouté. Réessayez dans un instant." };
@@ -511,7 +513,8 @@ export async function submitAdProItem(_prev: ActionResult | undefined, formData:
   if (clos) return { ok: false, error: clos };
 
   const info = await PARENTS[owner.parent].load(owner.id);
-  const avant = info ? refusAvantPrevalidation(info) : null;
+  // Un brouillon ne bloque pas la déclaration (23/11/2026) : la déclaration ouverte, il ne s'y glisse plus.
+  const avant = (info ? refusAvantPrevalidation(info) : null) ?? (item.status === "DRAFT" ? await refusPosteApresDeclaration(owner.parent, owner.id) : null);
   if (avant) return { ok: false, error: avant };
   const check = canSubmitItem({
     status: item.status,

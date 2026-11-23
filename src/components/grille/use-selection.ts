@@ -38,6 +38,11 @@ export interface OptionsSelectionGrille {
   onEditer?: (coord: Coord, initial?: string) => void;
   /** Vrai pendant qu'une cellule est en édition : la sélection se tait. */
   editionActive?: boolean;
+  /**
+   * OUVRIR LA LIGNE (sa fiche) — Ctrl+Entrée toujours, et Entrée seule quand la feuille ne s'édite
+   * pas : en lecture, Entrée n'a rien d'autre à faire (recette du 23/11, « comme Excel »).
+   */
+  onOuvrir?: (coord: Coord) => void;
 }
 
 export interface PropsCellule {
@@ -46,6 +51,8 @@ export interface PropsCellule {
   onDoubleClick: (e: React.MouseEvent) => void;
   "data-selected"?: "true";
   "aria-selected"?: boolean;
+  /** `r:c` — pour ramener à l'écran la cellule active quand on la déplace au clavier. */
+  "data-coord": string;
 }
 
 const TOUCHE_DIRECTION: Record<string, Direction> = {
@@ -53,7 +60,7 @@ const TOUCHE_DIRECTION: Record<string, Direction> = {
 };
 
 export function useSelectionGrille(opts: OptionsSelectionGrille) {
-  const { lignes, colonnes, valeur, onEditer, editionActive = false } = opts;
+  const { lignes, colonnes, valeur, onEditer, editionActive = false, onOuvrir } = opts;
   const [sel, setSel] = React.useState<Selection>(SELECTION_VIDE);
   const conteneurRef = React.useRef<HTMLDivElement>(null);
   const bornes = React.useMemo(() => ({ lignes, colonnes }), [lignes, colonnes]);
@@ -62,6 +69,18 @@ export function useSelectionGrille(opts: OptionsSelectionGrille) {
   React.useEffect(() => { setSel((s) => borner(s, bornes)); }, [bornes]);
 
   const focaliser = React.useCallback(() => { conteneurRef.current?.focus({ preventScroll: true }); }, []);
+
+  // La cellule active reste À L'ÉCRAN quand on la déplace AU CLAVIER (flèches, Tab, Début/Fin) dans
+  // une feuille qui défile dans son cadre — comme dans un tableur, la vue suit le curseur. Un clic ou
+  // Ctrl+A ne déplacent pas la vue.
+  const suivre = React.useRef(false);
+  const fr = sel.focus?.r;
+  const fc = sel.focus?.c;
+  React.useEffect(() => {
+    if (!suivre.current || fr === undefined || fc === undefined) return;
+    suivre.current = false;
+    conteneurRef.current?.querySelector<HTMLElement>(`[data-coord="${fr}:${fc}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [fr, fc]);
 
   const vider = React.useCallback(() => setSel(SELECTION_VIDE), []);
 
@@ -101,6 +120,7 @@ export function useSelectionGrille(opts: OptionsSelectionGrille) {
         e.preventDefault();
         onEditer({ r, c });
       },
+      "data-coord": `${r}:${c}`,
       ...(selectionnee ? { "data-selected": "true" as const, "aria-selected": true } : {}),
     };
   }, [sel, editionActive, onEditer, focaliser]);
@@ -114,11 +134,13 @@ export function useSelectionGrille(opts: OptionsSelectionGrille) {
     const dir = TOUCHE_DIRECTION[e.key];
     if (dir) {
       e.preventDefault();
+      suivre.current = true;
       setSel((s) => deplacer(s, dir, bornes, { shift: e.shiftKey }));
       return;
     }
     if (e.key === "Tab") {
       e.preventDefault();
+      suivre.current = true;
       setSel((s) => deplacer(s, e.shiftKey ? "gauche" : "droite", bornes));
       return;
     }
@@ -135,7 +157,26 @@ export function useSelectionGrille(opts: OptionsSelectionGrille) {
       }
       return;
     }
-    if (!onEditer || !sel.focus) return;
+    // DÉBUT / FIN : première et dernière colonne de la ligne ; avec Ctrl, première et dernière cellule de la feuille.
+    if ((e.key === "Home" || e.key === "End") && lignes > 0 && colonnes > 0) {
+      e.preventDefault();
+      const debut = e.key === "Home";
+      suivre.current = true;
+      const ctrl = e.ctrlKey || e.metaKey;
+      setSel((s) => {
+        const r = ctrl ? (debut ? 0 : lignes - 1) : (s.focus?.r ?? 0);
+        const cible = { r, c: debut ? 0 : colonnes - 1 };
+        return { figees: [], ancre: cible, focus: cible };
+      });
+      return;
+    }
+    if (!sel.focus) return;
+    if (e.key === "Enter" && onOuvrir && (e.ctrlKey || e.metaKey || !onEditer)) {
+      e.preventDefault();
+      onOuvrir(sel.focus);
+      return;
+    }
+    if (!onEditer) return;
     if (e.key === "Enter" || e.key === "F2") {
       e.preventDefault();
       onEditer(sel.focus);
@@ -146,7 +187,7 @@ export function useSelectionGrille(opts: OptionsSelectionGrille) {
       e.preventDefault();
       onEditer(sel.focus, e.key);
     }
-  }, [editionActive, bornes, vider, copier, onEditer, sel.focus, lignes, colonnes]);
+  }, [editionActive, bornes, vider, copier, onEditer, onOuvrir, sel.focus, lignes, colonnes]);
 
   const propsConteneur = React.useMemo(() => ({
     ref: conteneurRef,
@@ -177,7 +218,9 @@ export function useSelectionGrille(opts: OptionsSelectionGrille) {
     /** Après une édition : reprendre la main au clavier et, si demandé, passer à la cellule suivante. */
     apresEdition: (suite?: Direction) => {
       focaliser();
-      if (suite) setSel((s) => deplacer(s, suite, bornes));
+      if (!suite) return;
+      suivre.current = true;
+      setSel((s) => deplacer(s, suite, bornes));
     },
     copier,
     vider,

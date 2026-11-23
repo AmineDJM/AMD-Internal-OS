@@ -106,7 +106,7 @@ export const OPS_AD_PRO: OpMeta[] = [
     uiLabel: "Ajouter un poste de dépense",
     aliases: ["ajoute un poste à l'opération", "ajoute le traiteur au sponsoring", "nouveau poste de dépense"],
     risk: "NORMAL",
-    summary: "Ajoute un POSTE à une opération (sponsoring / congrès / événement) : libellé, estimation, prestataire, et budget INCLUS ou RALLONGE — un poste ajouté après la décision est marqué.",
+    summary: "Ajoute un POSTE à une opération (sponsoring / congrès / événement) : libellé, estimation, prestataire (toujours INCLUS dans le budget accordé : plus de rallonge à l'ajout, 23/11/2026) — un poste ajouté après la décision est marqué.",
     gate: () => true,
     gateNote: "accès à l'opération (revérifié par l'action)",
     covers: ["ad-pro-item-actions:addAdProItem"],

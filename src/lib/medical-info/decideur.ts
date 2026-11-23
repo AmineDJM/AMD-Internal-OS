@@ -7,7 +7,7 @@
  *
  * ── TROIS DEMANDES, UN SEUL DÉCIDEUR ────────────────────────────────────────────────────────
  *
- *   1. la LECTURE « à déclarer au ministère / sans déclaration » (circuit événement) ;
+ *   1. la LECTURE « à déclarer à l'ANPP / sans déclaration » (circuit événement) ;
  *   2. le DÉPÔT DES BONS DE VERSEMENT (circuit matériel promotionnel) ;
  *   3. la VALIDATION FINALE du dossier, qui émet l'ordre de dépense.
  *

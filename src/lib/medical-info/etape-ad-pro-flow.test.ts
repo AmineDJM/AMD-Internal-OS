@@ -113,12 +113,12 @@ suite("Ad & Pro — la dernière étape : la déclaration de l'événement (info
 
     await prisma.medicalInfoDeclaration.update({ where: { id: decl.id }, data: { authorityRef: "MIP-2026-0412" } });
     expect(await etapeDeclaration(prim, "SPONSORING", spoId, true)).toMatchObject({
-      etat: "current", detail: "réf. MIP-2026-0412", phrase: `Déclarée au ministère (réf. MIP-2026-0412) — à valider par ${TAG}prim`,
+      etat: "current", detail: "réf. MIP-2026-0412", phrase: `Déclarée à l'ANPP (réf. MIP-2026-0412) — à valider par ${TAG}prim`,
     });
     // Le pharmacien a validé : la suite est chez le Directeur des Opérations.
     await prisma.medicalInfoDeclaration.update({ where: { id: decl.id }, data: { status: "AWAITING_DIRECTION", pharmacistValidatedAt: new Date() } });
     expect((await etapeDeclaration(prim, "SPONSORING", spoId, true))?.phrase)
-      .toBe("Déclarée au ministère (réf. MIP-2026-0412) — validation finale chez le Directeur des Opérations");
+      .toBe("Déclarée à l'ANPP (réf. MIP-2026-0412) — validation finale chez le Directeur des Opérations");
 
     // « Sans déclaration » accordée : la phrase le dit, et la référence ne se réclame pas avec un motif qui se contredit.
     await prisma.medicalInfoDeclaration.update({
@@ -126,7 +126,7 @@ suite("Ad & Pro — la dernière étape : la déclaration de l'événement (info
     });
     const sans = await etapeDeclaration(prim, "SPONSORING", spoId, true);
     expect(sans).toMatchObject({ detail: "sans déclaration", phrase: `Sans déclaration (motif : Congrès sans promotion) — à valider par ${TAG}prim` });
-    expect(sans?.depot.motif).toBe("Sans déclaration : rien n'est déposé au ministère, il n'y a donc pas de référence à enregistrer.");
+    expect(sans?.depot.motif).toBe("Sans déclaration : rien n'est déposé à l'ANPP, il n'y a donc pas de référence à enregistrer.");
     // Lecture accordée : plus de décision à soumettre, et « Valider et transmettre » s'offre — par la VRAIE action.
     expect(sans).toMatchObject({ decision: null, validation: { peut: true } });
     ACTOR = prim;
@@ -139,7 +139,7 @@ suite("Ad & Pro — la dernière étape : la déclaration de l'événement (info
 
     await prisma.medicalInfoDeclaration.update({ where: { id: decl.id }, data: { status: "VALIDATED", validatedAt: new Date() } });
     expect(await etapeDeclaration(prim, "SPONSORING", spoId, true)).toMatchObject({
-      etat: "done", ton: "succes", peutAgir: false, phrase: "Validée — déclarée au ministère (réf. MIP-2026-0412)",
+      etat: "done", ton: "succes", peutAgir: false, phrase: "Validée — déclarée à l'ANPP (réf. MIP-2026-0412)",
     });
     // Le délégué voit l'état, sans le dossier ni ses pièces.
     expect(await etapeDeclaration(await actorFor(delegueId), "SPONSORING", spoId, true)).toMatchObject({ etat: "done", peutAgir: false, lienDossier: null, pieces: [] });

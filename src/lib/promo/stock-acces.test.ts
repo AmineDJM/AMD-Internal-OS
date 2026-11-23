@@ -123,11 +123,18 @@ describe("Confirmer une réception est une ATTESTATION", () => {
 });
 
 describe("Ce qui crée ou efface du stock sans facture ni transfert", () => {
-  it("entrée manuelle, inventaire d'ouverture, annulation de mouvement : le Super Admin seul", () => {
-    for (const f of [DM, PM2, K1, OPS, FIN]) {
-      expect(peutEntrerAlaMain(f) || peutPoserOuverture(f) || peutAnnulerMouvement(f), f.userId).toBe(false);
+  it("entrée manuelle et inventaire d'ouverture : la directrice qui tient le magasin et le Super Admin (Direction, 23/11/2026)", () => {
+    for (const f of [SA, DM]) expect(peutEntrerAlaMain(f) && peutPoserOuverture(f), f.userId).toBe(true);
+    for (const f of [PM2, K1, OPS, FIN]) {
+      expect(peutEntrerAlaMain(f) || peutPoserOuverture(f), `${f.userId} ne crée pas de stock`).toBe(false);
     }
-    expect(peutEntrerAlaMain(SA) && peutPoserOuverture(SA) && peutAnnulerMouvement(SA)).toBe(true);
+    const dmSansCreer = faits({ userId: "dm3", gereLeMagasin: true, module: { voir: true, creer: false, modifier: true } });
+    expect(peutEntrerAlaMain(dmSansCreer) || peutPoserOuverture(dmSansCreer), "tenir le magasin sans le droit « Créer » du module ne suffit pas").toBe(false);
+  });
+
+  it("annuler un mouvement : le Super Admin seul — la directrice non plus", () => {
+    for (const f of [DM, PM2, K1, OPS, FIN]) expect(peutAnnulerMouvement(f), f.userId).toBe(false);
+    expect(peutAnnulerMouvement(SA)).toBe(true);
   });
 
   it("corriger : le magasin par sa gestionnaire, le solde d'une personne par le Super Admin", () => {

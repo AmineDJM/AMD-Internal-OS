@@ -156,9 +156,13 @@ function GestesDuDetenteur({ a, detenteurId, ctx }: { a: ArticleVue; detenteurId
   const boutons: React.ReactNode[] = [];
   if (detenteurId === null) {
     if (peutDoter(f) && a.isActive) {
+      const rien = dispo <= 0 ? "Rien de distribuable au magasin (hors lots périmés)" : undefined;
       boutons.push(
-        <Button key="doter" size="sm" disabled={dispo <= 0} title={dispo <= 0 ? "Rien de distribuable au magasin (hors lots périmés)" : undefined}
+        <Button key="doter" size="sm" disabled={dispo <= 0} title={rien}
           onClick={() => ctx.ouvrir({ type: "doter", article: a })}>Doter</Button>,
+        // RÉPARTIR (Direction, 23/11/2026) : la même règle que « Doter », entre plusieurs personnes à la fois.
+        <Button key="repartir" size="sm" variant="outline" disabled={dispo <= 0} title={rien ?? "Une quantité par personne, envoyée en une fois"}
+          onClick={() => ctx.ouvrir({ type: "repartir", article: a })}>Répartir</Button>,
       );
     }
   } else if (peutSortirDe(f, detenteurId) && a.isActive) {
@@ -588,7 +592,7 @@ export function VueMagasin({ ctx }: { ctx: Ctx }) {
       >
         <BarreFiltre fl={fl} setFl={setFl} articles={page.articles} />
         {liste.length === 0 ? (
-          <Vide>{page.articles.length === 0 ? "Aucun article en stock. Le premier se crée par une entrée manuelle ou un inventaire d'ouverture (Super Admin)." : "Aucun article ne correspond au filtre."}</Vide>
+          <Vide>{page.articles.length === 0 ? "Aucun article en stock. Le premier se crée par une entrée manuelle ou un inventaire d'ouverture (la gestionnaire du magasin ou le Super Admin), ou à la réception d'un achat." : "Aucun article ne correspond au filtre."}</Vide>
         ) : (
           <ul className="space-y-2">
             {liste.map((a) => {

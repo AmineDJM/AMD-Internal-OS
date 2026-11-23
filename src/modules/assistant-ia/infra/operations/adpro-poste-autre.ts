@@ -50,7 +50,6 @@ export const POSTE_AJOUT: OperationIA = {
       naturePoste: { type: "string", description: `Nature : ${Object.values(ITEM_KIND_LABELS).join(", ")}.` },
       montant: { type: "number", description: "Estimation en DZD." },
       prestataire: { type: "string" },
-      rallonge: { type: "boolean", description: "Vrai si le poste s'ajoute EN PLUS du budget accordé." },
       notes: { type: "string" },
     },
   },
@@ -73,7 +72,6 @@ export const POSTE_AJOUT: OperationIA = {
     const seuil = (await getAppSettings()).adProDgThreshold;
     if (montant != null && porteDgRequise(montant, seuil)) warnings.push(`Ce poste dépasse à lui seul le seuil de ${dzd(seuil)} du Directeur Général.`);
     warnings.push(await avertissementBudget(user, montant));
-    if (e.rallonge === true) warnings.push("RALLONGE : ce poste s'ajoute EN PLUS du budget accordé — il sera arbitré à part.");
     warnings.push("L'action de l'écran vérifie que la demande accepte des postes (après la pré-validation de la tenue, demande non close).");
     return {
       carte: {
@@ -83,21 +81,20 @@ export const POSTE_AJOUT: OperationIA = {
           ["Poste", `${texte(e, "libelle")} (${ITEM_KIND_LABELS[nature!]})`],
           ["Estimation", montant != null ? dzd(montant) : null],
           ["Prestataire", texte(e, "prestataire") || null],
-          ["Budget", e.rallonge === true ? "Rallonge" : "Inclus dans le budget accordé"],
         ]),
         warnings,
       },
       args: {
         parent: d.nature, parentId: d.id, label: texte(e, "libelle"), kind: nature,
         amountEstimated: montant != null ? String(montant) : null, supplier: texte(e, "prestataire") || null,
-        budgetKind: e.rallonge === true ? "ADDITIONAL" : null, notes: texte(e, "notes") || null, lien: d.lien,
+        notes: texte(e, "notes") || null, lien: d.lien,
       },
     };
   },
 
   async executer(a) {
     const fd = new FormData();
-    for (const cle of ["parent", "parentId", "label", "kind", "amountEstimated", "supplier", "budgetKind", "notes"]) if (a[cle]) fd.set(cle, a[cle]!);
+    for (const cle of ["parent", "parentId", "label", "kind", "amountEstimated", "supplier", "notes"]) if (a[cle]) fd.set(cle, a[cle]!);
     const r = await addAdProItem(undefined, fd);
     if (!r.ok) return { ok: false, error: r.error ?? "L'ajout du poste a été refusé." };
     return { ok: true, message: "Poste ajouté à la demande.", ...(a.lien ? { link: a.lien } : {}), revalidate: [a.lien ?? "/ad-pro"] };

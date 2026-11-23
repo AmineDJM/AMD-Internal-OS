@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { OBJET_BC, MODULE_BC, CHEMIN_BC_A_SIGNER } from "@/lib/bons-de-commande/aiguillage";
 import { LIBELLE_CENTRE_BC, reserveDeLAiguillage } from "@/lib/bons-de-commande/regle";
 import { signalerSiASigner } from "@/lib/bons-de-commande/etat";
+import { suiteDecisionInfoMed } from "@/lib/queries/suite-decision-info-med";
 import { LIBELLE_SOURCE_BC, OBJET_PREVALIDATION_BC, lireSourceBC, refusSoumissionBC, refusValidationFinale, validateursDuFormulaire } from "@/lib/bons-de-commande/prevalidation";
 import { bcASoumettre, libererPrevalidation, peutCreerUnBC, retenirPourPrevalidation } from "@/lib/bons-de-commande/retenue-bc";
 import { createLegalDocument } from "@/lib/actions/legal-actions";
@@ -435,6 +436,8 @@ export async function decideValidation(formData: FormData): Promise<ActionResult
       // LE MOTIF VOYAGE AVEC LA DÉCISION, et le lien mène à LA demande (audit 360°, R08) : « à corriger »
       // sans dire quoi, vers la liste de toutes les validations, faisait chercher deux fois.
       const motif = reason ? ` Motif : « ${reason} ».` : "";
+      // L'INFORMATION MÉDICALE (23/11/2026) : la notification mène au DOSSIER et dit le geste suivant (`queries/suite-decision-info-med.ts`).
+      const infoMed = await suiteDecisionInfoMed(req, newStatus);
       const suite = newStatus === "CHANGES_REQUESTED"
         ? (resoumissionSurPlace(req)
           ? " Corrigez-la puis « Resoumettre » sur la demande : elle reviendra à la même étape."
@@ -442,7 +445,7 @@ export async function decideValidation(formData: FormData): Promise<ActionResult
         // LA PRÉ-VALIDATION D'UN BC ACQUISE : le geste suivant est au demandeur, et la notification le nomme.
         : newStatus === "APPROVED" && req.objectType === OBJET_PREVALIDATION_BC
           ? " Tous les validateurs ont donné leur accord : demandez maintenant la validation finale du bon de commande."
-          : "";
+          : infoMed?.suite ?? "";
       await notifyUser({
         userId: req.requesterId,
         type: "GENERIC",
@@ -450,7 +453,7 @@ export async function decideValidation(formData: FormData): Promise<ActionResult
         body: onPiece
           ? `${req.reference} · cette décision porte sur cette pièce seule.${stillPending > 0 ? ` ${stillPending} autre${stillPending > 1 ? "s" : ""} pièce${stillPending > 1 ? "s" : ""} de la même demande attend${stillPending > 1 ? "ent" : ""} encore.` : " Toutes les pièces de la demande sont désormais tranchées."}${motif}${suite}`
           : `${req.reference} — ${req.title}.${motif}${suite}`,
-        link: `/validations/${req.id}`,
+        link: infoMed?.lien ?? `/validations/${req.id}`,
       });
     } else if (!finalized && req.requesterId !== user.id) {
       // UN ACCORD QUI NE CLÔT PAS LE CIRCUIT SE DIT AUSSI (Direction, 06/10). Le premier de deux validateurs

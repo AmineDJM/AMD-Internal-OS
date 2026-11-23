@@ -21,7 +21,8 @@ export async function agencesDesPostes(
   const agence = items.filter((i) => i.voie === "AGENCE");
   if (agence.length === 0) return res;
   const ids = agence.map((i) => i.id);
-  const bcIds = ids.map((id) => pieces.get(id)?.bc?.id).filter((x): x is string => Boolean(x));
+  // La signature de la Direction Marketing se lit sur le BC VIVANT : un BC annulé (demande retirée) ne compte plus.
+  const bcIds = ids.map((id) => { const b = pieces.get(id)?.bc; return b && !b.annulee ? b.id : undefined; }).filter((x): x is string => Boolean(x));
   const [execs, signatures, bats, evenements] = await Promise.all([
     prisma.adProExecutionPoste.findMany({ where: { itemId: { in: ids } } }),
     bcIds.length ? prisma.signatureBC.findMany({ where: { legalDocumentId: { in: bcIds } }, orderBy: { signedAt: "asc" } }) : Promise.resolve([]),

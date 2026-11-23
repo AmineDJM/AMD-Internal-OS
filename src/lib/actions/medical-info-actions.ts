@@ -217,7 +217,7 @@ export async function recordAuthorityDeclaration(formData: FormData): Promise<Ac
 // ═══════════════════════════════════════════════════════════════════════════════════════════
 
 /**
- * LE PHARMACIEN SOUMET SA LECTURE : ce dossier se déclare au ministère, ou il ne se déclare pas.
+ * LE PHARMACIEN SOUMET SA LECTURE : ce dossier se déclare à l'ANPP, ou il ne se déclare pas.
  *
  * Une prise en charge, un sponsoring, un événement n'appellent AUCUN versement — c'était le
  * défaut : chacun sortait par la porte « ce dossier n'appelle aucun versement », motif à l'appui.
@@ -246,7 +246,7 @@ export async function requestDeclareDecision(_prev: ActionResult | undefined, fo
 
   const intent = fdStr(formData, "intent");
   if (!isDeclareIntent(intent)) {
-    return { ok: false, error: "Dites ce que vous comptez faire : déclarer ce dossier au ministère, ou non." };
+    return { ok: false, error: "Dites ce que vous comptez faire : déclarer ce dossier à l'ANPP, ou non." };
   }
   const note = fdStr(formData, "note");
   // LA LECTURE « SANS DÉCLARATION » EXIGE UN MOTIF. C'est celle qui fait ne rien faire : sans
@@ -596,12 +596,12 @@ export async function skipMedicalInfoBv(formData: FormData): Promise<ActionResul
  * LE PHARMACIEN N'ATTEND PAS TOUJOURS QU'UN DOSSIER LUI ARRIVE.
  *
  * Une obligation réglementaire se découvre aussi de son côté : un support à faire viser, une
- * déclaration au ministère qu'aucun événement n'a déclenchée, un versement à faire. Il n'avait
+ * déclaration à l'ANPP qu'aucun événement n'a déclenchée, un versement à faire. Il n'avait
  * pour cela aucun geste — le module ne se remplissait que par la validation d'un autre — et ce
  * qui n'entre pas dans l'ERP se traite dans un carnet.
  *
- * LA NATURE CHOISIE DÉCIDE DU CIRCUIT, et il n'y a pas de seconde case : une déclaration au
- * ministère suit le circuit de la décision, une demande de visa celui du matériel.
+ * LA NATURE CHOISIE DÉCIDE DU CIRCUIT, et il n'y a pas de seconde case : une déclaration à
+ * l'ANPP suit le circuit de la décision, une demande de visa celui du matériel.
  *
  * DEUX NATURES, ET C'EST LE SERVEUR QUI LE TIENT. « Bon de versement » a été retiré du choix :
  * ce n'est pas ce qu'on ouvre, c'est une ÉTAPE du circuit du matériel. Le refus vit ici, pas
@@ -625,7 +625,7 @@ export async function createMedicalInfoItem(_prev: ActionResult | undefined, for
   if (!isOpenableDeclarationKind(kind)) {
     return {
       ok: false,
-      error: "Choisissez la nature : déclaration au ministère (MIP), ou demande de visa publicitaire. Le bon de versement n'est pas un dossier : c'est une étape du circuit du matériel, à l'intérieur du dossier.",
+      error: "Choisissez la nature : déclaration à l'ANPP (MIP), ou demande de visa publicitaire. Le bon de versement n'est pas un dossier : c'est une étape du circuit du matériel, à l'intérieur du dossier.",
     };
   }
   const raw = fdStr(formData, "amount");
@@ -694,7 +694,7 @@ export async function validateDeclaration(formData: FormData): Promise<ActionRes
         ok: false,
         error: declareStage(etat.declare) !== "ACCORDEE"
           ? `La décision de déclarer doit d'abord être accordée : ${declareStageLabel(declareStage(etat.declare)).toLowerCase()}.`
-          : "Enregistrez d'abord la référence du dépôt auprès du ministère de l'Industrie pharmaceutique.",
+          : "Enregistrez d'abord la référence du dépôt auprès de l'ANPP.",
       };
     }
   } else if (!authoritiesOpen(etat)) {

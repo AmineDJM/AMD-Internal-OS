@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Building2, Layers, Loader2, MapPin, Pencil, Plus, Power, PowerOff, Search, Stethoscope, Trash2 } from "lucide-react";
+import { Building2, Layers, Loader2, MapPin, Pencil, Plus, Power, PowerOff, Stethoscope, Trash2 } from "lucide-react";
 import { createInstitution, updateInstitution, deleteInstitution } from "@/lib/actions/medical-actions";
 import { colorerCellulesAnnuaire } from "@/lib/actions/annuaire-couleurs-actions";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,9 @@ import { ETABLISSEMENT_COLUMNS, type EtablissementField } from "@/lib/medical/et
 import { cleCellule, type CouleurCellule } from "@/lib/grille/couleurs";
 import { useSelectionGrille } from "@/components/grille/use-selection";
 import { BarreSelection, DockSelection, classeCouleurCellule } from "@/components/grille/barre-selection";
+import { useTableur, type ColonneTableur } from "@/components/grille/use-tableur";
+import { BarreTableur } from "@/components/grille/barre-tableur";
+import { CelluleEnTete } from "@/components/grille/en-tete-filtre";
 import { ServicesPanel } from "./services-panel";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { useConfirmer } from "@/components/ui/dialogue";
@@ -22,6 +25,16 @@ import { actionFailureMessage } from "@/lib/action-outcome";
 import type { EtablissementRow } from "@/lib/annuaires/types";
 
 export type { EtablissementRow };
+
+/** Largeurs de départ (px) des colonnes de la feuille — chacune s'élargit ensuite en glissant son bord. */
+const LARGEURS: Record<EtablissementField, number> = {
+  name: 260, type: 150, sector: 120, wilaya: 140, services: 280, doctorCount: 110, sectorCount: 110,
+};
+const COLONNES_TABLEUR: ColonneTableur[] = ETABLISSEMENT_COLUMNS.map((c) => ({
+  cle: c.field, libelle: c.header, largeur: LARGEURS[c.field], masquable: c.field !== "name",
+}));
+/** La colonne des gestes de la ligne (modifier, désactiver, supprimer). */
+const LARGEUR_ACTIONS = 120;
 
 /**
  * L'ANNUAIRE DES ÉTABLISSEMENTS — CHU, EPH, EHS, cliniques, polycliniques, cabinets.
@@ -84,8 +97,6 @@ export function EtablissementsTable({
   const [editing, setEditing] = React.useState<EtablissementRow | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
-  const [q, setQ] = React.useState("");
-  const [typeFilter, setTypeFilter] = React.useState("");
   const [couleursLocales, setCouleursLocales] = React.useState<Record<string, string>>(couleurs);
   React.useEffect(() => { setCouleursLocales(couleurs); }, [couleurs]);
   const [msgCouleur, setMsgCouleur] = React.useState<{ ok: boolean; text: string } | null>(null);
@@ -141,16 +152,7 @@ export function EtablissementsTable({
     await run(updateInstitution, fd);
   };
 
-  // LE FILTRE EST CLIENT : le parc d'établissements se compte en centaines, pas en dizaines de
-  // milliers — un aller-retour serveur par frappe coûterait plus que le gain.
-  const visibles = React.useMemo(() => rows.filter((r) => {
-    if (typeFilter && r.type !== typeFilter) return false;
-    if (!q.trim()) return true;
-    const t = `${r.name} ${r.wilaya ?? ""} ${r.region ?? ""}`.toLowerCase();
-    return t.includes(q.trim().toLowerCase());
-  }), [rows, typeFilter, q]);
-
-  /** La valeur AFFICHÉE d'une cellule — la même pour l'écran et pour la copie. */
+  /** La valeur AFFICHÉE d'une cellule — la même pour l'écran, la copie, le filtre et le tri. */
   const valeurCellule = React.useCallback((row: EtablissementRow, field: EtablissementField): string => {
     switch (field) {
       case "name": return row.name;
@@ -164,18 +166,30 @@ export function EtablissementsTable({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [types, sectors]);
 
+  // COMME EXCEL (recette du 23/11) : filtre automatique par colonne (le menu « Tous les types » d'avant n'en était
+  // qu'un), tri, largeur et affichage des colonnes. LE FILTRE EST CLIENT : le parc d'établissements se compte en
+  // centaines, pas en dizaines de milliers — un aller-retour serveur par frappe coûterait plus que le gain.
+  const acces = React.useCallback((row: EtablissementRow, cle: string) => valeurCellule(row, cle as EtablissementField), [valeurCellule]);
+  const texteLigne = React.useCallback(
+    (r: EtablissementRow) => [...ETABLISSEMENT_COLUMNS.map((c) => valeurCellule(r, c.field)), r.region, r.phone, r.email].filter(Boolean).join(" "),
+    [valeurCellule],
+  );
+  const tableur = useTableur({ lignes: rows, colonnes: COLONNES_TABLEUR, acces, texteLigne });
+  const visibles = tableur.visibles;
+  const colonnes = ETABLISSEMENT_COLUMNS.filter((c) => !tableur.masquees.has(c.field));
+
   const grille = useSelectionGrille({
     lignes: visibles.length,
-    colonnes: ETABLISSEMENT_COLUMNS.length,
+    colonnes: colonnes.length,
     valeur: (r, c) => {
-      const row = visibles[r]; const col = ETABLISSEMENT_COLUMNS[c];
+      const row = visibles[r]; const col = colonnes[c];
       return row && col ? valeurCellule(row, col.field) : "";
     },
   });
 
   const appliquerCouleur = (couleur: CouleurCellule | null) => {
     const cibles = grille.cellules
-      .map(({ r, c }) => ({ id: visibles[r]?.id ?? "", field: ETABLISSEMENT_COLUMNS[c]?.field ?? "" }))
+      .map(({ r, c }) => ({ id: visibles[r]?.id ?? "", field: colonnes[c]?.field ?? "" }))
       .filter((c) => c.id && c.field);
     if (cibles.length === 0) return;
     const avant = couleursLocales;
@@ -202,64 +216,66 @@ export function EtablissementsTable({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-0 flex-1 basis-full sm:min-w-[200px] sm:basis-auto">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-          <Input
-            value={q} onChange={(ev) => setQ(ev.target.value)} className="pl-8"
-            placeholder="Chercher un établissement, une wilaya…"
-            aria-label="Chercher un établissement"
-          />
-        </div>
-        <Select value={typeFilter} onChange={(ev) => setTypeFilter(ev.target.value)} className="min-w-0 flex-1 sm:w-auto sm:flex-none" aria-label="Filtrer par type">
-          <option value="">Tous les types</option>
-          {types.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-        </Select>
+      <BarreTableur pilote={tableur} placeholder="Chercher un établissement, une wilaya…" etiquette="Chercher un établissement">
         {canCreate && (
           <Button onClick={() => { setErr(null); setCreating(true); }} disabled={occupe} className="w-full sm:w-auto">
             <Plus className="h-4 w-4" /> Ajouter un établissement
           </Button>
         )}
-      </div>
+      </BarreTableur>
 
-      <div {...grille.propsConteneur} className="overflow-x-auto rounded-xl border border-border outline-none focus-visible:ring-1 focus-visible:ring-ring">
-        <table className="w-full min-w-[760px] select-none text-sm">
-          <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+      {/* L'EN-TÊTE RESTE COLLÉ et la colonne des noms FIGÉE pendant que la feuille défile dans son cadre (« comme
+          Excel ») ; les fonds sont opaques, sinon le texte des voisines défilerait sous la colonne figée. */}
+      <div {...grille.propsConteneur} className="max-h-[75vh] overflow-auto rounded-xl border border-border outline-none focus-visible:ring-1 focus-visible:ring-ring">
+        <table className="min-w-full table-fixed select-none border-separate border-spacing-0 text-[13px]" style={{ width: colonnes.reduce((s, c) => s + tableur.largeur(c.field), LARGEUR_ACTIONS) }}>
+          <colgroup>
+            {colonnes.map((c) => <col key={c.field} style={{ width: tableur.largeur(c.field) }} />)}
+            <col style={{ width: LARGEUR_ACTIONS }} />
+          </colgroup>
+          <thead>
             <tr>
-              {ETABLISSEMENT_COLUMNS.map((c) => (
-                <th key={c.field} className={cn("px-3 py-2 font-medium", c.calculee && "text-right")}>{c.header}</th>
+              {colonnes.map((c, j) => (
+                <CelluleEnTete
+                  key={c.field} pilote={tableur} colonne={COLONNES_TABLEUR.find((x) => x.cle === c.field)!}
+                  className={cn("sticky top-0 border-b border-r border-border bg-secondary text-muted-foreground", j === 0 ? "left-0 z-30" : "z-20")}
+                />
               ))}
-              <th className="px-3 py-2" />
+              <th scope="col" className="sticky top-0 z-20 border-b border-border bg-secondary"><span className="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody>
             {visibles.length === 0 && (
               <tr>
-                <td colSpan={ETABLISSEMENT_COLUMNS.length + 1} className="px-3 py-8 text-center text-muted-foreground">
+                <td colSpan={colonnes.length + 1} className="px-3 py-8 text-center text-muted-foreground">
                   {rows.length === 0
                     ? "Aucun établissement dans l'annuaire. C'est lui qui permet de rattacher un praticien à un vrai hôpital, et de découper les secteurs de la force de vente."
-                    : "Aucun établissement ne correspond à cette recherche."}
+                    : "Aucun établissement ne correspond aux filtres et à la recherche."}
                 </td>
               </tr>
             )}
             {visibles.map((e, r) => {
-              const cellule = (c: number, field: EtablissementField, contenu: React.ReactNode, extra?: string) => (
-                <td
-                  key={field}
-                  {...grille.propsCellule(r, c)}
-                  className={cn(
-                    "px-3 py-2 align-middle",
-                    classeCouleurCellule(couleursLocales[cleCellule(e.id, field)]),
-                    grille.estSelectionnee(r, c) && "shadow-[inset_0_0_0_2px_hsl(var(--primary))] bg-primary/5",
-                    extra,
-                  )}
-                >
-                  {contenu}
-                </td>
-              );
-              return (
-                <tr key={e.id} className={cn("border-t border-border", !e.isActive && "opacity-60")}>
-                  {cellule(0, "name", (
+              const fond = r % 2 === 1 ? "bg-muted" : "bg-card";
+              const cellule = (c: number, field: EtablissementField, contenu: React.ReactNode, extra?: string) => {
+                const couleur = couleursLocales[cleCellule(e.id, field)];
+                return (
+                  <td
+                    key={field}
+                    {...grille.propsCellule(r, c)}
+                    className={cn(
+                      "scroll-mt-10 border-b border-r border-border px-2 py-1 align-middle",
+                      c === 0 && "sticky left-0 z-10",
+                      couleur ? classeCouleurCellule(couleur) : cn(fond, "group-hover:bg-accent"),
+                      grille.estSelectionnee(r, c) && "shadow-[inset_0_0_0_2px_hsl(var(--primary))]",
+                      grille.estSelectionnee(r, c) && !couleur && "bg-accent",
+                      extra,
+                    )}
+                  >
+                    {contenu}
+                  </td>
+                );
+              };
+              const contenus: Record<EtablissementField, () => React.ReactNode> = {
+                name: () => (
                     <>
                       <span className="flex items-center gap-2 font-medium">
                         <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
@@ -267,19 +283,19 @@ export function EtablissementsTable({
                         {!e.isActive && <Badge tone="neutral">Inactif</Badge>}
                       </span>
                       {e.phone || e.email ? (
-                        <span className="mt-0.5 block text-xs text-muted-foreground">{[e.phone, e.email].filter(Boolean).join(" · ")}</span>
+                        <span className="mt-0.5 block truncate text-xs text-muted-foreground">{[e.phone, e.email].filter(Boolean).join(" · ")}</span>
                       ) : null}
                     </>
-                  ))}
-                  {cellule(1, "type", labelType(e.type))}
-                  {cellule(2, "sector", <Badge tone={e.sector === "PUBLIC" ? "info" : "purple"}>{labelSector(e.sector)}</Badge>)}
-                  {cellule(3, "wilaya", (
+                ),
+                type: () => labelType(e.type),
+                sector: () => <Badge tone={e.sector === "PUBLIC" ? "info" : "purple"}>{labelSector(e.sector)}</Badge>,
+                wilaya: () => (
                     <span className="flex items-center gap-1.5 text-muted-foreground">
                       <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden />
                       {e.wilaya || "—"}
                     </span>
-                  ))}
-                  {cellule(4, "services", (
+                ),
+                services: () => (
                     // LES SERVICES (§118.172) : les premiers en clair, le reste compté, et le
                     // panneau à un clic — qui ne peut pas modifier l'y LIT sans bouton.
                     <span className="flex flex-wrap items-center gap-1">
@@ -297,12 +313,16 @@ export function EtablissementsTable({
                         {e.services.length === 0 ? (canEdit ? "Ajouter" : "Aucun") : canEdit ? "Gérer" : "Voir"}
                       </button>
                     </span>
-                  ))}
-                  {cellule(5, "doctorCount", e.doctorCount > 0
-                    ? <span className="inline-flex items-center gap-1"><Stethoscope className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />{e.doctorCount}</span>
-                    : <span className="text-muted-foreground">—</span>, "text-right tabular-nums")}
-                  {cellule(6, "sectorCount", e.sectorCount > 0 ? e.sectorCount : <span className="text-muted-foreground">—</span>, "text-right tabular-nums")}
-                  <td className="px-3 py-2">
+                ),
+                doctorCount: () => (e.doctorCount > 0
+                  ? <span className="inline-flex items-center gap-1"><Stethoscope className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />{e.doctorCount}</span>
+                  : <span className="text-muted-foreground">—</span>),
+                sectorCount: () => (e.sectorCount > 0 ? e.sectorCount : <span className="text-muted-foreground">—</span>),
+              };
+              return (
+                <tr key={e.id} className={cn("group", !e.isActive && "text-muted-foreground")}>
+                  {colonnes.map((col, c) => cellule(c, col.field, contenus[col.field](), col.calculee ? "text-right tabular-nums" : undefined))}
+                  <td className={cn("border-b border-border px-1 py-0.5 group-hover:bg-accent", fond)}>
                     <span className="flex items-center justify-end gap-1">
                       {canEdit && (
                         <button

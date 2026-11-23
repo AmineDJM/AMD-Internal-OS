@@ -6,7 +6,7 @@ import { Plus, Loader2, CheckCircle2, AlertTriangle, ExternalLink, Send, ThumbsU
 import type { AdProItemKind, AdProItemStatus } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils";
-import { budgetKindLocked, ITEM_KINDS, ITEM_KIND_LABELS, ITEM_STATUS_LABELS, ITEM_BUDGET_KIND_LABELS, type AdProParent } from "../../domaine/postes";
+import { ITEM_KINDS, ITEM_KIND_LABELS, ITEM_STATUS_LABELS, ITEM_BUDGET_KIND_LABELS, type AdProParent } from "../../domaine/postes";
 import { conformiteParDefaut, voieAgencePossible, voieParDefaut } from "../../domaine/parcours-agence";
 import { decideAdProItem } from "../../actions-postes-decision";
 import { lireDevisAvantDepot } from "../../actions-postes-paiement";
@@ -21,6 +21,8 @@ import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import type { ItemRow, Run } from "../items-panel";
 import type { PosteFrere } from "./poste-carte";
 import { estPosteStock, RANGEE_ACTIONS } from "./elements";
+import { PieceDeLAccordDirect } from "./accord-direct";
+import { sansBonDeCommande } from "../../domaine/poste-etapes";
 
 // Les petits formulaires de la carte d'un poste : décision, demande et visa du BC, pièces, secrétariat,
 // geste motivé, montant accordé, répartition d'un sponsoring indirect, ajout et correction d'un poste.
@@ -42,18 +44,30 @@ export function BoiteDecision({ item, mode, budgetOptions, busy, run, fdOf, onCa
   accordSeul?: boolean;
 }) {
   const [note, setNote] = React.useState("");
-  const montantDepart = item.amountGranted ?? item.amountEstimated;
+  const marketing = mode === "MARKETING";
+  // UN POSTE PAYÉ DIRECTEMENT (Direction, 23/11/2026) : son montant et son bénéficiaire viennent de la pro forma ou de la
+  // facture — celle du poste, ou celle qu'on joint ici (`PieceDeLAccordDirect`) ; la Direction Marketing confirme.
+  const direct = marketing && sansBonDeCommande(item);
+  const piece = direct ? item.pieces.devis.filter((d) => !d.annulee).at(-1) ?? null : null;
+  const surLePoste = piece ? { titre: piece.titre, montant: piece.montant, fournisseur: item.devisLignes.find((v) => v.pieceId === piece.id)?.fournisseur ?? null } : null;
+  const montantDepart = item.amountGranted ?? item.amountEstimated ?? surLePoste?.montant ?? null;
   const [montant, setMontant] = React.useState(montantDepart != null ? String(montantDepart) : "");
+  const [payeA, setPayeA] = React.useState(item.supplier ?? surLePoste?.fournisseur ?? "");
+  const [fichier, setFichier] = React.useState<File | null>(null);
   const [budget, setBudget] = React.useState(item.budgetCategoryId ?? "");
   const occupe = busy === `dec:${item.id}`;
   const offrir = (s: AdProItemStatus) => (!revoir || item.status !== s) && (!accordSeul || s === "APPROVED");
-  const marketing = mode === "MARKETING";
   const montantOk = Number(montant.replace(",", ".")) > 0;
   const accordPret = !marketing || (montantOk && Boolean(budget));
-  const decider = (decision: AdProItemStatus, ok: string) => void run(`dec:${item.id}`, () => decideAdProItem(undefined, fdOf({
-    decision, note: note.trim(),
-    ...(marketing && decision === "APPROVED" ? { amountGranted: montant.replace(",", "."), budgetCategoryId: budget } : {}),
-  })), ok);
+  const decider = (decision: AdProItemStatus, ok: string) => void run(`dec:${item.id}`, () => {
+    const fd = fdOf({
+      decision, note: note.trim(),
+      ...(marketing && decision === "APPROVED" ? { amountGranted: montant.replace(",", "."), budgetCategoryId: budget } : {}),
+      ...(direct && decision === "APPROVED" ? { supplier: payeA.trim() } : {}),
+    });
+    if (direct && decision === "APPROVED" && fichier) fd.append("proforma", fichier);
+    return decideAdProItem(undefined, fd);
+  }, ok);
   return (
     <div className="space-y-2 rounded-lg border border-border bg-background p-2.5">
       {revoir && (
@@ -66,6 +80,12 @@ export function BoiteDecision({ item, mode, budgetOptions, busy, run, fdOf, onCa
           Un bon de commande est déjà établi dans Legal ({item.bcEtablis.join(", ")}) : pour refuser ou renvoyer ce poste, annulez d&apos;abord la demande de BC
           {item.refusAnnulationBc ? ` — ${item.refusAnnulationBc}` : " (« Annuler la demande de BC » l'annule avec elle)."}
         </p>
+      )}
+      {direct && offrir("APPROVED") && (
+        <PieceDeLAccordDirect
+          itemId={item.id} surLePoste={surLePoste} fichier={fichier} onFichier={setFichier}
+          onLu={(lu) => { if (lu.montant != null) setMontant(String(lu.montant)); if (lu.fournisseur) setPayeA(lu.fournisseur); }}
+        />
       )}
       {marketing && offrir("APPROVED") && (
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -87,6 +107,15 @@ export function BoiteDecision({ item, mode, budgetOptions, busy, run, fdOf, onCa
               {budgetOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
             </select>
           </label>
+          {direct && (
+            <label className="text-xs sm:col-span-2">
+              Payé à
+              <input
+                value={payeA} onChange={(e) => setPayeA(e.target.value)} placeholder="Lu sur la pro forma ou la facture" aria-label="Bénéficiaire du paiement"
+                className="mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-2 text-base outline-none focus:border-primary/60 sm:py-1.5 sm:text-sm"
+              />
+            </label>
+          )}
         </div>
       )}
       <input
@@ -563,16 +592,22 @@ export function FormulaireRepartition({ origine, busy, onSubmit, onCancel }: {
 
 // ─────────────────────────────── Ajouter / modifier ───────────────────────────────
 
-export function AddItemForm({ parent, parentId, decided, busy, onCancel, onSubmit }: {
+export function AddItemForm({ parent, parentId, decided, busy, onCancel, onSubmit, assistantes = [], marketing = false }: {
   parent: AdProParent; parentId: string; decided: boolean; busy: boolean; onCancel: () => void; onSubmit: (fd: FormData) => void;
+  /** Les assistantes de direction — la Direction Marketing choisit celle qui prospecte, dans le même geste. */
+  assistantes?: { id: string; name: string }[];
+  /** La personne qui ajoute tient la Direction Marketing : « Ajouter » lance aussi la prospection. */
+  marketing?: boolean;
 }) {
-  // « MATÉRIEL DU STOCK » n'a ni fournisseur, ni montant, ni nature de budget (§118.167) : ces
-  // champs disparaissent quand on la choisit — les envoyer quand même ferait refuser l'ajout.
-  // « SPONSORING INDIRECT » se donne en NATURES (§118.175) : le montant unique cède la place à la
-  // répartition, qui crée un poste par nature.
+  // NI « PAYÉ À », NI « MONTANT ESTIMÉ », NI « DÉJÀ COUVERT PAR LE BUDGET ? » (Direction, 23/11/2026) : le montant et le
+  // bénéficiaire viennent des pièces — les lignes retenues des devis d'agence, la pro forma ou la facture d'un poste payé
+  // directement —, et tout poste naît « inclus ». « SPONSORING INDIRECT » se donne en NATURES (§118.175) : sa répartition
+  // crée un poste par nature.
   const [nature, setNature] = React.useState<AdProItemKind>("STAND");
+  const [voie, setVoie] = React.useState<"AGENCE" | "DIRECT" | null>(voieParDefaut("STAND"));
   const stock = nature === NATURE_MATERIEL_STOCK;
   const indirect = nature === "INDIRECT_SUPPORT";
+  const parAgence = !stock && !indirect && voie === "AGENCE";
   // LES FICHES SAISIES AVEC LE POSTE (Direction, 10/2026) : billetterie → voyageurs, hôtellerie → personnes logées.
   const natureFiches = porteDesVoyageurs(nature) ? "VOYAGEUR" as const : porteDesHebergements(nature) ? "HEBERGEMENT" as const : null;
   const [fiches, setFiches] = React.useState<FicheBrouillon[]>([]);
@@ -592,7 +627,7 @@ export function AddItemForm({ parent, parentId, decided, busy, onCancel, onSubmi
         <label className="text-xs">
           Nature
           <select
-            name="kind" value={nature} onChange={(e) => { setNature(e.target.value as AdProItemKind); setFiches([]); }}
+            name="kind" value={nature} onChange={(e) => { const k = e.target.value as AdProItemKind; setNature(k); setVoie(voieParDefaut(k)); setFiches([]); }}
             className="mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-2 text-base outline-none focus:border-primary/60 sm:text-sm"
           >
             {ITEM_KINDS.map((k) => <option key={k} value={k}>{ITEM_KIND_LABELS[k]}</option>)}
@@ -606,18 +641,6 @@ export function AddItemForm({ parent, parentId, decided, busy, onCancel, onSubmi
             className="mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-2 text-base outline-none focus:border-primary/60 sm:text-sm"
           />
         </label>
-        {!stock && !indirect && (
-          <>
-            <label className="text-xs">
-              Payé à
-              <input name="supplier" placeholder="Organisateur, agence, association…" className="mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-2 text-base outline-none focus:border-primary/60 sm:text-sm" />
-            </label>
-            <label className="text-xs">
-              Montant estimé (DZD)
-              <input name="amountEstimated" type="number" inputMode="decimal" min="0" step="0.01" className="mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-2 text-base tabular-nums outline-none focus:border-primary/60 sm:text-sm" />
-            </label>
-          </>
-        )}
       </div>
 
       {indirect && <EditeurRepartition />}
@@ -632,21 +655,37 @@ export function AddItemForm({ parent, parentId, decided, busy, onCancel, onSubmi
       )}
 
       {/* COMMENT CE POSTE SE PAIE (parcours agence, 15/11/2026) — proposé selon la nature, modifiable. */}
-      {!stock && !indirect && <ChoixVoie key={nature} kind={nature} />}
+      {!stock && !indirect && <ChoixVoie key={nature} kind={nature} onVoie={setVoie} />}
 
-      {/* LA question à poser au moment de l'ajout : cet argent est-il déjà accordé, ou en plus ? */}
-      {!stock && (
-        <fieldset className="rounded-lg border border-border p-2.5">
-          <legend className="px-1 text-xs text-muted-foreground">Ce poste est-il déjà couvert par le budget accordé ?</legend>
-          <div className="flex flex-wrap gap-3 text-sm">
-            <label className="inline-flex min-h-9 items-center gap-1.5 sm:min-h-0">
-              <input type="radio" name="budgetKind" value="INCLUDED" defaultChecked /> Inclus dans le budget accordé
+      {/* PAR UNE AGENCE, EN UN GESTE (Direction, 23/11/2026) : le cahier des charges se saisit avec le poste ; « Ajouter » le
+          soumet et, pour la Direction Marketing, envoie la prospection à l'assistante (`addAdProItem` → `lancerLePosteAgence`). */}
+      {parAgence && (
+        <div className="space-y-2 rounded-lg border border-border p-2.5">
+          <label className="block text-xs">
+            Cahier des charges — ce qu&apos;il faut commander
+            <textarea
+              name="cahierDesCharges" required rows={3} placeholder="Ex. : stand 9 m² avec comptoir, 4 kakémonos, livraison sur site le 11/12."
+              className="mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-2 text-base outline-none focus:border-primary/60 sm:text-sm"
+            />
+          </label>
+          {marketing && assistantes.length > 0 && (
+            <label className="block text-xs">
+              Assistante de direction qui prospecte
+              <select
+                name="assistanteId" required defaultValue={assistantes.length === 1 ? assistantes[0]!.id : ""}
+                className="mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-2 text-base outline-none focus:border-primary/60 sm:text-sm"
+              >
+                <option value="">Choisir…</option>
+                {assistantes.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
             </label>
-            <label className="inline-flex min-h-9 items-center gap-1.5 sm:min-h-0">
-              <input type="radio" name="budgetKind" value="ADDITIONAL" /> Budget supplémentaire (rallonge)
-            </label>
-          </div>
-        </fieldset>
+          )}
+          <p className="text-[0.6875rem] text-muted-foreground">
+            {marketing
+              ? "« Ajouter » soumet le poste et envoie la demande de prospection à l'assistante, avec ce cahier des charges."
+              : "« Ajouter » soumet le poste à la Direction Marketing avec ce cahier des charges : elle lancera la prospection d'agences."}
+          </p>
+        </div>
       )}
       <label className="block text-xs">
         Précisions
@@ -656,15 +695,15 @@ export function AddItemForm({ parent, parentId, decided, busy, onCancel, onSubmi
       {decided && !stock && (
         <p className="flex items-start gap-1.5 text-[0.6875rem] text-warning">
           <AlertTriangle className="mt-px h-3 w-3 shrink-0" />
-          L&apos;opération est déjà tranchée : ce poste sera marqué « ajouté après décision ». S&apos;il
-          est <strong>inclus</strong> dans le budget accordé, il fera apparaître un dépassement tant
-          qu&apos;il n&apos;est pas compensé ; s&apos;il s&apos;agit d&apos;une <strong>rallonge</strong>, il sera compté à part.
+          L&apos;opération est déjà tranchée : ce poste sera marqué « ajouté après décision » — la Direction en est prévenue,
+          et il fera apparaître un dépassement tant qu&apos;il n&apos;est pas compensé.
         </p>
       )}
 
       <div className={RANGEE_ACTIONS}>
         <Button size="sm" type="submit" disabled={busy}>
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Ajouter
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+          {parAgence ? (marketing ? "Ajouter et demander la prospection" : "Ajouter et soumettre") : "Ajouter"}
         </Button>
         <Button size="sm" type="button" variant="outline" onClick={onCancel}>Annuler</Button>
       </div>
@@ -677,13 +716,11 @@ export function AddItemForm({ parent, parentId, decided, busy, onCancel, onSubmi
  *
  * Ces champs ne portent aucun engagement financier — seul le montant AFFECTÉ a été transmis aux
  * Finances, et lui seul se verrouille avec l'ordre de dépense. La nature de budget (inclus /
- * rallonge) reste modifiable tant que la Direction n'a pas tranché : après, c'est sur quoi elle
- * s'est prononcée.
+ * rallonge) ne se choisit plus (Direction, 23/11/2026) : une rallonge d'avant le reste.
  */
 export function EditItemForm({ item, busy, onCancel, onSave }: {
   item: ItemRow; busy: boolean; onCancel: () => void; onSave: (fd: FormData) => void;
 }) {
-  const budgetLocked = budgetKindLocked(item);
   const champ = "mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-2 text-base outline-none focus:border-primary/60 sm:text-sm";
   // UN POSTE « MATÉRIEL DU STOCK » ne se décrit que par son libellé et ses précisions : ni montant,
   // ni fournisseur, ni nature de budget — et sa nature ne change plus hors d'un brouillon vierge
@@ -718,23 +755,12 @@ export function EditItemForm({ item, busy, onCancel, onSave }: {
       </div>
       <label className="block text-xs">Précisions<input name="notes" defaultValue={item.notes ?? ""} placeholder="Facultatif" className={champ} /></label>
 
-      {budgetLocked ? (
+      {/* PLUS DE QUESTION « INCLUS OU RALLONGE ? » (Direction, 23/11/2026) : tout poste est inclus ; une rallonge d'avant le
+          reste, et la carte le dit. */}
+      {item.budgetKind === "ADDITIONAL" && (
         <p className="text-[0.6875rem] text-muted-foreground">
-          La Direction a tranché : la nature du budget ({ITEM_BUDGET_KIND_LABELS[item.budgetKind]}) ne change plus —
-          c&apos;est sur elle qu&apos;elle s&apos;est prononcée.
+          Poste en {ITEM_BUDGET_KIND_LABELS[item.budgetKind].toLocaleLowerCase("fr")} : sa nature de budget ne change plus.
         </p>
-      ) : (
-        <fieldset className="rounded-lg border border-border p-2.5">
-          <legend className="px-1 text-xs text-muted-foreground">Ce poste est-il couvert par le budget accordé ?</legend>
-          <div className="flex flex-wrap gap-3 text-sm">
-            <label className="inline-flex min-h-9 items-center gap-1.5 sm:min-h-0">
-              <input type="radio" name="budgetKind" value="INCLUDED" defaultChecked={item.budgetKind === "INCLUDED"} /> Inclus dans le budget accordé
-            </label>
-            <label className="inline-flex min-h-9 items-center gap-1.5 sm:min-h-0">
-              <input type="radio" name="budgetKind" value="ADDITIONAL" defaultChecked={item.budgetKind === "ADDITIONAL"} /> Budget supplémentaire (rallonge)
-            </label>
-          </div>
-        </fieldset>
       )}
 
       {item.expenseOrderId && (
@@ -768,9 +794,14 @@ export function Figure({ label, value, hint, tone }: { label: string; value: str
  * « directement » (pro forma ou facture, sans BC). Proposée selon la nature (`voieParDefaut`) ; le contrôle de conformité
  * aussi (`conformiteParDefaut`). Les natures qui ont leur propre chemin (billetterie, hôtellerie…) n'ont pas le choix.
  */
-export function ChoixVoie({ kind, voieActuelle, conformiteActuelle }: { kind: AdProItemKind; voieActuelle?: "AGENCE" | "DIRECT" | null; conformiteActuelle?: boolean }) {
+export function ChoixVoie({ kind, voieActuelle, conformiteActuelle, onVoie }: {
+  kind: AdProItemKind; voieActuelle?: "AGENCE" | "DIRECT" | null; conformiteActuelle?: boolean;
+  /** Le formulaire d'ajout suit la voie : « par une agence », il demande le cahier des charges (23/11/2026). */
+  onVoie?: (v: "AGENCE" | "DIRECT") => void;
+}) {
   const proposee = voieParDefaut(kind);
-  const [voie, setVoie] = React.useState<"AGENCE" | "DIRECT" | null>(voieActuelle ?? proposee);
+  const [voie, setVoieLocale] = React.useState<"AGENCE" | "DIRECT" | null>(voieActuelle ?? proposee);
+  const setVoie = (v: "AGENCE" | "DIRECT") => { setVoieLocale(v); onVoie?.(v); };
   if (proposee === null && !voieActuelle) return null;
   return (
     <fieldset className="rounded-lg border border-border p-2.5">

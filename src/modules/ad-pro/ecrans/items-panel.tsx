@@ -24,6 +24,7 @@ import type { HebergementVue } from "./hebergements-bloc";
 import type { EnvoiVue } from "@/lib/reservation-fiche/etat";
 import type { PiecesDuPoste, DemandeBCDuPoste } from "../infra/pieces-poste";
 import type { DevisDePosteVue } from "../infra/requetes/devis-poste";
+import type { MessageDuPoste } from "../infra/postes/discussion";
 import { ancrePoste } from "@/lib/chemins/ad-pro";
 import type { EtatPorteDg } from "@/lib/seuils/porte-dg-total";
 import { CartePorteDg } from "./porte-dg-carte";
@@ -130,6 +131,8 @@ export interface ItemRow {
    * ni validation, ni BC, ni paiement. La carte le montre payé, sans geste. `null` pour tout autre poste.
    */
   historique?: { montant: number; ligne: number | null; payeLe: string | null } | null;
+  /** LA DISCUSSION DU POSTE (Direction, 23/11/2026) — ses messages et leurs pièces, le plus ancien d'abord. */
+  discussion?: MessageDuPoste[];
 }
 
 interface Props {
@@ -202,6 +205,8 @@ export interface ContexteDesPostes {
   suiviSimple?: boolean;
   /** La demande ne prend pas de poste maintenant (avant la prévalidation, ou postes déclarés) — la phrase dit pourquoi. */
   ajoutFerme?: string | null;
+  /** Modère le fil des postes (modifier, supprimer le message d'un autre) — la porte des actions canoniques. */
+  modereLesFils?: boolean;
 }
 
 export type Run = (key: string, fn: () => Promise<{ ok: boolean; error?: string; message?: string }>, okText: string) => Promise<void>;
@@ -323,11 +328,12 @@ export function AdProItemsPanel({
       porteDg={contexte.porteDg}
       infoMed={contexte.infoMed === true}
       signature={contexte.signature ?? { signature: false, cachet: false, code: false }}
+      modereLeFil={contexte.modereLesFils === true}
     />
   );
 
   // LE DÉLÉGUÉ SUIT SANS LES DÉTAILS (Direction, 15/11/2026) : les étapes de ses postes, pas leurs montants ni leurs pièces.
-  if (contexte.suiviSimple) return <SuiviSimple items={items} />;
+  if (contexte.suiviSimple) return <SuiviSimple items={items} moiId={contexte.userId} chemin={parentLink} />;
 
   return (
     <div className="space-y-4">
@@ -347,7 +353,11 @@ export function AdProItemsPanel({
           // elle a un montant qui se fixera à la validation finale — le dire évite de lire un oubli.
           hint={b.envelopeDzd == null ? (decided && !tardif ? "fixée à la validation finale" : "Direction non tranchée") : undefined}
         />
-        <Figure label="Estimé par le demandeur" value={formatCurrency(b.estimatedDzd)} hint={`${b.itemCount} poste(s)`} />
+        {/* LE MONTANT VIENT DES PIÈCES (23/11/2026) : sans estimation, « 0 DZD » se lirait comme un poste gratuit. */}
+        <Figure
+          label="Estimé par le demandeur" value={b.estimatedDzd > 0 ? formatCurrency(b.estimatedDzd) : "—"}
+          hint={b.estimatedDzd > 0 ? `${b.itemCount} poste(s)` : `${b.itemCount} poste(s) — montants lus sur les devis`}
+        />
         <Figure
           label="Affecté aux postes"
           value={formatCurrency(b.allocatedDzd)}
@@ -453,6 +463,8 @@ export function AdProItemsPanel({
             parent={parent}
             parentId={parentId}
             decided={tardif}
+            assistantes={contexte.assistantes}
+            marketing={contexte.validation.marketing}
             busy={busy === "add"}
             onCancel={() => setAdding(false)}
             onSubmit={(fd) => void run("add", () => addAdProItem(undefined, fd).then((r) => {

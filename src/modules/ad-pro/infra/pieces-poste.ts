@@ -124,6 +124,8 @@ export type BcDePoste = PieceDePoste & {
   /** Les DATES de sa frise sur la carte du poste (Direction, 07/10 : « je ne sais pas si le BC a été envoyé aux Finances ») — ISO. */
   creeLe: string;
   signeLe: string | null;
+  /** RENVOYÉ par le signataire (étape « à corriger ») : qui, et ce qu'il faut corriger — la carte le dit à qui corrige. */
+  renvoi?: { par: string | null; note: string | null } | null;
 };
 
 /**
@@ -219,6 +221,7 @@ export async function piecesDesPostes(itemIds: readonly string[]): Promise<Map<s
         copieSignee: copie ? { documentId: copie, signataire: d.signedByName, constat: verdict ? phraseVerdictSignature(verdict) : null } : null,
         revision: null,
         creeLe: d.createdAt.toISOString(), signeLe: d.signedAt ? d.signedAt.toISOString() : null,
+        renvoi: (() => { const r = annulee ? null : etats.get(d.id)?.renvoi ?? null; return r ? { par: r.par, note: r.note } : null; })(),
       };
       if (!annulee) p.bcs.push(bc);
       // Sans BC vivant, le plus récent annulé : la case dit « annulé » au lieu de se taire.

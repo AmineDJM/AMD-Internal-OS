@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   allouer, cleProduits, etatValidite, libelleArticleStock, lireDateJour, natureDuTransfert, ordreDeSortie, parseQuantity,
-  repartirReception, stockLevel, JOURS_ALERTE_VALIDITE, type LotDisponible,
+  lireRepartition, repartirReception, stockLevel, JOURS_ALERTE_VALIDITE, type LotDisponible,
 } from "./stock";
 
 /**
@@ -127,5 +127,26 @@ describe("Une réception confirmée en partie", () => {
   it("tout reçu : rien de manquant ; rien reçu : tout manque", () => {
     expect(repartirReception([{ lotId: "L1", quantite: 8 }], 8).manquantes).toEqual([]);
     expect(repartirReception([{ lotId: "L1", quantite: 8 }], 0).recues).toEqual([]);
+  });
+});
+
+describe("Répartir un article entre plusieurs personnes (Direction, 23/11/2026)", () => {
+  it("ignore les lignes vides ou à zéro, lit la virgule, et totalise le reste", () => {
+    const r = lireRepartition([
+      { versId: "k1", quantite: "10" }, { versId: "k2", quantite: "" }, { versId: "k3", quantite: "0" },
+      { versId: "k4", quantite: "12,5" }, { versId: "k5", quantite: " " },
+    ]);
+    expect(r).toEqual({ ok: true, lignes: [{ versId: "k1", quantite: 10 }, { versId: "k4", quantite: 12.5 }], total: 22.5 });
+  });
+
+  it("refuse TOUT sur une quantité illisible ou négative, une personne nommée deux fois, ou rien à répartir", () => {
+    expect(lireRepartition([{ versId: "k1", quantite: "10" }, { versId: "k2", quantite: "dix" }]).ok).toBe(false);
+    expect(lireRepartition([{ versId: "k1", quantite: "-3" }]).ok, "une quantité négative n'est pas une ligne à zéro").toBe(false);
+    const double = lireRepartition([{ versId: "k1", quantite: "4" }, { versId: "k1", quantite: "6" }]);
+    expect(double.ok).toBe(false);
+    if (!double.ok) expect(double.error).toMatch(/deux fois/);
+    const rien = lireRepartition([{ versId: "k1", quantite: "0" }, { versId: "k2", quantite: "" }]);
+    expect(rien.ok).toBe(false);
+    if (!rien.ok) expect(rien.error).toMatch(/Rien à répartir/);
   });
 });

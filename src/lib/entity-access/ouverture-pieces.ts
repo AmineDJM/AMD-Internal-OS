@@ -1,6 +1,6 @@
 import type { EntityType } from "@prisma/client";
 import { canAccessEntity } from "@/lib/entity-access";
-import { peutLirePasseportDuSujet, peutLirePieceDePriseEnCharge } from "@/modules/ad-pro/api";
+import { peutLirePasseportDuSujet, peutLirePieceDePriseEnCharge, peutLireFichierDuPosteConfie } from "@/modules/ad-pro/api";
 import { hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import { voitLesSalaires } from "@/lib/hr/confidentialite";
 import { entitePermisePourFiche } from "@/lib/company";
@@ -33,6 +33,8 @@ export async function peutOuvrirDocument(
   return (await canAccessEntity(user, doc.entityType, doc.entityId, "VIEW"))
     || (await peutLirePasseportDuSujet(user.id, doc))
     || (await peutLirePieceDePriseEnCharge(user, doc))
+    // Les fichiers d'un poste (fil, BAT, réception, pièces jointes) s'ouvrent aussi à l'assistante qui le prospecte (23/11/2026).
+    || (await peutLireFichierDuPosteConfie(user, doc))
     || (await peutLirePieceDeDemande(user, doc))
     || (await peutLireSaPieceLegal(user, doc))
     || (await peutLireDeclarationDeLaDemande(user, doc));

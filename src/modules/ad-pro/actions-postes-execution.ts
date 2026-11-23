@@ -10,7 +10,7 @@ import { sansBloquer } from "@/lib/journal";
 import { persistUploadedDocument } from "@/lib/documents";
 import { validateAttachments } from "@/lib/attach-files";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
-import { lienPosteAdPro } from "@/lib/chemins/ad-pro";
+import { CHEMIN_A_FAIRE_INFO_MED, lienBatInfoMed, lienPosteAdPro } from "@/lib/chemins/ad-pro";
 import { etatDuBC } from "@/lib/bons-de-commande/etat";
 import { conformiteParDefaut, voieAgencePossible, lireStatutConformite } from "./domaine/parcours-agence";
 import { PARENTS, revalidate, audit, loadItem, REFUS_HISTORIQUE, peutTrancherSur, canEditItems } from "./infra/postes/commun";
@@ -103,13 +103,16 @@ export async function envoyerBatConformite(formData: FormData): Promise<ActionRe
     if (!r.ok) return { ok: false, error: r.error ?? "Le BAT n'a pas pu être enregistré." };
   }
   await prisma.adProExecutionPoste.update({ where: { itemId: item.id }, data: { conformiteStatut: "EN_CONTROLE", conformiteDemandeeAt: new Date(), conformiteDemandeeParId: user.id, conformiteNote: null } });
+  // LA NOTIFICATION MÈNE À L'ÉCRAN DU PHARMACIEN, sur la ligne du poste (23/11/2026) : il y voit tous les BAT et décide sur
+  // place — la fiche d'une « Autre demande » ne lui est pas ouverte.
   await notifyRoles(["MEDICAL_INFO_PHARMACIST"], {
-    type: "VALIDATION_REQUIRED", title: "BAT à contrôler", body: `${info.ref} — « ${item.label} » : conformité à vérifier avant impression.`,
-    link: lienPosteAdPro(owner.parent, owner.id, item.id),
+    type: "VALIDATION_REQUIRED", title: statut === "NON_CONFORME" ? "BAT corrigé à contrôler" : "BAT à contrôler",
+    body: `${info.ref} — « ${item.label} » : conformité à vérifier avant impression.`, link: lienBatInfoMed(item.id),
   }).catch(sansBloquer("ad-pro.envoyerBatConformite.notifyRoles"));
   await audit(user, owner.parent, owner.id, "UPDATE", `BAT du poste « ${item.label} » transmis à l'information médicale pour contrôle de conformité.`);
   revalidate(owner.parent, owner.id);
   revalidatePath("/information-medicale/conformite");
+  revalidatePath(CHEMIN_A_FAIRE_INFO_MED);
   return { ok: true, id: item.id, message: "BAT transmis à l'information médicale." };
 }
 
@@ -138,9 +141,11 @@ export async function deciderConformitePoste(formData: FormData): Promise<Action
       body: `${info.ref} — « ${item.label} »${note ? ` : ${note}` : ""}`, link: lienPosteAdPro(owner.parent, owner.id, item.id),
     }).catch(sansBloquer("ad-pro.deciderConformitePoste.notifyUser"));
   }
+  // Ce libellé est RELU par la file des BAT (`infra/requetes/conformite.ts`) : il date chaque tour et garde ses motifs.
   await audit(user, owner.parent, owner.id, "UPDATE", `Conformité du poste « ${item.label} » : ${decision === "CONFORME" ? "conforme" : `non conforme — ${note}`}.`);
   revalidate(owner.parent, owner.id);
   revalidatePath("/information-medicale/conformite");
+  revalidatePath(CHEMIN_A_FAIRE_INFO_MED);
   return { ok: true, id: item.id, message: decision === "CONFORME" ? "Déclaré conforme : l'impression peut partir." : "Déclaré non conforme : la Direction Marketing fait corriger le BAT." };
 }
 

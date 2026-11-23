@@ -601,7 +601,7 @@ export function totalDesCommandes(lignes: readonly { ttc: number }[]): number {
 
 /**
  * LA FORMALITÉ PROPOSÉE au paiement suivant — celle de la dernière demande déjà adressée pour ce dossier (visa
- * publicitaire ou déclaration au ministère) : le même matériel suit la même formalité. `null` : à choisir.
+ * publicitaire ou déclaration à l'ANPP) : le même matériel suit la même formalité. `null` : à choisir.
  */
 export function formaliteDuDossier(demandes: readonly ({ formalite?: string | null } | null)[]): "AD_VISA" | "MIP" | null {
   for (let i = demandes.length - 1; i >= 0; i--) {

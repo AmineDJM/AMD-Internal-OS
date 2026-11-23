@@ -1,6 +1,6 @@
 "use server";
 
-import { CHEMIN_STOCK_PROMO } from "@/lib/chemins/stock-promo";
+import { CHEMIN_STOCK_PROMO, lienStockPromo } from "@/lib/chemins/stock-promo";
 import { CHEMIN_BONS_DE_COMMANDE } from "@/lib/chemins/bons-de-commande";
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
@@ -65,7 +65,7 @@ import { actionReversible } from "@/lib/effets/reversible";
  * elle-même. Il peut supprimer ou modifier un bon de commande généré. Il envoie le bon de
  * commande, et il se doit d'uploader la facture pour demander un paiement, c'est obligatoire —
  * la ou les factures, associées chacune à son bon de commande. Et à chaque paiement, la demande
- * de visa publicitaire, ou la déclaration au ministère, part chez l'information médicale. »
+ * de visa publicitaire, ou la déclaration à l'ANPP, part chez l'information médicale. »
  *
  * ── LES QUATRE RÈGLES QUE CES GESTES PARTAGENT ────────────────────────────────────────────
  *
@@ -730,11 +730,12 @@ export async function receptionnerLigneFacturePromo(formData: FormData): Promise
   });
   if ("refus" in r) return { ok: false, error: r.refus };
   await audit(user, pm.id, `Réception cochée — « ${ligne.designation} » (${libelleFacture}) : +${quantiteLue(v.quantite)} ${libelle} au magasin central (lot ${r.numero})${user.id !== pm.requesterId ? " — en suppléance du demandeur" : ""}`);
-  // LA GESTIONNAIRE DU MAGASIN APPREND CE QUI ENTRE : c'est elle qui dote ensuite les délégués.
+  // LA GESTIONNAIRE DU MAGASIN APPREND CE QUI ENTRE : c'est elle qui dote ensuite les délégués — le
+  // lien ouvre la vue MAGASIN, où « Doter » et « Répartir » sont sur la ligne de l'article (23/11/2026).
   const gestionnaires = await gestionnairesDuMagasin();
   for (const userId of new Set(gestionnaires)) {
     if (userId === user.id) continue;
-    await notifyUser({ userId, type: "GENERIC", title: "Entrée au magasin — achat reçu", body: `+${quantiteLue(v.quantite)} ${libelle} (${pm.reference}, ${libelleFacture})`, link: CHEMIN_STOCK_PROMO });
+    await notifyUser({ userId, type: "GENERIC", title: "Entrée au magasin — achat reçu", body: `+${quantiteLue(v.quantite)} ${libelle} (${pm.reference}, ${libelleFacture}) — à répartir depuis le magasin.`, link: lienStockPromo("magasin") });
   }
   revalidatePath(chemin(pm.id));
   revalidatePath(CHEMIN_STOCK_PROMO);
@@ -830,15 +831,15 @@ export async function annulerFacturePromo(formData: FormData): Promise<ActionRes
 
 const FORMALITES = ["AD_VISA", "MIP"] as const;
 type Formalite = (typeof FORMALITES)[number];
-const LIBELLE_FORMALITE: Record<Formalite, string> = { AD_VISA: "demande de visa publicitaire", MIP: "déclaration au ministère" };
+const LIBELLE_FORMALITE: Record<Formalite, string> = { AD_VISA: "demande de visa publicitaire", MIP: "déclaration à l'ANPP" };
 
 /**
  * DEMANDER LE PAIEMENT D'UNE FACTURE — et, avec lui, la demande à l'information médicale.
  *
  * Le paiement passe par la porte commune : `canSendToSettlement` (pas deux fois, pas sans montant,
  * pas sur un BC que son centre n'a pas validé), puis `createExpenseOrder`, qui le fait naître en
- * attente du CENTRE DE PAIEMENT (§118.148). La demande de visa publicitaire — ou la déclaration au
- * ministère — part AVEC le paiement, une par paiement : c'est ce que la Direction a demandé, et le
+ * attente du CENTRE DE PAIEMENT (§118.148). La demande de visa publicitaire — ou la déclaration à
+ * l'ANPP — part AVEC le paiement, une par paiement : c'est ce que la Direction a demandé, et le
  * PRIM instruit en parallèle du règlement au lieu de l'attendre. Elle ne porte AUCUN montant :
  * l'information médicale n'émet pas d'ordre pour elle, sans quoi le même matériel serait payé deux
  * fois (§118.151).
@@ -851,7 +852,7 @@ export async function demanderPaiementFacturePromo(formData: FormData): Promise<
     if (refus || !pm) return { ok: false, error: refus ?? "Dossier introuvable." };
     const formalite = fdStr(formData, "formalite") as Formalite | null;
     if (!formalite || !FORMALITES.includes(formalite)) {
-      return { ok: false, error: "Choisissez la formalité qui accompagne ce paiement : demande de visa publicitaire, ou déclaration au ministère." };
+      return { ok: false, error: "Choisissez la formalité qui accompagne ce paiement : demande de visa publicitaire, ou déclaration à l'ANPP." };
     }
     const invoiceId = fdStr(formData, "invoiceId");
     // SÉRIALISÉ PAR FACTURE : deux clics simultanés liraient tous deux « aucun ordre » et feraient
@@ -960,7 +961,7 @@ export async function adresserInfoMedicaleFacturePromo(formData: FormData): Prom
   if (refus || !pm) return { ok: false, error: refus ?? "Dossier introuvable." };
   const formalite = fdStr(formData, "formalite") as Formalite | null;
   if (!formalite || !FORMALITES.includes(formalite)) {
-    return { ok: false, error: "Choisissez la formalité : demande de visa publicitaire, ou déclaration au ministère." };
+    return { ok: false, error: "Choisissez la formalité : demande de visa publicitaire, ou déclaration à l'ANPP." };
   }
   const facture = await factureDuDossier(pm, fdStr(formData, "invoiceId"));
   if (!facture) return { ok: false, error: "Cette facture n'appartient pas à ce dossier." };

@@ -1,4 +1,3 @@
-import { requireModule } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { clauseSponsoringsVisibles } from "@/lib/queries/visibilite-listes";
@@ -7,7 +6,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { CreateRecordButton } from "@/components/shared/create-record-button";
 import { ModuleTabs } from "@/components/shared/module-tabs";
 import { createSponsoring } from "@/modules/ad-pro/actions-sponsoring";
-import { getAdProCreateData } from "@/modules/ad-pro/api";
+import { getAdProCreateData, requireModuleOuAgences } from "@/modules/ad-pro/api";
 import { sponsoringCreateFields } from "@/modules/ad-pro/partage";
 import { EVENTS_TABS } from "@/lib/labels";
 import { SponsoringTable, type SponsoringRow } from "./sponsoring-table";
@@ -15,7 +14,7 @@ import { SponsoringTable, type SponsoringRow } from "./sponsoring-table";
 export const dynamic = "force-dynamic";
 
 export default async function SponsoringPage() {
-  const user = await requireModule("SPONSORING");
+  const user = await requireModuleOuAgences("SPONSORING");
   const canCreate = userCan(user, "SPONSORING", "CREATE");
 
   // ─── LES RÉFÉRENTIELS DU FORMULAIRE — UN SEUL CHARGEUR POUR LES DEUX PORTES ────────────

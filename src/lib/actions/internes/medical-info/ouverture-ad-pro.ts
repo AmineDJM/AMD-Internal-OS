@@ -18,9 +18,10 @@ export function tientLaDeclarationAdPro(user: SessionUser): boolean {
 /**
  * OUVRIR LA DÉCLARATION D'UNE DEMANDE AD & PRO QUI N'EN A PAS (Direction, 08/11/2026).
  *
- * La déclaration naît d'ordinaire à la pré-validation, et seulement si un pharmacien est configuré. Une demande accordée
- * avant — ou sous l'ancienne règle du montant global — n'en a donc aucune, et l'étape de la frise resterait vide pour
- * toujours. Le pharmacien l'ouvre d'ici.
+ * La déclaration s'ouvre d'ordinaire d'elle-même quand le DERNIER poste soumis est validé (`ouvrirDeclarationSiPostesValides`,
+ * 19/11/2026 ; un brouillon jamais soumis ne la retient pas, 23/11/2026). Une demande accordée sous l'ancienne règle du
+ * montant global n'en a aucune, et l'étape de la frise resterait vide pour toujours : le pharmacien l'ouvre d'ici (depuis
+ * la fiche, ou « À venir » de son écran « À faire »).
  *
  * SANS ARGENT : la déclaration naît SANS montant, et rattachée à l'ordre de dépense déjà émis pour la demande s'il y en a
  * un. Sa validation finale n'émet donc jamais d'ordre (`ordreGlobalALaValidation`) : la demande a déjà été payée par son
@@ -54,7 +55,7 @@ export async function ouvrirDeclarationAdPro(
     return {
       ok: false,
       error: postes.total > 0
-        ? `La déclaration s'ouvre quand tous les postes sont validés : ${postes.valides} sur ${postes.total} le sont.`
+        ? `La déclaration s'ouvre quand tous les postes soumis sont validés : ${postes.valides} sur ${postes.total} le sont${postes.blocages.length ? ` (${postes.blocages.join(", ")})` : ""}.`
         : "La déclaration s'ouvre quand les postes de la demande sont validés : elle n'en a encore aucun.",
     };
   }

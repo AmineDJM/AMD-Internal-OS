@@ -23,7 +23,7 @@ export default async function PosteAgencePage(props: { params: Promise<{ itemId:
   return (
     <div className="mx-auto max-w-4xl space-y-5">
       <BackLink href="/agences">Prospection d&apos;agences</BackLink>
-      <PageHeader title={item.label} description={`${poste.ref} — poste payé par une agence.`} />
+      <PageHeader title={item.label} description={`${poste.ref} — poste payé par une agence. Votre prochain geste est en tête de la carte ; les devis, le bon de commande et la discussion du poste, dessous.`} />
       <AdProItemsPanel
         parent={poste.owner.parent} parentId={poste.owner.id} items={[item]} amountGranted={null} decided
         canEdit={false} canAllocate={false} promoOptions={[]} budgetOptions={[]}

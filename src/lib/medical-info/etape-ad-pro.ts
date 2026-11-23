@@ -6,7 +6,9 @@ import { EVENT_SOURCES } from "@/lib/medical-info/circuits";
 import { circuitStateOf, authoritiesOpen } from "@/lib/medical-info/circuit-state";
 import { canRequestDecision, declareStage } from "@/lib/medical-info/declare-decision";
 import { chezDecideur } from "@/lib/medical-info/decideur";
-import { libellePastille, parcoursOf, pharmacienPeutValider } from "@/lib/medical-info/parcours";
+import {
+  libellePastille, nomCourt, parcoursDuDossier, pharmacienPeutValider, tourDeLaDeclaration, TOURS_DU_PHARMACIEN,
+} from "@/lib/medical-info/parcours";
 import { canViewDeclaration } from "@/lib/queries/medical-info";
 import { refusDepotAutorites } from "@/lib/actions/internes/medical-info/dossier";
 import { tientLaDeclarationAdPro } from "@/lib/actions/internes/medical-info/ouverture-ad-pro";
@@ -20,12 +22,14 @@ import { ETAPE_DECLARATION_PARTAGEE, TITRE_ETAPE_DECLARATION, type EtapeDeclarat
  * « Après l'étape de la pré-validation, il faut ajouter une dernière étape de circuit : la déclaration des événements
  * scientifiques, en donnant la main au responsable de l'information médicale pour uploader les déclarations. »
  *
- * L'étape ne double rien : elle LIT le dossier d'information médicale (`DIM-…`) qui naît à la pré-validation — sa
- * lecture « à déclarer / sans déclaration », la décision du Directeur des Opérations, la référence du ministère, la
- * validation — et le montre sur la fiche de la demande, où personne ne le voyait. Le pharmacien y agit (déposer les
- * déclarations, enregistrer la référence) ; le reste de son instruction reste dans Information médicale, inchangé.
+ * L'étape ne double rien : elle LIT le dossier d'information médicale (`DIM-…`) — ouvert quand TOUS les postes sont
+ * validés (`declaration-postes.ts`, 19/11/2026) — : sa lecture « à déclarer / sans déclaration », la décision du Directeur
+ * des Opérations, la référence ANPP, la validation ; et le montre sur la fiche de la demande, où personne ne le voyait. Le
+ * pharmacien y agit (sa lecture, le dépôt des déclarations, la référence, sa validation) ; son écran « À faire —
+ * Information médicale » range les mêmes gestes par tour. La déclaration S'ARRÊTE à la validation du Directeur des
+ * Opérations : aucune étape ne la suit après le paiement.
  *
- * ELLE NE BLOQUE RIEN : postes, paiements et validation finale n'attendent pas le ministère.
+ * ELLE NE BLOQUE RIEN : postes, paiements et validation finale n'attendent pas l'ANPP.
  *
  * Seuls les ÉVÉNEMENTS se déclarent ainsi (sponsoring, prises en charge nationales et internationales, événements) :
  * le matériel promotionnel a son propre circuit, avec ses bons de versement.
@@ -40,7 +44,8 @@ export function seDeclareEnInformationScientifique(type: EntityType | string): b
 
 /**
  * L'ÉTAPE, pour la fiche d'une demande Ad & Pro. `circuitConclu` : la pré-validation (ou l'ancien accord) a conclu le
- * circuit — c'est là que la déclaration naît. `null` pour ce qui ne se déclare pas ici (matériel promotionnel, « autres »).
+ * circuit — la déclaration s'ouvre ensuite, quand le dernier poste est validé. `null` pour ce qui ne se déclare pas ici
+ * (matériel promotionnel, « autres »).
  */
 export async function etapeDeclaration(
   user: SessionUser, sourceType: EntityType, sourceId: string, circuitConclu: boolean,
@@ -58,7 +63,7 @@ export async function etapeDeclaration(
 
   const base = {
     titre: TITRE_ETAPE_DECLARATION, depot: { ouvert: false, motif: null }, pieces: [] as PieceDeDeclaration[],
-    decision: null, validation: { peut: false, piecesAttendues: false },
+    decision: null, validation: { peut: false, piecesAttendues: false }, aVous: false,
   };
   if (!decl) {
     // LA DÉCLARATION ATTEND TOUS LES POSTES (Direction, 19/11/2026) : elle s'ouvre seule quand le dernier est validé, et les
@@ -71,12 +76,13 @@ export async function etapeDeclaration(
       detail: !circuitConclu ? "après les postes"
         : attendPostes ? (postes.total ? `${postes.valides}/${postes.total} postes validés` : "aucun poste encore") : "à ouvrir",
       phrase: !circuitConclu
-        ? "Après la pré-validation puis la validation de tous les postes, le pharmacien déclare l'événement au ministère."
+        ? "Après la pré-validation puis la validation de tous les postes, le pharmacien déclare l'événement à l'ANPP."
         : attendPostes
-          ? `La déclaration s'ouvrira quand tous les postes seront validés (accordés, agence choisie pour un poste « agence ») — ${postes.valides} sur ${postes.total} le sont. Ils seront déclarés ensemble : aucun poste ne s'ajoutera ensuite.`
+          ? `La déclaration s'ouvrira quand tous les postes soumis seront validés (accordés, agence choisie pour un poste « agence ») — ${postes.valides} sur ${postes.total} le sont${postes.blocages.length ? ` (${postes.blocages.join(", ")})` : ""}. Ils seront déclarés ensemble : aucun poste ne s'ajoutera ensuite${postes.brouillons ? `, et ${postes.brouillons > 1 ? "les brouillons non soumis ne seront pas déclarés" : "le brouillon non soumis ne sera pas déclaré"}` : ""}.`
           : "Déclaration pas encore ouverte — chez le pharmacien responsable de l'information médicale",
       ton: circuitConclu && !attendPostes ? "attente" : "neutre",
       declaration: null, lienDossier: null, peutAgir: false, peutOuvrir: tient && circuitConclu && ouvrable,
+      aVous: tient && circuitConclu && ouvrable,
     };
   }
 
@@ -86,11 +92,20 @@ export async function etapeDeclaration(
   const ref = decl.authorityRef?.trim() || null;
   const motifSans = decl.declareNote?.trim() ? ` (motif : ${decl.declareNote.trim()})` : "";
 
+  const decideurs = valide ? null : await decideursInfoMedActifs(decl.pharmacistValidatedById ?? decl.pharmacistId);
+  const parcours = decideurs ? parcoursDuDossier(decl, etat, chezDecideur(decideurs)) : null;
+  // « À VOUS » DIT LE TOUR, PAS LE DROIT (23/11/2026) : la carte restait « À vous » pendant que la lecture du pharmacien, ou
+  // sa validation, attendait le Directeur des Opérations. La règle de l'écran « À faire » (`tourDeLaDeclaration`).
+  const tour = parcours ? tourDeLaDeclaration({
+    courante: parcours.courante, lecture: declareStage(etat.declare), lot: etat.lot,
+    bonsChezPharmacien: parcours.chez === (nomCourt(decl.pharmacist?.name) ?? "le pharmacien"),
+  }) : null;
+
   let phrase: string;
   let detail: string | null;
   let ton: EtapeDeclaration["ton"];
   if (valide) {
-    phrase = sansDeclaration ? `Validée — sans déclaration${motifSans}` : `Validée — déclarée au ministère${ref ? ` (réf. ${ref})` : ""}`;
+    phrase = sansDeclaration ? `Validée — sans déclaration${motifSans}` : `Validée — déclarée à l'ANPP${ref ? ` (réf. ${ref})` : ""}`;
     detail = sansDeclaration ? "sans déclaration" : ref ? `réf. ${ref}` : "validée";
     ton = "succes";
   } else if (sansDeclaration || ref) {
@@ -100,24 +115,12 @@ export async function etapeDeclaration(
     const suite = decl.status === "AWAITING_DIRECTION"
       ? "validation finale chez le Directeur des Opérations"
       : `à valider par ${decl.pharmacist?.name ?? "le pharmacien"}`;
-    phrase = sansDeclaration ? `Sans déclaration${motifSans} — ${suite}` : `Déclarée au ministère (réf. ${ref}) — ${suite}`;
+    phrase = sansDeclaration ? `Sans déclaration${motifSans} — ${suite}` : `Déclarée à l'ANPP (réf. ${ref}) — ${suite}`;
     detail = sansDeclaration ? "sans déclaration" : `réf. ${ref}`;
     ton = "info";
   } else {
-    const decideurs = await decideursInfoMedActifs(decl.pharmacistValidatedById ?? decl.pharmacistId);
-    const parcours = parcoursOf({
-      circuit: etat.circuit, status: decl.status, createdAt: decl.createdAt, updatedAt: decl.updatedAt,
-      declare: etat.declare, declareRequestedAt: decl.declareRequestedAt, authorityRef: decl.authorityRef,
-      lot: etat.lot, slips: etat.slips, summary: etat.summary, skipped: etat.skipped, bvRequestedAt: decl.bvRequestedAt,
-      requests: decl.requests.map((r) => ({
-        id: r.id, status: r.status, createdAt: r.createdAt, fulfilledAt: r.fulfilledAt,
-        targetUserId: r.targetUserId, targetName: r.targetUser?.name ?? null,
-      })),
-      pharmacistValidatedAt: decl.pharmacistValidatedAt, validatedAt: decl.validatedAt, pharmacistName: decl.pharmacist?.name ?? null,
-      chezDecideur: chezDecideur(decideurs),
-    });
-    phrase = libellePastille(parcours);
-    detail = parcours.chez ? `chez ${parcours.chez}` : null;
+    phrase = parcours ? libellePastille(parcours) : "En cours";
+    detail = parcours?.chez ? `chez ${parcours.chez}` : null;
     ton = "attente";
   }
 
@@ -160,15 +163,16 @@ export async function etapeDeclaration(
     declaration: { id: decl.id, reference: decl.reference, authorityRef: decl.authorityRef, authorityNotes: decl.authorityNotes },
     lienDossier: voitLeDossier ? `/information-medicale/${decl.id}` : null,
     peutAgir: agit,
+    aVous: agit && tour !== null && TOURS_DU_PHARMACIEN.includes(tour),
     decision,
     validation,
     peutOuvrir: false,
-    // « Sans déclaration » accordée : il n'y a rien à déposer au ministère. Le motif générique disait « la décision de
+    // « Sans déclaration » accordée : il n'y a rien à déposer à l'ANPP. Le motif générique disait « la décision de
     // déclarer n'est pas encore accordée : décision accordée » — une phrase qui se contredit.
     depot: {
       ouvert: depotOuvert,
       motif: depotOuvert ? null : sansDeclaration
-        ? "Sans déclaration : rien n'est déposé au ministère, il n'y a donc pas de référence à enregistrer."
+        ? "Sans déclaration : rien n'est déposé à l'ANPP, il n'y a donc pas de référence à enregistrer."
         : refusDepotAutorites(etat),
     },
     pieces,

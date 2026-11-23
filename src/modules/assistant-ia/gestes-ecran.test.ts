@@ -64,7 +64,8 @@ const INVENTAIRE_GESTES_ECRAN: Readonly<Record<string, GesteEcran>> = {
   "/api/market-research/presentation/[versionId]": { methodes: "GET", classe: "EXPOSE", par: "exporter_presentation_etude" },
   "/api/medical/coaching/export": { methodes: "GET", classe: "EXPOSE", par: "exporter_suivi_coaching" },
   "/api/medical/coaching/[id]/export": { methodes: "GET", classe: "EXPOSE", par: "exporter_fiche_coaching" },
-  "/api/medical/annuaire/export": { methodes: "GET", classe: "EXPOSE", par: "exporter_annuaire" },
+  // POST (recette du 23/11) : la VUE FILTRÉE de la feuille — mêmes producteur et porte, restreints aux lignes affichées.
+  "/api/medical/annuaire/export": { methodes: "GET,POST", classe: "EXPOSE", par: "exporter_annuaire" },
   "/api/medical/plan-de-tournee/[id]/pdf": { methodes: "GET", classe: "EXPOSE", par: "exporter_plan_de_tournee_pdf" },
   // Direction, 01/11 : « l'export des demandes de paiement » — et des ordres du centre ; un bouton ajouté aux deux écrans.
   "/api/finances/demandes-paiement/export": { methodes: "GET", classe: "EXPOSE", par: "exporter_demandes_paiement" },

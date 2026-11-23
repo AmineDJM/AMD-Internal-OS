@@ -7,7 +7,7 @@ import { tachesAgence, totauxEnAttenteDuDg } from "@/modules/ad-pro/api";
 import { dedoublonner, trierConges, PREFIXE_CONGE, PREFIXE_DEMANDE_ADMIN, PREFIXE_RESTE } from "@/lib/queries/mes-decisions";
 import { clausePlansADecider } from "@/lib/sfe/tournee";
 import { userCan, hasGlobalView, hasRole, scopeRegulatory, scopeDirectives, type SessionUser } from "@/lib/rbac";
-import { estDecideurInfoMed } from "@/lib/medical-info/decideur";
+import { lignesInformationMedicale } from "@/lib/queries/action-center-info-med";
 import { getPendingValidations } from "@/lib/queries/validations";
 import { dossiersPromoAMonTour } from "@/lib/queries/promo-circuit";
 import { clauseDemandesSecretariatVisibles } from "@/lib/queries/visibilite-listes";
@@ -19,7 +19,7 @@ import type { PromoMaterialStatus } from "@prisma/client";
 import { MARCHE_N1_MISSIONS } from "@/lib/queries/missions";
 import { lienMission, LIEN_MISSIONS_A_VALIDER } from "@/lib/chemins/espace";
 import {
-  type BadgeTone, FINANCE_CATEGORY, ENTITY_TYPE_LABELS, TASK_STATUS, ADMIN_REQUEST_STATUS, REGULATORY_STATUS, EXPENSE_ORDER_STATUS, CONGRESS_REQUEST_STATUS, MEDICAL_INFO_STATUS, PROMO_MATERIAL_STATUS, DIRECTIVE_STATUS, SUPPORT_STATUS, DOSSIER_STATUS,
+  type BadgeTone, FINANCE_CATEGORY, TASK_STATUS, ADMIN_REQUEST_STATUS, REGULATORY_STATUS, EXPENSE_ORDER_STATUS, CONGRESS_REQUEST_STATUS, PROMO_MATERIAL_STATUS, DIRECTIVE_STATUS, SUPPORT_STATUS, DOSSIER_STATUS,
 } from "@/lib/labels";
 import { sansBloquer } from "@/lib/journal";
 
@@ -789,39 +789,9 @@ export async function getActionCenter(user: SessionUser) {
     }
   }
 
-  // 6c. Information médicale — l'INSTRUCTION (à déclarer, pièces demandées, prêt à valider)
-  //     est le travail du PHARMACIEN RESPONSABLE (PRIM), et de lui seul : la Direction a le
-  //     droit d'agir sur le module, mais ces événements ne sont pas SA file. La validation
-  //     finale (AWAITING_DIRECTION) est la file du DIRECTEUR DES OPÉRATIONS (Direction, 10/2026 —
-  //     `medical-info/decideur.ts`), même garde que l'action `validateDeclarationByDirection`.
-  //     Ses autres décisions (lecture « à déclarer ? », dépôt des bons) sont des demandes de
-  //     validation : elles remontent par la file commune. Le Super Admin voit tout.
-  {
-    const prim = hasRole(user, "MEDICAL_INFO_PHARMACIST") || user.role === "SUPER_ADMIN";
-    const direction = estDecideurInfoMed(user);
-    const miStatuses: ("AWAITING_REVIEW" | "DOCS_REQUESTED" | "READY" | "AWAITING_DIRECTION")[] = [
-      ...(prim ? (["AWAITING_REVIEW", "DOCS_REQUESTED", "READY"] as const) : []),
-      ...(direction ? (["AWAITING_DIRECTION"] as const) : []),
-    ];
-    const decls = miStatuses.length
-      ? await prisma.medicalInfoDeclaration.findMany({
-          where: { status: { in: miStatuses } },
-          orderBy: { createdAt: "desc" }, take: 40,
-        })
-      : [];
-    for (const d of decls) {
-      // Datée à la seule étape qu'un champ date à coup sûr : la validation du pharmacien, qui la fait
-      // passer à la Direction. Les étapes d'instruction n'ont pas d'horodatage propre.
-      items.push({
-        key: `mi-${d.id}`, objet: `MEDICAL_INFO_DECLARATION:${d.id}`, title: d.label, subtitle: d.reference,
-        module: "Information médicale", href: `/information-medicale/${d.id}`, kind: "validation", priority: null,
-        deadline: null, depuis: d.status === "AWAITING_DIRECTION" ? d.pharmacistValidatedAt?.toISOString() ?? null : null,
-        owner: "", ...resolve(MEDICAL_INFO_STATUS, d.status),
-        statut: d.status, famille: ENTITY_TYPE_LABELS[d.sourceType] ?? null,
-        montant: d.amount != null ? toNumber(d.amount) : null,
-      });
-    }
-  }
+  // 6c. Information médicale — l'instruction du pharmacien À SON TOUR, la validation finale du Directeur des Opérations
+  //     (`action-center-info-med.ts` : la ligne suit le tour de l'écran « À faire », pas le seul statut). Un échec n'éteint pas la file.
+  items.push(...(await lignesInformationMedicale(user).catch(sansBloquer("action-center.lignesInformationMedicale", []))));
 
   // 6d. Matériel promotionnel — étape en attente de l'acteur courant.
   //
@@ -950,7 +920,7 @@ export async function getActionCenter(user: SessionUser) {
   //        (Direction Marketing), BAT à contrôler (information médicale). Un échec de lecture n'éteint pas la file.
   for (const t of await tachesAgence(user).catch(sansBloquer("action-center.tachesAgence", []))) {
     items.push({
-      key: t.key, objet: t.objet, title: t.title, subtitle: t.subtitle, module: "Ad & Pro", href: t.href, kind: "request", priority: "HIGH",
+      key: t.key, objet: t.objet, title: t.title, subtitle: t.subtitle, module: t.module, href: t.href, kind: "request", priority: "HIGH",
       deadline: null, depuis: t.depuis, owner: "", statusLabel: t.statusLabel, statusTone: "warning",
     });
   }

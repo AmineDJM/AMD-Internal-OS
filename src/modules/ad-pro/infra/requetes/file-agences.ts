@@ -3,7 +3,7 @@ import { userCan, type SessionUser } from "@/lib/rbac";
 import { hasRole } from "@/lib/rbac/roles";
 import { ITEM_KIND_LABELS } from "../../domaine/postes";
 import { PARENTS, parentOf, loadItem } from "../postes/commun";
-import { lienPosteAdPro } from "@/lib/chemins/ad-pro";
+import { LIBELLE_AGENCES, lienBatInfoMed, lienPosteAdPro, lienPosteAssistante } from "@/lib/chemins/ad-pro";
 import { sitsOnPaymentCentre } from "@/modules/finances/partage";
 import { etapeAgence, pasAgence, type AgenceVue, type EtapeAgence, type FaitsPosteAgence } from "../../domaine/parcours-agence";
 import { siegeAuCentreAdPro } from "../../domaine/centre";
@@ -86,7 +86,7 @@ function faitsDuPoste(
 ): FaitsPosteAgence {
   return {
     status: i.status, orderStage: i.orderStage,
-    bc: p?.bc ? (p.bc.etape ?? "HORS_CIRCUIT") : null,
+    bc: p?.bc && !p.bc.annulee ? (p.bc.etape ?? "HORS_CIRCUIT") : null,
     factures: p?.factures.length ?? 0, expenseOrderId: i.expenseOrderId,
     expenseOrderStatus: ordre?.status ?? null, expenseOrderCentral: ordre?.centralStatus ?? null,
     agence: agence.faits,
@@ -101,6 +101,10 @@ export interface LigneFileAgence {
   etape: EtapeFile;
   /** À la personne qui regarde de jouer. */
   aMoi: boolean;
+  /** SON geste, quand c'est à elle (« Déposer les devis des agences », « Corriger le bon de commande renvoyé »…). */
+  geste?: string | null;
+  /** Sinon, CHEZ QUI en est le poste (« Devis reçus — la Direction Marketing choisit l'agence. ») — la phrase de la carte. */
+  attente?: string | null;
   depuis: string;
   cahierDesCharges: string | null;
   assistante: string | null;
@@ -160,30 +164,10 @@ export async function fileAgences(user: SessionUser): Promise<LigneFileAgence[] 
     const aMoi = pas.geste !== null;
     lignes.push({
       itemId: e.item.id, label: e.item.label, nature: ITEM_KIND_LABELS[e.item.kind], ref: info?.ref ?? "—", etape, aMoi,
+      geste: pas.geste?.libelle ?? null, attente: pas.attente,
       depuis: (e.bcSoumisAt ?? e.agenceRetenueAt ?? e.devisTransmisAt ?? e.prospectionDemandeeAt ?? e.createdAt).toISOString(),
       cahierDesCharges: e.cahierDesCharges, assistante: e.assistanteId ? noms.get(e.assistanteId) ?? null : null,
-      lien: miennes && !marketing ? `/agences/${e.item.id}` : lienPosteAdPro(owner.parent, owner.id, e.item.id),
-    });
-  }
-  return lignes;
-}
-
-/** Les BAT qui attendent l'information médicale. */
-export async function fileConformite(): Promise<LigneFileAgence[]> {
-  const execs = await prisma.adProExecutionPoste.findMany({
-    where: { conformiteStatut: "EN_CONTROLE" },
-    orderBy: { conformiteDemandeeAt: "asc" },
-    include: { item: { select: { id: true, label: true, kind: true, sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true, otherRequestId: true } } },
-  });
-  const lignes: LigneFileAgence[] = [];
-  for (const e of execs) {
-    const owner = parentOf(e.item);
-    if (!owner) continue;
-    const info = await PARENTS[owner.parent].load(owner.id);
-    lignes.push({
-      itemId: e.item.id, label: e.item.label, nature: ITEM_KIND_LABELS[e.item.kind], ref: info?.ref ?? "—", etape: "CONFORMITE", aMoi: true,
-      depuis: (e.conformiteDemandeeAt ?? e.updatedAt).toISOString(), cahierDesCharges: e.cahierDesCharges, assistante: null,
-      lien: lienPosteAdPro(owner.parent, owner.id, e.item.id),
+      lien: miennes && !marketing ? lienPosteAssistante(e.item.id) : lienPosteAdPro(owner.parent, owner.id, e.item.id),
     });
   }
   return lignes;
@@ -201,6 +185,8 @@ export async function posteDeLAssistante(user: SessionUser, itemId: string) {
 /** Une tâche du parcours agence pour « Aujourd'hui » — la même forme que les autres lignes de la file (`ActionItem`). */
 export interface TacheAgence {
   key: string; objet: string; title: string; subtitle: string; href: string; depuis: string; statusLabel: string;
+  /** « Prospection d'agences » pour qui ouvre cette page (assistante, Direction Marketing) : son lot y mène (« tout voir »). */
+  module: string;
 }
 
 /**
@@ -226,6 +212,8 @@ export async function tachesAgence(user: SessionUser): Promise<TacheAgence[]> {
   if (!marketingRole && !assistanteRole && !infoMed && !centre && !finances && !paiement) return [];
   // Seule l'assistante ne voit que SES postes ; les autres rôles tiennent une étape de tous les postes « agence » en cours.
   const seulementSiens = assistanteRole && !marketingRole && !infoMed && !centre && !finances && !paiement;
+  // Qui ouvre « Prospection d'agences » (la porte de `fileAgences`) y retrouve tout son parcours : son lot y mène.
+  const module = assistanteRole || marketingRole ? LIBELLE_AGENCES : "Ad & Pro";
 
   const items = await prisma.adProItem.findMany({
     where: {
@@ -273,10 +261,14 @@ export async function tachesAgence(user: SessionUser): Promise<TacheAgence[]> {
       marketing, assistante: agence.assistanteId === user.id, infoMed, centre, fige: Boolean(info.clos || info.refusee),
     });
     const poste = lienPosteAdPro(owner.parent, owner.id, i.id);
-    const base = { key: `agence-${i.id}`, objet: `AD_PRO_ITEM:${i.id}`, title: `${i.label} — ${info.ref}`, subtitle: `Parcours agence · ${ITEM_KIND_LABELS[i.kind]}`, depuis: i.updatedAt.toISOString() };
-    if (pas.geste) {
+    const base = { key: `agence-${i.id}`, objet: `AD_PRO_ITEM:${i.id}`, title: `${i.label} — ${info.ref}`, subtitle: `Parcours agence · ${ITEM_KIND_LABELS[i.kind]}`, depuis: i.updatedAt.toISOString(), module };
+    if (pas.geste?.cle === "CONTROLER_BAT") {
+      // LE BAT À CONTRÔLER (23/11/2026) : un lot « BAT à contrôler » de l'information médicale, qui mène à SON écran — elle y
+      // décide sur la ligne, y compris pour une « Autre demande » dont elle n'ouvre pas la fiche.
+      out.push({ ...base, key: `bat-${i.id}`, module: "Information médicale", href: lienBatInfoMed(i.id), statusLabel: "Contrôler le BAT" });
+    } else if (pas.geste) {
       const chezAssistante = agence.assistanteId === user.id && !marketingRole;
-      out.push({ ...base, href: chezAssistante ? `/agences/${i.id}` : poste, statusLabel: pas.geste.libelle });
+      out.push({ ...base, href: chezAssistante ? lienPosteAssistante(i.id) : poste, statusLabel: pas.geste.libelle });
     } else if (etape === "BC_A_SIGNER_FINANCES" && finances) {
       out.push({ ...base, href: "/bons-de-commande", statusLabel: "Signer et cacheter le BC" });
     } else if (etape === "PAIEMENT" && paiement && faits.expenseOrderCentral === "AWAITING") {

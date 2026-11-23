@@ -127,7 +127,7 @@
   "appelable": true
  },
  "ad-pro-agence-actions:choisirAgencePoste": {
-  "risque": "R2",
+  "risque": "R1",
   "familles": [
    "AD_PRO",
    "ECRITURES"
@@ -144,6 +144,16 @@
   ],
   "simulable": "oui",
   "annulation": "compensation",
+  "appelable": true
+ },
+ "ad-pro-agence-actions:retenirLignesDesAgences": {
+  "risque": "R1",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
   "appelable": true
  },
  "ad-pro-agence-actions:signerBcMarketing": {
@@ -10128,6 +10138,16 @@
  },
  "promo-stock-actions:refuserReception": {
   "risque": "R4",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "promo-stock-actions:repartirArticle": {
+  "risque": "R1",
   "familles": [
    "AD_PRO",
    "ECRITURES"

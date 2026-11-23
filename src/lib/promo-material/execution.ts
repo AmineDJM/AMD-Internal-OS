@@ -4,7 +4,7 @@
  * « Le bon de commande est généré par la plateforme elle-même — un ou plusieurs, selon ce qui a
  * été validé. Il faut uploader la facture pour demander un paiement, c'est obligatoire : la ou
  * les factures, associées chacune à son bon de commande. Et une fois qu'il y a un paiement, la
- * demande de visa publicitaire — ou la déclaration au ministère — part chez l'information
+ * demande de visa publicitaire — ou la déclaration à l'ANPP — part chez l'information
  * médicale, associée à chaque fois. »
  *
  * Les trois chantiers du circuit s'y lisent tels quels :
@@ -31,7 +31,7 @@ export interface FactureDuBC {
   etatReglement: string;
   /** Un paiement a-t-il été DEMANDÉ pour elle (ordre de dépense créé) ? */
   paiementDemande: boolean;
-  /** Sa demande de visa publicitaire ou de déclaration au ministère, si elle existe. */
+  /** Sa demande de visa publicitaire ou de déclaration à l'ANPP, si elle existe. */
   demandeInfoMedicale: { reference: string; nature: string; formalite?: string | null; /** La déclaration est-elle VALIDÉE (visa obtenu / dépôt fait) ? */ validee?: boolean } | null;
   /**
    * Les lignes de la facture DÉTAILLÉE qui attendent encore leur réception (§118.165) — le paiement

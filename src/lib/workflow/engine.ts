@@ -618,7 +618,7 @@ async function emitFinancials(
     return null;
   })();
   // …MAIS LA DÉCLARATION NAÎT QUAND MÊME, non assignée (Direction, 10/2026). L'événement reste à déclarer
-  // au ministère : sans pharmacien, il ne l'était jamais, et personne ne le voyait. Elle porte l'ordre déjà
+  // à l'ANPP : sans pharmacien, il ne l'était jamais, et personne ne le voyait. Elle porte l'ordre déjà
   // parti, que la validation finale ne double pas (`ordreGlobalALaValidation`) ; elle n'est pas rendue à
   // l'appelant, dont le statut suit le paiement comme avant. Best-effort : le paiement est fait.
   if (step.emitDeclaration) {

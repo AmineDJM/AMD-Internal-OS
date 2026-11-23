@@ -21,6 +21,7 @@ import {
   refuserReception, servirDemande, transferer,
 } from "@/lib/actions/promo-stock-actions";
 import { date, distribuable, enLotPerime, jour, nombre, nomDe, quantiteDe } from "./stock-commun";
+import { FormulaireRepartir } from "./stock-repartir";
 
 /**
  * LES GESTES DU STOCK QUI DEMANDENT UNE SAISIE — un panneau, un formulaire canonique (`RecordForm` :
@@ -35,6 +36,8 @@ import { date, distribuable, enLotPerime, jour, nombre, nomDe, quantiteDe } from
 
 export type Dialogue =
   | { type: "doter"; article: ArticleVue }
+  /** RÉPARTIR un article du magasin entre plusieurs personnes — un formulaire à lui (`stock-repartir.tsx`). */
+  | { type: "repartir"; article: ArticleVue }
   | { type: "transferer"; article: ArticleVue; deId: string; retour: boolean }
   | { type: "perte"; article: ArticleVue; detenteurId: string | null }
   | { type: "corriger"; article: ArticleVue; detenteurId: string | null }
@@ -136,7 +139,7 @@ function champsCibleComptage(page: PageStock, f: FaitsStock): FieldDef[] {
   ];
 }
 
-function definition(d: Dialogue, page: PageStock, f: FaitsStock): Definition {
+function definition(d: Exclude<Dialogue, { type: "repartir" }>, page: PageStock, f: FaitsStock): Definition {
   switch (d.type) {
     case "demanderComptage":
       return {
@@ -381,9 +384,19 @@ function definition(d: Dialogue, page: PageStock, f: FaitsStock): Definition {
     case "entrer":
       return {
         titre: "Entrée manuelle au magasin",
-        description: "Don, retour fournisseur, stock retrouvé : une entrée sans facture ni transfert. Elle crée un lot, qui garde sa date, son coût et sa fin de validité.",
+        description: "Don, retour fournisseur, stock retrouvé : une entrée sans facture ni transfert. Elle crée un lot, qui garde sa date, son coût et sa fin de validité. Un support absent de la liste : choisissez « Autre article », il est ajouté au catalogue.",
         champs: [
-          { type: "select", name: "catalogueId", label: "Article du catalogue", required: true, placeholder: "Choisir l'article", options: optionsCatalogue(page, false), full: true },
+          {
+            type: "select", name: "catalogueId", label: "Article du catalogue", required: true, placeholder: "Choisir l'article", full: true,
+            options: [...optionsCatalogue(page, false), { value: "AUTRE", label: "Autre article — absent du catalogue" }],
+          },
+          // Ajouté au catalogue sous une référence CAT-…, ou retrouvé s'il y est déjà sous ce nom.
+          { type: "text", name: "autreNom", label: "Nom du nouvel article (si « Autre article »)", placeholder: "Porte-badge, kakémono 85×200…" },
+          {
+            type: "select", name: "autreFamille", label: "Famille du nouvel article (si « Autre article »)", defaultValue: "CONSOMMABLE",
+            options: [{ value: "CONSOMMABLE", label: FAMILLE_LABEL.CONSOMMABLE }, { value: "DURABLE", label: FAMILLE_LABEL.DURABLE }],
+            hint: "Les produits choisis ci-dessous en font un article « par produit ».",
+          },
           champProduits(page),
           ...champSociete(page),
           { type: "number", name: "quantite", label: "Quantité", required: true },
@@ -545,6 +558,8 @@ export function FormulaireStock({
   onClose: () => void;
   onSucces: (message: string) => void;
 }) {
+  // Une ligne par personne, un total en direct : une saisie que `RecordForm` ne sait pas dessiner.
+  if (dialogue.type === "repartir") return <FormulaireRepartir article={dialogue.article} page={page} onClose={onClose} onSucces={onSucces} />;
   const def = definition(dialogue, page, f);
   const action = async (_prev: ActionResult | undefined, fd: FormData): Promise<ActionResult> => {
     const r = await def.action(fd);

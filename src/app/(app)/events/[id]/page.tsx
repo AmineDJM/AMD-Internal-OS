@@ -1,12 +1,11 @@
 import { BlocHistorique } from "@/modules/ad-pro/ecrans/bloc-historique";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Video } from "lucide-react";
-import { requireModule } from "@/lib/session";
 import { userCan, hasGlobalView, hasRole } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { porteeModificationEvenement, canEditAdProRequest, isAdProDecided, breakdown, AD_PRO_DOC_CATEGORIES, categoriesDuDepotDeLaDemande, canAttachToAdPro, attachHint, siegeAuCentreAdPro } from "@/modules/ad-pro/partage";
 import { prisma } from "@/lib/prisma";
-import { getEventDetail, peutSupprimerUneDemandeAdPro, adProEditValues, loadAdProItems, adProBudgetOptions, contexteMaterielStock, contextePostes, getAdProCreateData } from "@/modules/ad-pro/api";
+import { getEventDetail, peutSupprimerUneDemandeAdPro, adProEditValues, loadAdProItems, adProBudgetOptions, contexteMaterielStock, contextePostes, getAdProCreateData, requireModuleOuAgences } from "@/modules/ad-pro/api";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { MenuDossier } from "@/components/shared/menu-dossier";
@@ -45,7 +44,7 @@ export const dynamic = "force-dynamic";
 
 export default async function EventDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const user = await requireModule("EVENTS");
+  const user = await requireModuleOuAgences("EVENTS");
   const e = await getEventDetail(params.id);
   if (!e) notFound();
   // LA PORTE DE LA FICHE (§118.184) : société, parties prenantes. Un identifiant ne suffit plus à ouvrir
@@ -229,7 +228,7 @@ export default async function EventDetailPage(props: { params: Promise<{ id: str
               />
             </SectionRepliable>
             {declaration && (
-              <SectionRepliable titre={declaration.titre} resume={declaration.detail ?? undefined} aVous={declaration.peutAgir}>
+              <SectionRepliable titre={declaration.titre} resume={declaration.detail ?? undefined} aVous={declaration.aVous}>
                 <EtapeDeclarationAdPro etape={declaration} sourceType="EVENT" sourceId={e.id} />
               </SectionRepliable>
             )}

@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { hasGlobalView, hasRole } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
@@ -7,9 +6,9 @@ import { prisma } from "@/lib/prisma";
 import { getCareDossier } from "../../infra/requetes/prise-en-charge";
 import { peutTeleverserBillet, personneVivante } from "../../domaine/prise-en-charge/fiches";
 import { PageHeader } from "@/components/shared/page-header";
-import { BackLink } from "@/components/shared/back-link";
 import { BilletsEmisPanel } from "./billets-emis-panel";
 import { BoutonLivret } from "./bouton-livret";
+import { RetourPriseEnCharge } from "./retour-prise-en-charge";
 
 /**
  * LA PAGE « BILLETS ET CONFIRMATIONS » D'UNE PRISE EN CHARGE (Direction, 10/2026) — par où l'assistante de
@@ -39,12 +38,10 @@ export async function PageBilletsEmis({ scope, id }: { scope: "NATIONAL" | "INTE
       postes: b.cells.filter((c) => c.kind === "SERVICE" && (c.serviceKind === "TICKET" || c.serviceKind === "HOTEL") && c.status !== "WAIVED"),
     }))
     .filter((l) => l.postes.length > 0);
-  const ficheVisible = hasGlobalView(user) || (await canAccessEntity(user, module, id, "VIEW"));
-  const retour = ficheVisible ? `${scope === "NATIONAL" ? "/congress-national" : "/congress-international"}/${id}` : "/dossiers";
 
   return (
     <div className="space-y-5">
-      <BackLink href={retour}><ArrowLeft className="h-4 w-4" /> {ficheVisible ? "La demande" : "Mes sujets"}</BackLink>
+      <RetourPriseEnCharge user={user} scope={scope} id={id} />
       <PageHeader title={`Billets et confirmations — ${req.name}`} description="L'e-billet ou le voucher de chaque personne, sa référence et ses horaires.">
         <BoutonLivret scope={scope} requestId={id} libelle="Livret général" />
       </PageHeader>

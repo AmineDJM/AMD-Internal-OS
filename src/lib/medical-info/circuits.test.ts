@@ -59,7 +59,7 @@ describe("ce que le PRIM ouvre lui-même", () => {
     for (const k of DECLARATION_KINDS) expect(isDeclarationKind(k)).toBe(true);
     expect(isDeclarationKind("BV")).toBe(false);
     expect(isDeclarationKind(null)).toBe(false);
-    expect(DECLARATION_KIND_LABEL.MIP).toMatch(/ministère/i);
+    expect(DECLARATION_KIND_LABEL.MIP).toMatch(/ANPP/);
   });
 });
 

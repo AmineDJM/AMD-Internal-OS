@@ -39,6 +39,36 @@ export function lienPosteAdPro(type: ParentAdPro, parentId: string, itemId: stri
   return `${lienDemandeAdPro(type, parentId)}#${ancrePoste(itemId)}`;
 }
 
+/**
+ * « PROSPECTION D'AGENCES » — LA page de l'assistante de direction (Direction, 23/11/2026) : ses postes, et ce qui l'attend
+ * ailleurs. Elle n'a pas les modules Ad & Pro : tout ce qu'on lui écrit sur un poste mène ICI, jamais à la fiche de la demande.
+ */
+export const CHEMIN_AGENCES = "/agences";
+/** Le nom de la page, tel que le menu le porte — et la « source » des lignes du parcours agence qui y mènent. */
+export const LIBELLE_AGENCES = "Prospection d'agences";
+
+/** UN poste confié à l'assistante, sur sa page (`/agences/<id>`) — sans la demande autour. */
+export function lienPosteAssistante(itemId: string): string {
+  return `${CHEMIN_AGENCES}/${itemId}`;
+}
+
+/**
+ * « À FAIRE — INFORMATION MÉDICALE » (Direction, 23/11/2026) — l'écran du pharmacien : les BAT à contrôler et ses déclarations,
+ * rangées par tour. Une notification « BAT à contrôler » mène à la ligne du poste (`#bat-<id>`) : il décide sur place, même
+ * pour une « Autre demande » dont il n'ouvre pas la fiche.
+ */
+export const CHEMIN_A_FAIRE_INFO_MED = "/information-medicale";
+
+/** L'ancre d'un BAT sur l'écran « À faire — Information médicale ». */
+export function ancreBat(itemId: string): string {
+  return `bat-${itemId}`;
+}
+
+/** UN BAT à contrôler, sur l'écran du pharmacien. */
+export function lienBatInfoMed(itemId: string): string {
+  return `${CHEMIN_A_FAIRE_INFO_MED}#${ancreBat(itemId)}`;
+}
+
 /** Le centre de validation Ad & Pro (les sièges du centre y tranchent les BC et les dépassements). */
 export const CHEMIN_CENTRE_AD_PRO = "/centre-ad-pro";
 

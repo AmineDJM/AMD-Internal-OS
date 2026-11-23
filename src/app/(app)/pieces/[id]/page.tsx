@@ -16,7 +16,7 @@ import { DocumentList, type DocItem } from "@/components/documents/document-list
 import { PIECE_REQUEST_STATUS, ENTITY_TYPE_LABELS } from "@/lib/labels";
 import { canSubmit, canDecide, canCancel, isLate, docRequestSummary, refusReaffectation } from "@/lib/doc-request";
 import { tientPourLaSollicitee } from "@/lib/doc-request-interim";
-import { assistantesDeDirection } from "@/modules/ad-pro/api";
+import { assistantesDeDirection, lienDuPostePour } from "@/modules/ad-pro/api";
 import { PIECE_KIND_LABEL, pieceKindOf } from "@/lib/legal/from-piece";
 import { RespondPanel } from "./respond-panel";
 import { ReaffecterPanel } from "./reaffecter-panel";
@@ -72,6 +72,9 @@ export default async function DocumentRequestPage(props: { params: Promise<{ id:
   // CONFIER À UNE AUTRE ASSISTANTE : la règle de l'action (`refusReaffectation`), les seules assistantes actives.
   const reaffectable = refusReaffectation(req, { id: user.id, vueGlobale: hasGlobalView(user.role), remplace }, "") === null;
   const autresAssistantes = reaffectable ? (await assistantesDeDirection()).filter((a) => a.id !== req.askedToId) : [];
+  // « SE RATTACHE À » UN POSTE AD & PRO (23/11/2026) : l'assistante qui le prospecte va sur SA page (« Prospection d'agences »),
+  // qui ouvre la demande va à la fiche — et personne vers une page qu'il n'ouvre pas.
+  const rattache = req.entityType === "AD_PRO_ITEM" ? await lienDuPostePour(user, req.entityId, req.link) : req.link;
 
   return (
     <div className="space-y-5">
@@ -94,8 +97,8 @@ export default async function DocumentRequestPage(props: { params: Promise<{ id:
               <div>
                 <p className="text-xs text-muted-foreground">Se rattache à</p>
                 <p className="font-medium">
-                  {req.link ? (
-                    <Link href={req.link} className="inline-flex items-center gap-1 text-primary hover:underline">
+                  {rattache ? (
+                    <Link href={rattache} className="inline-flex items-center gap-1 text-primary hover:underline">
                       {ENTITY_TYPE_LABELS[req.entityType] ?? req.entityType} <ExternalLink className="h-3 w-3" />
                     </Link>
                   ) : (ENTITY_TYPE_LABELS[req.entityType] ?? req.entityType)}

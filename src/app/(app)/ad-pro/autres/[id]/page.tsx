@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { requireModule } from "@/lib/session";
 import { userCan, hasGlobalView } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { prisma } from "@/lib/prisma";
@@ -9,7 +8,7 @@ import { onlyofficeConfigured } from "@/lib/onlyoffice";
 import { PageHeader } from "@/components/shared/page-header";
 import { VisaCentreBanniere } from "@/modules/ad-pro/ecrans/visa-centre-banniere";
 import { SupprimerDemandeAdPro } from "@/modules/ad-pro/ecrans/supprimer-demande";
-import { peutSupprimerUneDemandeAdPro, adProEditValues, loadAdProItems, adProBudgetOptions, contexteMaterielStock, contextePostes } from "@/modules/ad-pro/api";
+import { peutSupprimerUneDemandeAdPro, adProEditValues, loadAdProItems, adProBudgetOptions, contexteMaterielStock, contextePostes, requireModuleOuAgences } from "@/modules/ad-pro/api";
 import { BackLink } from "@/components/shared/back-link";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { AD_PRO_DOC_CATEGORIES, categoriesDuDepotDeLaDemande, canAttachToAdPro, attachHint, canEditAdProRequest, isAdProDecided, siegeAuCentreAdPro } from "@/modules/ad-pro/partage";
@@ -40,7 +39,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function AdProOtherDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const user = await requireModule("AD_PRO_OTHER");
+  const user = await requireModuleOuAgences("AD_PRO_OTHER");
   // LA PORTE DE LA FICHE (audit 27/10, SA-14) : société, parties prenantes, portée « ses demandes » — la même que
   // ses pièces. La liste était filtrée par entité ; la fiche s'ouvrait par son seul identifiant.
   if (!(await canAccessEntity(user, "AD_PRO_OTHER", params.id, "VIEW"))) notFound();

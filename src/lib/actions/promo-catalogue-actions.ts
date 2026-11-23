@@ -7,9 +7,10 @@ import { requireUser } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
-import { createWithRetry, enSerie } from "@/lib/refs";
+import { enSerie } from "@/lib/refs";
 import { fdStr, fdCase, type ActionResult } from "@/lib/actions/types";
-import { prochaineReference, validerArticle, FAMILLE_LABEL } from "@/lib/promo/catalogue";
+import { validerArticle, FAMILLE_LABEL } from "@/lib/promo/catalogue";
+import { creerLigneCatalogue, SERIE_CATALOGUE } from "@/lib/promo/catalogue-ecriture";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -54,18 +55,7 @@ export async function creerArticleCatalogue(formData: FormData): Promise<ActionR
   const a = v.article;
 
   // Une série, une création à la fois (§118.148) ; l'unicité de la référence reste tenue par la base.
-  const cree = await enSerie("catalogue-promo", () => createWithRetry(async () => {
-    const refs = await prisma.promoCatalogueArticle.findMany({ select: { reference: true } });
-    return prisma.promoCatalogueArticle.create({
-      data: {
-        reference: prochaineReference(refs.map((r) => r.reference)),
-        nom: a.nom, famille: a.famille, materialType: (a.materialType as MaterialType | null) ?? null,
-        unite: a.unite, description: a.description, exigeProduit: a.exigeProduit,
-        createdById: user.id, updatedById: user.id,
-      },
-      select: { id: true, reference: true },
-    });
-  }));
+  const cree = await enSerie(SERIE_CATALOGUE, () => creerLigneCatalogue(user.id, a));
   await recordAudit({
     actorId: user.id, action: "CREATE", module: "Catalogue promotionnel", entityId: cree.id,
     summary: `Article ${cree.reference} ajouté au catalogue — ${a.nom} (${FAMILLE_LABEL[a.famille]})`,

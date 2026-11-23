@@ -4,8 +4,7 @@
  * ── CE QUE LE PHARMACIEN FAIT VRAIMENT ──────────────────────────────────────────────────────
  *
  * Une prise en charge de congrès, un sponsoring, un événement n'appellent aucun versement. Ce
- * qu'ils appellent, c'est un JUGEMENT : ce dossier relève-t-il d'une déclaration au ministère de
- * l'Industrie pharmaceutique, ou non ? Le pharmacien responsable (PRIM) sait répondre — mais cette
+ * qu'ils appellent, c'est un JUGEMENT : ce dossier relève-t-il d'une déclaration à l'ANPP, ou non ? Le pharmacien responsable (PRIM) sait répondre — mais cette
  * réponse engage la société, et elle ne doit pas rester la sienne seule.
  *
  * Il FORMULE donc son intention — « je déclare » ou « je ne déclare pas » — et la fait valider.
@@ -19,7 +18,7 @@
  *
  * ── CE QUE LA DÉCISION OUVRE ────────────────────────────────────────────────────────────────
  *
- *   accordée + DÉCLARER    → le dépôt auprès du ministère s'ouvre ; il se fait, puis on valide
+ *   accordée + DÉCLARER    → le dépôt auprès de l'ANPP s'ouvre ; il se fait, puis on valide
  *   accordée + NE PAS      → rien à déposer : on valide directement, et le motif reste au dossier
  *   refusée                → le validateur a dit pourquoi ; le PRIM reformule et redemande
  *
@@ -30,7 +29,7 @@
 export type DeclareIntent = "DECLARE" | "SKIP";
 
 export const DECLARE_INTENT_LABEL: Record<DeclareIntent, string> = {
-  DECLARE: "À déclarer au ministère",
+  DECLARE: "À déclarer à l'ANPP",
   SKIP: "Sans déclaration",
 };
 
@@ -58,7 +57,7 @@ export interface DeclareInput {
    * Les dossiers instruits AVANT que cette marche existe n'ont aucune demande de validation :
    * leur pharmacien avait déjà fait son travail sous les règles d'alors. Les renvoyer à « décision
    * à demander » leur ferait refaire signer une question tranchée il y a des mois, sur des
-   * dossiers parfois déjà déposés au ministère.
+   * dossiers parfois déjà déposés à l'ANPP.
    *
    * Ce champ est posé UNE FOIS, par la migration, et par personne d'autre : l'application écrit
    * la validation, jamais lui. Deux écritures pour un même état finiraient par diverger.
@@ -112,7 +111,7 @@ export function canFileWithAuthorities(i: DeclareInput): boolean {
  * LE DOSSIER PEUT-IL ÊTRE VALIDÉ PAR LE PHARMACIEN ?
  *
  * Deux chemins, et le second compte autant que le premier :
- *   • lecture « à déclarer » accordée ET le dépôt effectué (une référence au ministère existe) ;
+ *   • lecture « à déclarer » accordée ET le dépôt effectué (une référence à l'ANPP existe) ;
  *   • lecture « sans déclaration » accordée — il n'y a rien à déposer, on valide.
  *
  * Valider sans décision reviendrait à trancher tout seul la question qu'on vient d'ouvrir.
@@ -142,7 +141,7 @@ export function declareStageLabel(s: DeclareStage): string {
 export function declareMessage(i: DeclareInput, filed: { authorityRef: string | null }): string {
   switch (declareStage(i)) {
     case "A_DEMANDER":
-      return "Ce dossier n'appelle aucun bon de versement. Dites si vous comptez le déclarer au ministère de l'Industrie pharmaceutique — ou non — et faites valider cette lecture : c'est elle qui ouvre la suite.";
+      return "Ce dossier n'appelle aucun bon de versement. Dites si vous comptez le déclarer à l'ANPP — ou non — et faites valider cette lecture : c'est elle qui ouvre la suite.";
     case "EN_VALIDATION":
       return "Votre lecture est en validation chez le Directeur des Opérations (à défaut, le Super Admin). Rien à faire de votre côté tant qu'il n'a pas tranché.";
     case "A_REVOIR":
@@ -154,7 +153,7 @@ export function declareMessage(i: DeclareInput, filed: { authorityRef: string | 
         return "Décision accordée : ce dossier ne se déclare pas. Vous pouvez le valider — la trace de cette décision reste au dossier.";
       }
       return filed.authorityRef && filed.authorityRef.trim()
-        ? "Le dépôt au ministère est enregistré. Vous pouvez valider le dossier."
-        : "Décision accordée : ce dossier se déclare. Faites le nécessaire auprès du ministère de l'Industrie pharmaceutique, enregistrez la référence de dépôt, puis validez.";
+        ? "Le dépôt à l'ANPP est enregistré. Vous pouvez valider le dossier."
+        : "Décision accordée : ce dossier se déclare. Faites le nécessaire auprès de l'ANPP, enregistrez la référence de dépôt, puis validez.";
   }
 }

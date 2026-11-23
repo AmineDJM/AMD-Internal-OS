@@ -149,7 +149,7 @@ export const OPS_MATERIEL_PROMOTIONNEL: OpMeta[] = [
     uiLabel: "Demander le paiement d'une facture",
     aliases: ["demande le paiement de la facture du matériel promo", "envoie la facture au paiement avec la demande de visa"],
     risk: "SENSITIVE",
-    summary: "Circuit 2 — demande le paiement d'une facture (par sa référence ou son fournisseur) : ordre de dépense au CENTRE DE PAIEMENT ; la demande de visa publicitaire ou la déclaration au ministère (« mode ») part AVEC chez l'information médicale, sans montant. Une facture détaillée se paie pour ce qui est REÇU : le demandeur coche la réception sur la fiche, et renoncer à payer une ligne non livrée s'y confirme aussi — jamais d'ici.",
+    summary: "Circuit 2 — demande le paiement d'une facture (par sa référence ou son fournisseur) : ordre de dépense au CENTRE DE PAIEMENT ; la demande de visa publicitaire ou la déclaration à l'ANPP (« mode ») part AVEC chez l'information médicale, sans montant. Une facture détaillée se paie pour ce qui est REÇU : le demandeur coche la réception sur la fiche, et renoncer à payer une ligne non livrée s'y confirme aussi — jamais d'ici.",
     gate: () => true,
     gateNote: "pilotes du dossier (revérifié par l'action)",
     covers: ["promo-execution-actions:demanderPaiementFacturePromo"],

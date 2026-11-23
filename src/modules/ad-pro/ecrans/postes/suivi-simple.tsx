@@ -7,12 +7,14 @@ import { etapesDuPoste, faitsDuPoste } from "../../domaine/poste-etapes";
 import { etapeAgence, friseAgence, LIBELLE_ETAPE_AGENCE } from "../../domaine/parcours-agence";
 import { faitsAgenceDuPoste } from "./parcours-agence";
 import type { ItemRow } from "../items-panel";
+import { DiscussionDuPoste } from "./discussion-poste";
 
 /**
  * LE SUIVI SANS LES DÉTAILS (Direction, 15/11/2026) — ce que le délégué qui a signalé l'événement voit de ses postes : où en
- * est chacun, et l'étape en cours. Ni montants, ni devis, ni agences, ni pièces : il suit, il ne décide de rien.
+ * est chacun, et l'étape en cours. Ni montants, ni devis, ni agences, ni pièces : il suit, il ne décide de rien. Il ÉCRIT,
+ * en revanche, dans la discussion de chaque poste (Direction, 23/11/2026) — c'est là qu'il répond aux questions.
  */
-export function SuiviSimple({ items }: { items: ItemRow[] }) {
+export function SuiviSimple({ items, moiId, chemin }: { items: ItemRow[]; moiId?: string; chemin: string }) {
   if (items.length === 0) return <p className="text-sm text-muted-foreground">Les postes seront publiés par la Direction Marketing.</p>;
   return (
     <ul className="space-y-2">
@@ -35,6 +37,7 @@ export function SuiviSimple({ items }: { items: ItemRow[] }) {
               ))}
             </ol>
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Clock className="h-3.5 w-3.5" /> En ce moment : {enCours}</p>
+            <div className="border-t border-border/70"><DiscussionDuPoste item={it} moiId={moiId} chemin={chemin} /></div>
           </li>
         );
       })}

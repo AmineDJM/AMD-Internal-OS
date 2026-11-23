@@ -298,19 +298,17 @@ export const ADPRO5_OPS_IMPL: Record<string, OpImpl> = {
       if ("error" in parent) return parent;
       const label = opStr(input, "label") || opStr(input, "name");
       if (!label) return { error: "Précisez le libellé du poste (champ « label »)." };
-      const additional = /rallonge|suppl[ée]ment|en plus|additional/i.test(opStr(input, "mode"));
       return {
         title: `Ajouter le poste « ${label} » — ${parent.label}`,
         fields: fieldsOf([
           ["Opération", parent.label], ["Poste", label],
-          ["Budget", additional ? "RALLONGE (en plus du budget accordé)" : "Inclus dans le budget accordé"],
           ["Estimation", opStr(input, "amount") ? dzd(Number(opStr(input, "amount"))) : null],
           ["Prestataire", opStr(input, "supplier") || null],
         ]),
         args: {
           parent: parent.entityType, parentId: parent.entityId, label,
           amountEstimated: opStr(input, "amount") || null, supplier: opStr(input, "supplier") || null,
-          budgetKind: additional ? "ADDITIONAL" : null, notes: opStr(input, "notes") || null,
+          notes: opStr(input, "notes") || null,
         },
         successMessage: `Poste « ${label} » ajouté à ${parent.label}.`,
         revalidate: ["/sponsoring"],

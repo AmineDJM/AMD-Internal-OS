@@ -1,11 +1,10 @@
 import { BlocHistorique } from "@/modules/ad-pro/ecrans/bloc-historique";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { requireModule } from "@/lib/session";
 import { userCan, hasGlobalView, hasRole } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { prisma } from "@/lib/prisma";
-import { getCongressDetail, peutSupprimerUneDemandeAdPro, getCareDossier, envoiAuxFinances, adProEditValues, loadAdProItems, adProBudgetOptions, contexteMaterielStock, contextePostes } from "@/modules/ad-pro/api";
+import { getCongressDetail, peutSupprimerUneDemandeAdPro, getCareDossier, envoiAuxFinances, adProEditValues, loadAdProItems, adProBudgetOptions, contexteMaterielStock, contextePostes, requireModuleOuAgences } from "@/modules/ad-pro/api";
 import { getEntityMissions } from "@/lib/queries/missions";
 import { getWorkflowForEntity } from "@/lib/queries/workflow";
 import { PageHeader } from "@/components/shared/page-header";
@@ -43,7 +42,7 @@ export const dynamic = "force-dynamic";
 
 export default async function CongressIntlDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const user = await requireModule("CONGRESS_INTERNATIONAL");
+  const user = await requireModuleOuAgences("CONGRESS_INTERNATIONAL");
   const detail = await getCongressDetail("INTL", user, params.id);
   if (!detail) notFound();
 
@@ -209,7 +208,7 @@ export default async function CongressIntlDetailPage(props: { params: Promise<{ 
         <SectionRepliable
           titre="Circuit de validation"
           resume={[resumeDuCircuit(workflow), declaration?.detail ? `déclaration : ${declaration.detail}` : null].filter(Boolean).join(" · ")}
-          aVous={Boolean(workflow?.action) || Boolean(declaration?.peutAgir)}
+          aVous={Boolean(workflow?.action) || Boolean(declaration?.aVous)}
         >
           <CongressDetailView enSection detail={detail} workflow={workflow} canInvolveThirdParty={canInvolveThirdParty} entityType="CONGRESS_INTERNATIONAL" entityId={detail.id} missionUsers={missionUsers}
             declaration={declaration && <EtapeDeclarationAdPro etape={declaration} sourceType="CONGRESS_INTERNATIONAL" sourceId={detail.id} />} />

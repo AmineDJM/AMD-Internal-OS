@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { requireModule } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
-import { getEvents, getAdProCreateData } from "@/modules/ad-pro/api";
+import { getEvents, getAdProCreateData, requireModuleOuAgences } from "@/modules/ad-pro/api";
 import { PageHeader } from "@/components/shared/page-header";
 import { KpiCard } from "@/components/shared/kpi-card";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -16,7 +15,7 @@ import { CreateEventButton } from "./event-form";
 export const dynamic = "force-dynamic";
 
 export default async function EventsPage() {
-  const user = await requireModule("EVENTS");
+  const user = await requireModuleOuAgences("EVENTS");
   const canCreate = userCan(user, "EVENTS", "CREATE");
   // LES RÉFÉRENTIELS DU FORMULAIRE — le MÊME chargeur que le panneau commun d'Ad & Pro, appelé
   // avec la seule nature de cet écran. Recopier ici les quatre requêtes (annuaire, produits au

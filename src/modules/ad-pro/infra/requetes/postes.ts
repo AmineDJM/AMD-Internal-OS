@@ -27,11 +27,12 @@ import { devisDesPostes } from "./devis-poste";
 import { agencesDesPostes } from "./agence";
 import { hasRole } from "@/lib/rbac/roles";
 import { etatSignatureEnLigne } from "@/lib/signature-en-ligne/etat";
-import { PARENTS, refusAvantPrevalidation, refusPosteApresDeclaration } from "../postes/commun";
+import { PARENTS, modereLaDemande, refusAvantPrevalidation, refusPosteApresDeclaration } from "../postes/commun";
 import { suitSansDetails } from "../../domaine/suivi-delegue";
 import type { SignaturePrete } from "@/lib/signature-en-ligne/partage";
 import { droitsValidation, type DroitsValidation } from "../../domaine/validation-poste";
 import { envoisDesFiches } from "@/lib/queries/reservations-fiches";
+import { filsDesPostes } from "../postes/discussion";
 
 /**
  * CHARGEMENT DES POSTES D'UNE OPÉRATION AD & PRO — un seul endroit pour les quatre modules.
@@ -253,8 +254,9 @@ export async function loadAdProItems(parent: AdProParent, parentId: string): Pro
   }
   const promoById = new Map(promoRows.map((p) => [p.id, { reference: p.reference, title: p.title, status: statutDuDossier(p).libelle }]));
   const orderById = new Map(orderRows.map((o) => [o.id, { reference: o.reference, status: String(o.status), centralStatus: o.centralStatus }]));
-  // LE PARCOURS AGENCE (15/11/2026) : prospection, choix, BC signé, conformité, réception — en lot.
-  const agences = await agencesDesPostes(rawItems, piecesParPoste, devisParPoste);
+  // LE PARCOURS AGENCE (15/11/2026) : prospection, choix, BC signé, conformité, réception — en lot. LA DISCUSSION de chaque
+  // poste (23/11/2026) : ses messages et leurs pièces, en lot aussi.
+  const [agences, fils] = await Promise.all([agencesDesPostes(rawItems, piecesParPoste, devisParPoste), filsDesPostes(itemIds)]);
 
   return rawItems.map((i) => ({
     id: i.id, kind: i.kind, label: i.label, notes: i.notes, supplier: i.supplier,
@@ -298,6 +300,7 @@ export async function loadAdProItems(parent: AdProParent, parentId: string): Pro
     opsDecisionNote: i.opsDecisionNote,
     pieces: piecesParPoste.get(i.id) ?? { devis: [], bc: null, bcs: [], factures: [] },
     devisLignes: devisParPoste.get(i.id) ?? [],
+    discussion: fils.get(i.id) ?? [],
     // UN POSTE HISTORIQUE (intégration des dépenses réelles Ad & Pro 2026) : payé, sans circuit — la carte le dit.
     historique: i.montantPayeHistorique != null
       ? { montant: toNumber(i.montantPayeHistorique), ligne: i.historiqueLigne, payeLe: i.historiquePayeLe?.toISOString() ?? null }
@@ -535,6 +538,8 @@ export interface ContextePostes {
    * un bouton refusé.
    */
   ajoutFerme: string | null;
+  /** Modère la discussion des postes (le message d'un autre) — `canModerateEntity`, la porte des actions canoniques. */
+  modereLesFils: boolean;
 }
 
 const DEMANDEUR_DE: Record<AdProParent, (id: string) => Promise<string | null>> = {
@@ -580,5 +585,7 @@ export async function contextePostes(user: SessionUser, parent: AdProParent, par
     // LE DÉLÉGUÉ MÉDICAL SUIT SANS LES DÉTAILS (15/11/2026) — sauf s'il porte aussi un rôle qui décide ou exécute.
     ajoutFerme: await refusAjoutDePoste(parent, parentId),
     suiviSimple: suitSansDetails(moi ?? user),
+    // Le fil d'un poste se modère comme celui de sa demande : `canModerateEntity(AD_PRO_ITEM)` délègue à elle.
+    modereLesFils: await modereLaDemande(user, parent, parentId),
   };
 }

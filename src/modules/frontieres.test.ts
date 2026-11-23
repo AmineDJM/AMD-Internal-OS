@@ -185,7 +185,7 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/ad-pro/ecrans/involvement-conversations.tsx → src/lib/queries/involvement",
     "src/modules/ad-pro/ecrans/medecins-concernes.tsx → src/lib/entity-access",
     "src/modules/ad-pro/ecrans/prise-en-charge/page-billets-emis.tsx → src/lib/entity-access",
-    "src/modules/ad-pro/ecrans/prise-en-charge/page-devis.tsx → src/lib/entity-access",
+    "src/modules/ad-pro/ecrans/prise-en-charge/retour-prise-en-charge.tsx → src/lib/entity-access",
     "src/modules/ad-pro/infra/pieces-liees.ts → src/lib/lecteurs/legal",
     "src/modules/ad-pro/infra/pieces-poste.ts → src/lib/lecteurs/fichiers-emis",
     "src/modules/ad-pro/infra/postes/commun.ts → src/lib/entity-access",
@@ -229,6 +229,9 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/ad-pro/actions-transfert.ts → src/lib/refs",
     "src/modules/ad-pro/ecrans/devis-bc-poste.tsx → src/lib/legal/fichiers-emis",
     "src/modules/ad-pro/ecrans/discussion-card.tsx → src/lib/fil-pieces",
+    // LA DISCUSSION D'UN POSTE (23/11/2026) : le même fil, lu en lot pour les cartes des postes — la clé des pièces d'un
+    // message (`fil-pieces`) avec le fil de la demande ; cible = le socle, avec lui.
+    "src/modules/ad-pro/infra/postes/discussion.ts → src/lib/fil-pieces",
     "src/modules/ad-pro/ecrans/item-ask-panel.tsx → src/lib/legal/from-piece",
     "src/modules/ad-pro/ecrans/pieces-legal-demande.tsx → src/lib/legal/fichiers-emis",
     "src/modules/ad-pro/ecrans/pieces-legal-demande.tsx → src/lib/queries/pieces-legal-demande",

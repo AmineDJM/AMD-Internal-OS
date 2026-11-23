@@ -191,9 +191,10 @@ export function breakdown(items: ItemAmounts[], amountGranted: number | null | u
 // ───────────────────────────── Cycle de validation d'un poste ─────────────────────────────
 
 /**
- * Un poste peut-il PARTIR EN VALIDATION ? On ne soumet ni un poste vide de chiffre (la Direction
- * déciderait sur rien), ni un poste déjà tranché. Un poste en RÉVISION se resoumet — c'est tout
- * l'intérêt de l'aller-retour. Fonction PURE — testée.
+ * Un poste peut-il PARTIR EN VALIDATION ? On ne soumet pas un poste déjà tranché. Un poste en RÉVISION se resoumet —
+ * c'est tout l'intérêt de l'aller-retour. LE MONTANT N'EST PLUS EXIGÉ (Direction, 23/11/2026) : il vient des PIÈCES — les
+ * lignes retenues des devis d'agence, la pro forma ou la facture d'un paiement direct —, et la Direction Marketing le fixe
+ * en acceptant le poste (`decideAdProItem` l'exige, lui). Fonction PURE — testée.
  */
 export function canSubmitItem(item: {
   status: AdProItemStatus;
@@ -224,10 +225,6 @@ export function canSubmitItem(item: {
   // qu'un. Le refus NOMME le geste qui le lève, parce qu'un refus sans remède fait chercher.
   if (item.kind === "INDIRECT_SUPPORT") {
     return { ok: false, reason: REFUS_INDIRECT_NON_REPARTI };
-  }
-  const amount = item.amountGranted ?? item.amountEstimated;
-  if (typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0) {
-    return { ok: false, reason: "Chiffrez le poste (montant estimé) avant de le soumettre." };
   }
   // UNE FICHE PAR PERSONNE (Direction, 06/10) : une billetterie sans voyageur, une hôtellerie sans
   // fiche hôtellerie ne se soumettent pas — sauf en sponsoring indirect, où elles restent facultatives.

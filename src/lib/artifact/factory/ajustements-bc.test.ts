@@ -103,7 +103,8 @@ describe("le composeur de pièces — taxes, numérotation, aperçu avant impres
 
   it("l'aperçu avant impression APPELLE l'action et rend un PDF dans la page ; il se ferme dès que le formulaire change", () => {
     expect(composeur).toMatch(/await apercuAvantImpressionPiece\(undefined, fd\)/);
-    expect(composeur).toMatch(/<object data=\{impression\.url\} type="application\/pdf"/);
+    // Une iframe, pas un <object> : la CSP de la plateforme pose `object-src 'none'` (correctif de l'aperçu du BC, 21/11/2026).
+    expect(composeur).toMatch(/<iframe src={impression.url}/);
     expect(composeur).toContain("Aperçu avant impression");
     expect(composeur).toMatch(/URL\.revokeObjectURL/);
   });

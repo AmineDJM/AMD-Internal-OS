@@ -140,7 +140,11 @@ function FriseBC({ bc }: { bc: BcDePoste }) {
       aide: "Le responsable des bons de commande le télécharge en PDF, le signe et dépose la version signée. Signé, il entre dans Legal ; la facture se dépose ensuite.",
     });
   }
-  if (etape === "A_CORRIGER") lignes.push({ cle: "finances", ton: "alerte", texte: "Renvoyé par le signataire — à corriger" });
+  if (etape === "A_CORRIGER") {
+    // CE QU'IL FAUT CORRIGER, dit par le signataire (23/11/2026) : sans cette phrase, qui corrige devait la retrouver ailleurs.
+    const note = bc.renvoi?.note ? ` : « ${bc.renvoi.note} »` : "";
+    lignes.push({ cle: "finances", ton: "alerte", texte: `Renvoyé par ${bc.renvoi?.par ?? "le signataire"} — à corriger${note}` });
+  }
   if (etape === "SIGNE") {
     lignes.push({ cle: "signe", ton: "fait", texte: `Signé${bc.signeLe ? ` le ${formatDate(bc.signeLe)}` : ""}${bc.copieSignee?.signataire ? ` par ${bc.copieSignee.signataire}` : ""} — dans Legal` });
   } else if (etape === "A_VALIDER" || etape === "A_REVOIR" || etape === "SANS_PORTE") {

@@ -244,10 +244,10 @@ export const MODULES_PILOTAGE_ET_MARKETING: readonly ModulePlateforme[] = [
   },
   {
     id: "information-medicale", nom: "Information médicale (PRIM)", route: "/information-medicale", domaine: "marketing", rbac: ["MEDICAL_INFO"],
-    resume: "Le module du pharmacien responsable de l'information médicale : déclarations au ministère et bons de versement du matériel promotionnel.",
+    resume: "Le module du pharmacien responsable de l'information médicale : déclarations à l'ANPP et bons de versement du matériel promotionnel.",
     pourQui: "Le PRIM instruit ; le Directeur des Opérations valide ; le Super Admin à défaut.",
     gestes: [
-      { label: "Soumettre sa lecture", qui: "PRIM", effet: "« À déclarer au ministère » ou « sans déclaration » (motif exigé) → validation du Directeur des Opérations." },
+      { label: "Soumettre sa lecture", qui: "PRIM", effet: "« À déclarer à l'ANPP » ou « sans déclaration » (motif exigé) → validation du Directeur des Opérations." },
       { label: "Réclamer / relancer une pièce", qui: "PRIM", effet: "Notification à la personne sollicitée ; relance au plus une toutes les 4 h." },
       { label: "Séparer en matériels (bons de versement)", qui: "PRIM", effet: "Un bon par matériel ; une validation pour le lot ; un paiement par quittance." },
       { label: "Valider / Refuser", qui: "Directeur des Opérations", effet: "Validé : l'ordre de dépense naît. Refusé (motif) : retour au PRIM." },

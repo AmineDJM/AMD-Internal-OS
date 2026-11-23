@@ -20,7 +20,7 @@ import { arrondirAuMillieme } from "@/lib/utils";
 
 /** Nature d'un mouvement — elle dit le SENS, et sert de motif dans le registre. */
 export type MovementKind =
-  /** Entrée : livraison, saisie manuelle du Super Admin. */
+  /** Entrée : livraison, saisie manuelle au magasin (sa gestionnaire ou le Super Admin). */
   | "RECEIPT"
   /** Sortie : remise (mouvements d'avant le registre par détenteur ; remise à un médecin). */
   | "DISTRIBUTION"
@@ -277,4 +277,39 @@ export function repartirReception(parties: readonly Tranche[], recue: number):
     reste = arrondirAuMillieme(reste - prise);
   }
   return { recues, manquantes };
+}
+
+export interface LigneRepartition {
+  versId: string;
+  quantite: number;
+}
+
+/**
+ * RÉPARTIR UN ARTICLE DU MAGASIN ENTRE PLUSIEURS PERSONNES (Direction, 23/11/2026 : « Assia décide
+ * à qui donner chaque quantité de chaque matériel pour les délégués ») — la saisie, lue une fois
+ * pour l'écran (le total en direct) et pour l'action (qui la relit, puis compare le total au
+ * distribuable sous le verrou de l'article).
+ *
+ * Une ligne vide ou à zéro est IGNORÉE : on ne dote pas « rien », et la liste montre tout le
+ * monde. Une quantité illisible ou négative, une personne nommée deux fois refusent TOUT — une
+ * répartition à moitié comprise ne part pas. Rien à répartir refuse aussi.
+ */
+export function lireRepartition(saisies: readonly { versId: string; quantite: unknown }[]):
+  { ok: true; lignes: LigneRepartition[]; total: number } | { ok: false; error: string } {
+  const lignes: LigneRepartition[] = [];
+  const vus = new Set<string>();
+  for (const s of saisies) {
+    const brut = typeof s.quantite === "string" ? s.quantite.trim() : s.quantite;
+    if (brut === "" || brut == null) continue;
+    const q = parseQuantity(brut);
+    if (q == null || q < 0) return { ok: false, error: `Quantité illisible (« ${String(brut)} ») : indiquez un nombre positif, ou laissez la ligne vide.` };
+    const quantite = arrondirAuMillieme(q);
+    if (quantite === 0) continue;
+    if (!s.versId) return { ok: false, error: "Une ligne n'a pas de destinataire : rechargez la page." };
+    if (vus.has(s.versId)) return { ok: false, error: "La même personne figure deux fois : additionnez ses quantités sur une seule ligne." };
+    vus.add(s.versId);
+    lignes.push({ versId: s.versId, quantite });
+  }
+  if (lignes.length === 0) return { ok: false, error: "Rien à répartir : indiquez une quantité pour au moins une personne." };
+  return { ok: true, lignes, total: arrondirAuMillieme(lignes.reduce((t, l) => t + l.quantite, 0)) };
 }

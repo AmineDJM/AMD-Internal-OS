@@ -461,7 +461,7 @@ export function AuthorityLocked({ message }: { message: string }) {
  * LE PHARMACIEN OUVRE LUI-MÊME UN DOSSIER.
  *
  * Une obligation réglementaire se découvre aussi de son côté : un support à faire viser, une
- * déclaration au ministère qu'aucun événement n'a déclenchée, un versement à faire. Il n'avait
+ * déclaration à l'ANPP qu'aucun événement n'a déclenchée, un versement à faire. Il n'avait
  * pour cela aucun geste — le module ne se remplissait que par la validation d'un autre — et ce
  * qui n'entre pas dans l'ERP se traite dans un carnet.
  */
@@ -561,12 +561,12 @@ export function AuthorityForm({ id, authorityRef, authorityNotes }: { id: string
   return (
     <form action={(fd) => { fd.set("id", id); run(() => recordAuthorityDeclaration(fd)); }} className="space-y-3">
       <div className="space-y-1">
-        <Label>Référence / récépissé de déclaration</Label>
-        <Input name="authorityRef" defaultValue={authorityRef ?? ""} placeholder="N° de déclaration aux autorités" />
+        <Label>Référence ANPP / récépissé</Label>
+        <Input name="authorityRef" defaultValue={authorityRef ?? ""} placeholder="Référence du dépôt à l'ANPP" />
       </div>
       <div className="space-y-1">
         <Label>Notes de déclaration</Label>
-        <Textarea name="authorityNotes" defaultValue={authorityNotes ?? ""} className="min-h-[60px]" placeholder="Autorité destinataire, date, observations…" />
+        <Textarea name="authorityNotes" defaultValue={authorityNotes ?? ""} className="min-h-[60px]" placeholder="Date du dépôt, interlocuteur ANPP, observations…" />
       </div>
       <Err msg={err} />
       <Button type="submit" disabled={saving} size="sm" variant="outline">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />} Enregistrer la déclaration</Button>

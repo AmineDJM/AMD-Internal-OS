@@ -1,14 +1,11 @@
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 import { requireUser } from "@/lib/session";
-import { hasGlobalView } from "@/lib/rbac";
-import { canAccessEntity } from "@/lib/entity-access";
 import { prisma } from "@/lib/prisma";
 import { getCareDossier } from "../../infra/requetes/prise-en-charge";
 import { peutSaisirLesDevis } from "../../infra/prise-en-charge/devis-acces";
 import { PageHeader } from "@/components/shared/page-header";
-import { BackLink } from "@/components/shared/back-link";
 import { DevisSollicitesPanel } from "./devis-sollicites-panel";
+import { RetourPriseEnCharge } from "./retour-prise-en-charge";
 
 /**
  * LA PAGE « DEVIS » D'UNE PRISE EN CHARGE (audit Assistante de direction, 10/2026) — par où l'assistante de direction,
@@ -17,7 +14,6 @@ import { DevisSollicitesPanel } from "./devis-sollicites-panel";
  */
 export async function PageDevisPriseEnCharge({ scope, id }: { scope: "NATIONAL" | "INTERNATIONAL"; id: string }) {
   const user = await requireUser();
-  const module = scope === "NATIONAL" ? "CONGRESS_NATIONAL" : "CONGRESS_INTERNATIONAL";
   const req = scope === "NATIONAL"
     ? await prisma.congressNational.findUnique({ where: { id }, select: { id: true, name: true } })
     : await prisma.congressInternational.findUnique({ where: { id }, select: { id: true, name: true } });
@@ -25,12 +21,10 @@ export async function PageDevisPriseEnCharge({ scope, id }: { scope: "NATIONAL" 
   if (!(await peutSaisirLesDevis(user, scope, id))) notFound();
 
   const care = await getCareDossier(scope, id);
-  const ficheVisible = hasGlobalView(user) || (await canAccessEntity(user, module, id, "VIEW"));
-  const retour = ficheVisible ? `${scope === "NATIONAL" ? "/congress-national" : "/congress-international"}/${id}` : "/dossiers";
 
   return (
     <div className="space-y-5">
-      <BackLink href={retour}><ArrowLeft className="h-4 w-4" /> {ficheVisible ? "La demande" : "Mes sujets"}</BackLink>
+      <RetourPriseEnCharge user={user} scope={scope} id={id} />
       <PageHeader title={`Devis — ${req.name}`} description="Ce qui attend un devis, et chaque devis reçu : fournisseur, montant, ce qu'il couvre et son PDF." />
       <DevisSollicitesPanel
         scope={scope} requestId={id} mode={care.reglages.mode} taux={care.reglages.taux}

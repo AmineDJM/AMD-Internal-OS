@@ -7,8 +7,8 @@
  *
  * ── LES ÉTAPES ──────────────────────────────────────────────────────────────────────────────
  *
- *   ÉVÉNEMENT : Reçu → À déclarer ? → Pièces → Dépôt ministère → Pharmacien → Directeur des Opérations
- *   MATÉRIEL  : Reçu → Pièces → Bons de versement → Dépôt ministère → Pharmacien → Directeur des Opérations
+ *   ÉVÉNEMENT : Reçu → À déclarer ? → Pièces → Dépôt ANPP → Pharmacien → Directeur des Opérations
+ *   MATÉRIEL  : Reçu → Pièces → Bons de versement → Dépôt ANPP → Pharmacien → Directeur des Opérations
  *
  * La dernière étape garde sa clé `DIRECTION` (la validation finale) ; elle appartient au Directeur
  * des Opérations depuis 10/2026 (`decideur.ts`) — à défaut au Super Admin, que `chezDecideur` nomme.
@@ -18,7 +18,7 @@
  *
  * Module PUR : ni base, ni session — la frise, la pastille et l'étape courante se testent sans base.
  */
-import { declareStage, type DeclareInput } from "./declare-decision";
+import { declareStage, type DeclareInput, type DeclareStage } from "./declare-decision";
 import { slipStage, type SlipInput, type SlipsLotStage, type SlipsSummary } from "./slips";
 import type { MedicalCircuit } from "./circuits";
 import { RELANCE_DELAI_MS } from "@/lib/tasks/request-flow";
@@ -34,7 +34,7 @@ export const ETAPE_LABEL: Record<EtapeCle, string> = {
   DECLARER: "À déclarer ?",
   PIECES: "Pièces",
   BONS: "Bons de versement",
-  DEPOT: "Dépôt ministère",
+  DEPOT: "Dépôt ANPP",
   PHARMACIEN: "Pharmacien",
   DIRECTION: DECIDEUR_INFO_MED_LABEL,
 };
@@ -169,6 +169,33 @@ export function visaExige(i: { declarationKind?: string | null }): boolean {
   return i.declarationKind === "AD_VISA";
 }
 
+/** Un dossier tel que la base le rend (avec ses pièces demandées et son pharmacien) — ce que la frise en lit. */
+export interface DossierLu {
+  status: string; createdAt: Date; updatedAt: Date; declareRequestedAt: Date | null; authorityRef: string | null; bvRequestedAt: Date | null;
+  pharmacistValidatedAt: Date | null; validatedAt: Date | null; pharmacist?: { name: string } | null;
+  requests: readonly { id: string; status: string; createdAt: Date; fulfilledAt: Date | null; targetUserId: string | null; targetUser?: { name: string } | null }[];
+}
+
+/**
+ * LA FRISE D'UN DOSSIER LU EN BASE (23/11/2026) — une construction pour le registre, l'écran « À faire », « Mon espace » et
+ * la carte Ad & Pro : quatre copies de la même entrée finiraient par lire le dossier de quatre façons.
+ */
+export function parcoursDuDossier(
+  d: DossierLu,
+  etat: Pick<ParcoursInput, "circuit" | "declare" | "lot" | "slips" | "summary" | "skipped">,
+  chezDecideur: string | null,
+): Parcours {
+  return parcoursOf({
+    circuit: etat.circuit, status: d.status, createdAt: d.createdAt, updatedAt: d.updatedAt,
+    declare: etat.declare, declareRequestedAt: d.declareRequestedAt, authorityRef: d.authorityRef,
+    lot: etat.lot, slips: etat.slips, summary: etat.summary, skipped: etat.skipped, bvRequestedAt: d.bvRequestedAt,
+    requests: d.requests.map((r) => ({
+      id: r.id, status: r.status, createdAt: r.createdAt, fulfilledAt: r.fulfilledAt, targetUserId: r.targetUserId, targetName: r.targetUser?.name ?? null,
+    })),
+    pharmacistValidatedAt: d.pharmacistValidatedAt, validatedAt: d.validatedAt, pharmacistName: d.pharmacist?.name ?? null, chezDecideur,
+  });
+}
+
 export function parcoursOf(i: ParcoursInput): Parcours {
   const valide = i.status === "VALIDATED";
   const chezDirection = i.status === "AWAITING_DIRECTION";
@@ -281,7 +308,7 @@ export function parcoursOf(i: ParcoursInput): Parcours {
       break;
     }
     case "DEPOT":
-      etat = "Dépôt au ministère"; chez = pharmacien; ton = "warning";
+      etat = "Dépôt à l'ANPP"; chez = pharmacien; ton = "warning";
       depuis = maxDate(i.createdAt, i.declareRequestedAt, dernierePiece, ...i.slips.map((s) => s.deliveredAt), i.skipped ? i.updatedAt : null);
       groupe = "A_DECLARER";
       break;
@@ -323,7 +350,7 @@ export type BlocAction =
   | "PIECES_ATTENDUES"     // le pharmacien suit (et relance) les pièces demandées
   | "DECLARER"             // la décision « faut-il déclarer ? »
   | "BONS"                 // le tableau des bons avec les gestes du lot
-  | "DEPOT"                // le dépôt au ministère
+  | "DEPOT"                // le dépôt à l'ANPP
   | "VALIDER_PHARMACIEN"
   | "VALIDER_DIRECTION"
   | "REMETTRE_QUITTANCE";  // les Finances remettent une quittance réglée
@@ -390,14 +417,14 @@ export function carteAction(
     } else if (p.courante === "DEPOT" && regles.pharmacienPeutValider) {
       aussi = { bloc: "VALIDER_PHARMACIEN", libelle: "Valider sans référence de dépôt" };
     } else if (p.courante === "PHARMACIEN" && regles.autoritesOuvertes) {
-      aussi = { bloc: "DEPOT", libelle: "Modifier le dépôt au ministère" };
+      aussi = { bloc: "DEPOT", libelle: "Modifier le dépôt à l'ANPP" };
     }
   }
 
   if (p.courante === "DIRECTION" && v.direction) principal.push("VALIDER_DIRECTION");
   // Transmis au Directeur des Opérations, le dépôt se corrige encore (une référence mal saisie) — replié.
   if (p.courante === "DIRECTION" && v.gestionnaire && regles.autoritesOuvertes) {
-    aussi = { bloc: "DEPOT", libelle: "Modifier le dépôt au ministère" };
+    aussi = { bloc: "DEPOT", libelle: "Modifier le dépôt à l'ANPP" };
   }
   if (v.finances && v.aRemettre) principal.push("REMETTRE_QUITTANCE");
 
@@ -434,4 +461,128 @@ export function peutRelancerPiece(
     return { ok: false, raison: `Trop tôt : vous pourrez relancer dans ${heures} h.` };
   }
   return { ok: true };
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * « À FAIRE — INFORMATION MÉDICALE » — À QUI EST-CE LE TOUR ? (Direction, 23/11/2026)
+ *
+ * « Faire marcher la partie information médicale dans Ad & Pro, pour qu'Alaa sache quoi faire et le fasse facilement. »
+ * Le registre rangeait les dossiers par statut : « À déclarer » comptait aussi bien la lecture à soumettre que celle qui
+ * attendait le Directeur des Opérations, et le pharmacien rouvrait chaque dossier pour savoir s'il avait la main. L'écran
+ * « À faire » les range par TOUR, chaque ligne avec UN geste et UNE phrase :
+ *
+ *   LECTURE   — vos lectures « à déclarer / sans déclaration » à soumettre (ou à reprendre) ;
+ *   DEPOT     — à déposer à l'ANPP, puis saisir la référence (la lecture « à déclarer » est accordée) ;
+ *   VALIDER   — tout est prêt : votre validation l'envoie au Directeur des Opérations ;
+ *   BONS      — matériel promotionnel : vos bons de versement ;
+ *   PIECES    — des pièces sont attendues d'autres personnes : relancer ;
+ *   CHEZ_DO   — chez le Directeur des Opérations (votre lecture, vos bons, ou la validation finale) : lecture seule ;
+ *   AILLEURS  — en paiement (centre de paiement, Finances) : lecture seule.
+ *
+ * Et à part, « À VENIR » : les demandes accordées dont la déclaration n'est pas encore ouverte (tous les postes ne sont
+ * pas validés), avec ce qui la retient.
+ *
+ * Module PUR : la page (serveur) et le composant (navigateur) le lisent ; la règle se teste sans base. Elle se DÉDUIT de la
+ * frise (`parcoursOf`) — jamais d'un statut relu à part : l'écran, la fiche et « Mon espace » disent le même tour.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ */
+export type TourDeclaration = "LECTURE" | "DEPOT" | "VALIDER" | "BONS" | "PIECES" | "CHEZ_DO" | "AILLEURS";
+
+export const ORDRE_TOURS: readonly TourDeclaration[] = ["LECTURE", "DEPOT", "VALIDER", "BONS", "PIECES", "CHEZ_DO", "AILLEURS"];
+
+export const TITRE_TOUR: Record<TourDeclaration, { titre: string; aide: string }> = {
+  LECTURE: { titre: "Vos lectures à soumettre", aide: "Dites si chaque événement se déclare à l'ANPP : votre lecture part chez le Directeur des Opérations." },
+  DEPOT: { titre: "À déposer à l'ANPP", aide: "La lecture « à déclarer » est accordée : déposez à l'ANPP, joignez le récépissé, saisissez la référence, puis validez." },
+  VALIDER: { titre: "À valider", aide: "Tout est prêt : votre validation envoie le dossier au Directeur des Opérations, qui le clôt." },
+  BONS: { titre: "Bons de versement", aide: "Matériel promotionnel : séparez, faites valider, demandez le paiement de chaque quittance." },
+  PIECES: { titre: "Pièces attendues", aide: "Des pièces sont demandées à d'autres personnes : relancez si elles tardent — vous pouvez aussi continuer sans elles." },
+  CHEZ_DO: { titre: "Chez le Directeur des Opérations", aide: "Rien à faire de votre côté tant qu'il n'a pas tranché." },
+  AILLEURS: { titre: "En paiement", aide: "Les bons sont au centre de paiement ou aux Finances." },
+};
+
+/** Les tours où c'est AU PHARMACIEN de jouer — « À vous » sur la carte Ad & Pro et dans « Mon espace ». */
+export const TOURS_DU_PHARMACIEN: readonly TourDeclaration[] = ["LECTURE", "DEPOT", "VALIDER", "BONS"];
+
+/**
+ * LE TOUR D'UN DOSSIER OUVERT — l'étape courante de la frise, précisée par la lecture et le lot. `null` : validé (rien à faire).
+ * `bonsChezPharmacien` : au circuit matériel, les bons sont-ils encore entre ses mains (`parcoursOf` — chez le pharmacien) ?
+ */
+export function tourDeLaDeclaration(i: {
+  courante: EtapeCle | null; lecture: DeclareStage; lot: SlipsLotStage; bonsChezPharmacien: boolean;
+}): TourDeclaration | null {
+  switch (i.courante) {
+    case null: return null;
+    case "RECU":
+    case "DECLARER": return i.lecture === "EN_VALIDATION" ? "CHEZ_DO" : "LECTURE";
+    case "PIECES": return "PIECES";
+    case "BONS": return i.lot === "EN_VALIDATION" ? "CHEZ_DO" : i.bonsChezPharmacien ? "BONS" : "AILLEURS";
+    case "DEPOT": return "DEPOT";
+    case "PHARMACIEN": return "VALIDER";
+    case "DIRECTION": return "CHEZ_DO";
+  }
+}
+
+/** LA PHRASE D'UNE LIGNE — ce qu'il fait maintenant, en une phrase. */
+export function consigneDuTour(t: TourDeclaration, i: { lecture: DeclareStage; intentSkip: boolean; circuit: "EVENT" | "PROMO"; chez: string | null }): string {
+  switch (t) {
+    case "LECTURE":
+      return i.lecture === "A_REVOIR" ? "Le Directeur des Opérations demande une modification : corrigez votre lecture et soumettez-la de nouveau."
+        : i.lecture === "REFUSEE" ? "Votre lecture a été refusée : lisez le motif, puis soumettez celle qui est attendue."
+        : "Dites si cet événement se déclare à l'ANPP — ou non, motif à l'appui — et faites valider votre lecture.";
+    case "DEPOT":
+      return i.circuit === "EVENT"
+        ? "Déposez la déclaration à l'ANPP, joignez le récépissé, enregistrez la référence, puis validez."
+        : "Déposez à l'ANPP et enregistrez la référence (ou le n° de visa), puis validez.";
+    case "VALIDER":
+      return `${i.intentSkip ? "Sans déclaration accordée" : i.circuit === "EVENT" ? "Référence ANPP enregistrée" : "Bons remis"} : validez — le dossier part chez le Directeur des Opérations.`;
+    case "BONS":
+      return "Bons de versement à préparer ou à faire payer : ouvrez le dossier.";
+    case "PIECES":
+      return `Pièces attendues${i.chez ? ` — chez ${i.chez}` : ""} : relancez si elles tardent.`;
+    case "CHEZ_DO":
+      return i.lecture === "EN_VALIDATION" ? "Votre lecture est en validation chez le Directeur des Opérations." : "Validation finale chez le Directeur des Opérations.";
+    case "AILLEURS":
+      return `En paiement${i.chez ? ` — chez ${i.chez}` : ""}.`;
+  }
+}
+
+/** Une ligne de déclaration, telle que l'écran la reçoit (dates en ISO). */
+export interface LigneDeclarationAFaire {
+  id: string;
+  reference: string;
+  label: string;
+  nature: string;
+  beneficiaire: string | null;
+  montant: number | null;
+  tour: TourDeclaration;
+  consigne: string;
+  /** Depuis quand le dossier attend à cette étape (jours entiers). */
+  jours: number | null;
+  circuit: "EVENT" | "PROMO";
+  declare: DeclareInput;
+  validationHref: string | null;
+  peutDemander: boolean;
+  authorityRef: string | null;
+  authorityNotes: string | null;
+  piecesEnAttente: boolean;
+  pieces: { id: string; label: string; chez: string | null; jours: number | null; refusRelance: string | null }[];
+  fichiers: { id: string; nom: string; le: string; partagee: boolean }[];
+  sourceHref: string | null;
+}
+
+export interface LigneAVenir {
+  cle: string;
+  type: string;
+  id: string;
+  nom: string;
+  nature: string;
+  valides: number;
+  total: number;
+  /** Ce qui retient l'ouverture — « 1 poste en attente de la Direction Marketing »… */
+  blocages: string[];
+  brouillons: number;
+  /** Tout est prêt (ou ancienne règle) : le pharmacien l'ouvre d'ici. */
+  ouvrable: boolean;
+  href: string | null;
 }

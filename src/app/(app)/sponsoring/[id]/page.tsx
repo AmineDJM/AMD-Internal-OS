@@ -2,7 +2,6 @@ import { BlocHistorique } from "@/modules/ad-pro/ecrans/bloc-historique";
 import { demandeurAfficheDe } from "@/lib/budget-marketing/integration-serveur";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Gavel } from "lucide-react";
-import { requireModule } from "@/lib/session";
 import { userCan, hasGlobalView, hasRole, peutUtiliserAssistantIA, scopeSponsoring } from "@/lib/rbac";
 import { SuggestionsDossier } from "@/modules/assistant-ia/ecrans/suggestions-dossier";
 import { canAccessEntity } from "@/lib/entity-access";
@@ -25,7 +24,7 @@ import { ThirdPartyButton } from "./third-party-button";
 import { InvolvementConversations } from "@/modules/ad-pro/ecrans/involvement-conversations";
 import { getInvolvementThreads } from "@/lib/queries/involvement";
 import { SupprimerDemandeAdPro } from "@/modules/ad-pro/ecrans/supprimer-demande";
-import { peutSupprimerUneDemandeAdPro, loadAdProItems, adProBudgetOptions, contexteMaterielStock, postesPourCloture, contextePostes, adProEditValues } from "@/modules/ad-pro/api";
+import { peutSupprimerUneDemandeAdPro, loadAdProItems, adProBudgetOptions, contexteMaterielStock, postesPourCloture, contextePostes, adProEditValues, requireModuleOuAgences } from "@/modules/ad-pro/api";
 import { promoMaterialOptions } from "@/modules/ad-pro/actions-postes";
 import { AdProItemsPanel } from "@/modules/ad-pro/ecrans/items-panel";
 import { PiecesLegalDeLaDemande } from "@/modules/ad-pro/ecrans/pieces-legal-demande";
@@ -51,7 +50,7 @@ export const dynamic = "force-dynamic";
 
 export default async function SponsoringDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const user = await requireModule("SPONSORING");
+  const user = await requireModuleOuAgences("SPONSORING");
   // LA PORTÉE PAR LIGNE (§118.185, I4) : un délégué n'ouvre que SES demandes — la même phrase
   // qu'une demande inexistante, pour ne pas confirmer qu'un identifiant deviné existe.
   const req = await prisma.sponsoringRequest.findFirst({
@@ -305,7 +304,7 @@ export default async function SponsoringDetailPage(props: { params: Promise<{ id
               )}
             </SectionRepliable>
             {declaration && (
-              <SectionRepliable titre={declaration.titre} resume={declaration.detail ?? undefined} aVous={declaration.peutAgir}>
+              <SectionRepliable titre={declaration.titre} resume={declaration.detail ?? undefined} aVous={declaration.aVous}>
                 <EtapeDeclarationAdPro etape={declaration} sourceType="SPONSORING" sourceId={req.id} />
               </SectionRepliable>
             )}

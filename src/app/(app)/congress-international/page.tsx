@@ -1,6 +1,5 @@
-import { requireModule } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
-import { getCongressList, getAdProCreateData } from "@/modules/ad-pro/api";
+import { getCongressList, getAdProCreateData, requireModuleOuAgences } from "@/modules/ad-pro/api";
 import { PageHeader } from "@/components/shared/page-header";
 import { KpiCard } from "@/components/shared/kpi-card";
 import { ModuleTabs } from "@/components/shared/module-tabs";
@@ -11,7 +10,7 @@ import { CongressTable } from "./congress-table";
 export const dynamic = "force-dynamic";
 
 export default async function CongressInternationalPage() {
-  const user = await requireModule("CONGRESS_INTERNATIONAL");
+  const user = await requireModuleOuAgences("CONGRESS_INTERNATIONAL");
   const canCreate = userCan(user, "CONGRESS_INTERNATIONAL", "CREATE");
 
   // LES RÉFÉRENTIELS DU FORMULAIRE viennent du chargeur COMMUN du pôle Ad & Pro : médecins,

@@ -10,7 +10,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuN
 // d'initialisation `ops/index.ts` ↔ `lib/assistant.ts` par l'autre bout.
 import "@/lib/assistant";
 import { DOMAIN_TOOLS } from "@/lib/assistant/ops";
-import { CHEMIN_STOCK_PROMO } from "@/lib/chemins/stock-promo";
+import { lienStockPromo } from "@/lib/chemins/stock-promo";
 import { prisma } from "@/lib/prisma";
 import { retirerComptesEtSemis, retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
@@ -533,7 +533,7 @@ suite("Matériel promotionnel — achats piochés dans le catalogue, facture lig
     expect(relue.stockItem).toMatchObject({ companyId, catalogueId: catFiche });
     expect(relue.stockItem!.produits.map((p) => p.productId)).toEqual([p1]);
     expect(await magasin(catFiche)).toBe(3900);
-    expect(await prisma.notification.count({ where: { userId: u.dir, link: CHEMIN_STOCK_PROMO, body: { contains: `(${reference},` } } }), "la directrice apprend ce qui entre — c'est elle qui dote").toBe(1);
+    expect(await prisma.notification.count({ where: { userId: u.dir, link: lienStockPromo("magasin"), body: { contains: `(${reference},` } } }), "la directrice apprend ce qui entre — c'est elle qui dote, et le lien ouvre le magasin, où elle répartit").toBe(1);
 
     const encore = await receptionnerLigneFacturePromo(form({ promoMaterialId: pmId, ligneId: fiche.id }));
     expect(encore.ok ? "" : encore.error).toMatch(/déjà réceptionnée/);

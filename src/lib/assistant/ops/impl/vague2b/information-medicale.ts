@@ -115,16 +115,16 @@ export const MEDINFO_OPS_IMPL: Record<string, OpImpl> = {
       if ("error" in decl) return decl;
       const brut = (opStr(input, "intent") || "").toLowerCase();
       const intent = /^(skip|non|sans|pas)/.test(brut) ? "SKIP" : /^(declare|déclare|oui)/.test(brut) ? "DECLARE" : null;
-      if (!intent) return { error: "Dites ce qui est soumis : « declare » (à déclarer au ministère) ou « skip » (sans déclaration) — champ « intent »." };
+      if (!intent) return { error: "Dites ce qui est soumis : « declare » (à déclarer à l'ANPP) ou « skip » (sans déclaration) — champ « intent »." };
       const note = opStr(input, "note");
       if (intent === "SKIP" && !note) {
         return { error: "Une lecture « sans déclaration » exige un motif (champ « note ») : c'est ce que lira le validateur, puis l'audit." };
       }
       return {
-        title: `${intent === "DECLARE" ? "À déclarer au ministère" : "Sans déclaration"} — ${decl.reference}`,
+        title: `${intent === "DECLARE" ? "À déclarer à l'ANPP" : "Sans déclaration"} — ${decl.reference}`,
         fields: fieldsOf([
           ["Déclaration", `${decl.reference} — ${decl.label}`],
-          ["Lecture soumise", intent === "DECLARE" ? "À déclarer au ministère" : "Sans déclaration"],
+          ["Lecture soumise", intent === "DECLARE" ? "À déclarer à l'ANPP" : "Sans déclaration"],
           ["Motif / note", note || null],
         ]),
         warnings: [
@@ -326,12 +326,12 @@ export const MEDINFO_OPS_IMPL: Record<string, OpImpl> = {
         : /(bon|versement|bv|slip)/.test(brut) ? "PAYMENT_SLIP"
         : /(mip|minist|décl|decl)/.test(brut) ? "MIP"
         : null;
-      if (!kind) return { error: "Choisissez la nature (champ « kind ») : « mip » (déclaration au ministère), « visa » (visa publicitaire) ou « bon de versement »." };
+      if (!kind) return { error: "Choisissez la nature (champ « kind ») : « mip » (déclaration à l'ANPP), « visa » (visa publicitaire) ou « bon de versement »." };
       const raw = opStr(input, "amount");
       const montant = raw ? Number(raw.replace(",", ".").replace(/\s/g, "")) : null;
       if (raw && (!Number.isFinite(montant) || (montant ?? 0) < 0)) return { error: "Montant invalide." };
       const NATURE: Record<string, string> = {
-        MIP: "Déclaration au ministère (MIP)", AD_VISA: "Demande de visa publicitaire", PAYMENT_SLIP: "Bon de versement",
+        MIP: "Déclaration à l'ANPP (MIP)", AD_VISA: "Demande de visa publicitaire", PAYMENT_SLIP: "Bon de versement",
       };
       return {
         title: `Ouvrir — ${NATURE[kind]} : ${label}`,
@@ -342,7 +342,7 @@ export const MEDINFO_OPS_IMPL: Record<string, OpImpl> = {
         ]),
         warnings: [
           kind === "MIP"
-            ? "Circuit ÉVÉNEMENT : la décision de déclarer se fait valider, puis le dépôt au ministère."
+            ? "Circuit ÉVÉNEMENT : la décision de déclarer se fait valider, puis le dépôt à l'ANPP."
             : "Circuit MATÉRIEL : le dossier se sépare en matériels, un bon de versement par matériel.",
         ],
         args: { label, kind, beneficiary: opStr(input, "person") || null, amount: montant ? String(montant) : null },

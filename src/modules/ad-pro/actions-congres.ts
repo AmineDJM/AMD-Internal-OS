@@ -420,7 +420,7 @@ export async function finalDecision(formData: FormData): Promise<ActionResult> {
       });
       await recordAudit({ actorId: user.id, action: "VALIDATE", module: ML(t), entityType: entityFor(t), entityId: id, summary: `Validation définitive — ${c.name} (ordre ${order.reference})` });
       // LA DÉCLARATION NAÎT QUAND MÊME, non assignée, et porte l'ordre déjà parti : l'événement reste à
-      // déclarer au ministère même sans pharmacien, et la validation finale ne doublera pas l'ordre.
+      // déclarer à l'ANPP même sans pharmacien, et la validation finale ne doublera pas l'ordre.
       // Le paiement, lui, ne change pas. Best-effort : l'ordre est parti, une déclaration ratée se rattrape.
       await createMedicalInfoDeclaration({
         sourceType: entityFor(t), sourceId: id, label: `${NOUN(t)} — ${c.name}`, beneficiary: c.name,

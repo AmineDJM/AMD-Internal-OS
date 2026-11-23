@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireModule } from "@/lib/session";
+import { requireModuleOuAgences } from "@/modules/ad-pro/api";
 import { userCan, scopeAdProOther } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { platformScope, getMyCompanies, companyOptions } from "@/lib/company";
@@ -28,7 +28,7 @@ export const dynamic = "force-dynamic";
  * avoir de circuit prédéfini : elle a un demandeur, une décision, et un motif.
  */
 export default async function AdProOtherPage() {
-  const user = await requireModule("AD_PRO_OTHER");
+  const user = await requireModuleOuAgences("AD_PRO_OTHER");
   const canCreate = userCan(user, "AD_PRO_OTHER", "CREATE");
 
   const [requests, companies, businessUnits] = await Promise.all([

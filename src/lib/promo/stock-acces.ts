@@ -24,8 +24,13 @@
  *     reçoit la donne — pas même le Super Admin, qui peut en revanche ANNULER le transfert (le
  *     matériel revient alors à celui qui l'avait). Une confirmation donnée à la place de quelqu'un
  *     ferait porter à son nom un stock qu'il n'a peut-être jamais vu (§118.15).
- *   • ENTRER DU STOCK À LA MAIN et POSER L'INVENTAIRE D'OUVERTURE sont réservés au Super Admin :
- *     ce sont les seules lignes qui créent du matériel sans facture ni transfert.
+ *   • ENTRER DU STOCK À LA MAIN et POSER L'INVENTAIRE D'OUVERTURE — les seules lignes qui créent
+ *     du matériel sans facture ni transfert — étaient réservés au Super Admin (01/10). La Direction
+ *     a RENVERSÉ cette règle le 23/11/2026, après l'essai en conditions réelles : « le matériel
+ *     promotionnel doit pouvoir être ajouté manuellement par Assia ». Ils sont ouverts à celle qui
+ *     tient le magasin (la cheffe de la Direction Marketing), avec le droit « Créer » du module —
+ *     et au Super Admin. Personne d'autre : un délégué, ou un membre de la Direction Marketing qui
+ *     n'en est pas la cheffe, ne crée pas de stock.
  *   • ANNULER UN MOUVEMENT (le « supprimer », pour le registre) est réservé au Super Admin, et ne
  *     supprime rien : il écrit l'exact inverse, et l'histoire reste entière.
  *
@@ -135,13 +140,17 @@ export function peutCorriger(f: FaitsStock, detenteur: Detenteur): boolean {
   return detenteur === null && f.gereLeMagasin && f.module.modifier;
 }
 
-/** ENTRER du matériel à la main, POSER l'inventaire d'ouverture, ANNULER un mouvement : le Super Admin. */
+/**
+ * ENTRER du matériel à la main, POSER l'inventaire d'ouverture : celle qui tient le magasin, avec le
+ * droit « Créer » du module, et le Super Admin (Direction, 23/11/2026 — voir l'en-tête).
+ */
 export function peutEntrerAlaMain(f: FaitsStock): boolean {
-  return f.superAdmin;
+  return f.superAdmin || (f.gereLeMagasin && f.module.creer);
 }
 export function peutPoserOuverture(f: FaitsStock): boolean {
-  return f.superAdmin;
+  return f.superAdmin || (f.gereLeMagasin && f.module.creer);
 }
+/** ANNULER un mouvement : le Super Admin seul. */
 export function peutAnnulerMouvement(f: FaitsStock): boolean {
   return f.superAdmin;
 }
@@ -180,6 +189,7 @@ export const REFUS = {
   sortie: "Seul celui qui détient ce matériel le transfère ou le rend — ou le directeur des opérations pour les personnes de ses équipes, ou le Super Admin.",
   confirmation: "Seul celui qui reçoit confirme la réception : c'est lui qui atteste l'avoir entre les mains. Celui qui a lancé le transfert peut l'annuler.",
   superAdmin: "Ce geste crée ou efface du stock sans facture ni transfert : il est réservé au Super Admin.",
+  entree: "Entrer du matériel à la main (ou poser l'inventaire d'ouverture) crée du stock sans facture ni transfert : c'est la directrice de la Direction Marketing, qui tient le magasin, qui le fait — ou le Super Admin.",
   correction: "Corriger le solde d'une personne est réservé au Super Admin à cette étape ; la gestionnaire du magasin corrige l'inventaire du magasin.",
   voir: "Ce stock n'est pas dans votre périmètre : vous voyez le vôtre, celui de votre équipe, et le reste si la vue globale vous est ouverte.",
   hors_equipe: "Le directeur des opérations déplace le matériel de ses équipes à l'intérieur de ses équipes, ou le rend au magasin — pas vers une personne hors de son périmètre.",

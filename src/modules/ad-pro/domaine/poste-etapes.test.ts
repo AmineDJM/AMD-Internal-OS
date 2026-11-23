@@ -47,8 +47,12 @@ describe("le geste suivant d'un poste", () => {
     expect(prochainPas(p, regard({ canEdit: true, fige: true })).geste).toBeNull();
   });
 
-  it("un brouillon : chiffrer d'abord, puis soumettre — et qui ne peut pas le voit attendre le demandeur", () => {
-    expect(prochainPas(poste(), DEMANDEUR).geste?.cle).toBe("CHIFFRER");
+  it("un brouillon se soumet — et qui ne peut pas le voit attendre le demandeur", () => {
+    // LE MONTANT VIENT DES PIÈCES (Direction, 23/11/2026) : un brouillon non chiffré se soumet.
+    expect(prochainPas(poste(), DEMANDEUR).geste).toEqual({ cle: "SOUMETTRE", libelle: "Soumettre pour validation" });
+    // La frise ne laisse pas « Soumis » en cours sous une Direction Marketing qui l'est aussi.
+    expect(etapesDuPoste(poste({ status: "PENDING" }))[0]).toMatchObject({ cle: "CHIFFRE", libelle: "Soumis", etat: "FAIT" });
+    expect(etapesDuPoste(poste())[0]?.etat).toBe("EN_COURS");
     expect(prochainPas(poste({ amountEstimated: 120_000 }), DEMANDEUR).geste).toEqual({ cle: "SOUMETTRE", libelle: "Soumettre pour validation" });
     expect(prochainPas(poste({ status: "REVISION", amountEstimated: 120_000 }), DEMANDEUR).geste?.libelle).toBe("Resoumettre pour validation");
     expect(prochainPas(poste({ amountEstimated: 120_000 }), regard()).attente).toMatch(/demandeur/);
@@ -229,7 +233,7 @@ describe("le geste suivant d'un poste", () => {
     expect(prochainPas(p, regard({ canEdit: true, operationDecidee: false })).geste).toBeNull();
     // Jamais « demander un BC » sur un versement direct.
     expect(prochainPas(p, DEMANDEUR).geste?.cle).not.toBe("DEMANDER_BC");
-    expect(prochainPas(poste({ kind: "ASSOCIATION_SUPPORT" }), DEMANDEUR).geste?.cle).toBe("CHIFFRER");
+    expect(prochainPas(poste({ kind: "ASSOCIATION_SUPPORT" }), DEMANDEUR).geste?.cle).toBe("SOUMETTRE");
   });
 
   it("le paiement demandé : le poste attend le centre de paiement, puis il est arrivé au bout", () => {
@@ -299,8 +303,9 @@ describe("une fiche par personne avant de soumettre (Direction, 06/10)", () => {
     // Témoin : une autre nature sans fiche se soumet.
     expect(prochainPas(poste({ kind: "STAND", ...chiffre, fichesPersonnes: 0 }), DEMANDEUR).geste?.cle).toBe("SOUMETTRE");
   });
-  it("le chiffre d'abord : un poste non chiffré propose de le chiffrer", () => {
-    expect(prochainPas(poste({ kind: "ACCOMMODATION", fichesPersonnes: 0 }), DEMANDEUR).geste?.cle).toBe("CHIFFRER");
+  it("plus de « chiffrer » : un poste non chiffré sans sa fiche attend la fiche, pas un montant", () => {
+    // Sans chiffre, la fiche reste exigée : le montant viendra des devis, les personnes logées non (23/11/2026).
+    expect(prochainPas(poste({ kind: "ACCOMMODATION", fichesPersonnes: 0 }), DEMANDEUR).geste).toBeNull();
   });
 });
 

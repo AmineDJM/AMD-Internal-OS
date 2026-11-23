@@ -26,7 +26,7 @@ import { PARENT_COLONNE, type AdProParent } from "@/lib/chemins/ad-pro";
  */
 
 export interface PostesPourDeclaration {
-  /** Les postes qui comptent (non refusés). */
+  /** Les postes qui comptent (ni refusés, ni restés en brouillon). */
   total: number;
   /** Ceux qui sont validés (accordés ; agence choisie pour un poste « agence »). */
   valides: number;
@@ -34,25 +34,87 @@ export interface PostesPourDeclaration {
   prets: boolean;
   /** Ce que portent les postes validés — le montant accordé, à défaut l'estimation. */
   montant: number;
+  /** CE QUI BLOQUE ENCORE, dit en clair (« 1 poste en attente de la Direction Marketing »…) — vide quand tout est prêt. */
+  blocages: string[];
+  /** Les brouillons jamais soumis, qui ne comptent pas (et ne pourront plus l'être une fois la déclaration ouverte). */
+  brouillons: number;
 }
 
 const estSourceDeclaree = (type: string): type is AdProParent => EVENT_SOURCES.includes(type);
 
-/** Où en sont les postes d'une demande, au regard de la déclaration. */
-export async function postesPourDeclaration(type: EntityType | string, id: string): Promise<PostesPourDeclaration> {
-  if (!estSourceDeclaree(type)) return { total: 0, valides: 0, prets: false, montant: 0 };
-  const postes = await prisma.adProItem.findMany({
-    where: { [PARENT_COLONNE[type]]: id, status: { not: "REJECTED" } },
-    select: { status: true, voie: true, amountGranted: true, amountEstimated: true, execution: { select: { agenceRetenueAt: true } } },
-  });
-  const valide = (p: (typeof postes)[number]) => p.status === "APPROVED" && (p.voie !== "AGENCE" || Boolean(p.execution?.agenceRetenueAt));
-  const valides = postes.filter(valide);
+type PosteLu = { status: string; voie: string | null; amountGranted: unknown; amountEstimated: unknown; execution: { agenceRetenueAt: Date | null } | null };
+
+const pl = (n: number, s: string, p: string) => `${n} ${n > 1 ? p : s}`;
+
+/**
+ * LA LECTURE DES POSTES — PURE. UN BROUILLON NE BLOQUE PAS (Direction, 23/11/2026) : un poste préparé puis jamais soumis
+ * tenait la déclaration fermée pour toujours — il comptait parmi « les postes », sans que personne ne doive le valider.
+ * Seuls comptent les postes soumis (en attente, à revoir, accordés) ; un refusé ne compte pas non plus.
+ */
+export function lirePostesPourDeclaration(tous: readonly PosteLu[]): PostesPourDeclaration {
+  const brouillons = tous.filter((p) => p.status === "DRAFT").length;
+  const postes = tous.filter((p) => p.status !== "REJECTED" && p.status !== "DRAFT");
+  const sansAgence = (p: PosteLu) => p.status === "APPROVED" && p.voie === "AGENCE" && !p.execution?.agenceRetenueAt;
+  const valides = postes.filter((p) => p.status === "APPROVED" && !sansAgence(p));
+  const n = (f: (p: PosteLu) => boolean) => postes.filter(f).length;
+  const blocages = [
+    n((p) => p.status === "PENDING") ? `${pl(n((p) => p.status === "PENDING"), "poste", "postes")} en attente de la Direction Marketing` : null,
+    n((p) => p.status === "REVISION") ? `${pl(n((p) => p.status === "REVISION"), "poste", "postes")} à revoir par le demandeur` : null,
+    n(sansAgence) ? `${pl(n(sansAgence), "poste « agence » sans agence choisie", "postes « agence » sans agence choisie")}` : null,
+    postes.length === 0 ? "aucun poste soumis" : null,
+  ].filter((x): x is string => Boolean(x));
   return {
     total: postes.length,
     valides: valides.length,
     prets: postes.length > 0 && valides.length === postes.length,
     montant: Math.round(valides.reduce((t, p) => t + toNumber(p.amountGranted ?? p.amountEstimated ?? 0) * 100, 0)) / 100,
+    blocages,
+    brouillons,
   };
+}
+
+const CHOIX_POSTE = { status: true, voie: true, amountGranted: true, amountEstimated: true, execution: { select: { agenceRetenueAt: true } } } as const;
+
+/** Où en sont les postes d'une demande, au regard de la déclaration. */
+export async function postesPourDeclaration(type: EntityType | string, id: string): Promise<PostesPourDeclaration> {
+  if (!estSourceDeclaree(type)) return lirePostesPourDeclaration([]);
+  const postes = await prisma.adProItem.findMany({ where: { [PARENT_COLONNE[type]]: id }, select: CHOIX_POSTE });
+  return lirePostesPourDeclaration(postes.map((p) => ({ ...p, status: String(p.status), voie: p.voie ? String(p.voie) : null })));
+}
+
+/**
+ * « À VENIR » (23/11/2026) — les demandes ACCORDÉES dont la déclaration n'est pas encore ouverte, avec ce qui la retient :
+ * le pharmacien voit venir son travail au lieu de le découvrir. Celles sans aucun poste ne sont pas listées, sauf si elles
+ * s'ouvrent à la main (ancienne règle, ordre déjà parti). En lot : une requête par table.
+ */
+export async function declarationsAVenir(): Promise<{ type: AdProParent; id: string; postes: PostesPourDeclaration; ouvrable: boolean }[]> {
+  const circuits = await prisma.workflowInstance.findMany({
+    where: { entityType: { in: EVENT_SOURCES as EntityType[] }, status: "APPROVED" }, select: { entityType: true, entityId: true },
+  });
+  if (circuits.length === 0) return [];
+  const ouvertes = new Set((await prisma.medicalInfoDeclaration.findMany({
+    where: { sourceType: { in: EVENT_SOURCES as EntityType[] }, sourceId: { in: circuits.map((c) => c.entityId) } }, select: { sourceType: true, sourceId: true },
+  })).map((d) => `${d.sourceType}:${d.sourceId}`));
+  const attente = circuits.filter((c) => !ouvertes.has(`${c.entityType}:${c.entityId}`) && estSourceDeclaree(c.entityType));
+  if (attente.length === 0) return [];
+  const ids = attente.map((c) => c.entityId);
+  const [postes, ordres] = await Promise.all([
+    prisma.adProItem.findMany({
+      where: { OR: (["SPONSORING", "CONGRESS_NATIONAL", "CONGRESS_INTERNATIONAL", "EVENT"] as const).map((t) => ({ [PARENT_COLONNE[t]]: { in: ids } })) },
+      select: { ...CHOIX_POSTE, sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true },
+    }),
+    prisma.expenseOrder.findMany({ where: { sourceType: { in: EVENT_SOURCES as EntityType[] }, sourceId: { in: ids } }, select: { sourceType: true, sourceId: true } }),
+  ]);
+  const avecOrdre = new Set(ordres.map((o) => `${o.sourceType}:${o.sourceId}`));
+  return attente.flatMap((c) => {
+    const type = c.entityType as AdProParent;
+    const siens = postes.filter((p) => p[PARENT_COLONNE[type] as "sponsoringId" | "congressNationalId" | "congressInternationalId" | "eventId"] === c.entityId);
+    const lus = lirePostesPourDeclaration(siens.map((p) => ({ ...p, status: String(p.status), voie: p.voie ? String(p.voie) : null })));
+    // La règle de `declarationOuvrable` : tous validés — ou l'ancienne règle, sans poste, son ordre déjà parti.
+    const ouvrable = lus.prets || (siens.length === 0 && avecOrdre.has(`${c.entityType}:${c.entityId}`));
+    if (siens.length === 0 && !ouvrable) return [];
+    return [{ type, id: c.entityId, postes: lus, ouvrable }];
+  });
 }
 
 /**

@@ -11,7 +11,10 @@ import { getDeclaration, canViewDeclaration, sourceLink, dernieresRelancesPieces
 import { decideursInfoMedActifs } from "@/lib/medical-info";
 import { estDecideurInfoMed, chezDecideur } from "@/lib/medical-info/decideur";
 import { peutOuvrirLeDossierPromo } from "@/lib/queries/promo-circuit";
-import { canAccessEntity } from "@/lib/entity-access";
+import { accesAuxPiecesLegal, canAccessEntity } from "@/lib/entity-access";
+import { postesDeclares } from "@/modules/ad-pro/api";
+import { ETAPE_DECLARATION_PARTAGEE } from "@/lib/medical-info/etape-ad-pro-partage";
+import { PostesDeclares } from "./postes-declares";
 import { toNumber, formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -35,7 +38,7 @@ import { canRequestDecision, declareMessage } from "@/lib/medical-info/declare-d
 import { canEditSlips, canRequestSlipsValidation, slipStage, slipsMessage, slipSansPaiementVivant } from "@/lib/medical-info/slips";
 import { circuitStateOf, authoritiesOpen } from "@/lib/medical-info/circuit-state";
 import {
-  parcoursOf, libellePastille, carteAction, pharmacienPeutValider, peutRelancerPiece, joursDepuis, type BlocAction,
+  parcoursDuDossier, libellePastille, carteAction, pharmacienPeutValider, peutRelancerPiece, joursDepuis, type BlocAction,
 } from "@/lib/medical-info/parcours";
 import { produitsDesDossiers } from "@/lib/medical-info/produits";
 import { BackLink } from "@/components/shared/back-link";
@@ -55,7 +58,7 @@ export default async function DeclarationDetailPage(props: { params: Promise<{ i
   //
   // Le bon de versement ne concerne QUE le matériel promotionnel. Une prise en charge, un
   // sponsoring, un événement n'appellent aucun versement : ils appellent une DÉCISION — faut-il
-  // les déclarer au ministère de l'Industrie pharmaceutique ? L'état ne vit dans aucun champ : il
+  // les déclarer à l'ANPP ? L'état ne vit dans aucun champ : il
   // se compose des validations, des demandes de paiement, de leur passage au centre, de leur
   // règlement et de la remise de chaque quittance au bureau du PRIM.
   const etat = await circuitStateOf(decl);
@@ -149,6 +152,11 @@ export default async function DeclarationDetailPage(props: { params: Promise<{ i
     !isValidated && decl.status !== "AWAITING_DIRECTION" ? dernierRefusFinal(decl.id) : Promise.resolve(null),
   ]);
   const produit = produits.get(decl.id) ?? null;
+  // CE QUE LE DOSSIER DÉCLARE (23/11/2026) : les postes de la demande, avec leurs pièces — une pièce Legal ne s'ouvre qu'à
+  // qui sa porte l'ouvre.
+  const postes = await postesDeclares(decl.sourceType, decl.sourceId);
+  const legalIds = postes.flatMap((p) => p.pieces.map((pc) => pc.legalId));
+  const ouvrables = legalIds.length ? ((await accesAuxPiecesLegal(user, legalIds, ["VIEW"])).get("VIEW") ?? new Set<string>()) : new Set<string>();
 
   const toDocItem = (d: (typeof documents)[number]): DocItem => ({
     id: d.id, name: d.name, category: d.category, version: d.version, sizeBytes: d.sizeBytes,
@@ -164,17 +172,7 @@ export default async function DeclarationDetailPage(props: { params: Promise<{ i
   }));
 
   // ── OÙ EN EST-IL, ET QUE RESTE-T-IL À FAIRE POUR CELUI QUI REGARDE ────────────────────────
-  const parcours = parcoursOf({
-    circuit: etat.circuit, status: decl.status, createdAt: decl.createdAt, updatedAt: decl.updatedAt,
-    declare: etat.declare, declareRequestedAt: decl.declareRequestedAt, authorityRef: decl.authorityRef,
-    lot: etat.lot, slips: etat.slips, summary: etat.summary, skipped: etat.skipped, bvRequestedAt: decl.bvRequestedAt,
-    requests: decl.requests.map((r) => ({
-      id: r.id, status: r.status, createdAt: r.createdAt, fulfilledAt: r.fulfilledAt,
-      targetUserId: r.targetUserId, targetName: r.targetUser?.name ?? null,
-    })),
-    pharmacistValidatedAt: decl.pharmacistValidatedAt, validatedAt: decl.validatedAt, pharmacistName: decl.pharmacist?.name ?? null,
-    chezDecideur: chezDecideur(decideurs),
-  });
+  const parcours = parcoursDuDossier(decl, etat, chezDecideur(decideurs));
   const mesPieces = isValidated ? [] : decl.requests.filter((r) => r.status === "PENDING" && r.targetUserId === user.id);
   const carte = carteAction(parcours, {
     gestionnaire: instruit,
@@ -285,9 +283,11 @@ export default async function DeclarationDetailPage(props: { params: Promise<{ i
   const depot = autoritesOuvertes ? (
     <div className="space-y-3">
       <AuthorityForm id={decl.id} authorityRef={decl.authorityRef} authorityNotes={decl.authorityNotes} />
+      {/* UN SEUL DÉPÔT, TOUJOURS PARTAGÉ (23/11/2026) : la déclaration et son récépissé se téléchargent aussi depuis la demande
+          (le KAM compris) — la même marque que la carte Ad & Pro et l'écran « À faire ». */}
       <div className="space-y-1.5 border-t border-border pt-3">
-        <p className="text-xs text-muted-foreground">Joindre un récépissé (facultatif)</p>
-        <DocumentUpload entityType="MEDICAL_INFO_DECLARATION" entityId={decl.id} categories={["SUPPORTING_DOC", "OTHER"]} compact />
+        <p className="text-xs text-muted-foreground">Joindre la déclaration ou le récépissé ANPP — partagés avec la demande</p>
+        <DocumentUpload entityType="MEDICAL_INFO_DECLARATION" entityId={decl.id} categories={["SUPPORTING_DOC", "OTHER"]} compact stepKey={ETAPE_DECLARATION_PARTAGEE} />
       </div>
     </div>
   ) : (
@@ -421,7 +421,7 @@ export default async function DeclarationDetailPage(props: { params: Promise<{ i
               )}
               <Row label="Pharmacien responsable" value={decl.pharmacist?.name ?? "Non assigné"} />
               <Row label="Créé le" value={formatDate(decl.createdAt.toISOString())} />
-              {decl.authorityRef && <Row label="Référence ministère" value={decl.authorityRef} />}
+              {decl.authorityRef && <Row label="Référence ANPP" value={decl.authorityRef} />}
               {decl.authorityNotes && <Row label="Notes de déclaration" value={decl.authorityNotes} />}
               {decl.pharmacistValidatedAt && <Row label="Validé (pharmacien) le" value={formatDateTime(decl.pharmacistValidatedAt.toISOString())} />}
               {isValidated && decl.validatedAt && <Row label="Validé (validation finale) le" value={formatDateTime(decl.validatedAt.toISOString())} />}
@@ -439,6 +439,12 @@ export default async function DeclarationDetailPage(props: { params: Promise<{ i
               </div>
             </div>
           </Repli>
+
+          {postes.length > 0 && (
+            <Repli titre={`Postes déclarés · ${postes.length}`} ouvert>
+              <PostesDeclares postes={postes} ouvrables={ouvrables} />
+            </Repli>
+          )}
 
           <Repli titre={`Pièces · ${docItems.length + sourceDocItems.length}`}>
             <div className="space-y-4">
@@ -493,9 +499,9 @@ export default async function DeclarationDetailPage(props: { params: Promise<{ i
 }
 
 /** Une section repliée — ce qu'on lit à la demande. */
-function Repli({ titre, children }: { titre: string; children: ReactNode }) {
+function Repli({ titre, children, ouvert = false }: { titre: string; children: ReactNode; ouvert?: boolean }) {
   return (
-    <details className="group py-3">
+    <details className="group py-3" open={ouvert}>
       <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium hover:text-primary [&::-webkit-details-marker]:hidden">
         <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" aria-hidden /> {titre}
       </summary>

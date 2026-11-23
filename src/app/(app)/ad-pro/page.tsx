@@ -1,6 +1,5 @@
-import { requireModule } from "@/lib/session";
 import { userCan, type Module } from "@/lib/rbac";
-import { getAdProRequests, getAdProCreateData } from "@/modules/ad-pro/api";
+import { getAdProRequests, getAdProCreateData, requireModuleOuAgences } from "@/modules/ad-pro/api";
 import { PageHeader } from "@/components/shared/page-header";
 import { KpiCard } from "@/components/shared/kpi-card";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -32,7 +31,7 @@ export const dynamic = "force-dynamic";
 export default async function AdProPage() {
   // La porte d'entrée du pôle : le Sponsoring suffit à l'ouvrir, la liste s'adapte ensuite aux
   // modules réellement accessibles.
-  const user = await requireModule("SPONSORING");
+  const user = await requireModuleOuAgences("SPONSORING");
 
   // Créer et consulter ne sont pas le même droit : le panneau ne propose que les natures qui
   // aboutiront, la liste des écrans détaillés suit les modules simplement accessibles.

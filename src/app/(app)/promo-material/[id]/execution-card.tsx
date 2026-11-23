@@ -39,7 +39,7 @@ import { sansBloquer } from "@/lib/journal";
  * au-dessus du seuil, signé par les Finances, envoyé), ses factures DÉTAILLÉES (pré-remplies depuis
  * le BC, écarts mis en évidence, fichier obligatoire), la RÉCEPTION cochée ligne à ligne par le
  * demandeur (ce qui entre au stock), le paiement (après réception — ou malgré une ligne non livrée,
- * avec un renoncement confirmé), et la demande de visa — ou de déclaration au ministère — qui part
+ * avec un renoncement confirmé), et la demande de visa — ou de déclaration à l'ANPP — qui part
  * avec chaque paiement. Un geste n'apparaît que lorsqu'il est possible : un bouton qu'une action
  * refuse fait chercher la panne au lieu de dire ce qu'on attend.
  *
@@ -169,13 +169,13 @@ const TON_ETAT: Record<EtatReception, "neutral" | "success" | "warning" | "dange
   EN_ATTENTE: "warning", RECUE: "success", PARTIELLE: "warning", NON_LIVREE: "danger", RELIQUAT_RENONCE: "neutral",
 };
 
-/** Choix de la formalité qui accompagne un paiement — visa publicitaire ou déclaration au ministère. */
+/** Choix de la formalité qui accompagne un paiement — visa publicitaire ou déclaration à l'ANPP. */
 function ChoixFormalite({ name, defaut }: { name: string; defaut?: string | null }) {
   return (
     <select name={name} required defaultValue={defaut ?? ""} className="h-10 w-full rounded-md border border-input bg-background px-2 text-base sm:h-9 sm:w-auto sm:text-sm" aria-label="Formalité à l'information médicale">
       <option value="" disabled>Formalité…</option>
       <option value="AD_VISA">Demande de visa publicitaire</option>
-      <option value="MIP">Déclaration au ministère</option>
+      <option value="MIP">Déclaration à l&apos;ANPP</option>
     </select>
   );
 }
@@ -538,7 +538,7 @@ function Facture({ id, f, agir, canReceive, options, formalite, deplie = false }
         <form className="flex flex-wrap items-center gap-2" action={demanderPaiement}>
           <ChoixFormalite name="formalite" defaut={formalite} />
           <InfoBulle label="Ce qui part avec le paiement" align="left">
-            La demande de visa publicitaire — ou la déclaration au ministère — part à l&apos;information médicale avec ce paiement.
+            La demande de visa publicitaire — ou la déclaration à l&apos;ANPP — part à l&apos;information médicale avec ce paiement.
           </InfoBulle>
           {enAttente.length > 0 && <Input name="motifRenoncement" required aria-label="Motif du renoncement" placeholder="Motif (obligatoire) — ligne non livrée" className="w-full sm:w-64" />}
           <BoutonDecisif type="submit" size="sm" className={aLaLigne} variant={enAttente.length > 0 ? "outline" : "primary"} disabled={saving}

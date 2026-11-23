@@ -4,11 +4,12 @@
  * L'ANNUAIRE — la feuille (`AnnuaireGrid`) : recherche, vues, import, sélection, couleurs, rattachements.
  */
 import * as React from "react";
-import { Search, Upload, Loader2, FileSpreadsheet, Plus, Rows3, LayoutList, X, Trash2, RotateCcw, Columns3, Building2, Stethoscope } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Upload, Loader2, FileSpreadsheet, Plus, Rows3, LayoutList, X, Trash2, RotateCcw, Columns3, Building2, Stethoscope } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { normalizeHeader } from "@/lib/medical/directory-sheet";
+import { useTableur } from "@/components/grille/use-tableur";
+import { BarreTableur } from "@/components/grille/barre-tableur";
 import { estARattacher, specialiteEstARattacher, type AnnuaireRow, type AnnuaireField, type CustomColumnVue } from "@/lib/medical/directory-grid";
 import { importDirectorySheet, previewDirectorySheet, saveDirectoryCell, saveDirectoryCustomCell, deleteDirectoryDoctors, restaurerDirectoryDoctors, rattacherEtablissementsParNom, rattacherSpecialitesParNom, rattacherAutomatiquement } from "@/lib/actions/medical-directory-actions";
 import { serviceDeLaSpecialite } from "@/lib/medical/etablissement-deduit";
@@ -29,7 +30,20 @@ import { AddDoctorRow } from "./ajout-ligne";
 import { GestionColonnes } from "./gestion-colonnes";
 import { useConfirmer } from "@/components/ui/dialogue";
 import { actionFailureMessage } from "@/lib/action-outcome";
-import { journal } from "@/lib/journal";
+import { journal, sansBloquer } from "@/lib/journal";
+
+/** Le classeur rendu par la route, enregistré sous le nom qu'elle lui donne. */
+async function telechargerReponse(res: Response, repli: string): Promise<void> {
+  const nom = /filename\*=UTF-8''([^;]+)/i.exec(res.headers.get("Content-Disposition") ?? "")?.[1];
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = nom ? decodeURIComponent(nom) : repli;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 export function AnnuaireGrid({
   rows, etablissements, couleurs, customColumns, canEdit, canImport, canImportFile, canDelete, canManageColumns, specialties, directoryId, directoryName,
@@ -93,7 +107,6 @@ export function AnnuaireGrid({
     setSelected((p) => { const n = new Set(p); for (const id of ids) { if (on) n.add(id); else n.delete(id); } return n; });
   }, []);
   const [deleting, setDeleting] = React.useState(false);
-  const [q, setQ] = React.useState("");
   const [bySpecialty, setBySpecialty] = React.useState(false);
   /** La ligne d'ajout est-elle ouverte ? Son bouton est le geste principal de la barre (Direction, 07/10). */
   const [ajoutOuvert, setAjoutOuvert] = React.useState(false);
@@ -108,19 +121,25 @@ export function AnnuaireGrid({
 
   const masqueesCle = colonnesMasquees.join(",");
   // eslint-disable-next-line react-hooks/exhaustive-deps -- la liste se compare par sa clé, pas par son identité
-  const colonnes = React.useMemo(() => colonnesDeLaFeuille(customColumns, colonnesMasquees), [customColumns, masqueesCle]);
+  const toutesColonnes = React.useMemo(() => colonnesDeLaFeuille(customColumns, colonnesMasquees), [customColumns, masqueesCle]);
 
-  // Chaque ligne, mise à plat une fois, pour une recherche qui porte sur ce qu'on VOIT
-  // (« Professeur », « Alger », « Très haut »), pas sur les codes internes.
-  const haystacks = React.useMemo(
-    () => new Map(rows.map((r) => [r.id, normalizeHeader(colonnes.map((c) => valeurAffichee(r, c)).join(" "))])),
-    [rows, colonnes],
+  // ── COMME EXCEL (recette du 23/11) : recherche, filtre automatique par colonne, tri, colonnes à la carte ──
+  // On filtre, trie et cherche sur ce qu'on VOIT (« Professeur », « Alger », « Très haut »), pas sur les codes
+  // internes. Le FILTRE EST CLIENT : la feuille reçoit déjà toutes les fiches que la portée de la personne lui
+  // ouvre (`chargerFeuillePraticiens`, sans pagination) — filtrer ne peut donc rien montrer de plus que le serveur.
+  const parCle = React.useMemo(() => new Map(toutesColonnes.map((c) => [c.cle, c])), [toutesColonnes]);
+  const acces = React.useCallback((r: AnnuaireRow, cle: string) => {
+    const c = parCle.get(cle);
+    return c ? valeurAffichee(r, c) : "";
+  }, [parCle]);
+  const colonnesTableur = React.useMemo(
+    () => toutesColonnes.map((c) => ({ cle: c.cle, libelle: c.header, largeur: c.width * 12, masquable: c.cle !== "lastName" })),
+    [toutesColonnes],
   );
-  const needle = normalizeHeader(q);
-  const filtered = React.useMemo(
-    () => (needle ? rows.filter((r) => (haystacks.get(r.id) ?? "").includes(needle)) : rows),
-    [rows, needle, haystacks],
-  );
+  const tableur = useTableur({ lignes: rows, colonnes: colonnesTableur, acces });
+  const filtered = tableur.visibles;
+  // Les colonnes AFFICHÉES — c'est sur elles que la sélection, la copie, l'édition et la couleur sont numérotées.
+  const colonnes = React.useMemo(() => toutesColonnes.filter((c) => !tableur.masquees.has(c.cle)), [toutesColonnes, tableur.masquees]);
 
   const groups = React.useMemo(() => {
     if (!bySpecialty) return null;
@@ -172,7 +191,7 @@ export function AnnuaireGrid({
   const effective = React.useCallback((row: AnnuaireRow): AnnuaireRow => {
     if (brutsLocaux.size === 0) return row;
     let out: AnnuaireRow | null = null;
-    for (const col of colonnes) {
+    for (const col of toutesColonnes) {
       const k = cleCellule(row.id, col.cle);
       if (!brutsLocaux.has(k)) continue;
       const v = brutsLocaux.get(k) ?? "";
@@ -183,7 +202,7 @@ export function AnnuaireGrid({
       else if (out.custom) out.custom[col.cle] = v === "" ? null : v;
     }
     return out ?? row;
-  }, [brutsLocaux, colonnes]);
+  }, [brutsLocaux, toutesColonnes]);
 
   // ── COULEURS, avec mise à jour optimiste ──
   const [couleursLocales, setCouleursLocales] = React.useState<Record<string, string>>(couleurs);
@@ -219,12 +238,20 @@ export function AnnuaireGrid({
     setEdition({ r: coord.r, c: coord.c, initial: col.editor === "text" || col.editor === "number" ? initial : undefined });
   }, [canEdit, colonnes, ordonnees, etablissements, effective]);
 
+  // OUVRIR LA FICHE AU CLAVIER — Ctrl+Entrée (Entrée seule quand la feuille est en lecture).
+  const router = useRouter();
+  const ouvrirFiche = React.useCallback((coord: Coord) => {
+    const row = ordonnees[coord.r];
+    if (row) router.push(`/praticiens/${row.id}`);
+  }, [ordonnees, router]);
+
   const grille = useSelectionGrille({
     lignes: ordonnees.length,
     colonnes: colonnes.length,
     valeur: valeurPourCopie,
     onEditer: canEdit ? demanderEdition : undefined,
     editionActive: edition !== null,
+    onOuvrir: ouvrirFiche,
   });
 
   const annulerEdition = React.useCallback(() => {
@@ -369,6 +396,31 @@ export function AnnuaireGrid({
     });
   }, [grille.cellules, ordonnees, colonnes, couleursLocales, rafraichir]);
 
+  // EXPORTER LA VUE (recette du 23/11) — exactement les lignes que la feuille montre, dans son ordre : filtres,
+  // recherche et tri compris. Le classeur est produit par la route d'export, sous la MÊME portée et le même audit
+  // que l'export complet : les identifiants envoyés ne font que RESTREINDRE ce que la personne voit déjà.
+  const [exportEnCours, setExportEnCours] = React.useState(false);
+  const exporterVue = async () => {
+    setExportEnCours(true); setMsg(null);
+    try {
+      const res = await fetch(exportHref, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: ordonnees.map((r) => r.id) }),
+      });
+      if (!res.ok) {
+        const corps = (await res.json().catch(sansBloquer("annuaire-grid.exporterVue.json", null))) as { error?: string } | null;
+        setMsg({ ok: false, text: corps?.error ?? "Export impossible." });
+        return;
+      }
+      await telechargerReponse(res, "annuaire.xlsx");
+    } catch (e: unknown) {
+      journal.erreur("annuaire-grid.exporterVue", {}, e);
+      setMsg({ ok: false, text: actionFailureMessage("THROWN") });
+    } finally {
+      setExportEnCours(false);
+    }
+  };
+
   // ÉTAPE 1 — on LIT le fichier et on propose une correspondance. Rien n'est écrit.
   const runPreview = (file: File) => {
     const fd = new FormData();
@@ -403,7 +455,7 @@ export function AnnuaireGrid({
   };
 
   const tableProps = {
-    colonnes, editable: canEdit, selected, onToggle: toggleOne, onToggleAll: toggleMany, grille, edition,
+    colonnes, pilote: tableur, editable: canEdit, selected, onToggle: toggleOne, onToggleAll: toggleMany, grille, edition,
     onCommit: validerEdition, onCancel: annulerEdition, couleurs: couleursLocales, overrides, etablissements, effective,
   };
 
@@ -427,32 +479,27 @@ export function AnnuaireGrid({
         {specialties.map((s) => <option key={s} value={s} />)}
       </datalist>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative w-full sm:w-auto">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            type="search" enterKeyHint="search"
-            value={q} onChange={(e) => setQ(e.target.value)}
-            placeholder="Chercher un nom, une wilaya, une spécialité…"
-            className="w-full pl-8 sm:w-72"
-          />
-        </div>
-        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-          {filtered.length} / {rows.length} praticien{rows.length > 1 ? "s" : ""}
-          {/* LE MODE D'EMPLOI DU CLAVIER, derrière le ⓘ — plus un bandeau permanent au-dessus de la feuille (Direction, 07/10). */}
-          {canEdit && (
-            <InfoBulle label="Comment corriger la feuille" align="left">
-              <strong>Un clic sélectionne</strong> une cellule — Maj étend, Ctrl ajoute, on peut aussi glisser et se déplacer aux
-              flèches. <strong>Double-clic, Entrée ou une frappe</strong> ouvrent la correction ; Entrée valide et descend, Tab
-              valide et avance, Échap annule. Wilaya, grade, secteur et potentiel se choisissent dans un menu ;
-              l&apos;<strong>établissement</strong> dans l&apos;annuaire des établissements, le <strong>service</strong> parmi ceux
-              de cet établissement. Les cellules sélectionnées se <strong>colorent</strong> et se <strong>copient</strong> (Ctrl+C)
-              depuis la barre qui apparaît.
-            </InfoBulle>
-          )}
-        </span>
-
-        <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
+      <BarreTableur
+        pilote={tableur} placeholder="Chercher un nom, une wilaya, une spécialité…"
+        aide={
+          // LE MODE D'EMPLOI, derrière le ⓘ — plus un bandeau permanent au-dessus de la feuille (Direction, 07/10).
+          <InfoBulle label="Comment utiliser la feuille" align="left">
+            <strong>Comme dans Excel</strong> : le ▾ de chaque en-tête filtre la colonne (cases à cocher, recherche,
+            « (Vides) ») et la trie ; un clic sur le nom de la colonne trie aussi ; son bord droit s&apos;élargit en glissant.{" "}
+            <strong>Un clic sélectionne</strong> une cellule — Maj étend, Ctrl ajoute, on glisse ; flèches, Début et Fin
+            déplacent{canEdit ? "" : " ; Entrée ouvre la fiche"}. Ctrl+Entrée ouvre la fiche du praticien.
+            {canEdit && (
+              <>
+                {" "}<strong>Double-clic, Entrée ou une frappe</strong> ouvrent la correction ; Entrée valide et descend, Tab
+                valide et avance, Échap annule. Wilaya, grade, secteur et potentiel se choisissent dans un menu ;
+                l&apos;<strong>établissement</strong> dans l&apos;annuaire des établissements, le <strong>service</strong> parmi ceux
+                de cet établissement. Les cellules sélectionnées se <strong>colorent</strong> et se <strong>copient</strong> (Ctrl+C)
+                depuis la barre qui apparaît.
+              </>
+            )}
+          </InfoBulle>
+        }
+      >
           <div className="inline-flex overflow-hidden rounded-lg border border-input">
             <button
               type="button" onClick={() => setBySpecialty(false)}
@@ -480,7 +527,7 @@ export function AnnuaireGrid({
               onChange={(e) => { const f = e.target.files?.[0]; if (f) runPreview(f); }}
             />
           )}
-          {(busy || rattachement || rattachementAuto || rattachementSpecialites) && (
+          {(busy || rattachement || rattachementAuto || rattachementSpecialites || exportEnCours) && (
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-label="En cours" />
           )}
           <MenuPlus label="Autres actions de l'annuaire">
@@ -504,11 +551,15 @@ export function AnnuaireGrid({
             )}
             {canManageColumns && directoryId && (
               <EntreeMenu onClick={() => setColonnesOuvertes((v) => !v)}>
-                <Columns3 className="h-4 w-4" /> {colonnesOuvertes ? "Masquer les colonnes" : "Colonnes"}{customColumns.length > 0 ? ` (${customColumns.length})` : ""}
+                <Columns3 className="h-4 w-4" /> {colonnesOuvertes ? "Fermer les colonnes sur mesure" : "Colonnes sur mesure"}{customColumns.length > 0 ? ` (${customColumns.length})` : ""}
               </EntreeMenu>
             )}
-            <EntreeMenu href={exportHref} brut title="Exporter l'annuaire en Excel">
-              <FileSpreadsheet className="h-4 w-4" /> Exporter (Excel)
+            <EntreeMenu disabled={exportEnCours || ordonnees.length === 0} onClick={() => void exporterVue()}
+              title="Exactement les lignes affichées — filtres, recherche et tri compris">
+              <FileSpreadsheet className="h-4 w-4" /> Exporter la vue ({ordonnees.length}) — Excel
+            </EntreeMenu>
+            <EntreeMenu href={exportHref} brut title="Toutes les fiches de cet onglet, sans tenir compte des filtres">
+              <FileSpreadsheet className="h-4 w-4" /> Exporter tout l&apos;annuaire (Excel)
             </EntreeMenu>
             {canImportFile && (
               <EntreeMenu disabled={busy} onClick={() => fileRef.current?.click()} title="L'import accepte un fichier existant ; la correspondance des colonnes se valide avant toute écriture.">
@@ -516,8 +567,7 @@ export function AnnuaireGrid({
               </EntreeMenu>
             )}
           </MenuPlus>
-        </div>
-      </div>
+      </BarreTableur>
 
       {colonnesOuvertes && directoryId && (
         <GestionColonnes
@@ -537,7 +587,10 @@ export function AnnuaireGrid({
       <div {...grille.propsConteneur} className="space-y-5 rounded-xl outline-none focus-visible:ring-1 focus-visible:ring-ring">
         {ordonnees.length === 0 ? (
           <div className="surface px-3 py-10 text-center text-sm text-muted-foreground">
-            {rows.length === 0 ? "L'annuaire est vide." : "Aucun praticien ne correspond à cette recherche."}
+            {rows.length === 0 ? "L'annuaire est vide." : "Aucun praticien ne correspond aux filtres et à la recherche."}
+            {rows.length > 0 && tableur.actif && (
+              <button type="button" onClick={tableur.effacerFiltres} className="ml-2 font-medium text-primary underline">Effacer tous les filtres</button>
+            )}
           </div>
         ) : groups ? (
           (() => {
@@ -550,13 +603,13 @@ export function AnnuaireGrid({
                   <h3 className="flex items-center gap-2 text-sm font-semibold">
                     {name} <span className="text-xs font-normal text-muted-foreground">· {list.length}</span>
                   </h3>
-                  <GridTable rows={list} offset={debut} {...tableProps} />
+                  <GridTable rows={list} offset={debut} borne={false} {...tableProps} />
                 </section>
               );
             });
           })()
         ) : (
-          <GridTable rows={ordonnees} offset={0} {...tableProps} />
+          <GridTable rows={ordonnees} offset={0} borne {...tableProps} />
         )}
       </div>
 

@@ -4,6 +4,7 @@ import { prisma } from "./prisma";
 import { anyRoleFilter, type SessionUser } from "./rbac";
 import { getDeclaration, canViewDeclaration } from "./queries/medical-info";
 import { PRISE_DU_BON } from "./medical-info/slips";
+import { EVENT_SOURCES } from "./medical-info/circuits";
 import { notifyRoles, notifyUser } from "./notify";
 import { produitDeLaSource } from "./medical-info/produits";
 import { decideursInfoMed, ROLE_DECIDEUR_INFO_MED, type DecideursInfoMed } from "./medical-info/decideur";
@@ -43,7 +44,7 @@ interface CreateDeclarationInput {
   budgetCategoryId?: string | null;
   /**
    * LA NATURE, quand la source ne la dit pas (§118.152). Le paiement d'un matériel promotionnel
-   * part avec une demande de visa publicitaire OU une déclaration au ministère : la source (une
+   * part avec une demande de visa publicitaire OU une déclaration à l'ANPP : la source (une
    * facture) ne décrit pas le chemin, c'est le choix du demandeur qui le décide. `null` = la
    * source décide, comme avant.
    */
@@ -91,14 +92,15 @@ export async function pharmacienAssigne(): Promise<string | null> {
 /** Le titre de la notification du PRIM — il dit ce qu'on lui demande, pas « un événement » quand c'est un visa. */
 const TITRE_PAR_NATURE: Record<"MIP" | "AD_VISA", string> = {
   AD_VISA: "Information médicale — visa publicitaire à demander",
-  MIP: "Information médicale — déclaration au ministère à faire",
+  MIP: "Information médicale — déclaration à l'ANPP à faire",
 };
 
 /**
- * Intercale l'étape « information médicale » juste après la validation définitive de
- * la Direction. Crée (idempotent) la déclaration et notifie le pharmacien responsable.
- * L'ordre de dépense ne sera émis qu'une fois la déclaration validée par le pharmacien
- * (voir `validateDeclaration`).
+ * OUVRE LE DOSSIER D'INFORMATION MÉDICALE (`DIM-…`) — pour une demande Ad & Pro, quand son DERNIER poste est validé
+ * (`declaration-postes.ts`, 19/11/2026 : les postes sont déclarés ensemble) ; pour le matériel promotionnel, avec la
+ * demande de paiement de la facture ; ou à la main par le pharmacien. Crée (idempotent) le dossier et notifie le
+ * pharmacien responsable, avec son premier geste. Le dossier se clôt à la validation du Directeur des Opérations
+ * (`validateDeclarationByDirection`) : aucune étape ne le suit après le paiement.
  */
 export async function createMedicalInfoDeclaration(input: CreateDeclarationInput) {
   // Une seule déclaration par événement source (clé unique sourceType+sourceId).
@@ -135,8 +137,10 @@ export async function createMedicalInfoDeclaration(input: CreateDeclarationInput
   // assignée » se signale aux pharmaciens et au Directeur des Opérations.
   const titre = input.declarationKind ? TITRE_PAR_NATURE[input.declarationKind] : "Information médicale — événement à déclarer";
   const lien = `/information-medicale/${decl.id}`;
+  // SON PREMIER GESTE, DIT (23/11/2026) — un événement : sa lecture « à déclarer à l'ANPP, ou non », à faire valider.
+  const consigne = input.declarationKind || !EVENT_SOURCES.includes(input.sourceType) ? "" : " — soumettez votre lecture : à déclarer à l'ANPP, ou non.";
   if (pharmacistId) {
-    await notifyUser({ userId: pharmacistId, type: "VALIDATION_REQUIRED", title: titre, body: `${decl.reference} — ${input.label}`, link: lien });
+    await notifyUser({ userId: pharmacistId, type: "VALIDATION_REQUIRED", title: titre, body: `${decl.reference} — ${input.label}${consigne}`, link: lien });
   } else {
     await notifyRoles(["MEDICAL_INFO_PHARMACIST", "OPERATIONS_DIRECTOR"], {
       type: "VALIDATION_REQUIRED",

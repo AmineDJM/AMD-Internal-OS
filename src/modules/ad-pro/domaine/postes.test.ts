@@ -189,9 +189,9 @@ describe("breakdown — rallonges, postes refusés et postes en attente", () => 
 });
 
 describe("canSubmitItem — ce qui part en validation", () => {
-  it("refuse un poste sans chiffre : la Direction déciderait sur rien", () => {
-    expect(canSubmitItem({ status: "DRAFT" }).ok).toBe(false);
-    expect(canSubmitItem({ status: "DRAFT", amountEstimated: 0 }).ok).toBe(false);
+  it("LE MONTANT VIENT DES PIÈCES (Direction, 23/11/2026) : un poste sans chiffre se soumet — la Direction Marketing le fixe en l'acceptant", () => {
+    expect(canSubmitItem({ status: "DRAFT" }).ok).toBe(true);
+    expect(canSubmitItem({ status: "DRAFT", amountEstimated: 0 }).ok).toBe(true);
   });
 
   it("accepte un brouillon chiffré, et la RESOUMISSION d'un poste à revoir ou refusé", () => {
@@ -217,8 +217,8 @@ describe("canSubmitItem — ce qui part en validation", () => {
     expect(canSubmitItem({ ...hotel, fichesPersonnes: 0, priseEnChargeIndirecte: true }).ok).toBe(true);
     // Témoin : une autre nature n'en demande pas.
     expect(canSubmitItem({ status: "DRAFT", amountEstimated: 1000, kind: "DINNER", fichesPersonnes: 0 }).ok).toBe(true);
-    // Le chiffre passe d'abord : un poste vide se chiffre avant de se peupler.
-    expect(canSubmitItem({ ...billet, amountEstimated: 0, fichesPersonnes: 0 }).reason).toMatch(/Chiffrez/);
+    // Sans chiffre, la fiche reste exigée : le montant viendra des devis, les voyageurs non.
+    expect(canSubmitItem({ ...billet, amountEstimated: 0, fichesPersonnes: 0 }).reason).toMatch(/au moins un voyageur/);
   });
 });
 

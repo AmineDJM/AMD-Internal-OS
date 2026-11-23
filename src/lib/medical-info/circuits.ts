@@ -21,7 +21,7 @@
  *     le PRIM demande la validation de ce qu'il compte faire — déclarer, ou ne pas déclarer
  *       → accordée
  *       → il réclame les pièces qui lui manquent (facultatif)
- *       → il fait le nécessaire auprès du ministère de l'Industrie pharmaceutique
+ *       → il fait le nécessaire auprès de l'ANPP
  *       → il valide l'événement
  *
  * **MATÉRIEL PROMOTIONNEL** (la catégorie, ou un poste de matériel dans un événement) :
@@ -83,7 +83,7 @@ export const CIRCUIT_LABEL: Record<MedicalCircuit, string> = {
 export const CIRCUIT_HINT: Record<MedicalCircuit, string> = {
   EVENT:
     "Prises en charge nationales et internationales, événements, sponsorings. Pas de bon de versement : "
-    + "le pharmacien fait valider par le Directeur des Opérations s'il y a lieu de déclarer, puis fait le nécessaire auprès du ministère "
+    + "le pharmacien fait valider par le Directeur des Opérations s'il y a lieu de déclarer, puis fait le nécessaire auprès de l'ANPP "
     + "de l'Industrie pharmaceutique.",
   PROMO:
     "Le dossier se sépare en matériels, un bon de versement par matériel. Une validation du Directeur des Opérations couvre le dépôt "
@@ -107,12 +107,12 @@ export function splitByCircuit<T extends { sourceType: string; declarationKind?:
  * LE PRIM N'ATTEND PAS TOUJOURS QU'UN DOSSIER LUI ARRIVE.
  *
  * Une obligation réglementaire se découvre aussi de son côté : un support à faire viser, une
- * déclaration au ministère qu'aucun événement n'a déclenchée, un versement à faire. Il n'avait
+ * déclaration à l'ANPP qu'aucun événement n'a déclenchée, un versement à faire. Il n'avait
  * pour cela aucun geste — le module ne se remplissait que par la validation d'un autre — et ce
  * qui n'entre pas dans l'ERP se traite dans un carnet.
  *
  * Il choisit donc CE QU'IL OUVRE, et ce choix décide du circuit : un visa publicitaire relève du
- * matériel promotionnel, une déclaration au ministère de l'événement.
+ * matériel promotionnel, une déclaration à l'ANPP de l'événement.
  *
  * ── DEUX NATURES, PLUS TROIS ────────────────────────────────────────────────────────────────
  *
@@ -120,7 +120,7 @@ export function splitByCircuit<T extends { sourceType: string; declarationKind?:
  * versement n'est pas ce qu'on OUVRE, c'est une ÉTAPE du circuit du matériel — un bon par
  * support, validés ensemble, payés séparément. Le proposer à l'ouverture faisait choisir entre
  * un dossier et l'une de ses pièces, et les deux natures ouvraient de toute façon exactement le
- * même circuit. Ce qu'on ouvre est donc : une déclaration au ministère, ou une demande de visa.
+ * même circuit. Ce qu'on ouvre est donc : une déclaration à l'ANPP, ou une demande de visa.
  *
  * La nature reste RECONNUE en lecture — voir `DECLARATION_KINDS` — parce qu'un dossier
  * historique doit continuer de se lire et de suivre SON circuit. Ce qui disparaît, c'est la
@@ -129,13 +129,13 @@ export function splitByCircuit<T extends { sourceType: string; declarationKind?:
 export type DeclarationKind = "MIP" | "AD_VISA" | "PAYMENT_SLIP";
 
 export const DECLARATION_KIND_LABEL: Record<DeclarationKind, string> = {
-  MIP: "Déclaration au ministère (MIP)",
+  MIP: "Déclaration à l'ANPP (MIP)",
   AD_VISA: "Demande de visa publicitaire",
   PAYMENT_SLIP: "Bon de versement",
 };
 
 export const DECLARATION_KIND_HINT: Record<DeclarationKind, string> = {
-  MIP: "Une obligation à déclarer au ministère de l'Industrie pharmaceutique. Vous ferez valider s'il y a lieu de déclarer, puis vous déposerez.",
+  MIP: "Une obligation à déclarer à l'ANPP. Vous ferez valider s'il y a lieu de déclarer, puis vous déposerez.",
   AD_VISA: "Un support promotionnel à faire viser. Le dossier suit le circuit du matériel : matériels, bons de versement, paiements.",
   PAYMENT_SLIP: "Un versement à faire. Le dossier suit le circuit du matériel : un bon par matériel, validés ensemble, payés séparément.",
 };
@@ -168,7 +168,7 @@ export function isOpenableDeclarationKind(v: unknown): v is DeclarationKind {
 /**
  * LE CIRCUIT D'UN DOSSIER QUE LE PRIM OUVRE LUI-MÊME.
  *
- * C'est la nature choisie qui décide — pas une seconde case. Déclarer au ministère est le circuit
+ * C'est la nature choisie qui décide — pas une seconde case. Déclarer à l'ANPP est le circuit
  * événement ; un visa ou un versement, celui du matériel promotionnel.
  */
 export function circuitOfKind(kind: DeclarationKind): MedicalCircuit {

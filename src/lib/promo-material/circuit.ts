@@ -120,7 +120,7 @@ export const PROMO_TRACK_LABEL: Record<PromoTrack, string> = {
 const TRACK_V2: Record<PromoTrack, string> = {
   PURCHASE_ORDER: "Bons de commande",
   PAYMENT: "Factures et paiements",
-  AD_VISA: "Visa publicitaire ou déclaration au ministère",
+  AD_VISA: "Visa publicitaire ou déclaration à l'ANPP",
 };
 
 export function libelleChantier(t: PromoTrack, version: VersionCircuit): string {
