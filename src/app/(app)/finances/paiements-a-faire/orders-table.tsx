@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input, Textarea, Label, Select } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { FINANCE_CATEGORY } from "@/lib/labels";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import {
   settlementState, deferralNote, SETTLEMENT_LABEL, type SettlementState, deadlineNatureLabel, deadlineNatureOf,
@@ -26,6 +25,11 @@ export interface OrderRow {
   label: string;
   beneficiary: string | null;
   category: string;
+  /**
+   * LE POSTE À AFFICHER — la catégorie, ou l'ORIGINE pour un ordre d'opération Ad & Pro (« Sponsoring », et non
+   * « Événement / Table ronde » : `posteDeLOrdre`, recette du 23/11/2026).
+   */
+  poste: string;
   amount: number;
   status: string;
   requestedBy: string | null;
@@ -379,7 +383,7 @@ export function OrdersTable({ rows, canSettle, emptyLabel, focusId = null, budge
                   </div>
                 </TableCell>
                 <TableCell>{r.beneficiary || "—"}</TableCell>
-                <TableCell>{FINANCE_CATEGORY[r.category] ?? r.category}</TableCell>
+                <TableCell>{r.poste}</TableCell>
                 <TableCell className="whitespace-nowrap text-xs">
                   {r.dueDate ? (
                     <div>

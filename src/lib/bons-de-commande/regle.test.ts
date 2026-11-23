@@ -4,7 +4,7 @@ import {
   centreDeLOrigine, etatDepuisValidation, etatDepuisVisa, etatDepuisPoste,
   blocageParLeBC, reserveBC, reserveSansPorte, gesteAiguillage, chantierBCClos,
   validationRequiseBC, etapeBC, reserveEtapeBC, reserveDeLAiguillage, motifNonSignable,
-  PHRASE_SIGNATURE_RETIREE,
+  PHRASE_SIGNATURE_RETIREE, raisonASignerBC, valideParUnCentre, motifSousLeSeuil,
   type PorteBC,
 } from "./regle";
 
@@ -324,5 +324,47 @@ describe("seuilDuCentre — un seuil par centre (Direction, 10/2026)", () => {
     const seuils = { adPro: 1_000_000, validation: 200_000 };
     expect(seuilDuCentre(seuils, "AD_PRO")).toBe(1_000_000);
     expect(seuilDuCentre(seuils, "VALIDATION")).toBe(200_000);
+  });
+});
+
+describe("raisonASignerBC — UNE raison d'être à signer, jamais deux qui se contredisent (recette du 23/11/2026)", () => {
+  // Le BC 051/DG/2026 (74 613 DZD, billetterie d'un poste Ad & Pro) : la demande du poste est passée SOUS LE SEUIL
+  // (`DIRECTION_OK` sans visa) — la file disait à la fois « validé par le centre » et « sous le seuil ».
+  const sousLeSeuil = porte({ centre: "AD_PRO", etat: "VALIDE", source: "POSTE", sansCentre: true, note: motifSousLeSeuil(1_000_000) });
+
+  it("une porte de poste posée sous le seuil dit « sous le seuil », sans répéter le motif ni parler de centre", () => {
+    const r = raisonASignerBC(sousLeSeuil, 1_000_000);
+    expect(r.sousLeSeuil).toBe(true);
+    expect(r.texte).toMatch(/^Sous le seuil de validation \(1\s000\s000 DZD\) — aucun centre n'avait à le valider$/);
+    expect(r.texte).not.toMatch(/validé par/i);
+    expect(r.note).toBeNull();
+  });
+
+  it("un poste VISÉ par le centre dit « validé par le centre », avec son motif", () => {
+    const r = raisonASignerBC(porte({ centre: "AD_PRO", etat: "VALIDE", source: "POSTE", note: "Accordé au montant du devis." }), 1_000_000);
+    expect(r).toEqual({ sousLeSeuil: false, texte: "Poste Ad & Pro validé par le centre de validation Ad & Pro", note: "Accordé au montant du devis." });
+  });
+
+  it("un BC validé sur sa pièce nomme son centre", () => {
+    expect(raisonASignerBC(porte({ centre: "VALIDATION", etat: "VALIDE" }), 200_000).texte).toBe("Validé par le centre de validations");
+  });
+
+  it("sans porte : sous le seuil — et sans seuil réglé, la phrase ne cite pas de montant", () => {
+    expect(raisonASignerBC(null, 500_000).texte).toMatch(/\(500\s000 DZD\)/);
+    expect(raisonASignerBC(null, 0)).toEqual({ sousLeSeuil: true, texte: "Sous le seuil de validation — aucun centre n'avait à le valider", note: null });
+  });
+
+  it("valideParUnCentre : une porte « sans centre » n'est pas un visa", () => {
+    expect(valideParUnCentre(sousLeSeuil)).toBe(false);
+    expect(valideParUnCentre(porte({ etat: "VALIDE" }))).toBe(true);
+    expect(valideParUnCentre(porte({ etat: "EN_ATTENTE" }))).toBe(false);
+    expect(valideParUnCentre(null)).toBe(false);
+  });
+
+  it("la phrase du BC « à signer » (fiche Legal, émission) ne dit plus « validé par le centre » sous le seuil", () => {
+    const r = reserveEtapeBC("A_SIGNER", sousLeSeuil, 1_000_000) ?? "";
+    expect(r).toMatch(/^Sous le seuil de validation des bons de commande/);
+    expect(r).not.toMatch(/Validé par/);
+    expect(reserveEtapeBC("A_SIGNER", porte({ centre: "AD_PRO", etat: "VALIDE", source: "POSTE" }), 1_000_000)).toMatch(/^Validé par le centre de validation Ad & Pro/);
   });
 });

@@ -586,7 +586,9 @@ export function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => 
               )}
               {br.valider && (
                 <Button type="button" onClick={() => gesteBrouillon(br.valider, true)} disabled={!peutValiderBrouillon}>
-                  {emission ? "Envoi…" : br.libelleValider ?? "Valider et envoyer"}
+                  {/* INACTIF PENDANT LE RECALCUL DE L'APERÇU (recette du 23/11/2026), il le DIT : sous son libellé habituel, grisé, un
+                      clic de la personne qui venait de corriger une ligne ne faisait rien, sans un mot. */}
+                  {emission ? "Envoi…" : chargement ? "Calcul de l'aperçu…" : br.libelleValider ?? "Valider et envoyer"}
                 </Button>
               )}
             </div>

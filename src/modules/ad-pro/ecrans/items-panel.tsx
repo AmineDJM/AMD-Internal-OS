@@ -17,7 +17,7 @@ import type { SignaturePrete } from "@/lib/signature-en-ligne/partage";
 import { SuiviSimple } from "./postes/suivi-simple";
 import { kindLabel } from "../domaine/unified";
 import type { NaturePieceSecretariat } from "../domaine/pieces-secretariat";
-import { grouperParRepartition } from "../domaine/poste-etapes";
+import { grouperParRepartition, resumeRepartition } from "../domaine/poste-etapes";
 import type { LigneStockVue, ContexteMaterielStock } from "./materiel-stock";
 import type { VoyageurVue } from "./voyageurs-bloc";
 import type { HebergementVue } from "./hebergements-bloc";
@@ -430,19 +430,24 @@ export function AdProItemsPanel({
         </p>
       ) : (
         <ul className="space-y-3">
-          {groupes.map((g) => g.repartitionId ? (
-            <li key={g.cle} className="space-y-2 rounded-xl border border-primary/30 bg-primary/5 p-2.5">
-              <p className="flex flex-wrap items-center gap-2 px-1 text-sm">
-                <Split className="h-4 w-4 text-primary" />
-                <strong>Sponsoring indirect</strong>
-                <span className="tabular-nums text-muted-foreground">
-                  {formatCurrency(g.items.reduce((s, it) => s + (it.amountGranted ?? it.amountEstimated ?? 0), 0))}
-                </span>
-                <span className="text-muted-foreground">· {g.items.length} nature{g.items.length > 1 ? "s" : ""}</span>
-              </p>
-              <ul className="space-y-2">{g.items.map(carte)}</ul>
-            </li>
-          ) : carte(g.items[0]!))}
+          {groupes.map((g) => {
+            if (!g.repartitionId) return carte(g.items[0]!);
+            // Un poste scindé par agence compte dans le total, comme un poste de plus — pas comme une nature de plus.
+            const r = resumeRepartition(g.items);
+            return (
+              <li key={g.cle} className="space-y-2 rounded-xl border border-primary/30 bg-primary/5 p-2.5">
+                <p className="flex flex-wrap items-center gap-2 px-1 text-sm">
+                  <Split className="h-4 w-4 text-primary" />
+                  <strong>Sponsoring indirect</strong>
+                  <span className="tabular-nums text-muted-foreground">{formatCurrency(r.total)}</span>
+                  <span className="text-muted-foreground">
+                    · {r.natures} nature{r.natures > 1 ? "s" : ""}{r.postes > r.natures ? ` · ${r.postes} postes` : ""}
+                  </span>
+                </p>
+                <ul className="space-y-2">{g.items.map(carte)}</ul>
+              </li>
+            );
+          })}
         </ul>
       )}
 

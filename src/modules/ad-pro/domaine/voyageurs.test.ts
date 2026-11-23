@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   lireVoyageur, lireEtapes, separerNom, nomComplet, manquesPourReserver, ligneVoyageur, changementsVoyageur, porteDesVoyageurs, NATURES_A_VOYAGEURS,
-  prochainGesteVoyageur, depassementDevisRetenus,
+  prochainGesteVoyageur, depassementDevisRetenus, consigneDevisVoyageurs,
   type SaisieVoyageur, type VoyageurLu,
 } from "./voyageurs";
 
@@ -104,6 +104,29 @@ describe("trajet, transport, devis par voyageur (§118.205)", () => {
     expect(prochainGesteVoyageur({ passeport: true, devis: [{ montant: 10, retenu: false }] }, true)).toBe("VALIDER");
     expect(prochainGesteVoyageur({ passeport: true, devis: [{ montant: 10, retenu: true }, { montant: 9, retenu: false }] }, true)).toBeNull();
     expect(prochainGesteVoyageur({ passeport: false, devis: [] }, false)).toBeNull();
+  });
+
+  it("le devis de l'agence joint par l'assistante sur la fiche : « Joindre le devis » ne se propose plus (recette du 23/11/2026)", () => {
+    // À accepter ou accepté : le devis est là — son geste vit sur la fiche (« Accepter le devis »), puis dans l'onglet « Devis ».
+    expect(prochainGesteVoyageur({ passeport: true, devis: [], devisAgence: "A_ACCEPTER" }, true)).toBeNull();
+    expect(prochainGesteVoyageur({ passeport: true, devis: [], devisAgence: "ACCEPTE" }, true)).toBeNull();
+    // Refusé ou annulé : il en faut un autre.
+    expect(prochainGesteVoyageur({ passeport: true, devis: [], devisAgence: "AUTRE" }, true)).toBe("DEVIS");
+    // Le passeport passe toujours d'abord ; un devis déposé pour le voyageur garde sa validation.
+    expect(prochainGesteVoyageur({ passeport: false, devis: [], devisAgence: "A_ACCEPTER" }, true)).toBe("PASSEPORT");
+    expect(prochainGesteVoyageur({ passeport: true, devis: [{ montant: 10, retenu: false }], devisAgence: "ACCEPTE" }, true)).toBe("VALIDER");
+  });
+
+  it("la consigne sous les voyageurs suit le chemin du devis : accepter, puis valider ses lignes dans l'onglet « Devis »", () => {
+    const aAccepter = consigneDevisVoyageurs({ devisVoyageurs: 0, devisAgenceAAccepter: 1, devisAgenceAcceptes: 0 });
+    expect(aAccepter).toMatch(/^Acceptez d'abord le devis de l'agence \(« Accepter le devis »/);
+    expect(aAccepter).toMatch(/onglet « Devis » des pièces du poste/);
+    expect(aAccepter).toMatch(/lignes validées/);
+    // Un devis encore à accepter passe avant un devis déjà accepté.
+    expect(consigneDevisVoyageurs({ devisVoyageurs: 2, devisAgenceAAccepter: 1, devisAgenceAcceptes: 1 })).toBe(aAccepter);
+    expect(consigneDevisVoyageurs({ devisVoyageurs: 0, devisAgenceAAccepter: 0, devisAgenceAcceptes: 1 })).toMatch(/^Le devis de l'agence est accepté : lisez puis validez ses lignes/);
+    expect(consigneDevisVoyageurs({ devisVoyageurs: 1, devisAgenceAAccepter: 0, devisAgenceAcceptes: 0 })).toMatch(/^Validez le devis d'au moins un voyageur/);
+    expect(consigneDevisVoyageurs({ devisVoyageurs: 0, devisAgenceAAccepter: 0, devisAgenceAcceptes: 0 })).toMatch(/acceptez-le, puis validez ses lignes dans l'onglet « Devis »/);
   });
 
   it("un dépassement du montant accordé se DIT, au centime ; égalité, inconnu ou montant manquant : rien", () => {

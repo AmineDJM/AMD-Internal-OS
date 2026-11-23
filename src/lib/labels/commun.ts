@@ -284,6 +284,27 @@ export const VALIDATION_MODE: Record<string, string> = {
   PARALLEL: "Parallèle",
 };
 
+/**
+ * LA NATURE D'UNE DEMANDE DE VALIDATION (`ValidationRequest.objectType`), EN CLAIR (recette sponsoring, 23/11/2026).
+ * La carte du validateur affichait le code brut — « INFO_MED_DIRECTEUR_OPS » — là où il attendait de lire ce qu'on lui
+ * demande. Les natures que le code pose lui-même ont leur libellé ; une nature saisie à la main dans une règle de
+ * validation (texte libre, écran d'administration) s'affiche telle quelle. Les clés recopient `OBJET_DECISION_INFO_MED`
+ * (`medical-info/decideur.ts`), `OBJET_BC` (`bons-de-commande/aiguillage.ts`) et `OBJET_PREVALIDATION_BC`
+ * (`bons-de-commande/prevalidation.ts`) : ce fichier est pur, il n'importe rien (`validation-nature.test.ts` les tient).
+ */
+export const VALIDATION_OBJECT_TYPE: Record<string, string> = {
+  INFO_MED_DIRECTEUR_OPS: "Décision du Directeur des Opérations",
+  BON_DE_COMMANDE: "Validation du bon de commande",
+  PREVALIDATION_BC: "Pré-validation d'un bon de commande",
+};
+
+/** Le libellé de la nature d'une demande de validation — `null` quand elle n'en a pas (rien à afficher). */
+export function libelleNatureValidation(objectType: string | null | undefined): string | null {
+  const code = objectType?.trim();
+  if (!code) return null;
+  return VALIDATION_OBJECT_TYPE[code] ?? code;
+}
+
 export const NOTIFICATION_TYPE: Record<string, Display> = {
   DEADLINE_NEAR: { label: "Échéance proche", tone: "warning" },
   LATE: { label: "Retard", tone: "danger" },

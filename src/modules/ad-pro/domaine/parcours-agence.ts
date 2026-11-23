@@ -47,6 +47,11 @@ export interface FaitsPosteAgence {
   /** L'étape du BC émis au registre, ou `null` tant qu'aucun BC n'est émis. */
   bc: EtapeBC | null;
   factures: number;
+  /**
+   * Chaque BC signé du poste a sa facture (`toutEstFacture`, `domaine/poste-etapes.ts`) : le paiement est à demander.
+   * Absent : non lu — l'étape « Facture », comme avant.
+   */
+  toutFacture?: boolean;
   expenseOrderId: string | null;
   expenseOrderStatus: string | null;
   expenseOrderCentral?: string | null;
@@ -60,7 +65,7 @@ export type EtapeAgence =
   | "BC_A_PREPARER" | "BC_CHEZ_ASSISTANTE" | "BC_A_VALIDER" | "BC_A_SIGNER_MARKETING"
   | "BC_CHEZ_CENTRE" | "BC_A_SIGNER_FINANCES" | "BC_A_CORRIGER" | "BC_REFUSE_DG"
   | "BC_A_ENVOYER" | "BAT_A_ENVOYER" | "CONFORMITE" | "BAT_NON_CONFORME"
-  | "RECEPTION" | "FACTURE" | "PAIEMENT" | "PAYE" | "REFUSE";
+  | "RECEPTION" | "FACTURE" | "PAIEMENT_A_DEMANDER" | "PAIEMENT" | "PAYE" | "REFUSE";
 
 /** OÙ EN EST LE POSTE — le premier pas non fait, dans l'ordre du cycle. */
 export function etapeAgence(p: FaitsPosteAgence): EtapeAgence {
@@ -90,7 +95,9 @@ export function etapeAgence(p: FaitsPosteAgence): EtapeAgence {
     return a.conformite === "NON_CONFORME" ? "BAT_NON_CONFORME" : "BAT_A_ENVOYER";
   }
   if (!a.receptionFaite) return "RECEPTION";
-  return "FACTURE";
+  // LA FACTURE DÉPOSÉE, LE PAIEMENT EST À DEMANDER (recette du 23/11/2026) : la carte disait encore « Déposer la facture et
+  // demander le paiement », et le vrai geste restait caché sous l'onglet « Paiement ».
+  return p.toutFacture ? "PAIEMENT_A_DEMANDER" : "FACTURE";
 }
 
 export type EtatFrise = "FAIT" | "EN_COURS" | "A_VENIR" | "REFUSE";
@@ -104,7 +111,7 @@ const JALONS: { cle: string; libelle: string; debut: EtapeAgence[] }[] = [
   { cle: "EXECUTION", libelle: "Exécution", debut: ["BC_A_ENVOYER", "BAT_A_ENVOYER", "CONFORMITE", "BAT_NON_CONFORME"] },
   { cle: "RECEPTION", libelle: "Réception", debut: ["RECEPTION"] },
   { cle: "FACTURE", libelle: "Facture", debut: ["FACTURE"] },
-  { cle: "PAIEMENT", libelle: "Paiement", debut: ["PAIEMENT", "PAYE"] },
+  { cle: "PAIEMENT", libelle: "Paiement", debut: ["PAIEMENT_A_DEMANDER", "PAIEMENT", "PAYE"] },
 ];
 
 /** LA FRISE D'UN POSTE AGENCE — une étape EN COURS au plus, les précédentes faites. */
@@ -138,7 +145,7 @@ export interface RegardAgence {
 export type GesteAgence =
   | "DEMANDER_PROSPECTION" | "DEPOSER_DEVIS" | "CHOISIR_AGENCE" | "PREPARER_BC" | "FINALISER_BC"
   | "VALIDER_SIGNER_BC" | "SIGNER_BC_MARKETING" | "VISER_BC" | "ENVOYER_BC" | "ENVOYER_BAT" | "CONTROLER_BAT"
-  | "SIGNER_RECEPTION" | "DEPOSER_FACTURE";
+  | "SIGNER_RECEPTION" | "DEPOSER_FACTURE" | "DEMANDER_PAIEMENT";
 
 export interface PasAgence {
   geste: { cle: GesteAgence; libelle: string } | null;
@@ -190,6 +197,8 @@ export function pasAgence(p: FaitsPosteAgence, r: RegardAgence): PasAgence {
       return mk ? g("SIGNER_RECEPTION", "Signer le PV de réception") : att(`En exécution — ${DM} réceptionne la commande.`);
     case "FACTURE":
       return mk ? g("DEPOSER_FACTURE", "Déposer la facture et demander le paiement") : att(`Réceptionné — ${DM} dépose la facture de l'agence.`);
+    case "PAIEMENT_A_DEMANDER":
+      return mk ? g("DEMANDER_PAIEMENT", "Demander le paiement") : att(`Facture déposée — ${DM} demande le paiement.`);
     case "PAIEMENT":
       // UN ORDRE REFUSÉ OU ANNULÉ N'EST PLUS « chez le centre de paiement » (recette du 23/11/2026) : le poste le
       // disait encore, et personne ne savait qu'il fallait libérer le poste pour redemander le paiement.
@@ -241,6 +250,7 @@ export const LIBELLE_ETAPE_AGENCE: Record<EtapeAgence, string> = {
   BAT_NON_CONFORME: "BAT non conforme",
   RECEPTION: "Réception",
   FACTURE: "Facture à déposer",
+  PAIEMENT_A_DEMANDER: "Paiement à demander",
   PAIEMENT: "Paiement en cours",
   PAYE: "Payé",
   REFUSE: "Refusé",

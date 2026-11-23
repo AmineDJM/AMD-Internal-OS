@@ -46,7 +46,7 @@ export async function ecrireChoixDesAgences(a: {
     const origine = await tx.adProItem.findUnique({
       where: { id: a.origineId },
       select: {
-        id: true, label: true, kind: true, status: true, budgetKind: true, voie: true, conformiteRequise: true, addedAfterDecision: true,
+        id: true, label: true, kind: true, status: true, budgetKind: true, voie: true, conformiteRequise: true, addedAfterDecision: true, repartitionId: true,
         submittedAt: true, opsDecidedAt: true, opsDecidedById: true, opsDecisionNote: true,
         sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true, otherRequestId: true, trainingId: true,
         execution: { select: MEME_EXECUTION },
@@ -76,6 +76,9 @@ export async function ecrireChoixDesAgences(a: {
             kind: origine.kind, label: libellePosteScinde(origine.label, r.agence), supplier: r.agence,
             notes: `Né de la scission du poste « ${origine.label} » : ${r.agence}, retenue par la Direction Marketing sur ses lignes cochées.`,
             budgetKind: origine.budgetKind, voie: origine.voie, conformiteRequise: origine.conformiteRequise, addedAfterDecision: origine.addedAfterDecision,
+            // LE MÊME GROUPE que le poste d'origine (recette du 23/11/2026) : un stand d'un sponsoring indirect, scindé par agence,
+            // laissait sa seconde agence HORS du bloc « Sponsoring indirect », dont le sous-total l'oubliait.
+            repartitionId: origine.repartitionId,
             // LE MÊME TEMPS DE VALIDATION que le poste d'origine : soumis, la Direction des opérations passée — il attend la Direction Marketing.
             status: "PENDING", submittedAt: origine.submittedAt, opsDecidedAt: origine.opsDecidedAt, opsDecidedById: origine.opsDecidedById,
             opsDecisionNote: origine.opsDecisionNote, position: ++position, createdById: a.userId, updatedById: a.userId,

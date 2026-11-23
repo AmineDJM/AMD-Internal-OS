@@ -13,6 +13,7 @@ import {
   envoyerFiche, envoyerFichesPretes, relancerFiche, retirerFiche, prendreFiche, signalerManque, deposerBillet, joindreDevisAgence,
 } from "@/lib/actions/reservation-fiche-actions";
 import { envoisDesFiches, bureauAdPro } from "@/lib/queries/reservations-fiches";
+import { decideDocumentRequest } from "@/lib/actions/document-request-actions";
 import { REFUS_AVANT_ACCORD } from "@/lib/reservation-fiche/etat";
 
 let dbOk = false;
@@ -91,10 +92,19 @@ suite("Fiches de voyage — envoi, relance, prise, manque, modification, dépôt
       ...(await prisma.adProItem.findMany({ where: { id: { in: [posteBillet, posteHotel] } }, select: { reservationDossierId: true } })).map((x) => x.reservationDossierId),
       (await prisma.congressNational.findUnique({ where: { id: congres }, select: { careReservationDossierId: true } }))?.careReservationDossierId,
     ].filter((x): x is string => Boolean(x));
-    const reqs = await prisma.documentRequest.findMany({ where: { entityType: "AD_PRO_ITEM", entityId: { in: [posteBillet, posteHotel] } }, select: { id: true } });
-    await retirerDocumentsEtContenu({ where: { entityId: { in: [posteBillet, posteHotel, congres, ...reqs.map((r) => r.id)] } } }).catch(() => {});
+    const reqs = await prisma.documentRequest.findMany({ where: { entityType: "AD_PRO_ITEM", entityId: { in: [posteBillet, posteHotel] } }, select: { id: true, legalDocumentId: true } });
+    // Les devis ACCEPTÉS sont au registre Legal (fichiers déménagés vers eux) : ils partent avec le reste.
+    const legaux = reqs.map((r) => r.legalDocumentId).filter((x): x is string => Boolean(x));
+    // Les fiches envoyées préviennent TOUTES les assistantes actives de la base, pas seulement celles du banc : leurs
+    // notifications se retrouvent par leur lien (la fiche, la pièce, l'opération).
+    const fichesIds = (await prisma.demandeReservation.findMany({ where: { OR: [{ itemId: { in: [posteBillet, posteHotel] } }, { operationId: congres }] }, select: { id: true } }).catch(() => [])).map((d) => d.id);
+    for (const cle of [...fichesIds, ...reqs.map((r) => r.id), ...sujets, congres]) await prisma.notification.deleteMany({ where: { link: { contains: cle } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityId: { in: [posteBillet, posteHotel, congres, ...reqs.map((r) => r.id), ...legaux] } } }).catch(() => {});
     await prisma.documentRequest.deleteMany({ where: { id: { in: reqs.map((r) => r.id) } } }).catch(() => {});
     await prisma.adProItem.deleteMany({ where: { id: { in: [posteBillet, posteHotel] } } }).catch(() => {});
+    await prisma.auditLog.deleteMany({ where: { entityId: { in: legaux } } }).catch(() => {});
+    await prisma.legalDocument.deleteMany({ where: { id: { in: legaux } } }).catch(() => {});
+    await prisma.legalFolder.deleteMany({ where: { name: { contains: TAG } } }).catch(() => {});
     await prisma.careQuote.deleteMany({ where: { congressNationalId: congres } }).catch(() => {});
     await prisma.careBeneficiary.deleteMany({ where: { congressNationalId: congres } }).catch(() => {});
     await prisma.congressNational.deleteMany({ where: { id: congres } }).catch(() => {});
@@ -284,6 +294,66 @@ suite("Fiches de voyage — envoi, relance, prise, manque, modification, dépôt
     expect(apres.etat).toBe("DEVIS_RECU");
     const piece = await prisma.documentRequest.findUniqueOrThrow({ where: { id: apres.devisRef! } });
     expect(piece).toMatchObject({ entityType: "AD_PRO_ITEM", entityId: posteHotel, kind: "QUOTE", status: "SUBMITTED", askedById: demId, askedToId: a2Id });
+
+    // LE DEMANDEUR L'ACCEPTE DEPUIS SA FICHE (recette du 23/11/2026) : la vue de la fiche porte le devis à accepter, avec ce
+    // que l'assistante a saisi…
+    ACTOR = DEM;
+    const vue = (await envoisDesFiches({ hebergementIds: [hotel] }))[hotel]!;
+    expect(vue.devisAgence).toMatchObject({ pieceId: piece.id, statut: "A_ACCEPTER", demandeurId: demId, fournisseur: "Genius Travel", montantDzd: 38_000, fiches: 1 });
+    // … et l'action de « Pièce reçue » l'accepte : la pièce Legal porte le montant et l'agence saisis — plus « montant non saisi ».
+    const accepte = await decideDocumentRequest(fd({ id: piece.id, accept: "1" }));
+    expect(accepte.ok, accepte.error).toBe(true);
+    const classee = await prisma.documentRequest.findUniqueOrThrow({ where: { id: piece.id } });
+    const legal = await prisma.legalDocument.findUniqueOrThrow({ where: { id: classee.legalDocumentId! } });
+    expect(Number(legal.amount)).toBe(38_000);
+    expect(legal.counterparty).toBe("Genius Travel");
+    expect(await prisma.adProItemPiece.count({ where: { itemId: posteHotel, legalDocumentId: legal.id, nature: "DEVIS" } })).toBe(1);
+    expect((await envoisDesFiches({ hebergementIds: [hotel] }))[hotel]!.devisAgence?.statut).toBe("ACCEPTE");
+  });
+
+  it("UN devis pour plusieurs fiches du même poste : une demande de pièce, chaque fiche « devis reçu » ; une fiche d'un autre poste est refusée", async () => {
+    ACTOR = DEM;
+    const fiche = (nom: string, prenom: string) => ajouterHebergement(undefined, fd({ itemId: posteHotel, nom, prenom, ville: "Constantine", dateArrivee: "2026-10-23", dateDepart: "2026-10-25", typeChambre: "Single" }));
+    const [h2, h3] = [await fiche("Haddad", "Amel"), await fiche("Benali", "Karim")];
+    expect(h2.ok && h3.ok, `${h2.error ?? ""} ${h3.error ?? ""}`).toBe(true);
+    for (const h of [h2.id!, h3.id!]) {
+      const e = await envoyerFiche(fd({ source: "HEBERGEMENT", id: h }));
+      expect(e.ok, e.error).toBe(true);
+    }
+    const d2 = await prisma.demandeReservation.findUniqueOrThrow({ where: { hebergementId: h2.id! } });
+    const d3 = await prisma.demandeReservation.findUniqueOrThrow({ where: { hebergementId: h3.id! } });
+    const pieces = () => prisma.documentRequest.count({ where: { entityType: "AD_PRO_ITEM", entityId: posteHotel } });
+    const avant = await pieces();
+    ACTOR = A2;
+    // Une fiche d'un AUTRE poste ne se coche pas : rien n'est joint.
+    const dVoyageur = await prisma.demandeReservation.findUnique({ where: { voyageurId: voyageur } });
+    if (dVoyageur) {
+      const refus = fd({ id: d2.id, fournisseur: "Hôtel Cirta", montant: "76000" });
+      refus.append("aussi", dVoyageur.id);
+      refus.append("attachment", pdf(`${TAG}devis-refuse.pdf`));
+      expect((await joindreDevisAgence(refus)).error).toMatch(/n'appartient pas à ce poste/);
+      expect(await pieces()).toBe(avant);
+    }
+    const f = fd({ id: d2.id, fournisseur: "Hôtel Cirta", montant: "76000" });
+    f.append("aussi", d3.id);
+    f.append("attachment", pdf(`${TAG}devis-commun.pdf`));
+    const r = await joindreDevisAgence(f);
+    expect(r.ok, r.error).toBe(true);
+    expect(r.message).toMatch(/un seul devis pour 2 fiches/);
+    const a2 = await prisma.demandeReservation.findUniqueOrThrow({ where: { id: d2.id } });
+    const a3 = await prisma.demandeReservation.findUniqueOrThrow({ where: { id: d3.id } });
+    expect([a2.etat, a3.etat]).toEqual(["DEVIS_RECU", "DEVIS_RECU"]);
+    expect(a3.devisRef).toBe(a2.devisRef);
+    expect(await pieces(), "UNE demande de pièce pour les deux fiches").toBe(avant + 1);
+    ACTOR = DEM;
+    const vue = (await envoisDesFiches({ hebergementIds: [h3.id!] }))[h3.id!]!;
+    expect(vue.devisAgence).toMatchObject({ pieceId: a2.devisRef, statut: "A_ACCEPTER", fiches: 2, montantDzd: 76_000, fournisseur: "Hôtel Cirta" });
+    // Une fiche qui a déjà son devis ne se coche plus.
+    ACTOR = A2;
+    const encore = fd({ id: d2.id });
+    encore.append("aussi", d3.id);
+    encore.append("attachment", pdf(`${TAG}devis-bis.pdf`));
+    expect((await joindreDevisAgence(encore)).error).toMatch(/n'attend plus de devis/);
   });
 
   it("prise en charge du congrès : même circuit — sujet de la prise en charge, dépôt refusé tant que la personne n'est pas accordée", async () => {

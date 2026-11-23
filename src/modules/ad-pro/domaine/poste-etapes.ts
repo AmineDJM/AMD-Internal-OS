@@ -87,6 +87,11 @@ export interface FaitsPoste {
   bc?: EtapeBC | null;
   /** Combien de factures (non annulées) le poste porte. */
   factures?: number;
+  /**
+   * TOUT CE QUI EST COMMANDÉ A SA FACTURE (`toutEstFacture`) : le geste n'est plus de la déposer, mais de demander le
+   * paiement. Absent : non lu — le geste d'avant.
+   */
+  toutFacture?: boolean;
   /** Combien de devis / pro forma / lettres de demande (non annulés) le poste porte. */
   devis?: number;
   /**
@@ -135,7 +140,9 @@ export interface RegardPoste {
 
 export type CleGeste =
   | "REPARTIR" | "CHIFFRER" | "SOUMETTRE" | "VALIDER_OPS" | "DECIDER" | "MONTANT" | "BUDGET"
-  | "DEMANDER_BC" | "GENERER_BC" | "VISER_BC" | "VERIFIER_BC" | "DEMANDER_PAIEMENT";
+  | "DEMANDER_BC" | "GENERER_BC" | "VISER_BC" | "VERIFIER_BC" | "DEMANDER_PAIEMENT"
+  /** La facture est déjà là : le geste ouvre la case « Paiement », qui demande le paiement (`toutEstFacture`). */
+  | "PAIEMENT_A_DEMANDER";
 
 export interface Geste {
   cle: CleGeste;
@@ -179,6 +186,25 @@ export function phrasePaiementBloque(etat: EtatPaiementPoste, reference: string 
   return null;
 }
 
+/** Les BC vivants et les factures d'un poste (`PiecesDuPoste`), réduits à ce qui dit si tout est facturé. */
+export interface PiecesAFacturer {
+  bcs: readonly { id: string; etape: EtapeBC | null }[];
+  factures: readonly { annulee?: boolean; controle?: { bcIds: readonly string[] } | null }[];
+}
+
+/**
+ * TOUT CE QUI EST COMMANDÉ A SA FACTURE (recette du 23/11/2026) — chaque BC vivant du poste est signé et couvert par une
+ * facture non annulée : la lecture de `refusDemandePaiementBC`, moins l'argumentation d'un écart (elle se donne dans la case
+ * « Paiement »). Vrai, le geste du poste devient « Demander le paiement » : « Déposer la facture et demander le paiement »
+ * restait affiché une fois la facture déposée, ne rouvrait que la case « Facture », et le vrai bouton restait caché sous
+ * l'onglet « Paiement ». Pur — lu par la carte, par la file des agences et par les bancs.
+ */
+export function toutEstFacture(p: PiecesAFacturer): boolean {
+  if (p.bcs.length === 0 || p.bcs.some((b) => b.etape !== "SIGNE")) return false;
+  const couverts = new Set(p.factures.filter((f) => !f.annulee).flatMap((f) => f.controle?.bcIds ?? []));
+  return p.bcs.every((b) => couverts.has(b.id));
+}
+
 /**
  * LES FAITS D'UN POSTE TELS QUE LE CHARGEUR LES REND — une seule traduction, lue par l'écran ET par
  * le banc qui rejoue chaque geste proposé (§118.5). Recopiée dans le banc, elle aurait pu diverger
@@ -199,8 +225,10 @@ export function faitsDuPoste(r: {
   opsDecidedAt?: string | null;
   /** La demande de BC ouverte chez l'assistante (`DemandeBCDuPoste`), s'il y en a une. */
   demandeBC?: { etat: EtatDemandeBC } | null;
-  /** La chaîne d'achat du poste (`PiecesDuPoste`). */
-  pieces?: { bc: { etape: EtapeBC | null } | null; factures: readonly unknown[]; devis?: readonly { annulee?: boolean }[] };
+  /** La chaîne d'achat du poste (`PiecesDuPoste`) — `bcs` absent : la couverture des factures n'est pas lue. */
+  pieces?: {
+    bc: { etape: EtapeBC | null } | null; bcs?: PiecesAFacturer["bcs"]; factures: PiecesAFacturer["factures"]; devis?: readonly { annulee?: boolean }[];
+  };
   /** Les devis du poste, lus avec leurs lignes (`DevisDePosteVue`) — seul l'état de leur BC compte ici. */
   devisLignes?: readonly { etat: string }[];
   /** Les voyageurs (billetterie) et fiches hôtellerie (hôtellerie) du poste — seul leur nombre compte ici. */
@@ -215,6 +243,7 @@ export function faitsDuPoste(r: {
     lignesStock: r.lignesStock.length, orderSansCentre: r.orderSansCentre,
     opsDecidedAt: r.opsDecidedAt ?? null, demandeBC: r.demandeBC?.etat ?? "AUCUNE",
     bc: r.pieces?.bc ? (r.pieces.bc.etape ?? "HORS_CIRCUIT") : null, factures: r.pieces?.factures.length ?? 0,
+    toutFacture: r.pieces?.bcs ? toutEstFacture({ bcs: r.pieces.bcs, factures: r.pieces.factures }) : undefined,
     devis: (r.pieces?.devis ?? []).filter((d) => !d.annulee).length,
     devisAGenerer: (r.devisLignes ?? []).filter((d) => d.etat === "A_GENERER").length,
     // Un poste ne porte que l'une des deux listes (la nature le décide) : la somme est son compte.
@@ -318,9 +347,11 @@ export function etapesDuPoste(p: FaitsPoste): Etape[] {
         etat: factures > 0 ? "FAIT" : factureOuverte || p.expenseOrderId ? "EN_COURS" : "A_VENIR",
       });
   const paiement = etatDuPaiement(p);
+  // La facture de tout ce qui est commandé est là : le paiement est l'étape EN COURS (à demander) — la case « Paiement »
+  // s'ouvre d'elle-même au lieu de la case « Facture », déjà faite.
   etapes.push({
     cle: "PAIEMENT", libelle: "Paiement",
-    etat: paye ? "FAIT" : paiement === "REFUSE" || paiement === "ANNULE" ? "REFUSE" : p.expenseOrderId ? "EN_COURS" : "A_VENIR",
+    etat: paye ? "FAIT" : paiement === "REFUSE" || paiement === "ANNULE" ? "REFUSE" : p.expenseOrderId || (p.toutFacture && !sansBC) ? "EN_COURS" : "A_VENIR",
   });
   return etapes;
 }
@@ -437,6 +468,13 @@ export function prochainPas(p: FaitsPoste, r: RegardPoste): ProchainPas {
   }
 
   // ── LE BON DE COMMANDE : demande → (centre) → assistante → vérification → signature Finances ──
+  // LA FACTURE DÉPOSÉE (recette du 23/11/2026), le geste n'est plus de la déposer : il ouvre la case « Paiement », qui porte
+  // la demande et, si la facture s'écarte du BC, l'argumentation exigée.
+  if (p.bc === "SIGNE" && p.toutFacture && !direct) {
+    return r.canEdit
+      ? { geste: { cle: "PAIEMENT_A_DEMANDER", libelle: "Demander le paiement" }, attente: null }
+      : { geste: null, attente: "Facture déposée — le demandeur demande le paiement." };
+  }
   if (p.bc === "SIGNE") return payer;
   if (p.bc) return { geste: null, attente: ATTENTE_BC[p.bc] ?? "Bon de commande en cours au registre." };
   // DEMANDÉ : l'assistante l'établit pendant que, au-dessus du seuil, le centre le vise en parallèle.
@@ -506,4 +544,20 @@ export function grouperParRepartition<T extends { id: string; repartitionId: str
     groupes.push(neuf);
   }
   return groupes;
+}
+
+/**
+ * L'EN-TÊTE D'UN GROUPE « Sponsoring indirect » — son total et ce qu'il compte (recette du 23/11/2026). Le total suit la règle
+ * que l'écran tenait déjà : l'accordé du poste, sinon son estimé. Un poste SCINDÉ par agence (deux agences retenues sur un
+ * stand, `retenirLignesDesAgences`) est un poste de plus, pas une nature de plus : « 2 natures · 3 postes », jamais
+ * « 3 natures ».
+ */
+export function resumeRepartition(
+  items: readonly { kind: AdProItemKind; amountGranted: number | null; amountEstimated: number | null }[],
+): { total: number; natures: number; postes: number } {
+  return {
+    total: items.reduce((s, it) => s + (it.amountGranted ?? it.amountEstimated ?? 0), 0),
+    natures: new Set(items.map((it) => it.kind)).size,
+    postes: items.length,
+  };
 }

@@ -81,6 +81,13 @@ export interface PorteBC {
   source: "DOCUMENT" | "POSTE";
   /** Le motif du centre (refus, demande de modification). */
   note?: string | null;
+  /**
+   * VALIDÉE SANS QU'AUCUN CENTRE L'AIT VUE — la demande de BC d'un poste passée SOUS LE SEUIL (recette du
+   * 23/11/2026). La marche du poste la pose à `DIRECTION_OK` sans visa (`orderDirectionAt` nul) : « validée »
+   * veut alors dire « rien à valider », et sa `note` est le motif « Sous le seuil… », pas une décision. Lue
+   * comme un visa, la file des signataires affichait À LA FOIS « validé par le centre » et « sous le seuil ».
+   */
+  sansCentre?: boolean;
 }
 
 export const LIBELLE_CENTRE_BC: Record<CentreBC, string> = {
@@ -243,6 +250,36 @@ export function seuilDuCentre(seuils: { adPro: number; validation: number }, cen
 /** Le motif écrit quand un BC passe sous le seuil : il dit POURQUOI aucun centre ne le voit. */
 export function motifSousLeSeuil(seuil: number): string {
   return `Sous le seuil de validation des bons de commande (${seuil.toLocaleString("fr-FR")} DZD) : aucun centre n'a à le valider, il passe directement à la signature des Finances.`;
+}
+
+/** Un centre a-t-il RÉELLEMENT validé ce BC ? — non pour une porte posée sous le seuil (`PorteBC.sansCentre`). */
+export function valideParUnCentre(porte: PorteBC | null | undefined): porte is PorteBC {
+  return porte?.etat === "VALIDE" && !porte.sansCentre;
+}
+
+/**
+ * POURQUOI CE BC EST À SIGNER — UNE raison, jamais deux qui se contredisent (recette du 23/11/2026).
+ *
+ * La file des signataires affichait, pour le BC d'un poste Ad & Pro sous le seuil (051/DG/2026, 74 613 DZD),
+ * « Poste Ad & Pro validé par le centre de validation Ad & Pro » ET, juste à côté, le motif « Sous le seuil…
+ * aucun centre n'a à le valider ». Une seule est vraie : « validé par le centre » quand un centre a VISÉ ;
+ * « sous le seuil » quand aucun n'avait à le faire. `note` : le motif du centre à citer — seulement s'il a
+ * décidé (le motif d'une porte sous le seuil EST la raison, on ne le répète pas).
+ */
+export function raisonASignerBC(
+  porte: PorteBC | null | undefined, seuil?: number | null,
+): { sousLeSeuil: boolean; texte: string; note: string | null } {
+  if (valideParUnCentre(porte)) {
+    return {
+      sousLeSeuil: false,
+      texte: porte.source === "POSTE"
+        ? `Poste Ad & Pro validé par le ${LIBELLE_CENTRE_BC[porte.centre]}`
+        : `Validé par le ${LIBELLE_CENTRE_BC[porte.centre]}`,
+      note: porte.note?.trim() || null,
+    };
+  }
+  const montant = typeof seuil === "number" && Number.isFinite(seuil) && seuil > 0 ? ` (${seuil.toLocaleString("fr-FR")} DZD)` : "";
+  return { sousLeSeuil: true, texte: `Sous le seuil de validation${montant} — aucun centre n'avait à le valider`, note: null };
 }
 
 /** Ce que l'aiguillage doit faire, décidé sans rien lire. */
@@ -412,10 +449,12 @@ export function reserveEtapeBC(etape: EtapeBC, porte: PorteBC | null, seuil?: nu
       return "Ce bon de commande dépasse le seuil de validation et n'est passé par aucun centre : il n'est PAS validé. « Adresser au centre », sur sa fiche Legal.";
     case "A_SIGNER": {
       const signature = `Il attend la signature des Finances (${MENU_BONS_DE_COMMANDE}) : ne l'envoyez pas au fournisseur avant.`;
-      if (!porte && typeof seuil === "number" && seuil > 0) {
+      // Sans porte, ou porte d'un poste posée SOUS LE SEUIL (`sansCentre`) : aucun centre ne l'a vu — le dire,
+      // jamais « validé par le centre » (recette du 23/11/2026).
+      if ((!porte || porte.sansCentre) && typeof seuil === "number" && seuil > 0) {
         return `Sous le seuil de validation des bons de commande (${seuil.toLocaleString("fr-FR")} DZD) : aucun centre n'a à le valider. ${signature}`;
       }
-      return porte?.etat === "VALIDE"
+      return valideParUnCentre(porte)
         ? `Validé par le ${LIBELLE_CENTRE_BC[porte.centre]}. ${signature}`
         : `Ce bon de commande attend la signature des Finances (${MENU_BONS_DE_COMMANDE}) : ne l'envoyez pas au fournisseur avant.`;
     }

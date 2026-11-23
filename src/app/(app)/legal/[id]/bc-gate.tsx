@@ -122,7 +122,16 @@ export function BonDeCommandeGate({
             </span>
           )}
         </div>
-        {porte ? (
+        {porte?.sansCentre ? (
+          /* UN BC DE POSTE SOUS LE SEUIL (recette du 23/11/2026) : aucun centre ne l'a vu — ne pas l'habiller d'un visa
+             « validé au centre » ni de « motif du centre ». */
+          <>
+            <p className="text-muted-foreground">
+              Sous le seuil de validation des bons de commande : aucun centre n&apos;avait à le valider, il passe directement à la signature des Finances.
+            </p>
+            {reserve && <p className="text-xs text-muted-foreground">{reserve}</p>}
+          </>
+        ) : porte ? (
           <>
             <div className="flex flex-wrap items-center gap-2">
               <Badge tone={TON[porte.etat]} dot={false}>{LIBELLE_ETAT_BC[porte.etat]}</Badge>

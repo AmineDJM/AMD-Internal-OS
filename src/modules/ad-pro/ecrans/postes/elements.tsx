@@ -181,7 +181,7 @@ export function IconeGeste({ cle }: { cle: CleGeste }) {
     case "GENERER_BC": return <FileText className="h-4 w-4" />;
     case "MONTANT": case "BUDGET": return <Wallet className="h-4 w-4" />;
     case "VERIFIER_BC": return <ShieldCheck className="h-4 w-4" />;
-    case "DEMANDER_PAIEMENT": return <FileCheck2 className="h-4 w-4" />;
+    case "DEMANDER_PAIEMENT": case "PAIEMENT_A_DEMANDER": return <FileCheck2 className="h-4 w-4" />;
     default: return <Send className="h-4 w-4" />;
   }
 }

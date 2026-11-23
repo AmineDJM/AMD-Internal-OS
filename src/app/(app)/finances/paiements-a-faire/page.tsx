@@ -21,6 +21,7 @@ import { TreasuryUpdateRequestButton } from "../treasury-update-request";
 import { OrdersTable, type OrderRow, type BudgetChoice, type CompteChoice } from "./orders-table";
 import { PurgeHistoryButton } from "./purge-history";
 import { natureDeLOrdreBv, LIBELLE_NATURE_BV } from "@/lib/regulatory/bv-circuit";
+import { posteDeLOrdre } from "@/lib/labels";
 import { ordresBvAvecQuittance } from "@/lib/regulatory/bv-reglement";
 
 /**
@@ -168,7 +169,7 @@ export default async function PaiementsAFairePage(props: { searchParams: Promise
 
   const toRow = (o: (typeof orders)[number]): OrderRow => ({
     id: o.id, reference: o.reference, label: o.label, beneficiary: o.beneficiary,
-    category: o.category, amount: toNumber(o.amount), status: o.status,
+    category: o.category, poste: posteDeLOrdre(o.category, o.sourceType), amount: toNumber(o.amount), status: o.status,
     requestedBy: o.requestedBy?.name ?? null, createdAt: o.createdAt.toISOString(),
     requiresInvoice: o.requiresInvoice, hasInvoice: hasInvoice(o),
     dueDate: o.dueDate?.toISOString() ?? null, deadlineNature: o.deadlineNature,

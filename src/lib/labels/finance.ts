@@ -5,6 +5,7 @@
  */
 
 import type { Display } from "./ton";
+import { ENTITY_TYPE_LABELS } from "./commun";
 
 export const FINANCE_DIRECTION: Record<string, Display> = {
   IN: { label: "Encaissement", tone: "success" },
@@ -28,6 +29,22 @@ export const FINANCE_CATEGORY: Record<string, string> = {
   BANQUE: "Frais bancaires",
   AUTRE: "Autre",
 };
+
+/**
+ * LE « POSTE » D'UN ORDRE DE DÉPENSE, tel que les Finances le lisent (recette sponsoring, 23/11/2026).
+ *
+ * Tout ordre né d'une opération Ad & Pro — sponsoring, prise en charge, événement, et leurs postes — porte la
+ * catégorie comptable `EVENEMENT` (le schéma la définit large : « table ronde, congrès, sponsoring payé ») : c'est
+ * le CODE qui la pose (`actions-postes-paiement`, `workflow/engine`…), pas une saisie. Son libellé, lui, est étroit
+ * — « Événement / Table ronde » —, si bien que les ordres d'un sponsoring (OD-2026-043 à 046, SPO-2026-021)
+ * s'affichaient « Événement / Table ronde » chez les Finances quand le centre de paiement, qui lit l'ORIGINE, les
+ * disait « Sponsoring ». Pour cette catégorie fourre-tout, l'origine est le poste : on la montre. Les autres
+ * catégories (fournisseur, loyer, salaires…) sont précises par elles-mêmes et restent telles quelles.
+ */
+export function posteDeLOrdre(category: string, sourceType: string | null | undefined): string {
+  const origine = category === "EVENEMENT" && sourceType ? ENTITY_TYPE_LABELS[sourceType] : undefined;
+  return origine ?? FINANCE_CATEGORY[category] ?? category;
+}
 
 export const FINANCE_METHOD: Record<string, string> = {
   CASH: "Espèces",

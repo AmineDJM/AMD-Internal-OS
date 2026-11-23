@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   diffEmpreintes, empreinteBillet, empreinteHotel, etatApres, etatFiche, etatLu, etatRepris, etatsSource, fichesAEnvoyer,
   gestePossible, lireEmpreinte, manquesHebergement, prochaineRelance, refusGeste, refusRelance, resumeEnvois, sousEtat,
-  tuilesFiches, versEnvoiVue, DELAI_RELANCE_MS, type EtatDemande, type FicheBilletLue,
+  statutDevisAgence, tuilesFiches, versEnvoiVue, DELAI_RELANCE_MS, type EtatDemande, type FicheBilletLue,
 } from "./etat";
 
 const billet: FicheBilletLue = {
@@ -159,5 +159,23 @@ describe("Fiches de voyage — phrases et comptes", () => {
     }, maintenant);
     expect(chezElle.libelle).toBe("Prise par Assia");
     expect(chezElle.refusRelance).toMatch(/24 h/);
+    expect(chezElle.devisAgence).toBeNull();
+  });
+
+  it("le devis de l'agence d'une fiche : son statut se lit, il suit la fiche — sauf retirée (recette du 23/11/2026)", () => {
+    expect(statutDevisAgence("SUBMITTED")).toBe("A_ACCEPTER");
+    expect(statutDevisAgence("ACCEPTED")).toBe("ACCEPTE");
+    for (const s of ["PENDING", "DECLINED", "CANCELLED"]) expect(statutDevisAgence(s)).toBe("AUTRE");
+    const envoyee = empreinteBillet(billet);
+    const devisAgence = {
+      pieceId: "p1", reference: "PIE-2026-001", statut: "A_ACCEPTER" as const, demandeurId: "dem", fournisseur: "Tassili Voyages",
+      montantDzd: 1_200_000, fiches: 2, fichiers: [],
+    };
+    const demande = (etat: EtatDemande) => ({ id: "d1", etat, empreinte: envoyee, envoyeeLe: maintenant, relances: 0, derniereRelanceLe: null, priseParId: "u", reserveeLe: null, manqueMotif: null, referenceReservation: null });
+    const vue = (etat: EtatDemande) => versEnvoiVue({
+      source: "VOYAGEUR", ficheId: "v1", nature: "BILLET", manques: [], empreinte: envoyee, demande: demande(etat), priseParNom: null, pieces: [], devisAgence,
+    }, maintenant);
+    expect(vue("DEVIS_RECU").devisAgence).toEqual(devisAgence);
+    expect(vue("RETIREE").devisAgence).toBeNull();
   });
 });

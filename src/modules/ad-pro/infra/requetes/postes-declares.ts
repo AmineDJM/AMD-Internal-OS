@@ -3,6 +3,7 @@ import { toNumber } from "@/lib/utils";
 import { lienPosteAdPro, PARENT_COLONNE, type AdProParent } from "@/lib/chemins/ad-pro";
 import { ITEM_KIND_LABELS, ITEM_STATUS_LABELS } from "../../domaine/postes";
 import { lireStatutConformite, type StatutConformite } from "../../domaine/parcours-agence";
+import { payeeDuPoste } from "../../domaine/payee-poste";
 import { piecesDesPostes } from "../pieces-poste";
 import { ETAPE_BAT, ETAPE_RECEPTION } from "./agence";
 
@@ -29,7 +30,7 @@ export interface PosteDeclare {
   /** Le statut du poste, en clair. */
   statut: string;
   montant: number | null;
-  /** L'agence retenue, le fournisseur, à défaut le bénéficiaire de la demande. */
+  /** Qui est payé : l'agence retenue, à défaut le tiers du BC, le fournisseur du poste, le devis accepté (`payeeDuPoste`). */
   payee: string | null;
   bc: { reference: string | null; etape: string | null } | null;
   conformite: { requise: boolean; statut: StatutConformite | null; note: string | null };
@@ -53,15 +54,20 @@ export async function postesDeclares(sourceType: string, sourceId: string): Prom
   if (postes.length === 0) return [];
   const ids = postes.map((p) => p.id);
   const devisRetenus = postes.map((p) => p.execution?.agenceDevisId).filter((x): x is string => Boolean(x));
-  const [pieces, fichiers, agences] = await Promise.all([
+  const [pieces, fichiers, tiers] = await Promise.all([
     piecesDesPostes(ids),
     prisma.document.findMany({
       where: { entityType: "AD_PRO_ITEM", entityId: { in: ids }, stepKey: { in: [ETAPE_BAT, ETAPE_RECEPTION] } },
       orderBy: { createdAt: "desc" }, select: { id: true, name: true, entityId: true, stepKey: true },
     }),
-    devisRetenus.length ? prisma.legalDocument.findMany({ where: { id: { in: devisRetenus } }, select: { id: true, counterparty: true } }) : [],
+    // LE TIERS de chaque pièce : le devis retenu (l'agence), mais aussi les BC et devis rattachés aux postes — un poste
+    // commandé hors parcours agence (la billetterie) n'a que son BC pour dire qui est payé (`domaine/payee-poste.ts`).
+    prisma.legalDocument.findMany({
+      where: { OR: [{ id: { in: devisRetenus } }, { postesAdPro: { some: { itemId: { in: ids } } } }] },
+      select: { id: true, counterparty: true },
+    }),
   ]);
-  const agenceDe = new Map(agences.map((a) => [a.id, a.counterparty]));
+  const tiersDe = new Map(tiers.map((a) => [a.id, a.counterparty]));
   return postes.map((p) => {
     const pc = pieces.get(p.id);
     const retenu = p.execution?.agenceDevisId ?? null;
@@ -75,7 +81,12 @@ export async function postesDeclares(sourceType: string, sourceId: string): Prom
     return {
       id: p.id, label: p.label, nature: ITEM_KIND_LABELS[p.kind], statut: ITEM_STATUS_LABELS[p.status]?.label ?? String(p.status),
       montant: montant != null ? toNumber(montant) : null,
-      payee: (retenu ? agenceDe.get(retenu) ?? null : null) ?? p.supplier ?? null,
+      payee: payeeDuPoste({
+        agenceRetenue: retenu ? tiersDe.get(retenu) ?? null : null,
+        bcs: (pc?.bcs ?? []).filter((b) => !b.annulee).map((b) => ({ tiers: tiersDe.get(b.id) ?? null, etape: b.etape })),
+        fournisseur: p.supplier ?? null,
+        devis: devis.map((d) => ({ tiers: tiersDe.get(d.id) ?? null })),
+      }),
       bc: pc?.bc ? { reference: pc.bc.reference, etape: pc.bc.etape } : null,
       conformite: { requise: p.conformiteRequise, statut: lireStatutConformite(p.execution?.conformiteStatut), note: p.execution?.conformiteNote ?? null },
       pieces: liste,

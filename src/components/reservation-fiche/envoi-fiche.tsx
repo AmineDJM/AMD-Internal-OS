@@ -1,12 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { Send, Loader2, BellRing, RotateCcw, Undo2 } from "lucide-react";
+import Link from "next/link";
+import { Send, Loader2, BellRing, RotateCcw, Undo2, CheckCircle2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DocumentPreview } from "@/components/documents/document-preview";
 import { envoyerFiche, envoyerFichesPretes, relancerFiche, retirerFiche } from "@/lib/actions/reservation-fiche-actions";
-import { fichesAEnvoyer, peutEnvoyer, resumeEnvois, type EnvoiVue } from "@/lib/reservation-fiche/etat";
+import { decideDocumentRequest } from "@/lib/actions/document-request-actions";
+import { fichesAEnvoyer, peutEnvoyer, resumeEnvois, type DevisAgenceVue, type EnvoiVue } from "@/lib/reservation-fiche/etat";
+import { montantDzd } from "@/lib/utils";
 
 type Resultat = { ok: boolean; error?: string; message?: string };
 /** Le `run` de l'écran hôte (bloc des voyageurs, fiche d'une prise en charge) : il verrouille, affiche et rafraîchit. */
@@ -20,7 +23,11 @@ const fd = (o: Record<string, string>) => { const f = new FormData(); for (const
  * Chaque fiche part seule. La règle est `reservation-fiche/etat.ts`, calculée au serveur (`EnvoiVue`) : l'écran
  * n'offre pas un geste que l'action refuserait.
  */
-export function EnvoiFiche({ envoi, peutEditer, busy, run }: { envoi: EnvoiVue | undefined; peutEditer: boolean; busy: string | null; run: RunEnvoi }) {
+export function EnvoiFiche({ envoi, peutEditer, busy, run, moiId }: {
+  envoi: EnvoiVue | undefined; peutEditer: boolean; busy: string | null; run: RunEnvoi;
+  /** La personne qui regarde — seul le demandeur de la fiche accepte le devis de l'agence (l'action le revérifie). */
+  moiId?: string;
+}) {
   const [retrait, setRetrait] = React.useState(false);
   const [motif, setMotif] = React.useState("");
   if (!envoi) return null;
@@ -64,6 +71,7 @@ export function EnvoiFiche({ envoi, peutEditer, busy, run }: { envoi: EnvoiVue |
           </span>
         )}
       </div>
+      {e.devisAgence && <DevisAgence devis={e.devisAgence} moiId={moiId} peutEditer={peutEditer} busy={busy} run={run} />}
       {e.etat === "BROUILLON" && e.manques.length > 0 && (
         <p className="text-[0.6875rem] text-warning">Il manque : {e.manques.join(", ")} — la fiche part dès qu&apos;elle est complète.</p>
       )}
@@ -106,6 +114,52 @@ export function EnvoiFiche({ envoi, peutEditer, busy, run }: { envoi: EnvoiVue |
           </div>
         </form>
       )}
+    </div>
+  );
+}
+
+/**
+ * LE DEVIS DE L'AGENCE D'UNE FICHE (recette du 23/11/2026) — joint par l'assistante, il attend que le demandeur l'ACCEPTE.
+ * Le geste est ICI, sur la fiche : la même action que « Pièce reçue » sur la page de la pièce (`decideDocumentRequest`).
+ * Accepté, le devis rejoint l'onglet « Devis » des pièces du poste, avec l'agence et le montant saisis par l'assistante.
+ * Qui n'a pas envoyé la fiche n'a pas le bouton — l'action le refuserait (§118.83) : il a le lien vers la pièce.
+ */
+function DevisAgence({ devis, moiId, peutEditer, busy, run }: { devis: DevisAgenceVue; moiId?: string; peutEditer: boolean; busy: string | null; run: RunEnvoi }) {
+  const cle = `devis-agence:${devis.pieceId}`;
+  const quoi = [devis.fournisseur, devis.montantDzd != null ? montantDzd(devis.montantDzd) : null].filter(Boolean).join(" · ");
+  const commun = devis.fiches > 1 ? ` — un devis pour ${devis.fiches} fiches` : "";
+  const lien = (texte: string) => (
+    <Link href={`/pieces/${devis.pieceId}`} className="inline-flex min-h-9 items-center gap-1 font-medium text-primary hover:underline sm:min-h-0">
+      {texte} <ExternalLink className="h-3 w-3" />
+    </Link>
+  );
+  if (devis.statut === "ACCEPTE") {
+    return (
+      <p className="text-[0.6875rem] text-muted-foreground [overflow-wrap:anywhere]">
+        <CheckCircle2 className="mr-0.5 inline h-3 w-3 text-success" />
+        Devis de l&apos;agence accepté{quoi ? ` (${quoi})` : ""}{commun} : il est dans l&apos;onglet « Devis » des pièces du poste, où ses lignes se lisent puis se valident.
+      </p>
+    );
+  }
+  if (devis.statut !== "A_ACCEPTER") return <p className="text-[0.6875rem] text-muted-foreground">Devis de l&apos;agence {devis.reference} — {lien("voir la pièce")}</p>;
+  const aMoi = peutEditer && moiId !== undefined && moiId === devis.demandeurId;
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-primary/30 bg-primary/5 px-2 py-1.5 text-[0.6875rem]" data-devis-agence={devis.statut}>
+      <span className="min-w-0 [overflow-wrap:anywhere]">
+        <span className="font-medium text-foreground">Devis de l&apos;agence à accepter</span>{quoi ? ` — ${quoi}` : ""}{commun}
+      </span>
+      {aMoi && devis.fichiers.map((f) => <DocumentPreview key={f.id} id={f.id} name={f.name} hasFile={f.hasFile} />)}
+      <span className="ml-auto inline-flex flex-wrap items-center justify-end gap-1.5">
+        {aMoi && (
+          <Button
+            size="sm" disabled={busy !== null}
+            onClick={() => void run(cle, () => decideDocumentRequest(fd({ id: devis.pieceId, accept: "1" })), "Devis accepté — il rejoint l'onglet « Devis » du poste.")}
+          >
+            {busy === cle ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />} Accepter le devis
+          </Button>
+        )}
+        {lien(aMoi ? "Voir la pièce" : moiId === undefined ? "Voir et accepter le devis" : "Voir le devis (à accepter par le demandeur de la fiche)")}
+      </span>
     </div>
   );
 }

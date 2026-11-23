@@ -10,10 +10,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/shared/empty-state";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { DocumentList } from "@/components/documents/document-list";
-import { PRIORITY } from "@/lib/labels";
+import { PRIORITY, libelleNatureValidation } from "@/lib/labels";
 import { formatCurrency, formatDate, formatDateTime, daysUntil } from "@/lib/utils";
 import { ValidationDecision } from "../validations/validation-decision";
-import { ItemReview } from "../validations/validation-item-review";
+import { AvisSurLeMessage } from "../validations/validation-item-review";
 import { ValidationAttachments } from "../validations/validation-attachments";
 
 export type CentreRow = PendingValidationItem;
@@ -136,6 +136,7 @@ function CentreCard({ r, now }: { r: CentreRow; now: number }) {
   const enRetard = r.deadline !== null && new Date(r.deadline).getTime() < now;
   const dort = r.actionable && now - new Date(r.createdAt).getTime() >= DORMANT_MS;
   const avisMessage = r.itemDecisions.find((x) => x.itemKey === "MESSAGE");
+  const nature = libelleNatureValidation(r.objectType);
 
   return (
     <Card className={enRetard ? "border-destructive/40" : undefined}>
@@ -143,7 +144,8 @@ function CentreCard({ r, now }: { r: CentreRow; now: number }) {
         <div className="min-w-0 space-y-1.5">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-xs text-muted-foreground [overflow-wrap:anywhere]">{r.reference}</span>
-            {r.objectType && <Badge tone="neutral" dot={false}>{r.objectType}</Badge>}
+            {/* La nature EN CLAIR — jamais la clé (« INFO_MED_DIRECTEUR_OPS », recette du 23/11). */}
+            {nature && <Badge tone="neutral" dot={false}>{nature}</Badge>}
             <StatusBadge map={PRIORITY} value={r.priority} dot={false} />
             {r.amount !== null && <span className="whitespace-nowrap text-sm font-semibold tabular-nums">{formatCurrency(r.amount)}</span>}
             {enRetard && (
@@ -178,12 +180,8 @@ function CentreCard({ r, now }: { r: CentreRow; now: number }) {
             )}
           </div>
 
-          {r.actionable && (
-            <div className="rounded-lg border border-border/60 bg-secondary/20 p-2">
-              <p className="text-[0.6875rem] font-medium uppercase tracking-wide text-muted-foreground">Votre avis sur le message</p>
-              <ItemReview stepId={r.stepId} itemKey="MESSAGE" current={avisMessage?.decision} currentComment={avisMessage?.comment} />
-            </div>
-          )}
+          {/* Un AVIS, dit facultatif : il ne remplace pas la décision (recette du 23/11). */}
+          {r.actionable && <AvisSurLeMessage stepId={r.stepId} current={avisMessage?.decision} currentComment={avisMessage?.comment} />}
 
           {r.documents.length > 0 && (
             <div className="rounded-lg border border-border/60 bg-secondary/30 p-2">

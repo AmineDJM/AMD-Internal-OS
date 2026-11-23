@@ -413,7 +413,7 @@ suite("Ad & Pro — postes simplifiés : répartition, gestes, voyageurs, suppre
         ACTOR = await acteur(nsId, "NATIONAL_SALES");
         return requestAdProItemOrder(undefined, fd({ id: hotellerie, note: "Hôtel Sofitel — 12 chambres, 3 nuits.", assistantId: asstId }));
       },
-      REPARTIR: null, CHIFFRER: null, MONTANT: null, BUDGET: null, GENERER_BC: null, VISER_BC: null, VERIFIER_BC: null, DEMANDER_PAIEMENT: null,
+      REPARTIR: null, CHIFFRER: null, MONTANT: null, BUDGET: null, GENERER_BC: null, VISER_BC: null, VERIFIER_BC: null, DEMANDER_PAIEMENT: null, PAIEMENT_A_DEMANDER: null,
     };
     // Le regard de chacun est celui que le SERVEUR calcule pour l'écran (`contextePostes`) — recomposé
     // ici à la main, il pourrait proposer un geste que l'écran ne propose pas (§118.120).

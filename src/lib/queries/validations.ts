@@ -78,8 +78,12 @@ export interface MyValidationItem {
  * (mon tour) ou à venir (séquentiel : j'attends le validateur précédent). Toutes
  * VISIBLES pour que le validateur concerné n'en manque aucune ; le champ `actionable`
  * indique si la décision est déjà possible. Les « actionnables » sont renvoyées en tête.
+ *
+ * `requestId` : la même lecture, bornée à UNE demande — la fiche `/validations/<id>` y lit si la personne à l'écran doit
+ * décider, avec la règle exacte de la liste (son étape, l'intérim, le tour du séquentiel, la Vue exacte qui montre
+ * l'écran de la personne visualisée) : une seule règle, deux écrans, aucun bouton offert ici et absent là (§118.83).
  */
-export async function getPendingValidations(userId: string): Promise<PendingValidationItem[]> {
+export async function getPendingValidations(userId: string, opts: { requestId?: string } = {}): Promise<PendingValidationItem[]> {
   // LES ÉTAPES DES ABSENTS QUE JE REMPLACE (I18) : la porte de décision acceptait l'intérimaire,
   // la liste ne lui montrait rien — il fallait connaître l'identifiant de l'étape. Jamais celles
   // de mes propres demandes : l'intérim ne fait pas s'approuver soi-même.
@@ -87,6 +91,7 @@ export async function getPendingValidations(userId: string): Promise<PendingVali
   const absents = auNom.absents.map((a) => a.userId);
   const steps = await prisma.validationStep.findMany({
     where: {
+      ...(opts.requestId ? { requestId: opts.requestId } : {}),
       status: "PENDING", request: { status: "PENDING" },
       OR: [
         { validatorId: userId },

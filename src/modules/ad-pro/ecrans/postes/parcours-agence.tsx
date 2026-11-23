@@ -8,6 +8,7 @@ import { cn, formatDate } from "@/lib/utils";
 import { FormulaireSignature } from "@/components/signature/formulaire-signature";
 import type { SignaturePrete } from "@/lib/signature-en-ligne/partage";
 import { friseAgence, pasAgence, type FaitsPosteAgence, type GesteAgence, type RegardAgence } from "../../domaine/parcours-agence";
+import { toutEstFacture } from "../../domaine/poste-etapes";
 import { demanderProspection, transmettreDevisAgences, retenirLignesDesAgences, soumettreBcMarketing, validerSignerBcMarketing, signerBcMarketing } from "../../actions-postes-agence";
 import { marquerBcEnvoye, envoyerBatConformite, deciderConformitePoste, signerReceptionPoste } from "../../actions-postes-execution";
 import { preparerBrouillonPoste } from "../../actions-postes-lignes";
@@ -16,15 +17,15 @@ import { emailDeProspection } from "../../domaine/email-prospection";
 import type { ItemRow, Run } from "../items-panel";
 import { ChoixLignesAgences } from "./choix-lignes-agences";
 
-/** Les gestes dont le formulaire vit AILLEURS sur la carte (la case des devis, le visa, la facture) : la carte les ouvre. */
-export type GesteDelegue = "DEVIS" | "VISER_BC" | "DEMANDER_PAIEMENT" | "BC";
+/** Les gestes dont le formulaire vit AILLEURS sur la carte (la case des devis, le visa, la facture, le paiement) : la carte les ouvre. */
+export type GesteDelegue = "DEVIS" | "VISER_BC" | "DEMANDER_PAIEMENT" | "BC" | "PAIEMENT";
 
 const ICONE: Record<GesteAgence, React.ReactNode> = {
   DEMANDER_PROSPECTION: <Search className="h-4 w-4" />, DEPOSER_DEVIS: <Building2 className="h-4 w-4" />, CHOISIR_AGENCE: <Hand className="h-4 w-4" />,
   PREPARER_BC: <FileSignature className="h-4 w-4" />, FINALISER_BC: <FileSignature className="h-4 w-4" />, VALIDER_SIGNER_BC: <ShieldCheck className="h-4 w-4" />,
   SIGNER_BC_MARKETING: <ShieldCheck className="h-4 w-4" />, VISER_BC: <BadgeCheck className="h-4 w-4" />, ENVOYER_BC: <Send className="h-4 w-4" />,
   ENVOYER_BAT: <Send className="h-4 w-4" />, CONTROLER_BAT: <ShieldCheck className="h-4 w-4" />, SIGNER_RECEPTION: <PackageCheck className="h-4 w-4" />,
-  DEPOSER_FACTURE: <Receipt className="h-4 w-4" />,
+  DEPOSER_FACTURE: <Receipt className="h-4 w-4" />, DEMANDER_PAIEMENT: <Receipt className="h-4 w-4" />,
 };
 
 /** Les faits du parcours tels que la carte les lit — une seule traduction, celle de l'écran. */
@@ -35,7 +36,7 @@ export function faitsAgenceDuPoste(item: ItemRow): FaitsPosteAgence | null {
     // UN BC ANNULÉ N'EST PAS LE BC DU POSTE (recette de bout en bout, 23/11/2026) : après « Annuler la demande de BC »,
     // le plus récent annulé se montre dans la case pièce, mais le parcours repart de « pas de BC vivant ».
     bc: item.pieces.bc && !item.pieces.bc.annulee ? (item.pieces.bc.etape ?? "HORS_CIRCUIT") : null,
-    factures: item.pieces.factures.length, expenseOrderId: item.expenseOrderId,
+    factures: item.pieces.factures.length, toutFacture: toutEstFacture(item.pieces), expenseOrderId: item.expenseOrderId,
     expenseOrderStatus: item.expenseOrder?.status ?? null, expenseOrderCentral: item.expenseOrder?.centralStatus ?? null,
     orderDecisionNote: item.orderDecisionNote ?? null,
     agence: item.agence.faits,
@@ -153,6 +154,8 @@ export function ParcoursAgence({ item, regard, assistantes, budgetOptions, signa
     if (g === "DEPOSER_DEVIS") return ouvrir("DEVIS");
     if (g === "VISER_BC") return ouvrir("VISER_BC");
     if (g === "DEPOSER_FACTURE") return ouvrir("DEMANDER_PAIEMENT");
+    // La facture est là : la case « Paiement » porte la demande (et l'argumentation d'un écart avec le BC).
+    if (g === "DEMANDER_PAIEMENT") return ouvrir("PAIEMENT");
     if (g === "PREPARER_BC") return void run(`agp:${item.id}`, () => preparerBrouillonPoste(fd()), "BC préparé.");
     if (g === "FINALISER_BC") ouvrir("BC");
     setOuvert((o) => (o === g ? null : g));

@@ -7,6 +7,7 @@ import {
   resultatParMois, debutDuMoisAlger, finDeLaPeriodeAlger, type Periode, type ResultatPeriode,
 } from "../../domaine/resultat-mensuel";
 import { toNumber } from "@/lib/utils";
+import { FINANCE_CATEGORY, posteDeLOrdre } from "@/lib/labels";
 
 /**
  * Espace comptable — vue de synthèse légère pour la comptabilité.
@@ -25,6 +26,8 @@ export interface ComptaItem {
   reference: string;
   label: string;
   category: string;
+  /** Le poste à afficher — pour un ordre, l'origine d'une opération Ad & Pro plutôt que « Événement / Table ronde » (`posteDeLOrdre`). */
+  poste: string;
   amount: number;
   date: string | null; // échéance (ordre) ou date prévue (transaction)
   counterparty: string;
@@ -79,6 +82,7 @@ export async function getComptaData(userId: string) {
         reference: t.reference,
         label: t.label,
         category: t.category,
+        poste: FINANCE_CATEGORY[t.category] ?? t.category,
         amount: amt,
         date: t.date.toISOString(),
         counterparty: t.counterparty ?? "",
@@ -100,6 +104,7 @@ export async function getComptaData(userId: string) {
     reference: o.reference,
     label: o.label,
     category: o.category,
+    poste: posteDeLOrdre(o.category, o.sourceType),
     amount: toNumber(o.amount),
     date: o.dueDate ? o.dueDate.toISOString() : null,
     counterparty: o.beneficiary ?? o.requestedBy?.name ?? "",

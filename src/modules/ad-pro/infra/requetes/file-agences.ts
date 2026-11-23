@@ -6,6 +6,7 @@ import { PARENTS, parentOf, loadItem } from "../postes/commun";
 import { LIBELLE_AGENCES, lienBatInfoMed, lienPosteAdPro, lienPosteAssistante } from "@/lib/chemins/ad-pro";
 import { sitsOnPaymentCentre } from "@/modules/finances/partage";
 import { etapeAgence, pasAgence, type AgenceVue, type EtapeAgence, type FaitsPosteAgence } from "../../domaine/parcours-agence";
+import { toutEstFacture } from "../../domaine/poste-etapes";
 import { siegeAuCentreAdPro } from "../../domaine/centre";
 import { droitsValidation } from "../../domaine/validation-poste";
 import { refusAvantPrevalidation, refusDemandeFermee, type ParentInfo } from "../postes/commun";
@@ -68,6 +69,7 @@ export function etapeDeLaFile(e: EtapeAgence): EtapeFile {
     case "CONFORMITE": return "CONFORMITE";
     // Un poste dont le paiement est demandé n'est pas dans la file (`expenseOrderId: null`) : réceptionné, au plus loin.
     case "FACTURE":
+    case "PAIEMENT_A_DEMANDER":
     case "PAIEMENT":
     case "PAYE": return "RECEPTION_FAITE";
     case "REFUSE": return "REFUSE";
@@ -87,7 +89,7 @@ function faitsDuPoste(
   return {
     status: i.status, orderStage: i.orderStage,
     bc: p?.bc && !p.bc.annulee ? (p.bc.etape ?? "HORS_CIRCUIT") : null,
-    factures: p?.factures.length ?? 0, expenseOrderId: i.expenseOrderId,
+    factures: p?.factures.length ?? 0, toutFacture: p ? toutEstFacture(p) : false, expenseOrderId: i.expenseOrderId,
     expenseOrderStatus: ordre?.status ?? null, expenseOrderCentral: ordre?.centralStatus ?? null,
     agence: agence.faits,
   };

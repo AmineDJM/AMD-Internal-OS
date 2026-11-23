@@ -15,6 +15,7 @@ import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { choisirAgencePoste, retenirLignesDesAgences } from "../actions-postes-agence";
 import { valeurDeLigne } from "../domaine/choix-agences";
+import { grouperParRepartition, resumeRepartition } from "../domaine/poste-etapes";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -178,6 +179,9 @@ suite("Ad & Pro — la Direction Marketing retient des LIGNES de plusieurs devis
     const alpha = await devis(id, `${TAG}Alpha`, [{ ref: "Affiches", q: 10, p: 1_000 }, { ref: "Flyers", q: 1_000, p: 10 }]);
     const beta = await devis(id, `${TAG}Beta`, [{ ref: "Brochures", q: 2_000, p: 100 }, { ref: "Pochettes", q: 500, p: 40 }]);
     const gamma = await devis(id, `${TAG}Gamma`, [{ ref: "Tout compris", q: 1, p: 300_000 }]);
+    // Le poste vit dans un groupe « Sponsoring indirect » (il en est la tête, comme après une répartition) : le poste né de la
+    // scission doit rester dans ce groupe — sinon l'écran le sort du bloc et le sous-total l'oublie (recette du 23/11/2026).
+    await prisma.adProItem.update({ where: { id }, data: { repartitionId: id } });
     const avant = (await postesDuCongres()).length;
     ACTOR = await acteur(u.dm, "PRODUCT_MANAGER");
     const r = await retenirLignesDesAgences(formulaire(id, [
@@ -210,6 +214,11 @@ suite("Ad & Pro — la Direction Marketing retient des LIGNES de plusieurs devis
     expect(ne.label).toBe(`${TAG}Impression — ${TAG}Alpha`);
     expect(ne.congressNationalId).toBe(congres);
     expect(ne).toMatchObject({ kind: "PRINTING", voie: "AGENCE", conformiteRequise: true, status: "APPROVED", budgetCategoryId: catId, supplier: `${TAG}Alpha` });
+    expect(ne.repartitionId, "le poste né reste dans le groupe de son poste d'origine").toBe(id);
+    const groupe = grouperParRepartition([origine, ne]).find((g) => g.repartitionId === id);
+    expect(groupe?.items.map((p) => p.id), "l'écran les montre d'un seul tenant").toEqual([id, ne.id]);
+    const r2 = resumeRepartition(groupe!.items.map((p) => ({ kind: p.kind, amountGranted: Number(p.amountGranted), amountEstimated: null })));
+    expect(r2, "le sous-total compte les deux agences : un poste de plus, pas une nature de plus").toEqual({ total: 261_800 + 11_900, natures: 1, postes: 2 });
     expect(Number(ne.amountGranted), "10 000 HT de la seule ligne cochée, TTC").toBe(11_900);
     expect(ne.execution).toMatchObject({ assistanteId: u.ast, cahierDesCharges: `${TAG}2 000 brochures`, agenceDevisId: alpha.pieceId });
     expect(ne.execution?.devisTransmisAt).not.toBeNull();

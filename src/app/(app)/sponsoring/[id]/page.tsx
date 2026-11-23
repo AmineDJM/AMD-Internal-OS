@@ -194,7 +194,9 @@ export default async function SponsoringDetailPage(props: { params: Promise<{ id
       : enPostes
         ? bilan.cloturable
           ? { phrase: `Validation finale — ${peutAgirSurLaCloture ? "à vous d'agir" : `chez ${quiCourt}`}`, ton: "info" }
-          : { phrase: `Postes en préparation — chez ${req.requester?.name ?? "le demandeur"}`, ensuite: `validation finale (${quiCourt.replace(/^la /, "")})`, ton: "info" }
+          // LES POSTES SE PRÉPARENT CHEZ LA DIRECTION MARKETING (recette sponsoring, 23/11/2026) : « chez <demandeur> » envoyait
+          // un délégué devant une demande où il n'a aucun geste (répartir, ajouter, soumettre sont à qui tranche les postes).
+          : { phrase: `Postes en préparation — chez ${quiCourt}`, ensuite: `validation finale (${quiCourt.replace(/^la /, "")})`, ton: "info" }
         : req.status === "CLOSED" && !req.closedAt
           ? { phrase: "Transférée vers un autre module", ton: "neutre" }
           : null;

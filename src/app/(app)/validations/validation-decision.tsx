@@ -43,6 +43,7 @@ export function ValidationDecision({ stepId }: { stepId: string }) {
     const cfg = CFG[mode];
     return (
       <div className="space-y-2">
+        <TitreDecision />
         <Textarea autoFocus value={reason} onChange={(e) => setReason(e.target.value)} placeholder={cfg.ph} className="min-h-[60px]" />
         {err && <p className="text-xs text-destructive">{err}</p>}
         <div className="flex flex-col gap-2 sm:flex-row">
@@ -59,6 +60,7 @@ export function ValidationDecision({ stepId }: { stepId: string }) {
   // pour correction dessous. Au bureau, la rangée d'origine.
   return (
     <div className="space-y-1.5">
+      <TitreDecision />
       <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
         <Button size="sm" variant="success" className="h-11 text-sm sm:h-8 sm:text-xs" disabled={pending} onClick={() => open("APPROVED")}>
           <Check className="h-4 w-4" /> Valider
@@ -73,4 +75,13 @@ export function ValidationDecision({ stepId }: { stepId: string }) {
       {err && <p className="text-xs text-destructive">{err}</p>}
     </div>
   );
+}
+
+/**
+ * « VOTRE DÉCISION » — LE GESTE QUI FAIT AVANCER LA DEMANDE, NOMMÉ (recette sponsoring, 23/11/2026). Sans titre, ces
+ * trois boutons ressemblaient à l'avis facultatif posé plus haut sur la carte (`AvisSurLeMessage`), et c'est l'avis
+ * qu'on cliquait en croyant décider.
+ */
+function TitreDecision() {
+  return <p className="text-[0.6875rem] font-semibold uppercase tracking-wide text-foreground">Votre décision</p>;
 }

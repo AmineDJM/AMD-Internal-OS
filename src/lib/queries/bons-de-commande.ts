@@ -79,6 +79,8 @@ export interface LigneBCFinances {
   etape: EtapeBC;
   porte: PorteBC | null;
   validationRequise: boolean;
+  /** Le seuil de SON centre, lu avec l'état : la raison « sous le seuil » le cite (`raisonASignerBC`). */
+  seuil: number;
   signeLe: string | null;
   signePar: string | null;
   /** Renvoyé à son émetteur (audit 360°, R09) : qui, quand, et ce qu'il faut corriger. */
@@ -140,7 +142,7 @@ export async function fileBonsDeCommande(user: CurrentUser, opts: { signesRecent
       societe: d.company ? (d.company.shortName || d.company.name) : null,
       creePar: d.createdBy?.name ?? null, creeLe: d.createdAt.toISOString(), driveNodeId: d.driveNodeId,
       fichiers: (() => { const f = fichiersEmis(d.custom); return { docx: Boolean(f.docx), pdf: Boolean(f.pdf) }; })(),
-      etape: e.etape, porte: e.porte, validationRequise: e.validationRequise,
+      etape: e.etape, porte: e.porte, validationRequise: e.validationRequise, seuil: e.seuil,
       signeLe: e.signeLe?.toISOString() ?? null, signePar: e.signePar?.name ?? null,
       renvoi: e.renvoi ? { le: e.renvoi.le.toISOString(), par: e.renvoi.par, note: e.renvoi.note } : null,
     };

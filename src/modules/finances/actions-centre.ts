@@ -251,7 +251,14 @@ export async function decidePayment(formData: FormData): Promise<ActionResult> {
     revalidatePath("/moyens-generaux");
     return { ok: true, message: `Autorisé — ${versement.montant.toLocaleString("fr-FR")} DZD ajoutés à la caisse d'avance ${versement.departement}.` };
   }
-  return { ok: true, message: `${CENTRAL_DECISION_LABEL[decision]} — enregistré.` };
+  // LA PHRASE DE CONFIRMATION, telle que l'écran l'affiche (recette du 23/11/2026) : « Autoriser le paiement — enregistré »
+  // se lisait comme un bouton, pas comme un fait ; elle dit désormais ce qui s'est passé, et pour quel ordre.
+  return {
+    ok: true,
+    message: next === "APPROVED"
+      ? `Paiement autorisé : ${order.reference} (${money}) passe aux Finances, qui le régleront.`
+      : `Paiement refusé : ${order.reference} (${money}). Le demandeur est prévenu, avec votre motif.`,
+  };
 }); }
 
 /**

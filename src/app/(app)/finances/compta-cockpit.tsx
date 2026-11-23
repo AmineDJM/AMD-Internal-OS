@@ -4,7 +4,6 @@ import { CHOIX_PERIODE, type Periode, type ResultatPeriode } from "@/modules/fin
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { FINANCE_CATEGORY } from "@/lib/labels";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
 type ComptaData = Awaited<ReturnType<typeof getComptaData>>;
@@ -75,7 +74,7 @@ function ItemTable({ items, thirdLabel, href }: { items: ComptaItem[]; thirdLabe
               </TableCell>
               <TableCell className="font-medium [overflow-wrap:anywhere]">{it.label}</TableCell>
               <TableCell className="text-muted-foreground [overflow-wrap:anywhere]">{it.counterparty || "—"}</TableCell>
-              <TableCell className="text-muted-foreground">{FINANCE_CATEGORY[it.category] ?? it.category}</TableCell>
+              <TableCell className="text-muted-foreground">{it.poste}</TableCell>
               <TableCell>
                 {it.date ? (
                   it.overdue ? (

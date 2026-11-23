@@ -97,6 +97,20 @@ describe("parcours agence — chaque personne voit SON geste, les autres savent 
     expect(pasAgence(poste(signe, { ...choisi, bcEnvoye: true }), personne({ marketing: true })).geste?.cle).toBe("SIGNER_RECEPTION");
     expect(pasAgence(poste(signe, { ...choisi, bcEnvoye: true, receptionFaite: true }), personne({ marketing: true })).geste?.cle).toBe("DEPOSER_FACTURE");
   });
+  it("la facture déposée : « Demander le paiement », plus « Déposer la facture » — la frise passe au paiement (recette du 23/11/2026)", () => {
+    const recu = { ...choisi, bcEnvoye: true, receptionFaite: true };
+    const facture = poste({ ...signe, factures: 1, toutFacture: true }, recu);
+    expect(etapeAgence(facture)).toBe("PAIEMENT_A_DEMANDER");
+    expect(pasAgence(facture, personne({ marketing: true })).geste).toEqual({ cle: "DEMANDER_PAIEMENT", libelle: "Demander le paiement" });
+    expect(pasAgence(facture, personne({ assistante: true }))).toEqual({ geste: null, attente: "Facture déposée — la Direction Marketing demande le paiement." });
+    const frise = friseAgence(facture);
+    expect(frise.find((e) => e.cle === "FACTURE")?.etat).toBe("FAIT");
+    expect(frise.find((e) => e.cle === "PAIEMENT")?.etat).toBe("EN_COURS");
+    // Une facture qui ne couvre pas tout (deux BC, une facture) : on dépose encore.
+    expect(etapeAgence(poste({ ...signe, factures: 1, toutFacture: false }, recu))).toBe("FACTURE");
+    // Le paiement demandé : l'étape d'après, quoi que dise la couverture.
+    expect(etapeAgence(poste({ ...signe, factures: 1, toutFacture: true, expenseOrderId: "o", expenseOrderStatus: "PENDING" }, recu))).toBe("PAIEMENT");
+  });
   it("une demande close n'offre plus de décision à la Direction Marketing", () => {
     expect(pasAgence(poste(), personne({ marketing: true, fige: true })).geste).toBeNull();
   });

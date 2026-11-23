@@ -12,7 +12,7 @@ import { useAction } from "@/components/shared/use-action";
 import { signerBonDeCommande, signerBonDeCommandeEnLigne, renvoyerBonDeCommande } from "@/lib/actions/bc-signature-actions";
 import { FormulaireSignature } from "@/components/signature/formulaire-signature";
 import { SIGNATURE_RIEN_DE_PRET, type SignaturePrete } from "@/lib/signature-en-ligne/partage";
-import { LIBELLE_CENTRE_BC } from "@/lib/bons-de-commande/regle";
+import { raisonASignerBC } from "@/lib/bons-de-commande/regle";
 import type { LigneBCFinances } from "@/lib/queries/bons-de-commande";
 import { lienFichierEmis } from "@/lib/legal/fichiers-emis";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
@@ -138,16 +138,6 @@ export function FileBonsDeCommande({
 
 const montant = (m: number | null) => (m != null && m > 0 ? `${m.toLocaleString("fr-FR")} DZD` : "montant non renseigné");
 
-/** POURQUOI ce BC est à signer : validé par un centre, ou sous le seuil — jamais laissé implicite. */
-function raison(l: LigneBCFinances): string {
-  if (l.porte?.etat === "VALIDE") {
-    return l.porte.source === "POSTE"
-      ? "Poste Ad & Pro validé par le centre de validation Ad & Pro"
-      : `Validé par le ${LIBELLE_CENTRE_BC[l.porte.centre]}`;
-  }
-  return "Sous le seuil de validation — aucun centre n'avait à le valider";
-}
-
 type EtatMarketing = { attend: boolean; dm: { nom: string; titre: string; le: string } | null };
 
 function LigneASigner({ ligne: l, peutSigner, signature, marketing }: {
@@ -164,6 +154,9 @@ function LigneASigner({ ligne: l, peutSigner, signature, marketing }: {
   const [signataire, setSignataire] = React.useState("");
   const [copie, setCopie] = React.useState<File | null>(null);
   const jours = Math.floor((Date.now() - new Date(l.creeLe).getTime()) / 86_400_000);
+  // POURQUOI ce BC est à signer — UNE raison : validé par un centre, OU sous le seuil (recette du 23/11/2026 : les
+  // deux s'affichaient ensemble pour le BC d'un poste sous le seuil). Le motif n'est cité que si un centre a décidé.
+  const raison = raisonASignerBC(l.porte, l.seuil);
   return (
     <li id={ancreBonDeCommande(l.id)} className="surface space-y-3 p-3 sm:p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -184,8 +177,8 @@ function LigneASigner({ ligne: l, peutSigner, signature, marketing }: {
       {attend && <p className="rounded-lg bg-warning/10 px-3 py-2 text-sm">En attente de la signature de la Direction Marketing : il se signe ici juste après.</p>}
       {marketing?.dm && <p className="text-xs text-muted-foreground">Signé et cacheté par {marketing.dm.nom} ({marketing.dm.titre}) le {new Date(marketing.dm.le).toLocaleDateString("fr-FR", { timeZone: "Africa/Algiers" })}.</p>}
       <div className="flex flex-wrap items-center gap-2">
-        <Badge tone={l.porte ? "success" : "info"} dot={false}>{raison(l)}</Badge>
-        {l.porte?.note ? <span className="text-xs text-muted-foreground">« {l.porte.note} »</span> : null}
+        <Badge tone={raison.sousLeSeuil ? "info" : "success"} dot={false}>{raison.texte}</Badge>
+        {raison.note ? <span className="text-xs text-muted-foreground">« {raison.note} »</span> : null}
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <Link href={`/legal/${l.id}`} className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-3 py-1.5 text-sm hover:bg-secondary">

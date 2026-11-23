@@ -1,8 +1,7 @@
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { toNumber, formatCurrency } from "@/lib/utils";
+import { toNumber } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/page-header";
-import { KpiCard } from "@/components/shared/kpi-card";
 import { EmptyState } from "@/components/shared/empty-state";
 import {
   CENTRAL_AUTH_THRESHOLD_DZD, PAYMENT_CENTRE_REFUSAL, type CentralStatus, SECTION_CENTRE_LABEL, SECTION_CENTRE_SLUG,
@@ -16,6 +15,7 @@ import { canAccessEntity } from "@/lib/entity-access";
 import { natureDeLOrdreBv, LIBELLE_NATURE_BV } from "@/lib/regulatory/bv-circuit";
 import { CentreBoard, type CentreOrder } from "./centre-board";
 import { BarreEntites, OngletsSections } from "./centre-navigation";
+import { CompteursCentre, DecisionsDuCentre } from "./decisions-du-centre";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Centre de paiement — AMD Internal OS" };
@@ -129,7 +129,7 @@ export default async function CentreDePaiementPage(props: { searchParams?: Promi
   // « BV 25 % — REG-2026-014 » ne dit pas de quel médicament il s'agit. Le lien vers le dossier n'est
   // proposé qu'à qui peut l'ouvrir ; le nom, lui, se lit toujours.
   const idsProduits = [...new Set(orders.filter((o) => o.sourceType === "REGULATORY_PRODUCT" && o.sourceId).map((o) => o.sourceId!))];
-  const [produits, pieces] = await Promise.all([
+  const [produits, pieces, demandesDePiece] = await Promise.all([
     idsProduits.length
       ? prisma.regulatoryProduct.findMany({ where: { id: { in: idsProduits } }, select: { id: true, reference: true, dci: true, brandName: true } })
       : Promise.resolve([] as { id: string; reference: string; dci: string; brandName: string | null }[]),
@@ -140,6 +140,16 @@ export default async function CentreDePaiementPage(props: { searchParams?: Promi
           orderBy: { createdAt: "asc" },
         })
       : Promise.resolve([] as { id: string; name: string; entityId: string }[]),
+    // LES PIÈCES RÉCLAMÉES DEPUIS LE CENTRE (« Demander une pièce », recette du 23/11/2026) et pas encore
+    // closes : la carte dit ce qu'on attend et de qui — sans elle, le geste ne laissait aucune trace à
+    // l'écran, et l'on redemandait la même facture.
+    orders.length
+      ? prisma.documentRequest.findMany({
+          where: { entityType: "EXPENSE_ORDER", entityId: { in: orders.map((o) => o.id) }, status: { in: ["PENDING", "SUBMITTED"] } },
+          select: { id: true, entityId: true, label: true, status: true, askedTo: { select: { name: true } } },
+          orderBy: { createdAt: "asc" },
+        })
+      : Promise.resolve([] as { id: string; entityId: string; label: string; status: string; askedTo: { name: string } }[]),
   ]);
   const produitOuvrable = new Set(
     (await Promise.all(idsProduits.map(async (id) => ((await canAccessEntity(user, "REGULATORY_PRODUCT", id, "VIEW")) ? id : null))))
@@ -148,6 +158,13 @@ export default async function CentreDePaiementPage(props: { searchParams?: Promi
   const produitDe = new Map(produits.map((p) => [p.id, p]));
   const piecesDe = new Map<string, { id: string; name: string }[]>();
   for (const d of pieces) piecesDe.set(d.entityId, [...(piecesDe.get(d.entityId) ?? []), { id: d.id, name: d.name }]);
+  const demandesDe = new Map<string, CentreOrder["piecesDemandees"]>();
+  for (const d of demandesDePiece) {
+    demandesDe.set(d.entityId, [
+      ...(demandesDe.get(d.entityId) ?? []),
+      { id: d.id, label: d.label, a: d.askedTo?.name ?? null, deposee: d.status === "SUBMITTED" },
+    ]);
+  }
   const produitDeLOrdre = (o: (typeof orders)[number]): CentreOrder["produit"] => {
     const p = o.sourceType === "REGULATORY_PRODUCT" && o.sourceId ? produitDe.get(o.sourceId) : undefined;
     if (!p) return null;
@@ -190,6 +207,7 @@ export default async function CentreDePaiementPage(props: { searchParams?: Promi
     note: o.notes?.trim() || null,
     doublonPossible: doublons.get(o.id) ?? null,
     pieces: piecesDe.get(o.id) ?? [],
+    piecesDemandees: demandesDe.get(o.id) ?? [],
     isMine: o.requestedById === user.id,
     messages: o.centralMessages.map((m) => ({
       id: m.id, decision: m.decision, body: m.body,
@@ -200,8 +218,12 @@ export default async function CentreDePaiementPage(props: { searchParams?: Promi
   const entite = centre.entites.find((e) => e.cle === centre.entiteChoisie) ?? null;
   const section = centre.sections.find((s) => s.section === centre.sectionChoisie)!;
   const { bilan } = centre;
+  // L'état de chaque ordre affiché, du MÊME rendu que le bilan : les compteurs n'ajoutent une décision
+  // locale que tant que le serveur ne la reflète pas encore (`decisions-locales.ts`).
+  const statuts = Object.fromEntries(rows.map((r) => [r.id, r.centralStatus])) as Record<string, CentralStatus>;
 
   return (
+    <DecisionsDuCentre>
     <div className="space-y-5">
       <PageHeader
         title="Centre de paiement"
@@ -216,12 +238,8 @@ export default async function CentreDePaiementPage(props: { searchParams?: Promi
 
       <BarreEntites entites={centre.entites} choisie={centre.entiteChoisie} section={centre.sectionChoisie} />
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <KpiCard label="En attente" value={bilan.enAttente} icon="Hourglass" tone={bilan.enAttente > 0 ? "warning" : "default"} hint={entite?.label} />
-        <KpiCard label="Montant en attente" value={formatCurrency(bilan.montantEnAttente)} icon="Coins" tone={bilan.enAttente > 0 ? "warning" : "default"} />
-        <KpiCard label="Autorisés" value={bilan.autorises} icon="ShieldCheck" tone="success" />
-        <KpiCard label="Refusés" value={bilan.refuses} icon="ShieldX" tone={bilan.refuses > 0 ? "danger" : "default"} />
-      </div>
+      {/* Les compteurs suivent AUSSITÔT une décision prise ici (`decisions-du-centre.tsx`). */}
+      <CompteursCentre bilan={bilan} statuts={statuts} entite={entite?.label ?? null} />
 
       <OngletsSections sections={centre.sections} choisie={centre.sectionChoisie} entite={centre.entiteChoisie} />
 
@@ -238,5 +256,6 @@ export default async function CentreDePaiementPage(props: { searchParams?: Promi
         total={section.total} nonAffiches={centre.nonAffiches}
       />
     </div>
+    </DecisionsDuCentre>
   );
 }

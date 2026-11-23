@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { lireSources } from "@/platform/source";
-import { faitsDuPoste, etapesDuPoste, prochainPas, facturePourPayer, LIBELLE_JUSTIFICATIF_DIRECT, type FaitsPoste, type RegardPoste } from "./poste-etapes";
+import { faitsDuPoste, etapesDuPoste, prochainPas, facturePourPayer, grouperParRepartition, resumeRepartition, toutEstFacture, LIBELLE_JUSTIFICATIF_DIRECT, type FaitsPoste, type RegardPoste } from "./poste-etapes";
 
 /**
  * LE GESTE SUIVANT D'UN POSTE (§118.175, §118.204) — un seul, ou ce qu'on attend et de qui.
@@ -320,5 +320,74 @@ describe("un poste payé directement n'a pas d'étape « Bon de commande » (rec
   it("un poste sans BC qui en a vraiment un (pièce, ou demande en cours) le montre toujours", () => {
     expect(etapesDuPoste(pret({ kind: "ASSOCIATION_SUPPORT", orderStage: "REQUESTED" })).map((e) => e.cle)).toContain("BC");
     expect(etapesDuPoste(pret({ kind: "ASSOCIATION_SUPPORT", orderStage: "ISSUED", bc: "SIGNE" })).map((e) => e.cle)).toContain("BC");
+  });
+});
+
+describe("la facture déposée : le geste devient « Demander le paiement » (recette du 23/11/2026)", () => {
+  /*
+   * Ce qui le ferait tomber : la carte qui garde « Déposer la facture et demander le paiement » une fois la facture là — le
+   * bouton ne rouvrait que la case « Facture », et « Demander le paiement » restait caché sous l'onglet « Paiement ».
+   */
+  const bc = (id: string, etape: "SIGNE" | "A_SIGNER" = "SIGNE") => ({ id, etape });
+  const facture = (bcIds: string[], annulee = false) => ({ annulee, controle: { bcIds } });
+
+  it("`toutEstFacture` : chaque BC vivant signé est couvert par une facture non annulée — sinon non", () => {
+    expect(toutEstFacture({ bcs: [], factures: [] }), "pas de BC : rien à facturer ici").toBe(false);
+    expect(toutEstFacture({ bcs: [bc("a")], factures: [] })).toBe(false);
+    expect(toutEstFacture({ bcs: [bc("a")], factures: [facture(["a"])] })).toBe(true);
+    expect(toutEstFacture({ bcs: [bc("a")], factures: [facture(["a"], true)] }), "une facture annulée ne couvre rien").toBe(false);
+    expect(toutEstFacture({ bcs: [bc("a")], factures: [{ annulee: false, controle: null }] }), "une facture sans contrôle ne dit pas quel BC elle couvre").toBe(false);
+    expect(toutEstFacture({ bcs: [bc("a"), bc("b")], factures: [facture(["a"])] }), "deux BC, une seule facture : il en manque une").toBe(false);
+    expect(toutEstFacture({ bcs: [bc("a"), bc("b")], factures: [facture(["a", "b"])] }), "une facture pour deux BC").toBe(true);
+    expect(toutEstFacture({ bcs: [bc("a"), bc("b", "A_SIGNER")], factures: [facture(["a", "b"])] }), "un BC pas encore signé").toBe(false);
+  });
+
+  it("la traduction des faits lit la couverture quand le chargeur rend les BC — jamais devinée sinon", () => {
+    const brut = {
+      kind: "TICKETING" as const, status: "APPROVED" as const, amountEstimated: null, amountGranted: 80_000, budgetCategoryId: "b",
+      orderStage: "DIRECTION_OK" as const, expenseOrderId: null, expenseOrder: null, lignesStock: [],
+    };
+    expect(faitsDuPoste({ ...brut, pieces: { bc: { etape: "SIGNE" }, factures: [facture(["a"])] } }).toutFacture).toBeUndefined();
+    expect(faitsDuPoste({ ...brut, pieces: { bc: { etape: "SIGNE" }, bcs: [bc("a")], factures: [facture(["a"])] } }).toutFacture).toBe(true);
+    expect(faitsDuPoste({ ...brut, pieces: { bc: { etape: "SIGNE" }, bcs: [bc("a")], factures: [] } }).toutFacture).toBe(false);
+  });
+
+  it("BC signé, facture déposée : « Demander le paiement » pour le demandeur, l'attente le dit aux autres ; la case Paiement est en cours", () => {
+    const signe = pret({ kind: "TICKETING", orderStage: "DIRECTION_OK", bc: "SIGNE", factures: 0 });
+    expect(prochainPas(signe, DEMANDEUR).geste).toEqual({ cle: "DEMANDER_PAIEMENT", libelle: "Déposer la facture et demander le paiement" });
+    const facturee = { ...signe, factures: 1, toutFacture: true };
+    expect(prochainPas(facturee, DEMANDEUR).geste).toEqual({ cle: "PAIEMENT_A_DEMANDER", libelle: "Demander le paiement" });
+    expect(prochainPas(facturee, regard())).toEqual({ geste: null, attente: "Facture déposée — le demandeur demande le paiement." });
+    const etapes = etapesDuPoste(facturee);
+    expect(etapes.find((e) => e.cle === "FACTURE")?.etat).toBe("FAIT");
+    expect(etapes.find((e) => e.cle === "PAIEMENT")?.etat, "l'onglet « Paiement » s'ouvre de lui-même").toBe("EN_COURS");
+    expect(etapesDuPoste(signe).find((e) => e.cle === "PAIEMENT")?.etat).toBe("A_VENIR");
+    // Une facture d'un BC sur deux : le geste reste de déposer celle qui manque.
+    expect(prochainPas({ ...signe, factures: 1, toutFacture: false }, DEMANDEUR).geste?.cle).toBe("DEMANDER_PAIEMENT");
+    // Le paiement demandé : le poste attend le centre, plus aucun geste.
+    expect(prochainPas({ ...facturee, expenseOrderId: "o", expenseOrderStatus: "PENDING" }, DEMANDEUR).geste).toBeNull();
+  });
+
+  it("un poste payé sans BC garde son geste d'un seul tenant (justificatif + demande)", () => {
+    const direct = pret({ kind: "ASSOCIATION_SUPPORT", voie: "DIRECT", orderStage: "DIRECTION_OK", bc: "SIGNE", toutFacture: true });
+    expect(prochainPas(direct, DEMANDEUR).geste?.cle).toBe("DEMANDER_PAIEMENT");
+    expect(etapesDuPoste(direct).find((e) => e.cle === "PAIEMENT")?.etat).toBe("A_VENIR");
+  });
+});
+
+describe("l'en-tête d'un groupe « Sponsoring indirect » (recette du 23/11/2026, SPO-2026-021)", () => {
+  const p = (id: string, kind: "TICKETING" | "STAND" | "PRINTING", amountGranted: number | null, amountEstimated: number | null = null, repartitionId: string | null = "r") =>
+    ({ id, kind, amountGranted, amountEstimated, repartitionId });
+
+  it("un stand scindé par agence compte dans le groupe : 80 000 + 1 309 000 + 217 770 = 1 606 770 DZD, 2 natures, 3 postes", () => {
+    const items = [p("billets", "TICKETING", 80_000), p("stand", "STAND", 1_309_000), p("direct", "PRINTING", 280_000, null, null), p("stand-expo", "STAND", 217_770)];
+    const groupes = grouperParRepartition(items);
+    expect(groupes.map((g) => g.items.map((i) => i.id))).toEqual([["billets", "stand", "stand-expo"], ["direct"]]);
+    expect(resumeRepartition(groupes[0]!.items)).toEqual({ total: 1_606_770, natures: 2, postes: 3 });
+  });
+
+  it("le total prend l'accordé, sinon l'estimé, sinon rien", () => {
+    expect(resumeRepartition([p("a", "STAND", null, 50_000), p("b", "PRINTING", 20_000, 99_000), p("c", "PRINTING", null, null)])).toEqual({ total: 70_000, natures: 2, postes: 3 });
+    expect(resumeRepartition([])).toEqual({ total: 0, natures: 0, postes: 0 });
   });
 });

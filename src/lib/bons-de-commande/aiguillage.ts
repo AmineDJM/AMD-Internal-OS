@@ -183,6 +183,21 @@ export async function centreVouluDuBC(origine: OrigineBC): Promise<CentreBC> {
 
 // ───────────────────────── La lecture des portes ─────────────────────────
 
+/** Ce qu'il faut lire d'un poste pour en tirer la porte de son BC. */
+const CHAMPS_PORTE_POSTE = { id: true, orderStage: true, orderDecisionNote: true, orderDirectionAt: true } as const;
+
+/**
+ * LA PORTE D'UN BC LUE SUR SON POSTE. Seul le visa du centre pose `orderDirectionAt` : une demande « validée »
+ * sans lui est passée SOUS LE SEUIL (`lireLaMarcheDuBC`, `relacherLesPostesSousLeSeuil`) — aucun centre ne l'a vue,
+ * et la porte le dit (`sansCentre`) au lieu de se lire comme un visa (recette du 23/11/2026).
+ */
+function porteDuPoste(poste: { orderStage: string; orderDecisionNote: string | null; orderDirectionAt: Date | null }): PorteBC | null {
+  const etat = etatDepuisPoste(poste.orderStage);
+  if (!etat) return null;
+  const sansCentre = etat === "VALIDE" && poste.orderDirectionAt === null;
+  return { centre: "AD_PRO", etat, source: "POSTE", note: poste.orderDecisionNote, ...(sansCentre ? { sansCentre: true } : {}) };
+}
+
 /**
  * LES PORTES DE PLUSIEURS BC, EN QUATRE LECTURES — jamais une par document.
  *
@@ -213,13 +228,13 @@ export async function portesDesBC(docIds: readonly string[]): Promise<Map<string
   if (parPoste.length > 0) {
     const postes = await prisma.adProItem.findMany({
       where: { id: { in: [...new Set(parPoste.map((d) => d.sourceId!))] } },
-      select: { id: true, orderStage: true, orderDecisionNote: true },
+      select: CHAMPS_PORTE_POSTE,
     }).catch(sansBloquer("aiguillage.portesDesBC.adProItem", []));
     const posteParId = new Map(postes.map((p) => [p.id, p]));
     for (const d of parPoste) {
       const poste = posteParId.get(d.sourceId!);
-      const etat = poste ? etatDepuisPoste(poste.orderStage) : null;
-      if (poste && etat) res.set(d.id, { centre: "AD_PRO", etat, source: "POSTE", note: poste.orderDecisionNote });
+      const porte = poste ? porteDuPoste(poste) : null;
+      if (porte) res.set(d.id, porte);
     }
   }
 
@@ -233,14 +248,14 @@ export async function portesDesBC(docIds: readonly string[]): Promise<Map<string
     const postes = demandes.length
       ? await prisma.adProItem.findMany({
           where: { id: { in: demandes.map((d) => d.entityId) } },
-          select: { id: true, orderStage: true, orderDecisionNote: true },
+          select: CHAMPS_PORTE_POSTE,
         }).catch(sansBloquer("aiguillage.portesDesBC.adProItem", []))
       : [];
     const posteDe = new Map(demandes.map((d) => [d.id, postes.find((p) => p.id === d.entityId) ?? null]));
     for (const d of parDemande) {
       const poste = posteDe.get(d.sourceId!);
-      const etat = poste ? etatDepuisPoste(poste.orderStage) : null;
-      if (poste && etat) res.set(d.id, { centre: "AD_PRO", etat, source: "POSTE", note: poste.orderDecisionNote });
+      const porte = poste ? porteDuPoste(poste) : null;
+      if (porte) res.set(d.id, porte);
     }
   }
 

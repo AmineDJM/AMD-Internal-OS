@@ -43,7 +43,7 @@ const jour = (iso: string | null) => (iso ? new Date(`${iso}T00:00:00.000Z`) : n
  * `obligatoire` : le poste ne se soumet pas sans au moins une fiche — sauf dans un sponsoring
  * indirect, où elles restent possibles mais facultatives (la règle est `refusFichesPersonnes`).
  */
-export function BlocHebergements({ itemId, hebergements, nomsSuggeres, peutEditer, obligatoire, busy, run, envois }: {
+export function BlocHebergements({ itemId, hebergements, nomsSuggeres, peutEditer, obligatoire, busy, run, envois, moiId }: {
   itemId: string;
   hebergements: HebergementVue[];
   nomsSuggeres: string[];
@@ -54,6 +54,8 @@ export function BlocHebergements({ itemId, hebergements, nomsSuggeres, peutEdite
   run: Run;
   /** L'ÉTAT DE CHAQUE FICHE chez l'assistante (`EnvoiVue`, par fiche) — chaque fiche s'envoie seule (14/10). */
   envois?: Record<string, EnvoiVue>;
+  /** La personne qui regarde : seul le demandeur de la fiche accepte le devis de l'agence depuis ici. */
+  moiId?: string;
 }) {
   const confirmer = useConfirmer();
   const [ajout, setAjout] = React.useState(false);
@@ -108,7 +110,7 @@ export function BlocHebergements({ itemId, hebergements, nomsSuggeres, peutEdite
                   )}
                 </div>
                 {h.notes && <p className="text-muted-foreground">{h.notes}</p>}
-                <EnvoiFiche envoi={envois?.[h.id]} peutEditer={peutEditer} busy={busy} run={run} />
+                <EnvoiFiche envoi={envois?.[h.id]} peutEditer={peutEditer} busy={busy} run={run} moiId={moiId} />
 
                 {mode === "MENU" && peutEditer && (
                   <div className="flex flex-wrap gap-1.5 rounded-lg border border-border bg-secondary/30 p-1.5" role="menu">

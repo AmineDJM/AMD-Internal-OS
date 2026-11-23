@@ -332,13 +332,44 @@ export type GesteVoyageur = "PASSEPORT" | "DEVIS" | "VALIDER" | null;
  * devis de l'agence, puis valider une proposition. `null` : rien ne manque (un devis est retenu), ou
  * la personne ne peut rien faire ici. Un devis ANNULÉ au registre ne compte pas.
  */
-export function prochainGesteVoyageur(v: { passeport: boolean; devis: readonly DevisDeVoyageur[] }, peutEditer: boolean): GesteVoyageur {
+export function prochainGesteVoyageur(
+  v: {
+    passeport: boolean;
+    devis: readonly DevisDeVoyageur[];
+    /** Le devis de l'agence joint par l'assistante sur la FICHE (sa demande de pièce) — `null` / absent : aucun. */
+    devisAgence?: StatutDevisAgence | null;
+  },
+  peutEditer: boolean,
+): GesteVoyageur {
   if (!peutEditer) return null;
   if (!v.passeport) return "PASSEPORT";
   const vivants = v.devis.filter((d) => !d.annule);
-  if (vivants.length === 0) return "DEVIS";
+  // LE DEVIS DE L'AGENCE EST DÉJÀ LÀ (recette du 23/11/2026) : joint par l'assistante, à accepter sur la fiche ou accepté
+  // (onglet « Devis » du poste) — « Joindre le devis de l'agence » ne se propose plus ; son geste vit sur la fiche.
+  if (vivants.length === 0) return v.devisAgence === "A_ACCEPTER" || v.devisAgence === "ACCEPTE" ? null : "DEVIS";
   if (!vivants.some((d) => d.retenu)) return "VALIDER";
   return null;
+}
+
+/** Où en est le devis de l'agence d'une fiche : à accepter, accepté, ou ni l'un ni l'autre (refusé, annulé). */
+export type StatutDevisAgence = "A_ACCEPTER" | "ACCEPTE" | "AUTRE";
+
+/**
+ * LA CONSIGNE SOUS LES VOYAGEURS tant qu'aucun devis n'est retenu (recette du 23/11/2026) — selon le chemin du devis.
+ * Le devis de l'agence joint par l'assistante s'ACCEPTE sur la fiche, puis ses lignes se lisent et se valident dans
+ * l'onglet « Devis » des pièces du poste : le BC s'établit d'après ces lignes. Un devis déposé pour UN voyageur depuis sa
+ * ligne se valide sur cette ligne. L'ancienne phrase (« validez le devis d'au moins un voyageur ») renvoyait à un bouton
+ * qui n'existait pas quand le devis venait de l'assistante. `devisAgence*` : des devis DISTINCTS (un devis pour plusieurs
+ * fiches compte une fois).
+ */
+export function consigneDevisVoyageurs(c: { devisVoyageurs: number; devisAgenceAAccepter: number; devisAgenceAcceptes: number }): string {
+  const onglet = "dans l'onglet « Devis » des pièces du poste — le bon de commande s'établit d'après les lignes validées.";
+  if (c.devisAgenceAAccepter > 0) {
+    return `Acceptez d'abord le devis de l'agence (« Accepter le devis » sur la fiche du voyageur) : il rejoint le poste, où vous lisez puis validez ses lignes ${onglet}`;
+  }
+  if (c.devisAgenceAcceptes > 0) return `Le devis de l'agence est accepté : lisez puis validez ses lignes ${onglet}`;
+  if (c.devisVoyageurs > 0) return "Validez le devis d'au moins un voyageur : le bon de commande s'établit d'après les devis retenus.";
+  return `Le devis de l'agence arrive sur la fiche du voyageur : acceptez-le, puis validez ses lignes ${onglet}`;
 }
 
 /**

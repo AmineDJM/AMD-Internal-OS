@@ -75,6 +75,10 @@ export function TableauAdPro({ data, ficheInitiale }: { data: BureauAdProData; f
     .map((g) => ({ ...g, lignes: g.lignes.filter((l) => (filtre === "TOUT" || filtre === l.nature) && dansTuile(l, tuile)) }))
     .filter((g) => g.lignes.length > 0);
   const fiche = toutes.find((l) => l.demandeId === ouverte) ?? null;
+  // LES AUTRES FICHES QU'UN MÊME DEVIS PEUT COUVRIR (recette du 23/11/2026) : même poste, même demandeur, encore sans devis.
+  const freres = fiche?.itemId
+    ? toutes.filter((x) => x.itemId === fiche.itemId && x.demandeId !== fiche.demandeId && x.demandeurId === fiche.demandeurId && (x.etat === "ENVOYEE" || x.etat === "PRISE"))
+    : [];
   const montrerFiches = filtre !== "BC_DEVIS";
   const montrerTravaux = filtre === "TOUT" || filtre === "BC_DEVIS";
 
@@ -190,7 +194,7 @@ export function TableauAdPro({ data, ficheInitiale }: { data: BureauAdProData; f
 
         <aside className="min-w-0">
           {fiche ? (
-            <PanneauFiche key={fiche.demandeId} l={fiche} fil={fiche.sujet ? data.fils[fiche.sujet.id] ?? [] : []} busy={busy} run={run} />
+            <PanneauFiche key={fiche.demandeId} l={fiche} freres={freres} fil={fiche.sujet ? data.fils[fiche.sujet.id] ?? [] : []} busy={busy} run={run} />
           ) : (
             <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">Cliquez sur une ligne pour ouvrir la fiche : ses gestes, ses pièces et son fil.</p>
           )}
@@ -246,7 +250,7 @@ function Travaux({ travaux }: { travaux: TravailAdPro[] }) {
 }
 
 /** LE PANNEAU DE LA FICHE — gestes, détails, ce qui a changé, pièces, fil. */
-function PanneauFiche({ l, fil, busy, run }: { l: LigneFiche; fil: BureauAdProData["fils"][string]; busy: string | null; run: Run }) {
+function PanneauFiche({ l, freres, fil, busy, run }: { l: LigneFiche; freres: LigneFiche[]; fil: BureauAdProData["fils"][string]; busy: string | null; run: Run }) {
   const [geste, setGeste] = React.useState<"DEPOSER" | "DEVIS" | "MANQUE" | null>(null);
   const [motif, setMotif] = React.useState("");
   const [message, setMessage] = React.useState("");
@@ -324,7 +328,7 @@ function PanneauFiche({ l, fil, busy, run }: { l: LigneFiche; fil: BureauAdProDa
           <label className="block text-xs">Fichier du devis<input name="attachment" type="file" required className={CHAMP} /></label>
           <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2">
             <label className="block text-xs">Agence<input name="fournisseur" required={l.source === "CARE_CELL"} className={CHAMP} /></label>
-            <label className="block text-xs">Montant<input name="montant" type="number" min="0" step="0.01" inputMode="decimal" required={l.source === "CARE_CELL"} className={CHAMP} /></label>
+            <label className="block text-xs">{freres.length > 0 ? "Montant total" : "Montant"}<input name="montant" type="number" min="0" step="0.01" inputMode="decimal" required={l.source === "CARE_CELL"} className={CHAMP} /></label>
             {/* La devise DITE : un montant en DZD reste en DZD ; en USD, il est converti une fois (1 USD = 240 DZD). */}
             <label className="block text-xs">Devise
               <select name="devise" defaultValue="DZD" className={CHAMP}>
@@ -333,6 +337,19 @@ function PanneauFiche({ l, fil, busy, run }: { l: LigneFiche; fil: BureauAdProDa
               </select>
             </label>
           </div>
+          {/* UN DEVIS POUR PLUSIEURS VOYAGEURS (recette du 23/11/2026) : les fiches cochées partagent la même pièce. */}
+          {l.source !== "CARE_CELL" && freres.length > 0 && (
+            <fieldset className="space-y-1 text-xs">
+              <legend className="font-medium">Ce devis couvre aussi :</legend>
+              {freres.map((x) => (
+                <label key={x.demandeId} className="flex min-h-9 items-center gap-2 sm:min-h-0">
+                  <input type="checkbox" name="aussi" value={x.demandeId} className="shrink-0 max-sm:h-5 max-sm:w-5" />
+                  <span className="min-w-0 [overflow-wrap:anywhere]">{x.personne} · {NATURE_LIBELLE[x.nature].toLowerCase()}</span>
+                </label>
+              ))}
+              <p className="text-[0.6875rem] text-muted-foreground">Les fiches cochées partagent ce devis : une seule pièce sur le poste, et le montant saisi est le total du devis.</p>
+            </fieldset>
+          )}
           <Button size="sm" type="submit" disabled={busy !== null}>{busy === k("devis") ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />} Joindre</Button>
         </form>
       )}

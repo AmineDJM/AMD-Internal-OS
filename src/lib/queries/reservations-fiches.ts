@@ -3,9 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { hasRole, type SessionUser } from "@/lib/rbac";
 import { chargerFiches, cleFiche, ficheDeLaDemande, type CleFiches, type FicheReservation } from "@/lib/reservation-fiche/fiches";
 import {
-  diffEmpreintes, etatLu, lireEmpreinte, libelleEtatAssistante, tuilesFiches, versEnvoiVue, TON_ETAT,
-  type ChampChange, type EnvoiVue, type EtatDemande, type NatureFiche, type SourceFiche, type TuilesFiches,
+  diffEmpreintes, etatLu, lireEmpreinte, libelleEtatAssistante, statutDevisAgence, tuilesFiches, versEnvoiVue, TON_ETAT,
+  type ChampChange, type DevisAgenceVue, type EnvoiVue, type EtatDemande, type NatureFiche, type SourceFiche, type TuilesFiches,
 } from "@/lib/reservation-fiche/etat";
+import { lireNoteDevisAgence } from "@/lib/reservation-fiche/devis-agence";
 import type { BadgeTone } from "@/lib/labels";
 import { TITRE_BC_A_ETABLIR } from "@/modules/ad-pro/partage";
 import { dossiersPromoAMonTour } from "@/lib/queries/promo-circuit";
@@ -23,7 +24,38 @@ import { sansBloquer } from "@/lib/journal";
 const DEMANDE_SELECT = {
   id: true, voyageurId: true, hebergementId: true, careCellId: true, etat: true, empreinte: true, envoyeeLe: true, relances: true,
   derniereRelanceLe: true, priseParId: true, reserveeLe: true, manqueMotif: true, referenceReservation: true, pieceIds: true,
+  devisRef: true, devisRecuLe: true,
 } as const;
+
+/**
+ * LES DEVIS D'AGENCE DES FICHES D'UN POSTE AD & PRO — leurs demandes de pièce, en lot (§118.102b) : où en est chacune
+ * (à accepter, acceptée), qui l'accepte, ce que l'assistante a saisi, ses fichiers tant qu'ils attendent l'acceptation
+ * (acceptée, la pièce déménage au registre et se lit dans l'onglet « Devis » du poste). `devisRef` d'une prise en charge
+ * désigne un devis de prise en charge, pas une demande de pièce : il n'est pas lu ici.
+ */
+async function devisAgenceDes(demandes: readonly { careCellId: string | null; devisRef: string | null; devisRecuLe: Date | null }[]): Promise<Map<string, DevisAgenceVue>> {
+  const couvre = new Map<string, number>();
+  for (const d of demandes) if (!d.careCellId && d.devisRef && d.devisRecuLe) couvre.set(d.devisRef, (couvre.get(d.devisRef) ?? 0) + 1);
+  if (couvre.size === 0) return new Map();
+  const ids = [...couvre.keys()];
+  const [requetes, fichiers, fiches] = await Promise.all([
+    prisma.documentRequest.findMany({ where: { id: { in: ids }, kind: "QUOTE" }, select: { id: true, reference: true, status: true, askedById: true, note: true } }),
+    prisma.document.findMany({ where: { entityType: "DOCUMENT_REQUEST", entityId: { in: ids } }, select: { id: true, name: true, fileKey: true, entityId: true }, orderBy: { createdAt: "asc" } }),
+    // Combien de fiches ce même devis couvre — toutes, pas seulement celles de l'écran.
+    prisma.demandeReservation.groupBy({ by: ["devisRef"], where: { devisRef: { in: ids } }, _count: { _all: true } }),
+  ]);
+  const nb = new Map(fiches.map((g) => [g.devisRef ?? "", g._count._all]));
+  const out = new Map<string, DevisAgenceVue>();
+  for (const r of requetes) {
+    const saisi = lireNoteDevisAgence(r.note);
+    out.set(r.id, {
+      pieceId: r.id, reference: r.reference, statut: statutDevisAgence(String(r.status)), demandeurId: r.askedById,
+      fournisseur: saisi.fournisseur, montantDzd: saisi.montantDzd, fiches: nb.get(r.id) ?? couvre.get(r.id) ?? 1,
+      fichiers: fichiers.filter((f) => f.entityId === r.id).map((f) => ({ id: f.id, name: f.name, hasFile: Boolean(f.fileKey) })),
+    });
+  }
+  return out;
+}
 
 async function nomsDe(ids: readonly (string | null | undefined)[]): Promise<Map<string, string>> {
   const l = [...new Set(ids.filter((x): x is string => Boolean(x)))];
@@ -51,7 +83,7 @@ export async function envoisDesFiches(cles: CleFiches): Promise<Record<string, E
       select: DEMANDE_SELECT,
     }),
   ]);
-  const [noms, docs] = await Promise.all([nomsDe(demandes.map((d) => d.priseParId)), documentsDe(demandes.flatMap((d) => d.pieceIds))]);
+  const [noms, docs, devisAgence] = await Promise.all([nomsDe(demandes.map((d) => d.priseParId)), documentsDe(demandes.flatMap((d) => d.pieceIds)), devisAgenceDes(demandes)]);
   const demandeDe = new Map(demandes.map((d) => [d.voyageurId ?? d.hebergementId ?? d.careCellId ?? "", d]));
   const maintenant = new Date();
   const out: Record<string, EnvoiVue> = {};
@@ -64,6 +96,7 @@ export async function envoisDesFiches(cles: CleFiches): Promise<Record<string, E
       demande: d ? { ...d, etat: d.etat as EtatDemande } : null,
       priseParNom: d?.priseParId ? noms.get(d.priseParId) ?? null : null,
       pieces: (d?.pieceIds ?? []).map((id) => docs.get(id)).filter((x): x is { id: string; name: string; hasFile: boolean } => Boolean(x)).map(({ id, name }) => ({ id, name })),
+      devisAgence: d?.devisRef && d.devisRecuLe && !d.careCellId ? devisAgence.get(d.devisRef) ?? null : null,
     }, maintenant);
   }
   return out;
@@ -132,6 +165,9 @@ export interface LigneFiche {
   pieces: PieceVue[];
   reference: string | null;
   devisRef: string | null;
+  /** Le poste Ad & Pro de la fiche (`null` : une prise en charge) et qui l'a envoyée — « ce devis couvre aussi » ne propose que les fiches du même poste et du même demandeur. */
+  itemId: string | null;
+  demandeurId: string;
 }
 
 export interface GroupeOperation {
@@ -323,6 +359,7 @@ export async function bureauAdPro(user: SessionUser): Promise<BureauAdProData> {
       sujet: sujetId && sujetDe.get(sujetId) ? { id: sujetId, reference: sujetDe.get(sujetId)!.reference } : null,
       pieces: [...(f.careBeneficiaryId ? piecesPersonneDe.get(f.careBeneficiaryId) ?? [] : []), ...(piecesDe.get(f.id) ?? [])],
       reference: d.referenceReservation, devisRef: d.devisRef,
+      itemId: f.source === "CARE_CELL" ? null : f.itemId, demandeurId: d.demandeurId,
     });
   }
 

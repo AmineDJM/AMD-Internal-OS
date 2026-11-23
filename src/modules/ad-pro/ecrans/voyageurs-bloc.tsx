@@ -13,10 +13,10 @@ import { ajouterDevisVoyageur } from "../actions-postes-paiement";
 import { demanderBCBilletterie } from "../actions-postes";
 import { ajouterVoyageur, modifierVoyageur, retirerVoyageur, validerDevisVoyageur } from "../actions-postes-voyageurs";
 import { EnvoiFiche, BandeauEnvois } from "@/components/reservation-fiche/envoi-fiche";
-import type { EnvoiVue } from "@/lib/reservation-fiche/etat";
+import type { DevisAgenceVue, EnvoiVue } from "@/lib/reservation-fiche/etat";
 import { useConfirmer } from "@/components/ui/dialogue";
 import {
-  manquesPourReserver, jourLisible, prochainGesteVoyageur, depassementDevisRetenus, nomComplet, separerNom,
+  manquesPourReserver, jourLisible, prochainGesteVoyageur, depassementDevisRetenus, nomComplet, separerNom, consigneDevisVoyageurs,
   ETAPES_MAX, TRANSPORTS, TRANSPORT_LIBELLE, TRAJET_LIBELLE, type EtapeTrajet,
 } from "../domaine/voyageurs";
 import { montantDzd } from "@/lib/utils";
@@ -76,7 +76,7 @@ const jour = (iso: string | null) => (iso ? new Date(`${iso}T00:00:00.000Z`) : n
  */
 export function BlocVoyageurs({
   itemId, voyageurs, nomsSuggeres, reservation, peutEditer, peutReserver, busy, run,
-  montantAccorde, bcPossible, assistantes, envois,
+  montantAccorde, bcPossible, assistantes, envois, moiId,
 }: {
   itemId: string;
   voyageurs: VoyageurVue[];
@@ -97,6 +97,8 @@ export function BlocVoyageurs({
   assistantes: { id: string; name: string }[];
   /** L'ÉTAT DE CHAQUE FICHE chez l'assistante (`EnvoiVue`, par voyageur) — chaque fiche s'envoie seule (14/10). */
   envois?: Record<string, EnvoiVue>;
+  /** La personne qui regarde : seul le demandeur de la fiche accepte le devis de l'agence depuis ici. */
+  moiId?: string;
 }) {
   const confirmer = useConfirmer();
   const [ajout, setAjout] = React.useState(false);
@@ -109,6 +111,13 @@ export function BlocVoyageurs({
   // UNE PIÈCE RETENUE POUR PLUSIEURS VOYAGEURS (la même pro forma) ne se compte qu'une fois.
   const retenus = [...new Map(voyageurs.flatMap((v) => v.devis.filter((d) => d.retenu && !d.annule)).map((d) => [d.copieDe ?? d.id, d])).values()];
   const depasse = depassementDevisRetenus(retenus.map((d) => d.montant), montantAccorde);
+  // LES DEVIS DE L'AGENCE JOINTS SUR LES FICHES — un devis pour plusieurs voyageurs compte une fois.
+  const devisAgence = [...new Map(voyageurs.map((v) => envois?.[v.id]?.devisAgence).filter((x): x is DevisAgenceVue => Boolean(x)).map((x) => [x.pieceId, x])).values()];
+  const consigne = consigneDevisVoyageurs({
+    devisVoyageurs: voyageurs.filter((v) => v.devis.some((d) => !d.annule)).length,
+    devisAgenceAAccepter: devisAgence.filter((x) => x.statut === "A_ACCEPTER").length,
+    devisAgenceAcceptes: devisAgence.filter((x) => x.statut === "ACCEPTE").length,
+  });
 
   return (
     <div className="space-y-2 rounded-lg border border-border bg-background p-2.5 text-xs">
@@ -132,7 +141,9 @@ export function BlocVoyageurs({
             const passeport = v.passeports.length > 0;
             const vivants = v.devis.filter((d) => !d.annule);
             const retenu = vivants.find((d) => d.retenu) ?? null;
-            const geste = prochainGesteVoyageur({ passeport, devis: v.devis.map((d) => ({ montant: d.montant, retenu: d.retenu, annule: d.annule })) }, peutEditer);
+            const geste = prochainGesteVoyageur({
+              passeport, devis: v.devis.map((d) => ({ montant: d.montant, retenu: d.retenu, annule: d.annule })), devisAgence: envois?.[v.id]?.devisAgence?.statut ?? null,
+            }, peutEditer);
             const manque = manquesPourReserver({
               nom: v.nom, prenom: v.prenom, segments: v.segments, villeDepart: v.villeDepart, villeArrivee: v.villeArrivee, dateDepart: jour(v.dateDepart),
               dateRetour: jour(v.dateRetour), passeport, notes: v.notes, trajet: v.trajet, transport: v.transport,
@@ -210,7 +221,7 @@ export function BlocVoyageurs({
                 )}
                 {manque.length > 0 && <p className="text-[0.6875rem] text-muted-foreground">À préciser pour réserver : {manque.join(", ")}.</p>}
                 {v.notes && <p className="text-muted-foreground">{v.notes}</p>}
-                {peutReserver && <EnvoiFiche envoi={envois?.[v.id]} peutEditer={peutEditer} busy={busy} run={run} />}
+                {peutReserver && <EnvoiFiche envoi={envois?.[v.id]} peutEditer={peutEditer} busy={busy} run={run} moiId={moiId} />}
 
                 {mode === "MENU" && peutEditer && (
                   <div className="flex flex-wrap gap-1.5 rounded-lg border border-border bg-secondary/30 p-1.5" role="menu">
@@ -400,7 +411,7 @@ export function BlocVoyageurs({
         )
       )}
       {peutEditer && bcPossible && retenus.length === 0 && voyageurs.length > 0 && (
-        <p className="text-[0.6875rem] text-muted-foreground">Validez le devis d&apos;au moins un voyageur : le bon de commande s&apos;établit d&apos;après les devis retenus.</p>
+        <p className="text-[0.6875rem] text-muted-foreground">{consigne}</p>
       )}
     </div>
   );
@@ -515,6 +526,10 @@ export function ChampsVoyageur({ prefixe = "", suggestions, defaut, passeports, 
       : [{ de: defaut?.villeDepart ?? "Alger", vers: defaut?.villeArrivee ?? "", date: defaut?.dateDepart ?? "" }],
   );
   const [dateRetour, setDateRetour] = React.useState(defaut?.dateRetour ?? "");
+  // LE MODE DE TRANSPORT EST UN CHAMP CONTRÔLÉ (recette du 23/11/2026) : à l'ajout, la liste montrait « avion » sans que
+  // la valeur parte toujours avec le formulaire, et la fiche restait « il manque : mode de transport ». Tenu par l'état,
+  // ce qui s'affiche est exactement ce qui s'envoie ; « À préciser » (valeur vide) est un choix explicite, jamais un défaut caché.
+  const [transport, setTransport] = React.useState<string>(defaut ? (defaut.transport ?? "") : "AVION");
   const multi = trajet === "MULTI_DESTINATIONS";
   const majEtape = (i: number, cle: keyof Etape, valeur: string) => setEtapes((l) => l.map((e, k) => (k === i ? { ...e, [cle]: valeur } : e)));
   // LE « + » D'UNE ÉTAPE : la destination suivante s'insère juste après, et part d'où celle-ci arrive.
@@ -536,8 +551,8 @@ export function ChampsVoyageur({ prefixe = "", suggestions, defaut, passeports, 
         <IdentiteDeLaFiche n={n} suggestions={suggestions} prenom={prenom} setPrenom={setPrenom} nom={nom} setNom={setNom} />
         <label className="text-xs sm:col-span-2">
           Mode de transport
-          <select name={n("transport")} defaultValue={defaut ? (defaut.transport ?? "") : "AVION"} className={champ}>
-            {defaut && !defaut.transport && <option value="">À préciser</option>}
+          <select name={n("transport")} value={transport} onChange={(e) => setTransport(e.target.value)} className={champ}>
+            <option value="">À préciser</option>
             {TRANSPORTS.map((m) => <option key={m} value={m}>{TRANSPORT_LIBELLE[m]}</option>)}
           </select>
         </label>

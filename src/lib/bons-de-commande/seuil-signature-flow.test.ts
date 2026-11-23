@@ -18,7 +18,8 @@ import { requestAdProItemOrder } from "@/modules/ad-pro/actions-postes";
 import { completePromoTrack } from "@/lib/actions/promo-circuit-actions";
 import { submitBcForFinance } from "@/lib/actions/promo-material-actions";
 import { etatDuBC } from "./etat";
-import { OBJET_BC, CHEMIN_BC_A_SIGNER } from "./aiguillage";
+import { OBJET_BC, CHEMIN_BC_A_SIGNER, porteDuBC } from "./aiguillage";
+import { raisonASignerBC } from "./regle";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
@@ -338,6 +339,23 @@ suite("Seuil des bons de commande et signature des Finances — le flux réel", 
     expect(apres.orderDirectionAt).toBeNull();
     expect(apres.orderDirectionById).toBeNull();
     expect(apres.orderDecisionNote ?? "").toMatch(/Sous le seuil/);
+
+    // LE BC DE CE POSTE, dans la file des signataires (recette du 23/11/2026 — 051/DG/2026) : sa porte se lit sur le
+    // poste, « sans centre » ; UNE raison s'affiche, « sous le seuil », et jamais « validé par le centre » à côté.
+    const bc = await prisma.legalDocument.create({
+      data: {
+        title: `${TAG} BC du traiteur`, reference: `${TAG}bc-poste`, kind: "PURCHASE_ORDER", amount: 1,
+        counterparty: "Traiteur", sourceType: "AD_PRO_ITEM", sourceId: poste.id, createdById: legalId, updatedById: legalId,
+      },
+      select: { id: true },
+    });
+    docs.push(bc.id);
+    const porte = await porteDuBC(bc.id);
+    expect(porte).toMatchObject({ centre: "AD_PRO", etat: "VALIDE", source: "POSTE", sansCentre: true });
+    const raison = raisonASignerBC(porte, (await etatDuBC(bc.id))?.seuil);
+    expect(raison.sousLeSeuil).toBe(true);
+    expect(raison.texte).not.toMatch(/validé par/i);
+    expect(raison.note, "le motif « sous le seuil » n'est pas répété à côté de la raison").toBeNull();
   });
 
   it("LE CHANTIER « BON DE COMMANDE » d'un dossier promo ne se clôt qu'une fois ses BC SIGNÉS", async () => {

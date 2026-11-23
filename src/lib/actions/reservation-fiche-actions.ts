@@ -13,7 +13,8 @@ import { persistUploadedDocument } from "@/lib/documents";
 import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
 import { submitDocumentRequest } from "@/lib/actions/document-request-actions";
 import { createCareQuote } from "@/modules/ad-pro/actions-prise-en-charge";
-import { montantLisible, TAUX_USD_DZD_DEFAUT } from "@/modules/ad-pro/partage";
+import { TAUX_USD_DZD_DEFAUT } from "@/modules/ad-pro/partage";
+import { montantDitDevisAgence, noteDevisAgence } from "@/lib/reservation-fiche/devis-agence";
 import {
   chargerFiche, chargerFiches, cleFiche, colonneFiche, ficheDeLaDemande, MODULE_OPERATION, type FicheReservation,
 } from "@/lib/reservation-fiche/fiches";
@@ -454,7 +455,8 @@ async function prochaineReferencePiece(): Promise<string> {
  *     est déposé puis signalé par l'action existante `submitDocumentRequest` ; le demandeur l'accepte, et le devis
  *     rejoint le registre et la case « Devis / pro forma » du poste ;
  *   • prise en charge : le devis de la demande (`createCareQuote`), couvrant ce billet / cet hôtel.
- * La fiche passe « devis reçu ».
+ * La fiche passe « devis reçu ». Sur un poste Ad & Pro, `aussi` (identifiants de demandes) désigne les AUTRES fiches du même
+ * poste que ce devis couvre : une seule demande de pièce, toutes « devis reçu » avec la même `devisRef`, le montant est le total.
  */
 export async function joindreDevisAgence(formData: FormData): Promise<ActionResult> {
   return actionReversible("reservation-fiche-actions:joindreDevisAgence", "Devis de l'agence joint", async () => {
@@ -478,10 +480,29 @@ export async function joindreDevisAgence(formData: FormData): Promise<ActionResu
     const deviseBrute = fdStr(formData, "devise") ?? "DZD";
     if (deviseBrute !== "DZD" && deviseBrute !== "USD") return { ok: false, error: "Devise inconnue (DZD ou USD)." };
     const devise: "DZD" | "USD" = deviseBrute;
-    const montantDit = montant === null ? null
-      : devise === "USD" ? `${montantLisible(montant, "USD")} (= ${montantLisible(Math.round(montant * TAUX_USD_DZD_DEFAUT * 100) / 100)})` : montantLisible(montant);
+    const montantDzd = montant === null ? null : devise === "USD" ? Math.round(montant * TAUX_USD_DZD_DEFAUT * 100) / 100 : montant;
+    const montantDit = montant === null || montantDzd === null ? null : montantDitDevisAgence(montant, devise, montantDzd);
     const refusFichier = await validateAttachments(fichiers);
     if (refusFichier) return { ok: false, error: refusFichier };
+
+    // UN DEVIS POUR PLUSIEURS FICHES DU MÊME POSTE (recette du 23/11/2026) : l'agence chiffre souvent tous les voyageurs
+    // d'un poste en un seul devis. Le joindre fiche par fiche le dupliquait sur le poste. Les fiches cochées (« Ce devis
+    // couvre aussi ») partagent UNE demande de pièce, et le montant est alors le TOTAL du devis. Tout ce qui refuse passe
+    // avant l'écriture : une fiche d'un autre poste, d'un autre demandeur (il n'accepterait pas une pièce qui ne lui est
+    // pas demandée), ou qui n'attend plus de devis, et rien n'est joint.
+    const aussiIds = [...new Set(formData.getAll("aussi").map(String).filter((x) => x && x !== id))];
+    if (aussiIds.length > 0 && f.source === "CARE_CELL") return { ok: false, error: "Le devis d'une prise en charge couvre ses cases depuis la prise en charge, pas d'ici." };
+    if (aussiIds.length > 60) return { ok: false, error: "Trop de fiches cochées d'un coup." };
+    const aussi: { d: typeof d; f: typeof f }[] = [];
+    for (const autreId of aussiIds) {
+      const autre = await chargerDemande(autreId);
+      if (!autre || autre.f.source === "CARE_CELL" || !f.itemId || autre.f.itemId !== f.itemId) return { ok: false, error: "Une fiche cochée n'appartient pas à ce poste : rien n'a été joint." };
+      if (autre.d.demandeurId !== d.demandeurId) return { ok: false, error: `La fiche de ${autre.f.nom} a été envoyée par une autre personne : c'est elle qui accepte son devis — joignez-le sur sa fiche.` };
+      if (autre.d.etat !== "ENVOYEE" && autre.d.etat !== "PRISE") return { ok: false, error: `La fiche de ${autre.f.nom} n'attend plus de devis : décochez-la.` };
+      aussi.push(autre);
+    }
+    const couvertes = [{ d, f }, ...aussi];
+    const pour = couvertes.map((c) => `${NATURE_LIBELLE[c.f.nature].toLowerCase()} · ${c.f.nom}`).join(", ");
 
     let devisRef: string;
     if (f.source === "CARE_CELL") {
@@ -501,15 +522,13 @@ export async function joindreDevisAgence(formData: FormData): Promise<ActionResu
     } else {
       const itemId = f.itemId;
       if (!itemId) return { ok: false, error: "Poste introuvable." };
-      const note = [
-        `Devis de l'agence pour ${NATURE_LIBELLE[f.nature].toLowerCase()} · ${f.nom}.`,
-        fournisseur ? `Agence : ${fournisseur}.` : null,
-        montantDit ? `Montant : ${montantDit}.` : null,
-      ].filter(Boolean).join(" ");
+      // L'AGENCE ET LE MONTANT SAISIS voyagent dans la note, sous une forme fixe (`noteDevisAgence`) : à l'acceptation,
+      // la pièce Legal qui naît les relit (`classerDansLegal`) — la case « Devis » du poste dit son montant.
+      const note = noteDevisAgence({ pour, fournisseur, montantDit });
       const req = await createWithRetry(async () => prisma.documentRequest.create({
         data: {
           reference: await prochaineReferencePiece(), entityType: "AD_PRO_ITEM", entityId: itemId, link: f.operation.chemin,
-          label: `Devis de l'agence — ${NATURE_LIBELLE[f.nature].toLowerCase()} · ${f.nom}`, note, kind: "QUOTE",
+          label: `Devis de l'agence — ${pour}`.slice(0, 300), note, kind: "QUOTE",
           askedById: d.demandeurId, askedToId: user.id, status: "PENDING",
         },
         select: { id: true },
@@ -531,19 +550,37 @@ export async function joindreDevisAgence(formData: FormData): Promise<ActionResu
       devisRef = req.id;
     }
 
+    const maintenant = new Date();
     await prisma.demandeReservation.updateMany({
       where: { id, etat: { in: ["ENVOYEE", "PRISE", "DEVIS_RECU"] } },
-      data: { etat: "DEVIS_RECU", devisRecuLe: new Date(), devisRef, priseParId: d.priseParId ?? user.id, priseLe: d.priseLe ?? new Date() },
+      data: { etat: "DEVIS_RECU", devisRecuLe: maintenant, devisRef, priseParId: d.priseParId ?? user.id, priseLe: d.priseLe ?? maintenant },
     });
-    await assurerMembre(d.dossierId, user.id);
-    const phrase = `Devis de l'agence joint — ${NATURE_LIBELLE[f.nature]} · ${f.nom}${fournisseur ? ` (${fournisseur})` : ""}${montantDit ? ` — ${montantDit}` : ""}.`;
-    await noterAuFil(d.dossierId, user.id, phrase);
+    // LES AUTRES FICHES COUVERTES — la même pièce (`devisRef`). Conditionnelle : une fiche retirée entre-temps n'est pas couverte, et le message le dit.
+    const nonCouvertes: string[] = [];
+    for (const c of aussi) {
+      const w = await prisma.demandeReservation.updateMany({
+        where: { id: c.d.id, etat: { in: ["ENVOYEE", "PRISE"] } },
+        data: { etat: "DEVIS_RECU", devisRecuLe: maintenant, devisRef, priseParId: c.d.priseParId ?? user.id, priseLe: c.d.priseLe ?? maintenant },
+      });
+      if (w.count === 0) nonCouvertes.push(c.f.nom);
+    }
+    const couvertesNoms = aussi.map((c) => c.f.nom).filter((n) => !nonCouvertes.includes(n));
+    const phrase = `Devis de l'agence joint — ${NATURE_LIBELLE[f.nature]} · ${f.nom}${couvertesNoms.length ? `, couvre aussi : ${couvertesNoms.join(", ")}` : ""}${fournisseur ? ` (${fournisseur})` : ""}${montantDit ? ` — ${montantDit}${couvertesNoms.length ? " au total" : ""}` : ""}.`;
+    // Les fiches d'un même poste partagent d'ordinaire son sujet : une ligne par fil, pas une par fiche.
+    for (const dossierId of new Set(couvertes.map((c) => c.d.dossierId))) {
+      await assurerMembre(dossierId, user.id);
+      await noterAuFil(dossierId, user.id, phrase);
+    }
     await prevenir([d.demandeurId], {
       title: "Devis de l'agence reçu", body: f.source === "CARE_CELL" ? `${phrase} Retenez-le pour demander le BC.` : `${phrase} Acceptez-le pour qu'il rejoigne le poste.`,
       link: f.source === "CARE_CELL" ? f.operation.chemin : `/pieces/${devisRef}`,
     }, user.id);
     await auditer(user, f, phrase);
     revalider(f);
-    return { ok: true, id, message: f.source === "CARE_CELL" ? "Devis enregistré sur la prise en charge — le demandeur le retient." : "Devis transmis au demandeur par la demande de pièce du poste — il l'accepte, et le devis rejoint le poste." };
+    if (f.source === "CARE_CELL") return { ok: true, id, message: "Devis enregistré sur la prise en charge — le demandeur le retient." };
+    return {
+      ok: true, id,
+      message: `Devis transmis au demandeur par la demande de pièce du poste${couvertesNoms.length ? ` — un seul devis pour ${couvertesNoms.length + 1} fiches` : ""} : il l'accepte, et le devis rejoint le poste.${nonCouvertes.length ? ` Non couverte${nonCouvertes.length > 1 ? "s" : ""} (elle${nonCouvertes.length > 1 ? "s ont" : " a"} changé d'état entre-temps) : ${nonCouvertes.join(", ")}.` : ""}`,
+    };
   });
 }

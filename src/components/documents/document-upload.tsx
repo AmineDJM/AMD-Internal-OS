@@ -219,7 +219,9 @@ export function DocumentUpload({ entityType, entityId, categories, stepKey, comp
       )}
 
       {items.length > 0 && (
-        <p className="text-xs text-warning">Sélection pas encore envoyée — cliquez « Téléverser » pour l&apos;envoyer.</p>
+        // L'AIDE NOMME LE BOUTON TEL QU'IL S'AFFICHE (recette du 23/11/2026) : sur le passeport d'un voyageur, il s'appelle
+        // « Joindre le passeport (1) », et l'aide renvoyait à un « Téléverser » introuvable.
+        <p className="text-xs text-warning">Sélection pas encore envoyée — cliquez « {libelleEnvoi ?? "Téléverser"} » pour l&apos;envoyer.</p>
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-2">

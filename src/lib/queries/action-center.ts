@@ -19,7 +19,7 @@ import type { PromoMaterialStatus } from "@prisma/client";
 import { MARCHE_N1_MISSIONS } from "@/lib/queries/missions";
 import { lienMission, LIEN_MISSIONS_A_VALIDER } from "@/lib/chemins/espace";
 import {
-  type BadgeTone, FINANCE_CATEGORY, TASK_STATUS, ADMIN_REQUEST_STATUS, REGULATORY_STATUS, EXPENSE_ORDER_STATUS, CONGRESS_REQUEST_STATUS, PROMO_MATERIAL_STATUS, DIRECTIVE_STATUS, SUPPORT_STATUS, DOSSIER_STATUS,
+  type BadgeTone, TASK_STATUS, ADMIN_REQUEST_STATUS, REGULATORY_STATUS, EXPENSE_ORDER_STATUS, CONGRESS_REQUEST_STATUS, PROMO_MATERIAL_STATUS, DIRECTIVE_STATUS, SUPPORT_STATUS, DOSSIER_STATUS, libelleNatureValidation, posteDeLOrdre,
 } from "@/lib/labels";
 import { sansBloquer } from "@/lib/journal";
 
@@ -171,7 +171,7 @@ export async function getActionCenter(user: SessionUser) {
         key: `val-${v.stepId}`, objet: `VALIDATION_REQUEST:${v.requestId}`, title: v.title,
         // En intérim, la ligne dit pour QUI l'on tranche : signer « pour soi » une étape adressée à
         // l'absent, sans le savoir, ferait porter la décision au mauvais nom dans la tête de chacun.
-        subtitle: [v.pourLeCompteDe ? `Intérim pour ${v.pourLeCompteDe}` : null, v.amount !== null ? formatCurrency(v.amount) : v.objectType].filter(Boolean).join(" · "),
+        subtitle: [v.pourLeCompteDe ? `Intérim pour ${v.pourLeCompteDe}` : null, v.amount !== null ? formatCurrency(v.amount) : libelleNatureValidation(v.objectType)].filter(Boolean).join(" · "),
         // LE LIEN MÈNE DANS LA VALIDATION, pas sur l'écran du module. Arriver sur une liste
         // pour y rechercher la ligne qu'on vient de cliquer est un pas de trop — et c'est
         // celui qu'on ne fait pas : on repart, et la validation attend un jour de plus.
@@ -623,7 +623,7 @@ export async function getActionCenter(user: SessionUser) {
         module: "Espace comptable", href: `/finances/paiements-a-faire?focus=${o.id}#ord-${o.id}`, kind: "payment", priority: null,
         deadline: o.dueDate?.toISOString() ?? null, depuis: (o.centralDecidedAt ?? o.createdAt).toISOString(),
         owner: o.beneficiary ?? "", ...resolve(EXPENSE_ORDER_STATUS, o.status),
-        montant: toNumber(o.amount), famille: FINANCE_CATEGORY[o.category] ?? null,
+        montant: toNumber(o.amount), famille: posteDeLOrdre(o.category, o.sourceType),
       });
     }
   }

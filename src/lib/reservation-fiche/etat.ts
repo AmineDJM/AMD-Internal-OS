@@ -401,6 +401,33 @@ export interface EnvoiVue {
   /** Le billet / la confirmation déposés. */
   pieces: { id: string; name: string }[];
   reference: string | null;
+  /** Le devis de l'agence joint par l'assistante sur un poste Ad & Pro (sa demande de pièce) — `null` : aucun. */
+  devisAgence: DevisAgenceVue | null;
+}
+
+/**
+ * LE DEVIS DE L'AGENCE D'UNE FICHE, VU DU DEMANDEUR (recette du 23/11/2026) — la demande de pièce par laquelle il lui
+ * arrive : il l'ACCEPTE (« Pièce reçue », la même action que la page de la pièce), puis le devis rejoint l'onglet « Devis »
+ * du poste. Sans lui, le panneau disait « Devis reçu » sans aucun geste pour l'accepter.
+ */
+export interface DevisAgenceVue {
+  /** La demande de pièce (`/pieces/<id>`). */
+  pieceId: string;
+  reference: string;
+  /** `A_ACCEPTER` : déposée, elle attend le demandeur ; `ACCEPTE` : au registre et sur le poste ; `AUTRE` : refusée, annulée… */
+  statut: "A_ACCEPTER" | "ACCEPTE" | "AUTRE";
+  /** Celui qui l'accepte — le demandeur qui a envoyé la fiche. */
+  demandeurId: string;
+  fournisseur: string | null;
+  montantDzd: number | null;
+  /** Le nombre de fiches que ce même devis couvre (1 : celle-ci seule). */
+  fiches: number;
+  fichiers: { id: string; name: string; hasFile: boolean }[];
+}
+
+/** Le statut d'une demande de pièce, tel que la fiche le lit. */
+export function statutDevisAgence(status: string): DevisAgenceVue["statut"] {
+  return status === "SUBMITTED" ? "A_ACCEPTER" : status === "ACCEPTED" ? "ACCEPTE" : "AUTRE";
 }
 
 export interface DemandeLue {
@@ -421,6 +448,7 @@ export function versEnvoiVue(
   i: {
     source: SourceFiche; ficheId: string; nature: NatureFiche; manques: readonly string[]; empreinte: Empreinte;
     demande: DemandeLue | null; priseParNom: string | null; pieces: { id: string; name: string }[];
+    devisAgence?: DevisAgenceVue | null;
   },
   maintenant: Date,
 ): EnvoiVue {
@@ -442,6 +470,8 @@ export function versEnvoiVue(
     changements,
     pieces: i.pieces,
     reference: d?.referenceReservation ?? null,
+    // Une fiche retirée de chez l'assistante ne porte plus son devis (il se rejoint au renvoi).
+    devisAgence: d && d.etat !== "RETIREE" ? i.devisAgence ?? null : null,
   };
 }
 

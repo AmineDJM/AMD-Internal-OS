@@ -48,6 +48,7 @@ import { marquerBcEnvoye, envoyerBatConformite, deciderConformitePoste, signerRe
 import { valeurDeLigne } from "../domaine/choix-agences";
 import { CHAMPS_MEDECINS, CHAMPS_PRODUITS } from "../domaine/pickers";
 import { etapeAgence, pasAgence, type FaitsPosteAgence, type RegardAgence } from "../domaine/parcours-agence";
+import { toutEstFacture } from "../domaine/poste-etapes";
 import { loadAdProItems } from "./requetes/postes";
 import { demandesAuCentreAdPro } from "./requetes/centre";
 import { fileAgences } from "./requetes/file-agences";
@@ -130,7 +131,7 @@ suite("Recette de bout en bout — le circuit agence d'un événement, phase par
     return {
       status: item.status, orderStage: item.orderStage,
       bc: item.pieces.bc && !item.pieces.bc.annulee ? (item.pieces.bc.etape ?? "HORS_CIRCUIT") : null,
-      factures: item.pieces.factures.length, expenseOrderId: item.expenseOrderId,
+      factures: item.pieces.factures.length, toutFacture: toutEstFacture(item.pieces), expenseOrderId: item.expenseOrderId,
       expenseOrderStatus: item.expenseOrder?.status ?? null, expenseOrderCentral: item.expenseOrder?.centralStatus ?? null,
       orderDecisionNote: item.orderDecisionNote ?? null,
       agence: item.agence.faits,
@@ -649,6 +650,11 @@ suite("Recette de bout en bout — le circuit agence d'un événement, phase par
     expect(controle?.bcIds, "contrôlée contre le BC d'Alpha").toEqual([BC.a]);
     expect(controle?.coherente, `contrôle : ${JSON.stringify(controle)}`).toBe(true);
     expect(r.ok ? r.message : "").toMatch(/cohérente avec le bon de commande/);
+    // LA FACTURE DÉPOSÉE, LA CARTE DIT « Demander le paiement » (recette du 23/11/2026) — plus « Déposer la facture… », qui ne
+    // rouvrait que la case « Facture » pendant que le vrai bouton restait sous l'onglet « Paiement ».
+    const apresFacture = (await faitsDe(P.stand))!;
+    expect(etapeAgence(apresFacture)).toBe("PAIEMENT_A_DEMANDER");
+    expect(pasAgence(apresFacture, REGARD_DM).geste).toEqual({ cle: "DEMANDER_PAIEMENT", libelle: "Demander le paiement" });
 
     // LA MÊME FACTURE (même fichier, même numéro) sur le poste de Beta : refusée comme déjà connue.
     const g = fd({ id: P.standB, montant: "1249500", reference: `FA-${RUN}-A` });

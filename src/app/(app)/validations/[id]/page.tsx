@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ExternalLink, MessagesSquare, Paperclip, Users } from "lucide-react";
+import { ArrowLeft, ExternalLink, MessagesSquare, Paperclip, ShieldCheck, Users } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { getPendingValidations, type PendingValidationItem } from "@/lib/queries/validations";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { BackLink } from "@/components/shared/back-link";
 import { PageHeader } from "@/components/shared/page-header";
@@ -18,6 +20,8 @@ import { resoumissionSurPlace } from "@/lib/validations/decision";
 import { refusDuRetraitValidation, retraitEfface } from "@/lib/validations/retrait";
 import { ResubmitValidation } from "./resubmit";
 import { ParticipantsValidation } from "./participants";
+import { ValidationDecision } from "../validation-decision";
+import { AvisSurLeMessage } from "../validation-item-review";
 import { CommentThread, type CommentItem } from "@/components/shared/comment-thread";
 import { commenterValidation } from "@/lib/actions/validation-actions";
 import { updateComment, deleteComment } from "@/lib/actions/comment-actions";
@@ -88,10 +92,21 @@ export default async function ValidationRequestPage(props: { params: Promise<{ i
   }));
   const peutGerer = user.role === "SUPER_ADMIN" || estDemandeur || req.steps.some((s) => s.validatorId === user.id);
   const suiveurs = new Set([req.requesterId, ...req.steps.map((s) => s.validatorId), ...req.participants.map((p) => p.userId)]);
-  const [nomsParticipants, candidats] = await Promise.all([
+  // À VOUS DE DÉCIDER (recette sponsoring, 23/11/2026) — la fiche n'offrait AUCUN geste : le Directeur des Opérations,
+  // arrivé par le lien « Voir la demande de validation » du pharmacien, lisait « En attente — Étape 1 » sans pouvoir
+  // trancher, et devait retrouver la carte dans la liste. Son étape se lit avec la lecture EXACTE de la liste
+  // (`getPendingValidations` bornée à cette demande : son étape ou celle de l'absent qu'il remplace, le tour du
+  // séquentiel, la personne à l'écran en Vue exacte), et la décision est le MÊME composant, la MÊME action.
+  const [nomsParticipants, candidats, mesEtapes] = await Promise.all([
     prisma.user.findMany({ where: { id: { in: req.participants.map((p) => p.userId) } }, select: { id: true, name: true } }),
     peutGerer ? prisma.user.findMany({ where: { isActive: true, id: { notIn: [...suiveurs] } }, select: { id: true, name: true }, orderBy: { name: "asc" } }) : Promise.resolve([]),
+    req.status === "PENDING" ? getPendingValidations(user.id, { requestId: req.id }) : Promise.resolve<PendingValidationItem[]>([]),
   ]);
+  // Seulement quand c'est À SON TOUR, comme la liste : une étape à venir (séquentiel) n'offre rien — le circuit, plus
+  // bas, dit déjà quelle étape est active.
+  const monEtape = mesEtapes.find((v) => v.actionable) ?? null;
+  const ordreDeMonEtape = monEtape ? req.steps.find((s) => s.id === monEtape.stepId)?.order ?? null : null;
+  const avisMessage = monEtape?.itemDecisions.find((x) => x.itemKey === "MESSAGE");
   const participants = req.participants.map((p) => ({ userId: p.userId, nom: nomsParticipants.find((u) => u.id === p.userId)?.name ?? "—" }));
   const renvois = req.steps.filter((e) => e.status === "CHANGES_REQUESTED");
   const surPlace = resoumissionSurPlace(req);
@@ -141,6 +156,28 @@ export default async function ValidationRequestPage(props: { params: Promise<{ i
                 )}
               </p>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* LA DÉCISION, EN TÊTE DE LA FICHE, quand c'est à la personne à l'écran de trancher — les mêmes gestes que la carte
+          de « Demandes de validations ». L'avis sur le message reste offert, dit facultatif, sous la décision. */}
+      {monEtape && (
+        <Card id="decision" className="scroll-mt-24 border-primary/50 ring-1 ring-primary/30">
+          <CardHeader>
+            <CardTitle className="flex flex-wrap items-center gap-2">
+              <ShieldCheck className="h-4 w-4" /> À vous de décider
+              {/* En intérim, on tranche AU NOM de l'absent : la fiche le dit avant le bouton, comme la carte (I18). */}
+              {monEtape.pourLeCompteDe && <Badge tone="info" dot={false}>Intérim pour {monEtape.pourLeCompteDe}</Badge>}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <p className="text-muted-foreground">
+              {ordreDeMonEtape !== null ? `Étape ${ordreDeMonEtape} du circuit` : "Votre étape du circuit"} :
+              {" "}valider, renvoyer pour correction ou refuser — c&apos;est ce geste qui fait avancer la demande.
+            </p>
+            <ValidationDecision stepId={monEtape.stepId} />
+            <AvisSurLeMessage stepId={monEtape.stepId} current={avisMessage?.decision} currentComment={avisMessage?.comment} />
           </CardContent>
         </Card>
       )}

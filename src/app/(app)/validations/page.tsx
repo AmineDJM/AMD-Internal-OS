@@ -11,7 +11,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { optionsFromMap } from "@/components/shared/form-fields";
-import { PRIORITY, VALIDATION_STATUS, VALIDATION_STEP_STATE, VALIDATION_MODE } from "@/lib/labels";
+import { PRIORITY, VALIDATION_STATUS, VALIDATION_STEP_STATE, VALIDATION_MODE, libelleNatureValidation } from "@/lib/labels";
 import { bcDesDemandes, bcImportables, peutCreerUnBC } from "@/lib/bons-de-commande/retenue-bc";
 import { etatsDesBC } from "@/lib/bons-de-commande/etat";
 import { LIBELLE_ETAPE_BC } from "@/lib/bons-de-commande/regle";
@@ -20,7 +20,7 @@ import { DemanderUneValidation } from "./demande-validation";
 import { ValidationFinaleBC } from "./validation-finale-bc";
 import { formatCurrency, formatDate, formatDateTime, daysUntil } from "@/lib/utils";
 import { ValidationDecision } from "./validation-decision";
-import { ItemReview } from "./validation-item-review";
+import { AvisSurLeMessage } from "./validation-item-review";
 import { ValidationAttachments } from "./validation-attachments";
 import { SupervisionBoard } from "./supervision-board";
 import { supervisionCounters } from "@/lib/validation-supervision";
@@ -347,6 +347,7 @@ function StepChips({ steps }: { steps: MyValidationItem["steps"] }) {
 function PendingValidationCard({ v, actionable, focused = false }: { v: PendingValidationItem; actionable: boolean; focused?: boolean }) {
   const d = v.deadline ? daysUntil(v.deadline) : null;
   const msgDecision = v.itemDecisions.find((x) => x.itemKey === "MESSAGE");
+  const nature = libelleNatureValidation(v.objectType);
   return (
     <Card id={`val-${v.stepId}`} className={focused ? "scroll-mt-24 ring-2 ring-primary/50" : "scroll-mt-24"}>
       <CardContent className="flex flex-col gap-3 p-3 sm:p-4 lg:flex-row lg:items-start lg:justify-between">
@@ -354,7 +355,8 @@ function PendingValidationCard({ v, actionable, focused = false }: { v: PendingV
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-xs text-muted-foreground [overflow-wrap:anywhere]">{v.reference}</span>
             <Badge tone="neutral" dot={false}>{v.module}</Badge>
-            {v.objectType && <Badge tone="neutral" dot={false}>{v.objectType}</Badge>}
+            {/* La nature EN CLAIR — jamais la clé (« INFO_MED_DIRECTEUR_OPS », recette du 23/11). */}
+            {nature && <Badge tone="neutral" dot={false}>{nature}</Badge>}
             <StatusBadge map={PRIORITY} value={v.priority} dot={false} />
             {v.amount !== null && <span className="whitespace-nowrap text-sm font-semibold tabular-nums">{formatCurrency(v.amount)}</span>}
             {/* En intérim, on tranche AU NOM de l'absent : la carte le dit avant le bouton (I18). */}
@@ -362,13 +364,9 @@ function PendingValidationCard({ v, actionable, focused = false }: { v: PendingV
           </div>
           <p className="font-medium [overflow-wrap:anywhere]">{v.title}</p>
           {v.description && <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">{v.description}</p>}
-          {/* Verdict par ÉLÉMENT (message) : approuver / réviser / refuser + commentaire optionnel. */}
-          {actionable && (
-            <div className="rounded-lg border border-border/60 bg-secondary/20 p-2">
-              <p className="text-[0.6875rem] font-medium uppercase tracking-wide text-muted-foreground">Votre avis sur le message</p>
-              <ItemReview stepId={v.stepId} itemKey="MESSAGE" current={msgDecision?.decision} currentComment={msgDecision?.comment} />
-            </div>
-          )}
+          {/* Verdict par ÉLÉMENT (message) : approuver / réviser / refuser + commentaire optionnel — un AVIS, dit
+              facultatif : il ne remplace pas la décision, à droite de la carte. */}
+          {actionable && <AvisSurLeMessage stepId={v.stepId} current={msgDecision?.decision} currentComment={msgDecision?.comment} />}
           <p className="text-xs text-muted-foreground">
             Demandé par {v.requester || "—"} · {formatDateTime(v.createdAt)}
             {v.deadline ? ` · échéance ${formatDate(v.deadline)}${d !== null && d < 0 ? " (en retard)" : ""}` : ""}

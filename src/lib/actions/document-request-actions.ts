@@ -19,6 +19,7 @@ import { pieceKindOf, legalKindOfPiece, legalTitleFromPiece, PIECE_KIND_LABEL } 
 import { aiguillerBC } from "@/lib/bons-de-commande/aiguillage";
 import { reserveDeLAiguillage } from "@/lib/bons-de-commande/regle";
 import { assistantesDeDirection, natureDePiece, rattacherPieceAuPoste, societeDuPoste } from "@/modules/ad-pro/api";
+import { lireNoteDevisAgence } from "@/lib/reservation-fiche/devis-agence";
 
 const PATH = "/pieces";
 
@@ -158,7 +159,7 @@ export async function submitDocumentRequest(formData: FormData): Promise<ActionR
  * déposée et acceptée ; ce qui manque est son entrée au registre, et elle se rattrape.
  */
 async function classerDansLegal(
-  req: { id: string; reference: string; label: string; kind: string; legalDocumentId: string | null; askedById: string; askedToId: string; entityType: string; entityId: string },
+  req: { id: string; reference: string; label: string; kind: string; legalDocumentId: string | null; askedById: string; askedToId: string; entityType: string; entityId: string; note: string | null },
   actorId: string,
 ): Promise<{ id: string; kindLabel: string; reserve: string | null } | null> {
   const legalKind = legalKindOfPiece(req.kind);
@@ -166,6 +167,14 @@ async function classerDansLegal(
   // Déjà classée : accepter une seconde fois ne crée pas un second engagement.
   if (req.legalDocumentId) return null;
   try {
+    // LE DEVIS DE L'AGENCE JOINT À UNE FICHE DE VOYAGE (recette du 23/11/2026) : l'assistante en a SAISI l'agence et le
+    // montant (`joindreDevisAgence`), et la note de la demande les porte sous une forme fixe. Ce n'est pas lire un fichier :
+    // c'est reprendre ce qu'une personne a tapé — sans quoi la case « Devis » du poste disait « montant non saisi ». Relue
+    // seulement pour une demande qu'une fiche désigne (`devisRef`) : une note écrite à la main ne se relit jamais.
+    const saisi = legalKind === "QUOTE" && req.entityType === "AD_PRO_ITEM"
+      && (await prisma.demandeReservation.count({ where: { devisRef: req.id } })) > 0
+      ? lireNoteDevisAgence(req.note)
+      : null;
     const doc = await prisma.legalDocument.create({
       data: {
         title: legalTitleFromPiece(req.label, req.reference),
@@ -178,7 +187,10 @@ async function classerDansLegal(
         createdById: actorId,
         updatedById: actorId,
         // Ni référence, ni montant, ni dates, ni contrepartie : on n'INVENTE rien à partir d'un
-        // fichier qu'on n'a pas lu. Ce sont des champs qu'un humain remplit en ouvrant la pièce.
+        // fichier qu'on n'a pas lu. Ce sont des champs qu'un humain remplit en ouvrant la pièce —
+        // sauf ceux qu'un humain a DÉJÀ saisis avec le devis de l'agence (ci-dessus).
+        ...(saisi?.montantDzd != null ? { amount: saisi.montantDzd } : {}),
+        ...(saisi?.fournisseur ? { counterparty: saisi.fournisseur } : {}),
         notes: `Enregistrée depuis la demande de pièce ${req.reference}.`,
       },
       select: { id: true },

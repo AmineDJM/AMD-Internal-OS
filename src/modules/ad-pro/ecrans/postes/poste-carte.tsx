@@ -163,6 +163,8 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
     // « Vérifier et valider le BC » (Direction, 11/2026) : le BC est né avec la validation des lignes — le geste ouvre la
     // case « Bon de commande », où il se télécharge et où sa version signée se dépose.
     if (cle === "GENERER_BC") ouvrirPieces("bc");
+    // « Demander le paiement » (la facture est là, recette du 23/11/2026) : la case « Paiement » porte la demande.
+    if (cle === "PAIEMENT_A_DEMANDER") ouvrirPieces("paiement");
   };
 
   // ── LE MENU « ⋯ » — ce qui ne crie pas, mais reste là. Chaque entrée n'apparaît que si
@@ -387,7 +389,7 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
       {agence && (
         <ParcoursAgence
           item={item} regard={regardAgence} assistantes={assistantes} budgetOptions={budgetOptions} signature={signature} busy={busy} run={run}
-          ouvrir={(g) => (g === "BC" ? ouvrirPieces("bc") : g === "DEVIS" ? setPanneau("DEVIS") : setPanneau(g))}
+          ouvrir={(g) => (g === "BC" ? ouvrirPieces("bc") : g === "PAIEMENT" ? ouvrirPieces("paiement") : g === "DEVIS" ? setPanneau("DEVIS") : setPanneau(g))}
         />
       )}
       {!agence && ((pas.geste && pas.geste?.cle !== "GENERER_BC") || (!pas.geste && pas.attente) || bcLegal) && (
@@ -752,6 +754,7 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
             bcPossible={pas.geste?.cle === "DEMANDER_BC" && item.orderStage !== "REQUESTED" && item.orderStage !== "DIRECTION_OK"}
             assistantes={assistantes}
             envois={item.envois}
+            moiId={regard.moiId}
           />
           </SectionRepliable>
         )}
@@ -769,6 +772,7 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
             busy={busy}
             run={run}
             envois={item.envois}
+            moiId={regard.moiId}
           />
           </SectionRepliable>
         )}
@@ -936,7 +940,7 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
           const resumePieces = courante
             ? `${faites}/${comptes.length} faites · ${courante.libelle.toLocaleLowerCase("fr")} ${courante.etat === "REFUSE" ? "refusé" : "en cours"}`
             : faites === comptes.length ? "tout est fait" : faites > 0 ? `${faites}/${comptes.length} faites` : "rien encore";
-          const aVousPieces = pas.geste?.cle === "GENERER_BC" || factureOuverte || (pas.geste?.cle === "DEMANDER_PAIEMENT" && !direct) || (devisEnCours && peutDeposerDevis);
+          const aVousPieces = pas.geste?.cle === "GENERER_BC" || pas.geste?.cle === "PAIEMENT_A_DEMANDER" || factureOuverte || (pas.geste?.cle === "DEMANDER_PAIEMENT" && !direct) || (devisEnCours && peutDeposerDevis);
           return (
             <SectionRepliable dense sansCadre titre="Pièces du poste" resume={resumePieces} aVous={aVousPieces} id={`pieces-${item.id}`}>
               <ChaineDuPoste onglets={onglets} demande={ongletDemande} />

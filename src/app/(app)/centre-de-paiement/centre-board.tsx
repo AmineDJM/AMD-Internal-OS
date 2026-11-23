@@ -7,8 +7,12 @@ import { ShieldCheck, ShieldX, MessageSquare, Coins, Loader2, Send, ChevronDown,
 import { decidePayment, respondToPaymentCentre } from "@/modules/finances/actions-centre";
 import {
   CENTRAL_STATUS_LABEL, CENTRAL_DECISION_LABEL, MOTIFS_REFUS_RAPIDES, awaitsCentre, awaitsRequester,
+  applyDecision, applyResubmission,
   type CentralStatus, type CentralDecision, deadlineNatureLabel, deadlineNatureOf,
 } from "@/modules/finances/partage";
+import { useRetours } from "@/components/ui/retours-porteur";
+import { statutAffiche } from "./decisions-locales";
+import { useDecisionsDuCentre } from "./decisions-du-centre";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Label, Textarea } from "@/components/ui/input";
@@ -75,6 +79,11 @@ export interface CentreOrder {
   doublonPossible?: string | null;
   /** Les pièces jointes à l'ordre par le demandeur (proforma, courrier…). */
   pieces: { id: string; name: string }[];
+  /**
+   * LES PIÈCES RÉCLAMÉES et pas encore closes (« Demander une pièce ») — ce qu'on attend, de qui, et si
+   * c'est déjà déposé. Sans elles, le geste ne laissait aucune trace sur la carte.
+   */
+  piecesDemandees: { id: string; label: string; a: string | null; deposee: boolean }[];
   messages: CentreMessage[];
   /** L'utilisateur courant est-il le demandeur ? Il peut alors répondre et resoumettre. */
   isMine: boolean;
@@ -112,6 +121,13 @@ export function CentreBoard({
   // chronomètre, dit de vérifier avant de recommencer, et garde les gestes fermés jusqu'à l'arrivée
   // des nouvelles données (§118.172) : `busy` couvre aussi le rafraîchissement.
   const { busy, err, setErr, run } = useAction();
+  // LA DÉCISION SE VOIT AUSSITÔT (recette sponsoring, 23/11/2026) : la carte prend l'état que le serveur
+  // vient de confirmer, sans attendre le retour de la page entière — qui pouvait laisser plusieurs
+  // secondes « En attente » et le bouton « Autoriser » sur un paiement déjà autorisé. Les compteurs du
+  // haut lisent les mêmes décisions (`decisions-du-centre.tsx`) ; la règle est pure (`decisions-locales.ts`).
+  const { decisions, noter } = useDecisionsDuCentre();
+  const statutDe = (o: CentreOrder): CentralStatus => statutAffiche(o.id, o.centralStatus, decisions);
+  const retours = useRetours();
   const [acting, setActing] = React.useState<{ order: CentreOrder; decision: CentralDecision } | null>(null);
   const [replying, setReplying] = React.useState<CentreOrder | null>(null);
   const [open, setOpen] = React.useState<string | null>(null);
@@ -135,8 +151,10 @@ export function CentreBoard({
   return (
     <div className="space-y-5">
       {groups.map(([company, list]) => {
-        const waiting = list.filter((o) => awaitsCentre(o.centralStatus));
-        const total = waiting.reduce((a, o) => a + o.amount, 0);
+        const waiting = list.filter((o) => awaitsCentre(statutDe(o)));
+        // Le MONTANT en attente — nommé à part : il s'appelait `total` et masquait le nombre de paiements de
+        // la section (prop `total`), si bien que l'en-tête affichait « (4 sur 298 452) », un montant pris pour un compte.
+        const montantEnAttente = waiting.reduce((a, o) => a + o.amount, 0);
         return (
           <section key={company} className="surface space-y-3 p-3 sm:p-4">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -146,7 +164,7 @@ export function CentreBoard({
               </h2>
               {waiting.length > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  <span className="font-semibold text-warning">{formatCurrency(total)}</span> en attente d&apos;autorisation
+                  <span className="font-semibold text-warning">{formatCurrency(montantEnAttente)}</span> en attente d&apos;autorisation
                 </p>
               )}
             </div>
@@ -160,6 +178,7 @@ export function CentreBoard({
             <ul className="space-y-2">
               {list.map((o) => {
                 const isOpen = open === o.id;
+                const statut = statutDe(o);
                 return (
                   <li key={o.id} className="rounded-xl border border-border bg-background p-3">
                     <div className="flex flex-wrap items-start gap-2">
@@ -176,7 +195,7 @@ export function CentreBoard({
                           ) : (
                             <span className="min-w-0 [overflow-wrap:anywhere] sm:truncate">{o.label}</span>
                           )}
-                          <Badge tone={TONE[o.centralStatus]}>{CENTRAL_STATUS_LABEL[o.centralStatus]}</Badge>
+                          <Badge tone={TONE[statut]}>{CENTRAL_STATUS_LABEL[statut]}</Badge>
                         </p>
                         <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">
                           {o.reference} · {o.beneficiary ?? "bénéficiaire non précisé"} · demandé par {o.requestedBy ?? "—"} · {formatDateTime(o.createdAt)}
@@ -214,6 +233,17 @@ export function CentreBoard({
                               </a>
                             ))}
                           </p>
+                        )}
+                        {o.piecesDemandees.length > 0 && (
+                          <ul className="mt-1 space-y-0.5 text-xs" data-pieces-demandees>
+                            {o.piecesDemandees.map((d) => (
+                              <li key={d.id} className="flex flex-wrap items-center gap-x-1.5 [overflow-wrap:anywhere]">
+                                <Badge tone={d.deposee ? "info" : "warning"} dot={false}>{d.deposee ? "Pièce déposée, à examiner" : "Pièce demandée"}</Badge>
+                                <Link href={`/pieces/${d.id}`} className="text-primary hover:underline">{d.label}</Link>
+                                {d.a && <span className="text-muted-foreground">— à {d.a}</span>}
+                              </li>
+                            ))}
+                          </ul>
                         )}
                         {o.proposedAmount != null && (
                           <p className="text-xs text-info tabular-nums">
@@ -253,7 +283,7 @@ export function CentreBoard({
                         </span>
                       )}
 
-                      {canDecide && awaitsCentre(o.centralStatus) && (
+                      {canDecide && awaitsCentre(statut) && (
                         <>
                           {/* RÉCLAMER CE QUI MANQUE plutôt que refuser faute de pièce : la
                               demande atterrit dans « Pièces demandées » de la personne, avec son
@@ -280,7 +310,7 @@ export function CentreBoard({
                       )}
 
                       {/* LE DEMANDEUR RÉPOND — c'est ce qui rend les allers-retours possibles. */}
-                      {o.isMine && awaitsRequester(o.centralStatus) && (
+                      {o.isMine && awaitsRequester(statut) && (
                         <Button size="sm" disabled={busy} onClick={() => { setErr(null); setReplying(o); }}>
                           <Send className="h-4 w-4" /> Répondre et resoumettre
                         </Button>
@@ -329,7 +359,15 @@ export function CentreBoard({
               // lecture ne s'autorise pas sans avoir été vu — l'action compare et le dit.
               fd.set("montantVu", String(acting.order.amount));
               fd.set("beneficiaireVu", acting.order.beneficiary ?? "");
-              await run(() => decidePayment(fd), () => setActing(null));
+              const { order, decision } = acting;
+              await run(async () => {
+                const r = await decidePayment(fd);
+                // Confirmé par le serveur → la carte et les compteurs le montrent TOUT DE SUITE, et l'avis le dit.
+                const suivant = r.ok ? applyDecision(order.centralStatus, decision) : null;
+                if (suivant) noter(order.id, { depuis: order.centralStatus, statut: suivant, montant: order.amount });
+                if (r.ok) retours.succes(r.message ?? `${CENTRAL_DECISION_LABEL[decision]} : ${order.reference} — enregistré.`);
+                return r;
+              }, () => setActing(null));
             }}
             className="space-y-4"
           >
@@ -399,7 +437,14 @@ export function CentreBoard({
           <form
             action={async (fd) => {
               fd.set("id", replying.id);
-              await run(() => respondToPaymentCentre(fd), () => setReplying(null));
+              const order = replying;
+              await run(async () => {
+                const r = await respondToPaymentCentre(fd);
+                const suivant = r.ok ? applyResubmission(order.centralStatus) : null;
+                if (suivant) noter(order.id, { depuis: order.centralStatus, statut: suivant, montant: order.amount });
+                if (r.ok) retours.succes(r.message ?? "Réponse envoyée — le paiement retourne au centre.");
+                return r;
+              }, () => setReplying(null));
             }}
             className="space-y-4"
           >
