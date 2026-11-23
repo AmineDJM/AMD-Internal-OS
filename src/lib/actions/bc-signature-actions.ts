@@ -15,7 +15,7 @@ import { etatDuBC } from "@/lib/bons-de-commande/etat";
 import { CHEMIN_BC_A_SIGNER } from "@/lib/bons-de-commande/aiguillage";
 import { motifNonSignable } from "@/lib/bons-de-commande/regle";
 import { bcVisiblesWhere, peutSignerBC, REFUS_SIGNATURE_BC } from "@/lib/queries/bons-de-commande";
-import { apresSignatureDuBCDeDemande } from "@/lib/secretariat/bc-signe";
+import { apresSignatureDuBCDeDemande, apresSignatureDuBCDesFiches } from "@/lib/secretariat/bc-signe";
 import { marquerNonRetenusDuBC } from "@/lib/bons-de-commande/retenue-bc";
 import { sansBloquer } from "@/lib/journal";
 import { headers } from "next/headers";
@@ -142,6 +142,8 @@ async function apresLaSignature(id: string, userId: string, signataire: string):
   revalidatePath("/ad-pro", "layout");
   // LE BC D'UNE DEMANDE AU SECRÉTARIAT revient « signé et validé » sur sa fiche : l'assistante et le demandeur le savent.
   await apresSignatureDuBCDeDemande(id, userId, signataire).catch(sansBloquer("bc-signature-actions.signerBonDeCommande.apresSignatureDuBCDeDemande"));
+  // LE BC D'UN POSTE À FICHES DE VOYAGE : l'assistante qui les a prises fait émettre les billets (recette du 23/11/2026).
+  await apresSignatureDuBCDesFiches(id, userId, signataire).catch(sansBloquer("bc-signature-actions.signerBonDeCommande.apresSignatureDuBCDesFiches"));
   // LE BC D'UN POSTE SIGNÉ (Direction, 11/2026) : les devis du poste qui n'y ont rien fait commander sont « non retenus ».
   await marquerNonRetenusDuBC(id).catch(sansBloquer("bc-signature-actions.signerBonDeCommande.marquerNonRetenusDuBC"));
   revalidatePath("/demandes", "layout");
