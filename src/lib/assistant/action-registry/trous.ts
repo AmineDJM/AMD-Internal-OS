@@ -120,7 +120,7 @@ export function classerTrous(): void {
     "legal-actions:cancelLegalDocument", "legal-actions:deleteLegalDocument", "legal-actions:setLegalReaders",
     "legal-actions:sendLegalInvoiceToSettlement", "legal-folder-actions:createLegalFolder",
     "legal-folder-actions:updateLegalFolder", "legal-folder-actions:deleteLegalFolder",
-    "legal-folder-actions:moveLegalDocuments",
+    "legal-folder-actions:moveLegalDocuments", "legal-folder-actions:rangerPiecesAdPro",
   ]);
   // Le rattachement d'une pièce Legal existante (`ad-pro-rattacher-legal`) n'est PAS ici : il est
   // couvert par `legal_operation/link_record` et `unlink_record`, donc reclassé NATIVE par le
@@ -312,7 +312,7 @@ export function classerTrous(): void {
     "support-actions:answerSupportRequest", "support-actions:updateSupportStatus", "feedback-actions:submitFeedback",
     "feedback-actions:updateFeedbackStatus", "comment-actions:updateComment", "comment-actions:deleteComment",
     "reminder-actions:createReminder", "reminder-actions:completeReminder", "reminder-actions:cancelReminder",
-    "reminder-actions:snoozeReminder", "calendar-actions:respondToInvite",
+    "reminder-actions:snoozeReminder", "reminder-actions:arreterRappelAssistant", "calendar-actions:respondToInvite",
   ]);
   G("cockpit Adventum (seuils de risque) & maintenance profonde de la base", [
     "adventum-actions:updateRiskThresholds",

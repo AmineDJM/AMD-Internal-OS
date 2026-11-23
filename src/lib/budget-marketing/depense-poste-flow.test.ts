@@ -44,7 +44,7 @@ const pdf = (nom: string) => new File([new Uint8Array([0x25, 0x50, 0x44, 0x46, 0
  */
 suite("Budget Marketing — la dépense d'un poste Ad & Pro, de l'imputation au paiement", () => {
   let pmId = "", finId = "", envId = "", catA = "", catB = "", eventId = "";
-  const postes: Record<"p1" | "p2" | "p3", string> = { p1: "", p2: "", p3: "" };
+  const postes: Record<"p1" | "p2" | "p3" | "p4", string> = { p1: "", p2: "", p3: "", p4: "" };
   let bcNonSigne = "";
   const docs: string[] = [];
   const ecritures: string[] = [];
@@ -85,12 +85,15 @@ suite("Budget Marketing — la dépense d'un poste Ad & Pro, de l'imputation au 
     catA = (await prisma.budgetCategoryLine.create({ data: { envelopeId: envId, name: `${TAG}Sponsoring`, allocated: 20_000_000 } })).id;
     catB = (await prisma.budgetCategoryLine.create({ data: { envelopeId: envId, name: `${TAG}Événements`, allocated: 20_000_000 } })).id;
     eventId = (await prisma.event.create({ data: { name: `${TAG}Journées de cardiologie` } })).id;
-    // LA PORTE DU DG SUR LE TOTAL (27/10/2026) : trois postes de 6 000 000 dépassent le seuil — consommer, c'est
+    // LA PORTE DU DG SUR LE TOTAL (27/10/2026) : quatre postes de 6 000 000 dépassent le seuil — consommer, c'est
     // demander le paiement, et cela n'est possible qu'une fois le total validé par le DG (ADPRO-02).
-    await prisma.adProPorteDg.create({ data: { entityType: "EVENT", entityId: eventId, statut: "VALIDEE", montant: 18_000_000, decideLe: new Date() } });
+    await prisma.adProPorteDg.create({ data: { entityType: "EVENT", entityId: eventId, statut: "VALIDEE", montant: 24_000_000, decideLe: new Date() } });
     postes.p1 = await nouveauPoste("Stand 18 m²", [{ ref: "BC1", montant: 4_200_000, signe: true }, { ref: "BC2", montant: 180_000, signe: false }]);
     postes.p2 = await nouveauPoste("Impression", [{ ref: "BC3", montant: 950_000, signe: true }]);
     postes.p3 = await nouveauPoste("Dîner-débat", [{ ref: "BC4", montant: 680_000, signe: true }]);
+    // Un poste PAR UNE AGENCE (recette du 23/11/2026) : son paiement ne se demande que depuis le poste.
+    postes.p4 = await nouveauPoste("Kakémonos agence", [{ ref: "BC5", montant: 300_000, signe: true }]);
+    await prisma.adProItem.update({ where: { id: postes.p4 }, data: { voie: "AGENCE" } });
   }, 60_000);
 
   afterAll(async () => {
@@ -238,5 +241,23 @@ suite("Budget Marketing — la dépense d'un poste Ad & Pro, de l'imputation au 
     const { ligne: l } = await ligne(postes.p3);
     expect(l).toMatchObject({ etat: "CONSOMMEE", consomme: 680_000 });
     expect(l?.facture?.nom).toMatch(/FA-0912/);
+  });
+
+  /**
+   * RECETTE DU 23/11/2026 — « Consommer » était un second chemin vers l'ordre de dépense d'un poste agence, sans la réception,
+   * sans la facture contrôlée contre le BC, sans l'empreinte du visa. Il est fermé : le refus renvoie au poste, rien n'est écrit.
+   */
+  it("un poste PAR UNE AGENCE ne se consomme pas d'ici : le refus renvoie au poste, aucun ordre ni facture", async () => {
+    await commePm();
+    expect((await imputerDepensePoste(form({ id: postes.p4, categorieId: catA }))).ok, "l'imputation reste permise").toBe(true);
+    const avant = await prisma.adProItem.findUniqueOrThrow({ where: { id: postes.p4 } });
+    const r = await consommerDepensePoste(form({ id: postes.p4, montant: "300000", facture: pdf(`${TAG}FA-AGENCE.pdf`) }));
+    expect(r.ok).toBe(false);
+    expect(r.error).toMatch(/passe par une agence : son paiement se demande depuis le poste/);
+    const apres = await prisma.adProItem.findUniqueOrThrow({ where: { id: postes.p4 } });
+    expect(apres.expenseOrderId).toBeNull();
+    expect(apres.orderStage).toBe(avant.orderStage);
+    expect(await prisma.adProItemPiece.count({ where: { itemId: postes.p4, nature: "FACTURE" } })).toBe(0);
+    expect((await ligne(postes.p4)).ligne).toMatchObject({ etat: "ENGAGEE" });
   });
 });

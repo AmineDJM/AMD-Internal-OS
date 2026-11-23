@@ -15,7 +15,9 @@ import { legalFields } from "./legal-fields";
 import { peutDaterLeReglement } from "@/modules/finances/partage";
 import { LegalTable, type LegalRow } from "./legal-table";
 import { LegalFolderBar, type FolderRow } from "./folder-bar";
-import { buildFolderTree, flattenFolders, indentedLabel } from "@/lib/legal/folders";
+import { buildFolderTree, flattenFolders, folderPath, indentedLabel, subtreeIds } from "@/lib/legal/folders";
+import { cheminLisible } from "@/lib/legal/classement";
+import { RangerPiecesAdPro } from "./ranger-pieces-adpro";
 import { legalListScope } from "@/lib/legal/list-view";
 import { legalReaderWhere } from "@/lib/lecteurs/legal";
 import { natureFromParam, invoiceTally, PURCHASE_CHAIN_KINDS } from "@/lib/legal/invoices";
@@ -99,7 +101,16 @@ export default async function LegalPage(
   // d'ouvrir un dossier.
   const openFolderId = searchParams?.dossier && searchParams.dossier !== "none" ? searchParams.dossier : null;
   const unfiledOnly = searchParams?.dossier === "none";
-  const folderWhere = unfiledOnly ? { folderId: null } : openFolderId ? { folderId: openFolderId } : {};
+  // L'ARMOIRE, lue une fois : l'arbre des dossiers sert au filtre (un dossier ouvert montre aussi ses
+  // sous-dossiers — « Événements › 2026 » montre toutes les pièces des événements de 2026, recette du
+  // 23/11/2026) et au chemin affiché sous chaque titre.
+  const [folderRows, myCompanies] = await Promise.all([
+    prisma.legalFolder.findMany({ select: { id: true, name: true, parentId: true, companyId: true, company: { select: { name: true, shortName: true } } } }),
+    getMyCompanies(user.id),
+  ]);
+  const folderWhere = unfiledOnly
+    ? { folderId: null }
+    : openFolderId ? { folderId: { in: subtreeIds(folderRows, openFolderId) } } : {};
   // LA PORTÉE, DANS LA REQUÊTE. `facturesSeules` n'est pas une préférence d'affichage : c'est le
   // droit de la personne, et il se tient côté serveur — dans `visible`, avec les lecteurs et
   // l'entité. Le dossier ouvert, lui, est un filtre d'affichage, composé EN `AND` par-dessus.
@@ -158,15 +169,13 @@ export default async function LegalPage(
     expenseOrderId: d.expenseOrderId,
     avoirs: avoirsParFacture.get(d.id) ?? 0,
     nonRetenu: (() => { const n = nonRetenus.get(d.id); return n ? libelleNonRetenu(n.le, n.par) : null; })(),
+    // OÙ LA PIÈCE EST RANGÉE — « Événements › 2026 › Journée… » : on sait à quelle demande est ce BC.
+    dossier: d.folderId ? cheminLisible(folderPath(folderRows, d.folderId).map((f) => f.name)) : null,
   }));
 
   // L'ARMOIRE. Le compte de documents par dossier respecte le MÊME cloisonnement que la liste :
   // afficher « Baux (12) » à quelqu'un qui n'a le droit d'en ouvrir aucun révélerait déjà qu'il
   // en existe douze.
-  const [folderRows, myCompanies] = await Promise.all([
-    prisma.legalFolder.findMany({ select: { id: true, name: true, parentId: true, companyId: true, company: { select: { name: true, shortName: true } } } }),
-    getMyCompanies(user.id),
-  ]);
   const counts = await prisma.legalDocument.groupBy({
     by: ["folderId"],
     where: { AND: [visible, { folderId: { not: null } }] },
@@ -285,6 +294,8 @@ export default async function LegalPage(
           canManage={canCreate}
         />
       )}
+      {/* LE RATTRAPAGE (23/11/2026) : les pièces Ad & Pro rattachées avant le rangement automatique rejoignent leur demande. */}
+      {!facturesSeules && user.role === "SUPER_ADMIN" && <RangerPiecesAdPro />}
 
       {/* `scope` DÉCLARE à quel ensemble de documents ces filtres s'appliquent. La barre de
           dossiers navigue par <Link> : sans lui, le filtre « à surveiller » posé par un rappel

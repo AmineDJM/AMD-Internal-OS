@@ -189,9 +189,14 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
   // UN GESTE UNIQUE (constat 36) : un BC établi mais NON signé s'annule avec la demande ; signé, ou suivi
   // d'une facture, la demande est exécutée — la carte ne propose plus le geste et dit pourquoi.
   const bcAnnulable = bcEnCours && !item.refusAnnulationBc;
+  // UN BC REFUSÉ PAR LE DG se retire pour en refaire un (recette du 23/11/2026) — seul geste proposé : on ne modifie
+  // pas une demande refusée, on la remplace.
+  const bcRefuseParDg = item.orderStage === "REFUSED" && !item.expenseOrderId && !item.refusAnnulationBc;
   if (bcEnCours && toucheBC) {
     entrees.push({ cle: "modifier-bc", libelle: "Modifier la demande de BC", icone: <Pencil className="h-3.5 w-3.5" />, faire: () => setPanneau("MODIFIER_BC") });
     if (bcAnnulable) entrees.push({ cle: "retirer-bc", libelle: "Annuler la demande de BC", icone: <Undo2 className="h-3.5 w-3.5" />, danger: bcLegal, faire: () => setPanneau("RETIRER_BC") });
+  } else if (bcRefuseParDg && toucheBC) {
+    entrees.push({ cle: "retirer-bc", libelle: "Annuler la demande de BC (refusée par le DG)", icone: <Undo2 className="h-3.5 w-3.5" />, danger: true, faire: () => setPanneau("RETIRER_BC") });
   }
   // L'ORDRE ÉMIS S'ANNULE TANT QU'IL N'EST PAS RÉGLÉ (audit R06) — les Finances, qui tranche, ET le demandeur : l'action
   // l'accepte de lui (« on annule sa demande tant qu'elle n'a pas été exécutée », 04/10), la carte ne le lui cachait pas
@@ -460,7 +465,7 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
           }
         />
       )}
-      {panneau === "RETIRER_BC" && bcAnnulable && toucheBC && (
+      {panneau === "RETIRER_BC" && (bcAnnulable || bcRefuseParDg) && toucheBC && (
         <GesteAvecMotif
           titre="Annuler la demande de bon de commande"
           aide={bcLegal

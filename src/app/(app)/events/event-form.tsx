@@ -35,7 +35,11 @@ import { sansBloquer } from "@/lib/journal";
  * produits étaient en saisie LIBRE, il n'y avait aucun champ pour les médecins, et le BUDGET
  * était facultatif.
  *
- * ── LE BUDGET FACULTATIF ÉTAIT LA CAUSE D'UNE AUTRE PLAINTE, ET C'EST LA MESURE QUI LE DIT ──
+ * ── 23/11/2026 : LE BUDGET (et fin, lieu, pays, spécialité, responsable, description) REDEVIENT
+ * FACULTATIF à la demande de la Direction après la recette. Le paragraphe suivant est l'historique : la
+ * porte du DG lit désormais le total des postes (`ad-pro/infra/porte-dg.ts`), pas ce champ. ──
+ *
+ * ── (historique) LE BUDGET FACULTATIF ÉTAIT LA CAUSE D'UNE AUTRE PLAINTE ──
  *
  * « Le DG n'a pas à valider un événement Ad&Pro alors que le seuil est en dessous de
  * 1 000 000 DZD. » La chaîne, bout à bout : budget non saisi ⇒ `estimatedBudget` nul ⇒ le moteur
@@ -70,8 +74,13 @@ export interface EventReferentiels {
 type Result = { ok: boolean; error?: string; id?: string };
 const d10 = (iso: string | null) => (iso ? iso.slice(0, 10) : "");
 
-function W({ label, full, children }: { label: string; full?: boolean; children: React.ReactNode }) {
-  return <div className={full ? "space-y-1.5 sm:col-span-2" : "space-y-1.5"}><Label>{label}</Label>{children}</div>;
+function W({ label, full, facultatif, children }: { label: string; full?: boolean; facultatif?: boolean; children: React.ReactNode }) {
+  return (
+    <div className={full ? "space-y-1.5 sm:col-span-2" : "space-y-1.5"}>
+      <Label>{label}{facultatif && <span className="ml-1 font-normal text-muted-foreground">(facultatif)</span>}</Label>
+      {children}
+    </div>
+  );
 }
 
 /** Intertitre d'une section du formulaire — le formulaire est long, il se lit par blocs au téléphone. */
@@ -167,9 +176,11 @@ function EventFields({ e, responsibles, referentiels = {}, descriptionEnTete }: 
       )}
       <Section>Dates et lieu</Section>
       <W label="Début"><Input type="date" name="startDate" defaultValue={d10(e?.startDate ?? null)} required /></W>
-      <W label="Fin"><Input type="date" name="endDate" defaultValue={d10(e?.endDate ?? null)} required /></W>
+      {/* FACULTATIFS depuis la recette du 23/11/2026 : fin, lieu, pays, spécialité, budget, responsable,
+          description — la garde est au serveur (`actions-evenements.ts`, `budgetSaisi`). Fin vide = une journée. */}
+      <W label="Fin" facultatif><Input type="date" name="endDate" defaultValue={d10(e?.endDate ?? null)} title="Vide : l'événement tient en une journée" /></W>
       {/* LE LIEU VIENT DE L'ANNUAIRE (hôtel, salle, établissement), et s'y ajoute s'il n'y est pas (16/11/2026). */}
-      <W label="Lieu / salle"><ChampAnnuaire name="location" defaultValue={e?.location ?? ""} required placeholder="Chercher le lieu dans l'annuaire, ou taper son nom" /></W>
+      <W label="Lieu / salle" facultatif><ChampAnnuaire name="location" defaultValue={e?.location ?? ""} placeholder="Chercher le lieu dans l'annuaire, ou taper son nom" /></W>
       {/* LA VILLE VIENT DU RÉFÉRENTIEL DES WILAYAS — elle s'écrivait en huit orthographes. */}
       <W label="Ville (wilaya)">
         <Select name="city" defaultValue={e?.city ?? ""} required>
@@ -177,21 +188,21 @@ function EventFields({ e, responsibles, referentiels = {}, descriptionEnTete }: 
           {wilayas.map((w) => <option key={w.value} value={w.value}>{w.label}</option>)}
         </Select>
       </W>
-      <W label="Pays"><Input name="country" defaultValue={e?.country ?? "Algérie"} required /></W>
+      <W label="Pays" facultatif><Input name="country" defaultValue={e?.country ?? "Algérie"} /></W>
       <Section>Public, budget et produits</Section>
       {specialites.length > 0 ? (
-        <W label="Spécialité">
-          <Select name="specialty" defaultValue={e?.specialty ?? ""} required>
+        <W label="Spécialité" facultatif>
+          <Select name="specialty" defaultValue={e?.specialty ?? ""}>
             <option value="">— Choisir la spécialité —</option>
             {specialites.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </Select>
         </W>
       ) : (
-        <W label="Spécialité"><Input name="specialty" defaultValue={e?.specialty ?? ""} required placeholder="Le référentiel est vide : saisissez-la." /></W>
+        <W label="Spécialité" facultatif><Input name="specialty" defaultValue={e?.specialty ?? ""} placeholder="Le référentiel est vide : saisissez-la." /></W>
       )}
-      {/* LE BUDGET EST OBLIGATOIRE, et c'est ce qui ferme la plainte du DG (voir l'en-tête). */}
-      <W label="Budget estimé (DZD)">
-        <Input type="number" step="any" min="0" inputMode="decimal" name="estimatedBudget" defaultValue={e?.estimatedBudget ?? ""} required />
+      {/* LE BUDGET EST FACULTATIF (23/11/2026) : il se chiffre par les postes ; la porte du DG lit leur total. */}
+      <W label="Budget estimé (DZD)" facultatif>
+        <Input type="number" step="any" min="0" inputMode="decimal" name="estimatedBudget" defaultValue={e?.estimatedBudget ?? ""} placeholder="Si vous le connaissez déjà" />
       </W>
       {/* MÉDECINS ET PRODUITS : PLUSIEURS de chaque, choisis dans le réel. Repli en saisie libre
           quand le référentiel est muet — obligatoire, mais libre. */}
@@ -231,13 +242,13 @@ function EventFields({ e, responsibles, referentiels = {}, descriptionEnTete }: 
       </div>
       <Section>Organisation</Section>
       <W full label="Lien Meet / Zoom / Teams (webinar/hybride)"><Input name="meetingLink" inputMode="url" autoComplete="url" defaultValue={e?.meetingLink ?? ""} placeholder="https://meet.google.com/…" /></W>
-      <W label="Responsable interne">
-        <Select name="responsibleId" defaultValue={e?.responsibleId ?? ""} required>
+      <W label="Responsable interne" facultatif>
+        <Select name="responsibleId" defaultValue={e?.responsibleId ?? ""}>
           <option value="">— Choisir le responsable —</option>
           {responsibles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
         </Select>
       </W>
-      {!descriptionEnTete && <W full label="Description"><Textarea name="description" defaultValue={e?.description ?? ""} rows={3} required /></W>}
+      {!descriptionEnTete && <W full label="Description" facultatif><Textarea name="description" defaultValue={e?.description ?? ""} rows={3} /></W>}
     </div>
   );
 }

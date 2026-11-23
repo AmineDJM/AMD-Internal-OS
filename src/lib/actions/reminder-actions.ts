@@ -49,6 +49,7 @@ export async function createReminder(formData: FormData): Promise<ActionResult> 
   });
   await recordAudit({ actorId: user.id, action: "CREATE", module: "Rappels", entityType: "TASK", entityId: created.id, summary: `Rappel « ${title} » pour le ${remindAt.toLocaleString("fr-FR")}` }).catch(sansBloquer("reminder-actions.createReminder.recordAudit"));
   revalidatePath("/mon-espace");
+  revalidatePath("/mon-espace/rappels");
   return { ok: true, id: created.id };
 }
 
@@ -68,6 +69,7 @@ export async function completeReminder(formData: FormData): Promise<ActionResult
   if (!r) return { ok: false, error: "Rappel introuvable." };
   await prisma.reminder.update({ where: { id }, data: { status: "DONE" } });
   revalidatePath("/mon-espace");
+  revalidatePath("/mon-espace/rappels");
   return { ok: true };
 }
 
@@ -79,6 +81,7 @@ export async function cancelReminder(formData: FormData): Promise<ActionResult> 
   if (!r) return { ok: false, error: "Rappel introuvable." };
   await prisma.reminder.update({ where: { id }, data: { status: "CANCELLED" } });
   revalidatePath("/mon-espace");
+  revalidatePath("/mon-espace/rappels");
   return { ok: true };
 }
 
@@ -94,5 +97,24 @@ export async function snoozeReminder(formData: FormData): Promise<ActionResult> 
   if (Number.isNaN(remindAt.getTime())) return { ok: false, error: "Date invalide." };
   await prisma.reminder.update({ where: { id }, data: { remindAt, status: "PENDING", sentAt: null } });
   revalidatePath("/mon-espace");
+  revalidatePath("/mon-espace/rappels");
+  return { ok: true };
+}
+
+/**
+ * ARRÊTER UN RAPPEL POSÉ PAR L'ASSISTANT (recette du 23/11/2026) — depuis « Mes rappels », sans passer par
+ * une conversation. Le rappel appartient à son propriétaire : on l'éteint (récurrence et relances
+ * comprises), on ne le supprime pas — il reste lisible dans « Terminés ».
+ */
+export async function arreterRappelAssistant(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  const id = fdStr(formData, "id");
+  if (!id) return { ok: false, error: "Rappel introuvable." };
+  const r = await prisma.assistantReminder.findUnique({ where: { id }, select: { id: true, userId: true, title: true } });
+  if (!r || (r.userId !== user.id && !userCan(user, "ADMIN", "UPDATE"))) return { ok: false, error: "Rappel introuvable." };
+  await prisma.assistantReminder.update({ where: { id }, data: { active: false } });
+  await recordAudit({ actorId: user.id, action: "UPDATE", module: "Rappels", entityType: "TASK", entityId: id, summary: `Rappel de l'assistant « ${r.title} » arrêté` }).catch(sansBloquer("reminder-actions.arreterRappelAssistant.recordAudit"));
+  revalidatePath("/mon-espace");
+  revalidatePath("/mon-espace/rappels");
   return { ok: true };
 }

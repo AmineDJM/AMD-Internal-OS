@@ -45,6 +45,14 @@ describe("parcours agence — l'étape en cours, dans l'ordre du cycle", () => {
     expect(etapeAgence(poste({ status: "REJECTED" }))).toBe("REFUSE");
     expect(etapeAgence(poste({ status: "APPROVED", bc: "REFUSE" }, choisi))).toBe("REFUSE");
   });
+  it("recette du 23/11/2026 : un BC refusé par le DG n'est pas la fin du poste, un paiement refusé le dit", () => {
+    expect(etapeAgence(poste({ ...signe, orderStage: "REFUSED", bc: "REFUSE" }, choisi))).toBe("BC_REFUSE_DG");
+    const refuse = pasAgence(poste({ ...signe, orderStage: "REFUSED", bc: "REFUSE", orderDecisionNote: "Montant à revoir" }, choisi), personne({ marketing: true }));
+    expect(refuse.attente).toContain("Montant à revoir");
+    expect(refuse.attente).toContain("Annuler la demande de BC");
+    const paiementRefuse = pasAgence(poste({ ...signe, expenseOrderId: "o1", expenseOrderStatus: "PENDING", expenseOrderCentral: "REFUSED" }, choisi), personne({ marketing: true }));
+    expect(paiementRefuse.attente).toContain("refusé par le centre de paiement");
+  });
 });
 
 describe("parcours agence — la frise", () => {

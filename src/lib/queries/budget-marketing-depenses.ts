@@ -52,6 +52,11 @@ export interface LigneDepensePoste {
   motif: string | null;
   /** Un poste HISTORIQUE (intégration Ad & Pro 2026) : payé, sans circuit — sa ligne du fichier. */
   historique?: { ligne: number | null } | null;
+  /**
+   * UN POSTE PAR AGENCE (recette du 23/11/2026) : son paiement se demande depuis le poste, après la réception et la
+   * facture contrôlée — l'onglet ne propose pas « Consommer » (l'action le refuse aussi).
+   */
+  parPoste?: boolean;
 }
 
 export interface OptionBudget { id: string; label: string }
@@ -64,7 +69,7 @@ export interface DonneesDepensesPostes {
 }
 
 const SELECT_POSTE = {
-  id: true, label: true, status: true, expenseOrderId: true, amountGranted: true, budgetCategoryId: true,
+  id: true, label: true, status: true, expenseOrderId: true, amountGranted: true, budgetCategoryId: true, voie: true,
   depenseImputeeLe: true, depenseAnnuleeLe: true, depenseAnnulationMotif: true,
   sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true, otherRequestId: true, trainingId: true,
   promoMaterialParentId: true, declarationInfoMedId: true,
@@ -184,6 +189,7 @@ export async function depensesPostesMarketing(user: SessionUser, overview: Budge
       facture: lue.facture ? { nom: nomFichier.get(lue.facture.id) ?? lue.facture.reference ?? "Facture", href: lienPiece(lue.facture.id, false) } : null,
       ordre: ordreVivant?.reference ?? null,
       motif: p.depenseAnnulationMotif,
+      parPoste: p.voie === "AGENCE",
     });
   }
   // À imputer d'abord, puis engagées, consommées, payées, annulées.

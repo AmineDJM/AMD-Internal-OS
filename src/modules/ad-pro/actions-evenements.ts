@@ -74,10 +74,11 @@ function statutSaisi(formData: FormData, actuel: string | null = null): { ok: tr
  * ELLE NOMME TOUT CE QUI MANQUE EN UNE FOIS. Un refus par aller-retour ferait ressaisir quinze
  * champs une fois par champ manquant (§118.18) — et c'est le formulaire le plus long du pôle.
  *
- * LE BUDGET EST LA PIÈCE MAÎTRESSE, et ce n'est pas une question de complétude : sans lui, le
- * moteur lit un montant de ZÉRO, refuse de franchir une porte de contrôle sur un montant inconnu
- * (à juste titre, §118.132) et la porte du Directeur Général reste ouverte sur un événement de
- * 80 000 DZD. La plainte « le DG n'a pas à valider en dessous du seuil » se ferme ici.
+ * ALLÉGÉ LE 23/11/2026 (recette) : seuls restent obligatoires le type, la portée, le format, la date
+ * de début, la ville, les médecins et les produits (plus le nom, gardé à part). Le budget, la fin, le
+ * lieu, le pays, la spécialité, le responsable et la description sont facultatifs — voir
+ * `budgetSaisi`. L'ancien motif du budget obligatoire (la porte du DG) ne tient plus : cette porte
+ * lit le total des postes, et l'étape « dg » du parcours est franchie d'office depuis le 27/10.
  *
  * LA LISTE EST LA MÊME POUR LA CRÉATION ET LA MODIFICATION : un formulaire qui exige à la
  * création et laisse vider à la modification n'exige rien du tout — il suffit d'enregistrer deux
@@ -103,25 +104,38 @@ function champsManquants(formData: FormData): string[] {
   // clés d'un délégué importé, et le repli du produit s'appelle désormais `product` partout.
   const medecins = lireMedecinsDemande(formData.getAll("doctorIds").map(String), fdStr(formData, "doctorHorsAnnuaire"), fdStr(formData, "doctor"));
   const produits = readMultiField(formData.getAll("productIds").map(String), fdStr(formData, "product"));
-  const budget = fdNum(formData, "estimatedBudget");
   return [
     !fdStr(formData, "type") ? "le type" : null,
     !fdStr(formData, "scope") ? "la portée" : null,
     !fdStr(formData, "format") ? "le format" : null,
     !fdDate(formData, "startDate") ? "la date de début" : null,
-    !fdDate(formData, "endDate") ? "la date de fin" : null,
-    !fdStr(formData, "location") ? "le lieu / la salle" : null,
     !fdStr(formData, "city") ? "la ville (wilaya)" : null,
-    !fdStr(formData, "country") ? "le pays" : null,
-    !fdStr(formData, "specialty") ? "la spécialité" : null,
     !medecins ? "le ou les médecins concernés" : null,
     !produits ? "le ou les produits concernés" : null,
-    // UN BUDGET DE ZÉRO N'EST PAS UN BUDGET RENSEIGNÉ : c'est exactement la valeur que le moteur
-    // lit sur un champ vide, et celle qui laisse la porte du DG ouverte.
-    budget == null || budget <= 0 ? "le budget estimé (DZD, supérieur à zéro)" : null,
-    !fdStr(formData, "responsibleId") ? "le responsable interne" : null,
-    !fdStr(formData, "description") ? "la description" : null,
   ].filter((x): x is string => x !== null);
+}
+
+/**
+ * LES CHAMPS DEVENUS FACULTATIFS (recette du 23/11/2026) — le budget estimé, la date de fin, le lieu,
+ * le pays, la spécialité, le responsable interne et la description. À la création d'une demande, on
+ * ne les connaît souvent pas encore : la salle est justement ce que l'agence va chercher, et le budget
+ * se chiffre par les postes. Ce que ces champs portaient ne s'appuie plus sur eux :
+ *   · la porte du DG lit le TOTAL DES POSTES (`infra/porte-dg.ts`), jamais `estimatedBudget` ;
+ *   · l'étape « dg » du parcours est franchie d'office depuis le 27/10 (`parcours.ts`).
+ * Un budget saisi reste lu tel quel ; un budget NÉGATIF est refusé ; zéro ou vide s'écrit « non renseigné ».
+ * Une date de fin vide : l'événement tient en une journée (la date de début).
+ */
+function budgetSaisi(formData: FormData): { ok: true; budget: number | null } | { ok: false; error: string } {
+  const budget = fdNum(formData, "estimatedBudget");
+  if (budget != null && budget < 0) return { ok: false, error: "Le budget estimé ne peut pas être négatif." };
+  return { ok: true, budget: budget != null && budget > 0 ? budget : null };
+}
+
+function datesSaisies(formData: FormData): { ok: true; debut: Date | null; fin: Date | null } | { ok: false; error: string } {
+  const debut = fdDate(formData, "startDate");
+  const fin = fdDate(formData, "endDate") ?? debut;
+  if (debut && fin && fin.getTime() < debut.getTime()) return { ok: false, error: "La date de fin ne peut pas précéder la date de début." };
+  return { ok: true, debut, fin };
 }
 
 export async function createEvent(formData: FormData): Promise<ActionResult> {
@@ -144,6 +158,10 @@ export async function createEvent(formData: FormData): Promise<ActionResult> {
   }
   const saisi = statutSaisi(formData);
   if (!saisi.ok) return saisi;
+  const budget = budgetSaisi(formData);
+  if (!budget.ok) return budget;
+  const dates = datesSaisies(formData);
+  if (!dates.ok) return dates;
   const created = await prisma.event.create({
     data: {
       // LA GAMME QUI PORTE LA DEMANDE — c'est SON budget Ad&Pro qui est engagé.
@@ -161,8 +179,8 @@ export async function createEvent(formData: FormData): Promise<ActionResult> {
       scope: inEnum(EventScope, fdStr(formData, "scope"), "NATIONAL"),
       format: inEnum(EventFormat, fdStr(formData, "format"), "PRESENTIAL"),
       status: inEnum(EventStatus, saisi.statut, "DRAFT"),
-      startDate: fdDate(formData, "startDate"),
-      endDate: fdDate(formData, "endDate"),
+      startDate: dates.debut,
+      endDate: dates.fin,
       location: fdStr(formData, "location"),
       city: fdStr(formData, "city"),
       country: fdStr(formData, "country"),
@@ -174,7 +192,7 @@ export async function createEvent(formData: FormData): Promise<ActionResult> {
       description: fdStr(formData, "description"),
       // QUI ORGANISE — l'événement est externe (Direction, 27/10). Ni capacité ni liste d'attente : on ne les tient plus.
       organizer: fdStr(formData, "organizer"),
-      estimatedBudget: fdNum(formData, "estimatedBudget"),
+      estimatedBudget: budget.budget,
       meetingLink: fdStr(formData, "meetingLink"),
       responsibleId: fdStr(formData, "responsibleId"),
       createdById: user.id,
@@ -223,6 +241,10 @@ export async function updateEvent(formData: FormData): Promise<ActionResult> {
   }
   const saisi = statutSaisi(formData, avant.status);
   if (!saisi.ok) return saisi;
+  const budget = budgetSaisi(formData);
+  if (!budget.ok) return budget;
+  const dates = datesSaisies(formData);
+  if (!dates.ok) return dates;
   // UN TYPE HORS DE LA LISTE EXTERNE ne s'écrit plus — sauf celui que l'événement porte déjà (rejoué tel quel).
   const typeSaisi = fdStr(formData, "type");
   if (typeSaisi !== avant.type && !estTypeExterne(typeSaisi)) {
@@ -240,8 +262,8 @@ export async function updateEvent(formData: FormData): Promise<ActionResult> {
     // `undefined` = ON NE TOUCHE PAS. Écrire « DRAFT » par défaut ramènerait en brouillon un
     // événement validé dès qu'un formulaire ne porte pas la case (§118.16).
     status: saisi.statut ? inEnum(EventStatus, saisi.statut, "DRAFT") : undefined,
-    startDate: fdDate(formData, "startDate"),
-    endDate: fdDate(formData, "endDate"),
+    startDate: dates.debut,
+    endDate: dates.fin,
     location: fdStr(formData, "location"),
     city: fdStr(formData, "city"),
     country: fdStr(formData, "country"),
@@ -251,7 +273,8 @@ export async function updateEvent(formData: FormData): Promise<ActionResult> {
     description: fdStr(formData, "description"),
     // L'ORGANISATEUR : un formulaire qui ne le porte pas (Adam rejoue la fiche) n'y touche pas. La capacité ne s'écrit plus.
     organizer: formData.has("organizer") ? fdStr(formData, "organizer") : undefined,
-    estimatedBudget: fdNum(formData, "estimatedBudget"),
+    // Facultatif : un formulaire qui ne porte pas le champ n'y touche pas ; vide ou zéro l'efface.
+    estimatedBudget: formData.has("estimatedBudget") ? budget.budget : undefined,
     meetingLink: fdStr(formData, "meetingLink"),
     responsibleId: fdStr(formData, "responsibleId"),
   };

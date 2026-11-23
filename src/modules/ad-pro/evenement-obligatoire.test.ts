@@ -88,15 +88,29 @@ suite("Un événement Ad & Pro — les champs que la Direction a rendus obligato
       });
   });
 
-  it("LE BUDGET est obligatoire — et zéro n'est pas un budget renseigné", async () => {
-    // Ce qui le ferait tomber : accepter un budget absent ou nul. Le moteur lirait ZÉRO, la porte
-    // du DG resterait ouverte sur un événement très en dessous du seuil, et personne ne saurait
-    // pourquoi le Directeur Général a un dossier de 80 000 DZD sur son écran.
-    for (const budget of ["", "0"]) {
-      const r = await createEvent(complet({ estimatedBudget: budget, responsibleId: responsableId, doctorIds: ["Dr Benali"], productIds: ["Nivolex"] }));
-      expect(r.ok, `budget « ${budget} »`).toBe(false);
-      expect(r.ok === false ? r.error : "").toContain("budget estimé");
+  it("LE BUDGET est FACULTATIF (recette du 23/11/2026) — vide ou zéro s'écrit « non renseigné », négatif est refusé", async () => {
+    // La porte du DG lit le total des POSTES, pas ce champ : à la création, on ne connaît souvent pas encore le budget.
+    for (const [i, budget] of ["", "0"].entries()) {
+      const r = await createEvent(complet({ name: `${TAG}SansBudget${i}`, estimatedBudget: budget, responsibleId: responsableId, doctorIds: ["Dr Benali"], productIds: ["Nivolex"] }));
+      expect(r.ok, `budget « ${budget} » : ${r.ok === false ? r.error : ""}`).toBe(true);
+      const ev = await prisma.event.findFirstOrThrow({ where: { name: `${TAG}SansBudget${i}` } });
+      expect(ev.estimatedBudget).toBeNull();
     }
+    const negatif = await createEvent(complet({ name: `${TAG}Negatif`, estimatedBudget: "-5", responsibleId: responsableId, doctorIds: ["Dr Benali"], productIds: ["Nivolex"] }));
+    expect(negatif.ok).toBe(false);
+    expect(negatif.ok === false ? negatif.error : "").toContain("négatif");
+  });
+
+  it("FIN, LIEU, PAYS, SPÉCIALITÉ, RESPONSABLE, DESCRIPTION sont facultatifs — une fin vide = une journée", async () => {
+    const r = await createEvent(complet({
+      name: `${TAG}Leger`, endDate: "", location: "", country: "", specialty: "", description: "", estimatedBudget: "",
+      doctorIds: ["Dr Benali"], productIds: ["Nivolex"],
+    }));
+    expect(r.ok, r.ok === false ? r.error : "").toBe(true);
+    const ev = await prisma.event.findFirstOrThrow({ where: { name: `${TAG}Leger` } });
+    expect(ev.endDate?.toISOString()).toBe(ev.startDate?.toISOString());
+    expect(ev.location).toBeNull();
+    expect(ev.responsibleId).toBeNull();
   });
 
   it("MÉDECINS et PRODUITS sont obligatoires — en référentiel comme en saisie libre", async () => {
@@ -135,28 +149,27 @@ suite("Un événement Ad & Pro — les champs que la Direction a rendus obligato
     // Quinze champs et un refus par champ, c'est quinze ressaisies du formulaire le plus long du
     // pôle (§118.18). Le nom est la seule exception, gardé à part pour le CONTRAT d'action.
     const fd = complet({
-      type: "", format: "", city: "", specialty: "", estimatedBudget: "",
-      responsibleId: "", doctorIds: ["Dr Benali"], productIds: ["Nivolex"],
+      type: "", format: "", city: "", startDate: "",
+      doctorIds: ["Dr Benali"],
     });
     const r = await createEvent(fd);
     expect(r.ok).toBe(false);
     const msg = r.ok === false ? (r.error ?? "") : "";
-    for (const attendu of ["le type", "le format", "la ville", "la spécialité", "le budget estimé", "le responsable interne"]) {
+    for (const attendu of ["le type", "le format", "la date de début", "la ville", "les produits"]) {
       expect(msg, attendu).toContain(attendu);
     }
   });
 
   it("LA MODIFICATION exige la MÊME chose — sinon il suffirait d'enregistrer deux fois", async () => {
-    // LE DÉFAUT QUE CE CAS FERME : une obligation posée à la création seule n'oblige à rien. On
-    // crée complet, puis on tente de vider le budget par « Modifier ».
+    // Une obligation posée à la création seule n'oblige à rien : vider la ville par « Modifier » est refusé.
     const cree = await createEvent(complet({ name: `${TAG}Maj`, responsibleId: responsableId, doctorIds: ["Dr Benali"], productIds: ["Nivolex"] }));
     expect(cree.ok).toBe(true);
     const ev = await prisma.event.findFirstOrThrow({ where: { name: `${TAG}Maj` } });
-    const fd = complet({ name: `${TAG}Maj`, estimatedBudget: "", responsibleId: responsableId, doctorIds: ["Dr Benali"], productIds: ["Nivolex"] });
+    const fd = complet({ name: `${TAG}Maj`, city: "", responsibleId: responsableId, doctorIds: ["Dr Benali"], productIds: ["Nivolex"] });
     fd.set("id", ev.id);
     const r = await updateEvent(fd);
-    expect(r.ok, "vider le budget par la modification doit être refusé").toBe(false);
-    expect(r.ok === false ? r.error : "").toContain("budget estimé");
+    expect(r.ok, "vider la ville par la modification doit être refusé").toBe(false);
+    expect(r.ok === false ? r.error : "").toContain("la ville");
     const relu = await prisma.event.findUniqueOrThrow({ where: { id: ev.id } });
     expect(Number(relu.estimatedBudget), "et rien n'a été écrit").toBe(450000);
   });

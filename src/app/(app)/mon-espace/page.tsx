@@ -7,7 +7,8 @@ import { ongletsEspace } from "@/lib/queries/mes-taches";
 import { trierConges } from "@/lib/queries/mes-decisions";
 import { chargerAujourdhui } from "@/lib/queries/aujourdhui-espace";
 import { cn } from "@/lib/utils";
-import { listMyReminders } from "@/lib/queries/reminders";
+import { listerMesRappels } from "@/lib/queries/reminders";
+import { classerRappels, rappelsActifs } from "@/lib/rappels/vue";
 import { MyReminders } from "@/components/reminders/my-reminders";
 import { LeaveApprovals } from "@/components/hr/leave-approvals";
 import { MyAdvances, type AdvanceItem } from "./my-advances";
@@ -40,12 +41,13 @@ export default async function MonEspacePage() {
   const user = await requireModule("WORKSPACE");
   const maintenant = new Date();
   const data = await getMyWorkspace(user.id);
-  const [reminders, manager] = await Promise.all([
-    listMyReminders(user.id),
+  const [rappels, manager] = await Promise.all([
+    // TOUS LES RAPPELS (recette du 23/11/2026) : les siens, ceux de l'assistant, les échéances et relances reçues.
+    listerMesRappels(user.id),
     // Le responsable hiérarchique — nommé dans le formulaire de formation : il ne se choisit pas.
     getManagerOfUser(user.id).catch(sansBloquer("mon-espace-page.MonEspacePage.getManagerOfUser", null)),
   ]);
-  const reminderRows = reminders.map((r) => ({ ...r, remindAt: r.remindAt.toISOString(), sentAt: r.sentAt ? r.sentAt.toISOString() : null }));
+  const rappelsActifsN = rappelsActifs(classerRappels(rappels, maintenant.getTime()));
 
   const jour = await chargerAujourdhui(user, {
     maintenant,
@@ -53,7 +55,7 @@ export default async function MonEspacePage() {
     employeeId: data.employee?.id ?? null,
     tachesOuvertes: data.stats.openTasks,
     tachesRetard: data.stats.overdue,
-    rappels: reminders.filter((r) => r.status === "PENDING").length,
+    rappels: rappelsActifsN,
   });
   // LES CONGÉS À SIGNER gardent leur bloc (la fiche, les boutons, le fil) : le lot « Congés à signer »
   // de la file y mène (`#conges-a-signer`), et les notifications aussi.
@@ -127,18 +129,19 @@ export default async function MonEspacePage() {
         </div>
 
         <aside className="min-w-0 space-y-5">
+          {/* MES RAPPELS EN TÊTE DE COLONNE (recette du 23/11/2026) : ce qu'on s'est promis de faire, à portée d'œil. */}
+          <Panneau titre="Mes rappels" aside={rappelsActifsN > 0 ? `${rappelsActifsN} à traiter` : undefined}>
+            <div className="space-y-3">
+              <MyReminders rappels={rappels} limite={5} maintenant={maintenant.toISOString()} />
+              <RappelRapide />
+            </div>
+          </Panneau>
+
           {jour.equipe && jour.equipe.directs > 0 && (
             <Panneau titre="Mon équipe" aside={`${jour.equipe.directs} direct${jour.equipe.directs > 1 ? "s" : ""}`}>
               <EquipeEncart membres={jour.equipe.membres} personnesEnRetard={jour.equipe.personnesEnRetard} retards={jour.equipe.retards} />
             </Panneau>
           )}
-
-          <Panneau titre="Mes rappels" aside={reminderRows.length > 0 ? `${reminderRows.length} actif${reminderRows.length > 1 ? "s" : ""}` : undefined}>
-            <div className="space-y-3">
-              <MyReminders reminders={reminderRows} />
-              <RappelRapide />
-            </div>
-          </Panneau>
 
           {jour.raccourcis.length > 0 && (
             <Panneau titre="Raccourcis du métier">

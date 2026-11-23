@@ -355,6 +355,12 @@ function CelluleAction({ l, peutGerer, occupe, onConsommer, onAnnuler }: {
   if (l.etat === "A_IMPUTER") return <span className="text-xs text-muted-foreground">Après imputation</span>;
   if (l.etat === "ENGAGEE") {
     if (!peutGerer) return <span className="text-xs text-muted-foreground">Engagée, à consommer</span>;
+    // UN POSTE PAR AGENCE se paie depuis le poste (réception, facture contrôlée contre le BC) — recette du 23/11/2026.
+    if (l.parPoste) {
+      return l.posteHref
+        ? <Lien href={l.posteHref} className="text-xs">Paiement depuis le poste</Lien>
+        : <span className="text-xs text-muted-foreground">Paiement depuis le poste</span>;
+    }
     return (
       <div className="flex flex-wrap gap-1.5">
         <Button size="sm" variant="outline" onClick={onConsommer} disabled={occupe}>Consommer</Button>

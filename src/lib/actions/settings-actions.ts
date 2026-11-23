@@ -3,6 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { siegeAuCentreAdPro, REFUS_CENTRE_AD_PRO } from "@/modules/ad-pro/partage";
+import { relacherLesPostesSousLeSeuil } from "@/modules/ad-pro/api";
+import { signalerSiASigner } from "@/lib/bons-de-commande/etat";
+import { sansBloquer } from "@/lib/journal";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { DEFAULT_APP_SETTINGS } from "@/lib/settings";
@@ -154,6 +157,16 @@ async function reglerSeuilBC(adminId: string, brut: number | null, centre: Centr
   });
 
   const bilan = await reaiguillerSurChangementDeSeuil(ancien, seuil, adminId, centre);
+  // LES DEMANDES DE BC DE POSTE (recette du 23/11/2026) : leur porte est le poste lui-même, que le réaiguillage des pièces ne
+  // touche pas — un seuil relevé les laissait au centre du DG. Celles qui n'ont plus à y être sont rendues aux Finances, et
+  // leurs BC déjà établis, désormais « à signer », signalés à leurs signataires. Un échec ne défait pas le réglage écrit :
+  // le centre, lui, n'affiche déjà plus une demande sous le seuil du jour.
+  const postes = centre === "AD_PRO"
+    ? await relacherLesPostesSousLeSeuil(seuil, adminId).catch(sansBloquer("settings-actions.reglerSeuilBC.relacherLesPostesSousLeSeuil", null))
+    : null;
+  for (const bcId of postes?.bcIds ?? []) {
+    await signalerSiASigner(bcId).catch(sansBloquer("settings-actions.reglerSeuilBC.signalerSiASigner", false));
+  }
 
   revalidatePath("/admin");
   revalidatePath("/centre-ad-pro");
@@ -166,9 +179,14 @@ async function reglerSeuilBC(adminId: string, brut: number | null, centre: Centr
         bilan.versLaSignature > 0 ? `${bilan.versLaSignature} passé${bilan.versLaSignature > 1 ? "s" : ""} directement à la signature des Finances` : null,
         bilan.versUnCentre > 0 ? `${bilan.versUnCentre} adressé${bilan.versUnCentre > 1 ? "s" : ""} au ${nomCentre}` : null,
       ].filter(Boolean).join(", ").replace(/^./, (c) => c.toUpperCase()) + ".";
+  const n = postes?.postes ?? 0;
+  const effetPostes = n === 0 ? "" : (n === 1
+    ? " Une demande de bon de commande de poste qui attendait le Directeur Général passe directement à la signature des Finances."
+    : ` ${n} demandes de bon de commande de poste qui attendaient le Directeur Général passent directement à la signature des Finances.`)
+    + (postes?.tronque ? " Seules les 500 plus anciennes ont été rendues ; le centre n'affiche déjà plus les suivantes." : "");
   return {
     ok: true,
-    message: `${seuil > 0 ? `Seuil fixé à ${seuil.toLocaleString("fr-FR")} DZD.` : "Aucun seuil : tout bon de commande passe par le centre."} ${effet}`
+    message: `${seuil > 0 ? `Seuil fixé à ${seuil.toLocaleString("fr-FR")} DZD.` : "Aucun seuil : tout bon de commande passe par le centre."} ${effet}${effetPostes}`
       // Borné, et DIT : la file des Finances et la signature lisent le seuil EN DIRECT, donc un
       // BC non réaiguillé ne peut pas être signé du mauvais côté — seule sa porte attend d'être
       // posée ou retirée, ce que sa prochaine modification fera.

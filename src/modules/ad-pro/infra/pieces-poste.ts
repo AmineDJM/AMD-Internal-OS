@@ -1,5 +1,7 @@
 import type { AdProPieceNature, LegalDocKind } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { sansBloquer } from "@/lib/journal";
+import { rangerPieceDuPoste } from "./classement-juridique";
 import { toNumber } from "@/lib/utils";
 import { createWithRetry, referenceDeSerie } from "@/lib/refs";
 import { moneyEntityOf } from "@/lib/company";
@@ -340,6 +342,8 @@ export async function rattacherPieceAuPoste(i: {
     create: { itemId: i.itemId, legalDocumentId: i.legalDocumentId, nature: i.nature, createdById: i.acteurId },
     update: {},
   });
+  // RANGÉE SOUS SA DEMANDE dans l'armoire Legal (« Événements › 2026 › … ») — sans jamais bloquer le rattachement.
+  await rangerPieceDuPoste({ itemId: i.itemId, legalDocumentId: i.legalDocumentId }).catch(sansBloquer("pieces-poste.rattacherPieceAuPoste.ranger", null));
   if (i.nature !== "BON_DE_COMMANDE") return;
   const [poste, doc, devis] = await Promise.all([
     prisma.adProItem.findUnique({ where: { id: i.itemId }, select: { amountGranted: true, supplier: true } }),

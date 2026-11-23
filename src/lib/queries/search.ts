@@ -1,5 +1,7 @@
 import type { SessionUser } from "@/lib/rbac";
-import { Prisma } from "@prisma/client";
+import { Prisma, type LegalDocKind } from "@prisma/client";
+import { natureDuMot } from "@/lib/legal/classement";
+import { natureLegale } from "@/lib/labels";
 import { userCan, hasGlobalView, scopeBusinessDevelopment, regulatoryLockWhere } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { regulatoryVisibleWhere } from "@/lib/queries/regulatory-rows";
@@ -139,8 +141,26 @@ export async function globalSearch(user: SessionUser, q: string, perGroup = 6): 
     // LEGAL : la portée de la personne (tout le registre, ou la chaîne d'achat seule pour les
     // Finances), les LECTEURS désignés et l'entité — un document restreint ne se découvre pas par
     // la palette de recherche.
+    // Chaque mot se lit aussi dans le DOSSIER de classement et son parent (« BC cardiologie » : le BC rangé sous
+    // « Événements › 2026 › Journée de cardiologie »), et « BC », « facture », « devis » désignent la nature (23/11/2026).
     legal.where
-      ? prisma.legalDocument.findMany({ where: { AND: [legal.where, ...(match(["title", "reference", "counterparty"]) as Prisma.LegalDocumentWhereInput[])] }, take, select: { id: true, title: true, reference: true, kind: true } })
+      ? prisma.legalDocument.findMany({
+          where: {
+            AND: [legal.where, ...search.map((t): Prisma.LegalDocumentWhereInput => {
+              const kind = natureDuMot(t);
+              return {
+                OR: [
+                  ...(["title", "reference", "counterparty"] as const).map((f) => ({ [f]: { contains: t, mode: "insensitive" as const } })),
+                  { folder: { name: { contains: t, mode: "insensitive" } } },
+                  { folder: { parent: { name: { contains: t, mode: "insensitive" } } } },
+                  ...(kind ? [{ kind: kind as LegalDocKind }] : []),
+                ],
+              };
+            })],
+          },
+          take,
+          select: { id: true, title: true, reference: true, kind: true, folder: { select: { name: true } } },
+        })
       : [],
     userCan(user, "MAIL_REGISTER", "VIEW")
       ? prisma.mailEntry.findMany({ where: { AND: [await clauseCourriersVisibles(user.id), ...(match(["title", "reference", "sender", "recipient"]) as Prisma.MailEntryWhereInput[])] }, take, select: { id: true, title: true, reference: true } })
@@ -169,7 +189,8 @@ export async function globalSearch(user: SessionUser, q: string, perGroup = 6): 
   for (const r of messages) out.push({ id: r.id, group: "Discussions", title: (r.conversation?.title ?? "Message"), subtitle: r.body.slice(0, 80), href: `/messages?c=${r.conversationId}`, icon: "MessageCircle" });
   for (const r of tenders) out.push({ id: r.id, group: "Marchés PCH", title: r.reference, subtitle: [r.title, r.client].filter(Boolean).join(" · "), href: `/pch/${r.id}`, icon: "Gavel" });
   for (const r of pchOrders) out.push({ id: r.id, group: "Marchés PCH", title: `BC ${r.reference ?? "s/n"}`, subtitle: [r.tender.reference, r.products].filter(Boolean).join(" · "), href: `/pch/${r.tenderId}`, icon: "ReceiptText" });
-  for (const r of legalDocs) out.push({ id: r.id, group: "Legal", title: r.title, subtitle: r.reference ?? String(r.kind), href: `/legal/${r.id}`, icon: "Scale" });
+  // La demande où la pièce est rangée se lit dans le sous-titre : on sait à quel événement est ce BC.
+  for (const r of legalDocs) out.push({ id: r.id, group: "Legal", title: r.title, subtitle: [r.reference ?? natureLegale(r.kind), r.folder?.name].filter(Boolean).join(" · "), href: `/legal/${r.id}`, icon: "Scale" });
   for (const r of mailEntries) out.push({ id: r.id, group: "Courriers", title: r.title, subtitle: r.reference ?? "", href: `/courriers/${r.id}`, icon: "Mails" });
   out.push(...(await rechercheReliee(user, match, take)));
   return out;

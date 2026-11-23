@@ -23,6 +23,8 @@ export function RappelRapide() {
   const { rafraichir } = useRafraichir();
   const [titre, setTitre] = React.useState("");
   const [moment, setMoment] = React.useState("demain");
+  // « Date et heure précises… » (recette du 23/11/2026) : le jour et l'heure exacts, à l'heure du navigateur.
+  const [precis, setPrecis] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [msg, setMsg] = React.useState<{ ok: boolean; t: string } | null>(null);
 
@@ -31,9 +33,17 @@ export function RappelRapide() {
     const t = titre.trim();
     if (!t) { setMsg({ ok: false, t: "Écrivez d'abord de quoi vous rappeler." }); return; }
     const now = new Date();
-    let at = (MOMENTS.find((m) => m.cle === moment) ?? MOMENTS[0]).at(now);
-    // « Ce soir » passé 18 h : demain soir, plutôt qu'un rappel déjà échu que le serveur refuserait.
-    if (at.getTime() <= now.getTime() + 60_000) at = new Date(at.getTime() + 86_400_000);
+    let at: Date;
+    if (moment === "precis") {
+      // `datetime-local` se lit à l'heure du navigateur : « 2026-11-24T14:30 » est 14 h 30 ICI.
+      at = new Date(precis);
+      if (!precis || Number.isNaN(at.getTime())) { setMsg({ ok: false, t: "Choisissez le jour et l'heure du rappel." }); return; }
+      if (at.getTime() <= now.getTime()) { setMsg({ ok: false, t: "Ce moment est déjà passé : choisissez une date à venir." }); return; }
+    } else {
+      at = (MOMENTS.find((m) => m.cle === moment) ?? MOMENTS[0]).at(now);
+      // « Ce soir » passé 18 h : demain soir, plutôt qu'un rappel déjà échu que le serveur refuserait.
+      if (at.getTime() <= now.getTime() + 60_000) at = new Date(at.getTime() + 86_400_000);
+    }
     setBusy(true); setMsg(null);
     const fd = new FormData();
     fd.set("title", t);
@@ -41,7 +51,11 @@ export function RappelRapide() {
     fd.set("link", "/mon-espace");
     try {
       const r = await createReminder(fd);
-      if (r.ok) { setTitre(""); setMsg({ ok: true, t: "Rappel ajouté." }); rafraichir(); }
+      if (r.ok) {
+        setTitre(""); setPrecis("");
+        setMsg({ ok: true, t: `Rappel ajouté pour le ${at.toLocaleString("fr-FR", { dateStyle: "medium", timeStyle: "short" })}.` });
+        rafraichir();
+      }
       else setMsg({ ok: false, t: r.error ?? "Le rappel n'a pas pu être créé." });
     } catch {
       setMsg({ ok: false, t: actionFailureMessage("THROWN") });
@@ -51,7 +65,7 @@ export function RappelRapide() {
   }
 
   return (
-    <form onSubmit={envoyer} className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+    <form onSubmit={envoyer} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
       <input
         type="text"
         value={titre}
@@ -59,7 +73,7 @@ export function RappelRapide() {
         placeholder="Me rappeler de…"
         aria-label="Texte du rappel"
         maxLength={200}
-        className="col-span-2 h-9 min-w-0 rounded-md border border-border bg-background px-2.5 text-sm outline-none focus:ring-2 focus:ring-ring sm:col-span-1"
+        className="col-span-2 h-9 min-w-0 rounded-md border border-border bg-background px-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
       />
       <select
         value={moment}
@@ -68,6 +82,7 @@ export function RappelRapide() {
         className="h-9 min-w-0 rounded-md border border-border bg-background px-2 text-sm"
       >
         {MOMENTS.map((m) => <option key={m.cle} value={m.cle}>{m.label}</option>)}
+        <option value="precis">Date et heure précises…</option>
       </select>
       <button
         type="submit"
@@ -76,7 +91,16 @@ export function RappelRapide() {
       >
         {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />} Ajouter
       </button>
-      {msg && <p role="status" className={`col-span-2 text-xs sm:col-span-3 ${msg.ok ? "text-success" : "text-destructive"}`}>{msg.t}</p>}
+      {moment === "precis" && (
+        <input
+          type="datetime-local"
+          value={precis}
+          onChange={(e) => setPrecis(e.target.value)}
+          aria-label="Jour et heure du rappel"
+          className="col-span-2 h-9 min-w-0 rounded-md border border-border bg-background px-2 text-sm"
+        />
+      )}
+      {msg && <p role="status" className={`col-span-2 text-xs ${msg.ok ? "text-success" : "text-destructive"}`}>{msg.t}</p>}
     </form>
   );
 }

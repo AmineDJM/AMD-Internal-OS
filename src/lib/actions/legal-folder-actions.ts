@@ -9,6 +9,7 @@ import { recordAudit } from "@/lib/audit";
 import { getMyCompanies } from "@/lib/company";
 import { canReparent, type FolderLite } from "@/lib/legal/folders";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
+import { rangerPiecesNonClasseesDesPostes } from "@/modules/ad-pro/api";
 
 /**
  * LES DOSSIERS DE CLASSEMENT DE LEGAL.
@@ -175,4 +176,31 @@ export async function moveLegalDocuments(formData: FormData): Promise<ActionResu
   });
   revalidatePath(PATH);
   return { ok: true, message: `${movable.length} document(s) rangé(s) dans « ${folderName} ».` };
+}
+
+/**
+ * RANGER LES PIÈCES AD & PRO DÉJÀ AU REGISTRE (recette du 23/11/2026) — le rattrapage des devis, BC et
+ * factures rattachés à un poste AVANT le rangement automatique : chacun rejoint le dossier de sa demande
+ * (« Événements › 2026 › … »). Idempotent ; une pièce déjà rangée à la main ne bouge pas. Super Admin.
+ */
+export async function rangerPiecesAdPro(): Promise<ActionResult> {
+  const user = await requireUser();
+  if (user.role !== "SUPER_ADMIN") return { ok: false, error: "Réservé au Super Admin." };
+  let rangees = 0;
+  let examinees = 0;
+  // Par lots de 200, jusqu'à épuisement (dix lots au plus par clic : le reste se range au clic suivant).
+  for (let i = 0; i < 10; i++) {
+    const r = await rangerPiecesNonClasseesDesPostes(200);
+    rangees += r.rangees;
+    examinees += r.examinees;
+    if (r.examinees < 200 || r.rangees === 0) break;
+  }
+  await recordAudit({ actorId: user.id, action: "UPDATE", module: "Legal", summary: `Rangement des pièces Ad & Pro par demande : ${rangees} pièce(s) rangée(s)` });
+  revalidatePath(PATH);
+  return {
+    ok: true,
+    message: rangees > 0
+      ? `${rangees} pièce${rangees > 1 ? "s" : ""} Ad & Pro rangée${rangees > 1 ? "s" : ""} sous leur demande.`
+      : examinees > 0 ? "Aucune pièce n'a pu être rangée (demande introuvable)." : "Toutes les pièces Ad & Pro sont déjà rangées.",
+  };
 }

@@ -51,6 +51,8 @@ export interface ElementFile {
   famille?: string | null;
   /** Le statut brut quand la nature en dépend (déclarations d'information médicale). */
   statut?: string | null;
+  /** La priorité que la base porte (tâche, validation, demande) — `HIGH`/`CRITICAL` rendent la ligne urgente. */
+  priority?: string | null;
 }
 
 // ─────────────────────────────────────────── Natures ─────────────────────────────────────────
@@ -243,8 +245,27 @@ export interface Geste {
   href: string;
 }
 
+/**
+ * L'URGENCE D'UNE LIGNE (recette du 23/11/2026 — « un filtre par urgence ») : trois niveaux, lus sur ce
+ * que la base porte, jamais estimés.
+ *   · « En retard » — l'échéance est dépassée d'au moins un jour civil ;
+ *   · « Urgent »    — échéance aujourd'hui, demain ou après-demain, ou priorité haute / critique ;
+ *   · « À suivre »  — le reste.
+ */
+export type NiveauUrgence = "retard" | "urgent" | "normal";
+
+export const URGENCES: { cle: NiveauUrgence; libelle: string }[] = [
+  { cle: "retard", libelle: "En retard" },
+  { cle: "urgent", libelle: "Urgent" },
+  { cle: "normal", libelle: "À suivre" },
+];
+
+const PRIORITES_URGENTES = new Set(["HIGH", "CRITICAL", "URGENT"]);
+
 export interface LigneLot {
   key: string;
+  /** L'objet de la ligne (« EXPENSE_ORDER:… ») — le geste « Régler » d'un lot de paiements le relit. */
+  objet: string;
   /** La référence lisible (« OD-2026-013 ») quand la ligne en porte une. */
   ref: string | null;
   libelle: string;
@@ -254,6 +275,11 @@ export interface LigneLot {
   retard: number | null;
   /** Jours civils d'attente — `null` si rien ne la date. */
   attente: number | null;
+  /** ISO — depuis quand la ligne attend : le tri « plus récent d'abord » le lit. */
+  depuis: string | null;
+  /** Jours avant l'échéance (0 = aujourd'hui) — `null` sans échéance ou si elle est dépassée. */
+  echeanceDans: number | null;
+  urgence: NiveauUrgence;
   famille: string | null;
   geste: Geste;
 }
@@ -268,7 +294,13 @@ export interface FamilleLot {
 export interface Lot {
   id: string;
   nature: NatureLot;
+  /** Le module des lignes — le chapeau d'un lot « autre ». */
+  module: string;
   chapeau: string;
+  /** ISO — l'attente la plus récente du lot : le tri « plus récent d'abord ». */
+  recent: string | null;
+  /** Lignes urgentes (échéance sous deux jours ou priorité haute), hors retard. */
+  urgents: number;
   titre: string;
   sousTitre: string;
   n: number;
@@ -313,7 +345,7 @@ function attenteDe(e: ElementFile, now: Date): number | null {
 }
 
 /** La ligne la plus pressante d'abord : retard, puis montant, puis ancienneté. */
-function parUrgenceLigne(a: LigneLot, b: LigneLot): number {
+export function parUrgenceLigne(a: LigneLot, b: LigneLot): number {
   return (b.retard ?? 0) - (a.retard ?? 0)
     || (b.montant ?? 0) - (a.montant ?? 0)
     || (b.attente ?? -1) - (a.attente ?? -1)
@@ -338,28 +370,47 @@ function ligneDe(e: ElementFile, verbe: string, now: Date): LigneLot {
     .filter((s) => s && s !== ref && !(e.montant != null && /\d.*DZD$/.test(s)))
     .join(" · ");
   const parties = [detail || null, e.owner ? e.owner : null].filter(Boolean) as string[];
+  const retard = retardDe(e, now);
+  const echeanceDans = echeanceDansDe(e, now, retard);
+  const urgence: NiveauUrgence = retard !== null
+    ? "retard"
+    : (echeanceDans !== null && echeanceDans <= 2) || PRIORITES_URGENTES.has((e.priority ?? "").toUpperCase()) ? "urgent" : "normal";
+  const depuis = e.depuis && !Number.isNaN(new Date(e.depuis).getTime()) ? e.depuis : null;
   return {
     key: e.key,
+    objet: e.objet,
     ref,
     libelle: e.title,
     detail: parties.length ? [...new Set(parties)].join(" · ") : null,
     montant: e.montant != null && Number.isFinite(e.montant) ? e.montant : null,
-    retard: retardDe(e, now),
+    retard,
     attente: attenteDe(e, now),
+    depuis,
+    echeanceDans,
+    urgence,
     famille: e.famille ?? null,
     geste: { libelle: verbe, href: e.href },
   };
 }
 
+/** Jours civils avant l'échéance (0 = aujourd'hui) ; `null` sans échéance ou quand elle est dépassée. */
+function echeanceDansDe(e: ElementFile, now: Date, retard: number | null): number | null {
+  if (!e.deadline || retard !== null) return null;
+  const d = new Date(e.deadline);
+  if (Number.isNaN(d.getTime())) return null;
+  if (d.getTime() <= now.getTime()) return 0;
+  return Math.max(0, joursCivilsDepuis(now, d));
+}
+
 /** Le lien qui ouvre le lot : l'écran de la nature, filtré quand l'écran sait l'être. */
-function gesteDuLot(nature: NatureLot, lignes: LigneLot[], objets: Map<string, string>): Geste {
+function gesteDuLot(nature: NatureLot, lignes: LigneLot[]): Geste {
   const def = NATURES[nature];
   if (nature === "paiement") {
     // « Régler les N » OUVRE l'écran des paiements, ces ordres mis en évidence : le règlement reste
     // le geste de cet écran (compte, budget, quittance) — aucun circuit financier neuf ici.
     const enRetard = lignes.filter((l) => l.retard !== null);
     const cibles = enRetard.length > 0 ? enRetard : lignes;
-    const ids = cibles.map((l) => (objets.get(l.key) ?? "").replace(/^EXPENSE_ORDER:/, "")).filter(Boolean);
+    const ids = cibles.map((l) => l.objet.replace(/^EXPENSE_ORDER:/, "")).filter(Boolean);
     const libelle = enRetard.length > 0
       ? `Régler ${enRetard.length > 1 ? `les ${enRetard.length} en retard` : "celui en retard"}`
       : lignes.length > 1 ? `Régler les ${lignes.length}` : "Régler";
@@ -376,25 +427,35 @@ function gesteDuLot(nature: NatureLot, lignes: LigneLot[], objets: Map<string, s
  * ne sont pas comptées : elles deviennent la `suite` du lot dont elles ferment la liste.
  */
 export function regrouperFile(elements: readonly ElementFile[], now: Date): Lot[] {
-  const parNature = new Map<string, { nature: NatureLot; module: string; lignes: LigneLot[]; suite: Geste | null }>();
-  const objets = new Map<string, string>();
+  const parNature = new Map<string, GroupeFile>();
   for (const e of elements) {
     const nature = natureDe(e);
     // « Autres » se range par module : deux modules sans nature propre ne font pas un même lot.
     const id = nature === "autre" ? `autre:${e.module}` : nature;
-    const g = parNature.get(id) ?? { nature, module: e.module, lignes: [], suite: null };
+    const g = parNature.get(id) ?? { id, nature, module: e.module, lignes: [], suite: null };
     parNature.set(id, g);
     if (estReste(e)) {
       g.suite = { libelle: e.title, href: e.href };
       continue;
     }
-    objets.set(e.key, e.objet);
     g.lignes.push(ligneDe(e, NATURES[nature].verbe, now));
   }
 
   const lots: Lot[] = [];
-  for (const [id, g] of parNature) {
-    if (g.lignes.length === 0 && !g.suite) continue;
+  for (const g of parNature.values()) {
+    const lot = construireLot(g);
+    if (lot) lots.push(lot);
+  }
+  return lots.sort(parUrgence);
+}
+
+export interface GroupeFile { id: string; nature: NatureLot; module: string; lignes: LigneLot[]; suite: Geste | null }
+
+/** Un lot à partir de ses lignes — partagé par la file et par son affinage (filtre d'urgence). */
+export function construireLot(g: GroupeFile): Lot | null {
+  const id = g.id;
+  {
+    if (g.lignes.length === 0 && !g.suite) return null;
     const def = NATURES[g.nature];
     const lignes = [...g.lignes].sort(parUrgenceLigne);
     const n = lignes.length;
@@ -439,15 +500,16 @@ export function regrouperFile(elements: readonly ElementFile[], now: Date): Lot[
       ? [lignes[0].ref, g.nature === "paiement" ? lignes[0].libelle : def.sousTitre].filter(Boolean).join(" · ")
       : def.sousTitre || g.module;
     const ton: Lot["ton"] = enRetard > 0 ? "late" : (attenteMax ?? 0) >= 30 ? "warn" : "";
+    const recent = lignes.reduce<string | null>((m, l) => (l.depuis && (!m || l.depuis > m) ? l.depuis : m), null);
+    const urgents = lignes.filter((l) => l.urgence === "urgent").length;
 
-    lots.push({
-      id, nature: g.nature, chapeau: g.nature === "autre" ? g.module : def.chapeau, titre, sousTitre,
+    return {
+      id, nature: g.nature, module: g.module, chapeau: g.nature === "autre" ? g.module : def.chapeau, recent, urgents, titre, sousTitre,
       n, montant, enRetard, retardMax, retardCumule, attenteMax, ton, lignes, familles,
-      geste: n === 0 && g.suite ? g.suite : gesteDuLot(g.nature, lignes, objets),
+      geste: n === 0 && g.suite ? g.suite : gesteDuLot(g.nature, lignes),
       suite: n > 0 ? g.suite : null,
-    });
+    };
   }
-  return lots.sort(parUrgence);
 }
 
 /** Les chapeaux de la file, dans l'ordre d'urgence de leurs lots — les filtres de la file. */

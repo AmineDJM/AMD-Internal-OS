@@ -6303,6 +6303,15 @@
   "annulation": "retour",
   "appelable": true
  },
+ "legal-folder-actions:rangerPiecesAdPro": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
  "legal-folder-actions:updateLegalFolder": {
   "risque": "R1",
   "familles": [
@@ -10850,6 +10859,15 @@
   ],
   "simulable": "oui",
   "annulation": "compensation",
+  "appelable": true
+ },
+ "reminder-actions:arreterRappelAssistant": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
   "appelable": true
  },
  "reminder-actions:cancelReminder": {

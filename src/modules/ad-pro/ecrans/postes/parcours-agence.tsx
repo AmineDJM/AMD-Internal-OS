@@ -34,6 +34,7 @@ export function faitsAgenceDuPoste(item: ItemRow): FaitsPosteAgence | null {
     bc: item.pieces.bc ? (item.pieces.bc.etape ?? "HORS_CIRCUIT") : null,
     factures: item.pieces.factures.length, expenseOrderId: item.expenseOrderId,
     expenseOrderStatus: item.expenseOrder?.status ?? null, expenseOrderCentral: item.expenseOrder?.centralStatus ?? null,
+    orderDecisionNote: item.orderDecisionNote ?? null,
     agence: item.agence.faits,
   };
 }

@@ -369,7 +369,9 @@ export async function retirerDemandeBC(_prev: ActionResult | undefined, formData
   if (item.orderStage === "ISSUED" || item.expenseOrderId) {
     return { ok: false, error: "Le bon de commande a déjà été émis : annulez l'ordre de dépense (« Annuler l'ordre émis ») tant qu'il n'est pas réglé." };
   }
-  if (item.orderStage !== "REQUESTED" && item.orderStage !== "DIRECTION_OK") {
+  // REFUSED aussi (recette du 23/11/2026) : un BC refusé par le DG au centre Ad & Pro se retire pour en refaire un —
+  // sans quoi le poste restait « Refusé » sans aucun geste possible.
+  if (item.orderStage !== "REQUESTED" && item.orderStage !== "DIRECTION_OK" && item.orderStage !== "REFUSED") {
     return { ok: false, error: "Aucune demande de bon de commande n'est en cours sur ce poste." };
   }
   // UN GESTE UNIQUE (audit du 04/10, constat 36) : le BC établi par l'assistante mais NON signé n'engage
@@ -395,7 +397,7 @@ export async function retirerDemandeBC(_prev: ActionResult | undefined, formData
         annules.push(bc.nom);
       }
       const r = await tx.adProItem.updateMany({
-        where: { id, orderStage: { in: ["REQUESTED", "DIRECTION_OK"] }, expenseOrderId: null },
+        where: { id, orderStage: { in: ["REQUESTED", "DIRECTION_OK", "REFUSED"] }, expenseOrderId: null },
         data: {
           orderStage: "NONE", orderDirectionAt: null, orderDirectionById: null,
           orderVisaAmount: null, orderVisaSupplier: null, orderDecisionNote: null, updatedById: user.id,

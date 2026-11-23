@@ -50,13 +50,15 @@ export interface FaitsPosteAgence {
   expenseOrderId: string | null;
   expenseOrderStatus: string | null;
   expenseOrderCentral?: string | null;
+  /** Le motif du centre Ad & Pro (refus du BC par le DG) — affiché tel quel. */
+  orderDecisionNote?: string | null;
   agence: FaitsAgence;
 }
 
 export type EtapeAgence =
   | "PROSPECTION_A_DEMANDER" | "PROSPECTION" | "CHOIX"
   | "BC_A_PREPARER" | "BC_CHEZ_ASSISTANTE" | "BC_A_VALIDER" | "BC_A_SIGNER_MARKETING"
-  | "BC_CHEZ_CENTRE" | "BC_A_SIGNER_FINANCES" | "BC_A_CORRIGER"
+  | "BC_CHEZ_CENTRE" | "BC_A_SIGNER_FINANCES" | "BC_A_CORRIGER" | "BC_REFUSE_DG"
   | "BC_A_ENVOYER" | "BAT_A_ENVOYER" | "CONFORMITE" | "BAT_NON_CONFORME"
   | "RECEPTION" | "FACTURE" | "PAIEMENT" | "PAYE" | "REFUSE";
 
@@ -73,6 +75,10 @@ export function etapeAgence(p: FaitsPosteAgence): EtapeAgence {
     if (!a.brouillonBc) return "BC_A_PREPARER";
     return a.bcSoumis ? "BC_A_VALIDER" : "BC_CHEZ_ASSISTANTE";
   }
+  // LE BC REFUSÉ PAR LE DG (centre Ad & Pro) N'EST PAS LA FIN DU POSTE (recette du 23/11/2026) : la Direction Marketing
+  // retire la demande de BC (le BC non signé s'annule avec elle) et en prépare un nouveau. Le refus d'une PIÈCE (visa
+  // Legal) reste terminal, comme avant.
+  if (p.orderStage === "REFUSED") return "BC_REFUSE_DG";
   if (p.bc === "REFUSE") return "REFUSE";
   if (!a.signatureMarketing) return "BC_A_SIGNER_MARKETING";
   if (p.bc === "A_VALIDER" || p.bc === "A_REVOIR" || p.bc === "SANS_PORTE" || p.orderStage === "REQUESTED") return "BC_CHEZ_CENTRE";
@@ -94,7 +100,7 @@ export interface EtapeFriseAgence { cle: string; libelle: string; etat: EtatFris
 const JALONS: { cle: string; libelle: string; debut: EtapeAgence[] }[] = [
   { cle: "AGENCES", libelle: "Agences", debut: ["PROSPECTION_A_DEMANDER", "PROSPECTION"] },
   { cle: "CHOIX", libelle: "Choix", debut: ["CHOIX"] },
-  { cle: "BC", libelle: "Bon de commande", debut: ["BC_A_PREPARER", "BC_CHEZ_ASSISTANTE", "BC_A_VALIDER", "BC_A_SIGNER_MARKETING", "BC_CHEZ_CENTRE", "BC_A_SIGNER_FINANCES", "BC_A_CORRIGER"] },
+  { cle: "BC", libelle: "Bon de commande", debut: ["BC_A_PREPARER", "BC_CHEZ_ASSISTANTE", "BC_A_VALIDER", "BC_A_SIGNER_MARKETING", "BC_CHEZ_CENTRE", "BC_A_SIGNER_FINANCES", "BC_A_CORRIGER", "BC_REFUSE_DG"] },
   { cle: "EXECUTION", libelle: "Exécution", debut: ["BC_A_ENVOYER", "BAT_A_ENVOYER", "CONFORMITE", "BAT_NON_CONFORME"] },
   { cle: "RECEPTION", libelle: "Réception", debut: ["RECEPTION"] },
   { cle: "FACTURE", libelle: "Facture", debut: ["FACTURE"] },
@@ -170,6 +176,8 @@ export function pasAgence(p: FaitsPosteAgence, r: RegardAgence): PasAgence {
       return att("BC à signer et cacheter — chez les Finances.");
     case "BC_A_CORRIGER":
       return r.assistante ? g("FINALISER_BC", "Corriger le bon de commande renvoyé") : att(`BC renvoyé par les Finances — à corriger ${chezAssistante}.`);
+    case "BC_REFUSE_DG":
+      return att(`BC refusé par le DG (centre Ad & Pro)${p.orderDecisionNote ? ` — « ${p.orderDecisionNote} »` : ""} : ${DM} annule la demande de BC (« Annuler la demande de BC ») pour en préparer un nouveau.`);
     case "BC_A_ENVOYER":
       return mk ? g("ENVOYER_BC", "Envoyer le BC signé à l'agence") : att(`BC signé — ${DM} l'envoie à l'agence.`);
     case "BAT_A_ENVOYER":
@@ -183,6 +191,10 @@ export function pasAgence(p: FaitsPosteAgence, r: RegardAgence): PasAgence {
     case "FACTURE":
       return mk ? g("DEPOSER_FACTURE", "Déposer la facture et demander le paiement") : att(`Réceptionné — ${DM} dépose la facture de l'agence.`);
     case "PAIEMENT":
+      // UN ORDRE REFUSÉ OU ANNULÉ N'EST PLUS « chez le centre de paiement » (recette du 23/11/2026) : le poste le
+      // disait encore, et personne ne savait qu'il fallait libérer le poste pour redemander le paiement.
+      if (p.expenseOrderCentral === "REFUSED") return att(`Paiement refusé par le centre de paiement — ${DM} annule la demande de paiement du poste, puis la redemande avec la pièce corrigée.`);
+      if (p.expenseOrderStatus === "CANCELLED") return att(`Ordre de dépense annulé — ${DM} annule la demande de paiement du poste pour la redemander.`);
       return att(p.expenseOrderCentral === "APPROVED" ? "Paiement autorisé — chez les Finances." : "Paiement demandé — chez le centre de paiement.");
     case "PAYE":
     case "REFUSE":
@@ -222,6 +234,7 @@ export const LIBELLE_ETAPE_AGENCE: Record<EtapeAgence, string> = {
   BC_CHEZ_CENTRE: "BC au centre Ad & Pro",
   BC_A_SIGNER_FINANCES: "BC à signer (Finances)",
   BC_A_CORRIGER: "BC renvoyé par les Finances",
+  BC_REFUSE_DG: "BC refusé par le DG",
   BC_A_ENVOYER: "BC à envoyer à l'agence",
   BAT_A_ENVOYER: "BAT à transmettre",
   CONFORMITE: "Contrôle de conformité",

@@ -5,11 +5,11 @@ import { ITEM_KIND_LABELS } from "../../domaine/postes";
 import { PARENTS, parentOf, loadItem } from "../postes/commun";
 import { lienPosteAdPro } from "@/lib/chemins/ad-pro";
 import { sitsOnPaymentCentre } from "@/modules/finances/partage";
-import { etapeAgence, pasAgence, type FaitsPosteAgence } from "../../domaine/parcours-agence";
+import { etapeAgence, pasAgence, type AgenceVue, type EtapeAgence, type FaitsPosteAgence } from "../../domaine/parcours-agence";
 import { siegeAuCentreAdPro } from "../../domaine/centre";
 import { droitsValidation } from "../../domaine/validation-poste";
 import { refusAvantPrevalidation, refusDemandeFermee, type ParentInfo } from "../postes/commun";
-import { piecesDesPostes } from "../pieces-poste";
+import { piecesDesPostes, type PiecesDuPoste } from "../pieces-poste";
 import { devisDesPostes } from "./devis-poste";
 import { agencesDesPostes } from "./agence";
 
@@ -20,27 +20,77 @@ import { agencesDesPostes } from "./agence";
  *   • l'information médicale : les BAT à contrôler.
  */
 
-export type EtapeFile = "DEVIS_A_DEPOSER" | "CHOIX" | "BC_A_FINALISER" | "BC_SOUMIS" | "EXECUTION" | "CONFORMITE" | "RECEPTION_FAITE";
+export type EtapeFile =
+  | "DEVIS_A_DEPOSER" | "CHOIX" | "BC_A_PREPARER" | "BC_A_FINALISER" | "BC_SOUMIS" | "BC_CHEZ_DG" | "BC_CHEZ_FINANCES" | "BC_A_CORRIGER"
+  | "BC_REFUSE_DG" | "EXECUTION" | "CONFORMITE" | "RECEPTION_FAITE" | "REFUSE";
 
 export const LIBELLE_ETAPE_FILE: Record<EtapeFile, string> = {
   DEVIS_A_DEPOSER: "Devis à déposer",
   CHOIX: "Chez la Direction Marketing — choix de l'agence",
+  BC_A_PREPARER: "Chez la Direction Marketing — BC à préparer",
   BC_A_FINALISER: "BC à finaliser",
-  BC_SOUMIS: "BC en validation et signatures",
+  BC_SOUMIS: "Chez la Direction Marketing — BC à valider et signer",
+  BC_CHEZ_DG: "BC chez le DG — centre de validation Ad & Pro",
+  BC_CHEZ_FINANCES: "BC chez les Finances — signature et cachet",
+  BC_A_CORRIGER: "BC renvoyé par les Finances — à corriger",
+  BC_REFUSE_DG: "BC refusé par le DG — demande à retirer par la Direction Marketing",
   EXECUTION: "En exécution — BAT, réception, facture",
   CONFORMITE: "BAT chez l'information médicale",
   RECEPTION_FAITE: "Réceptionné",
+  REFUSE: "Refusé",
 };
 
-/** L'étape vue de la file — lue sur les seuls horodatages de l'exécution (PUR). */
-export function etapeDeLaFile(e: { devisTransmisAt: Date | null; agenceRetenueAt: Date | null; bcSoumisAt: Date | null; bcEnvoyeAt: Date | null; conformiteStatut: string | null; receptionAt: Date | null }): EtapeFile {
-  if (e.receptionAt) return "RECEPTION_FAITE";
-  if (e.conformiteStatut === "EN_CONTROLE") return "CONFORMITE";
-  if (e.bcEnvoyeAt) return "EXECUTION";
-  if (e.bcSoumisAt) return "BC_SOUMIS";
-  if (e.agenceRetenueAt) return "BC_A_FINALISER";
-  if (e.devisTransmisAt) return "CHOIX";
-  return "DEVIS_A_DEPOSER";
+/**
+ * L'étape vue de la file — DÉDUITE DE L'ÉTAPE DU PARCOURS (`etapeAgence`), jamais relue à part (PUR).
+ *
+ * Recette du 23/11/2026 : la file lisait les seuls horodatages de l'exécution. Un BC renvoyé par les Finances pour correction,
+ * un BC en attente du visa du DG (au-dessus du seuil) ou de la signature des Finances s'y lisaient tous « BC en validation et
+ * signatures », à la Direction Marketing de jouer — pendant que la carte du poste disait l'inverse. La file ne fait plus que
+ * RANGER l'étape que la carte calcule : les deux ne peuvent plus se contredire.
+ */
+export function etapeDeLaFile(e: EtapeAgence): EtapeFile {
+  switch (e) {
+    case "PROSPECTION_A_DEMANDER":
+    case "PROSPECTION": return "DEVIS_A_DEPOSER";
+    case "CHOIX": return "CHOIX";
+    case "BC_A_PREPARER": return "BC_A_PREPARER";
+    case "BC_CHEZ_ASSISTANTE": return "BC_A_FINALISER";
+    case "BC_A_VALIDER":
+    case "BC_A_SIGNER_MARKETING": return "BC_SOUMIS";
+    case "BC_CHEZ_CENTRE": return "BC_CHEZ_DG";
+    case "BC_A_SIGNER_FINANCES": return "BC_CHEZ_FINANCES";
+    case "BC_A_CORRIGER": return "BC_A_CORRIGER";
+    case "BC_REFUSE_DG": return "BC_REFUSE_DG";
+    case "BC_A_ENVOYER":
+    case "BAT_A_ENVOYER":
+    case "BAT_NON_CONFORME":
+    case "RECEPTION": return "EXECUTION";
+    case "CONFORMITE": return "CONFORMITE";
+    // Un poste dont le paiement est demandé n'est pas dans la file (`expenseOrderId: null`) : réceptionné, au plus loin.
+    case "FACTURE":
+    case "PAIEMENT":
+    case "PAYE": return "RECEPTION_FAITE";
+    case "REFUSE": return "REFUSE";
+  }
+}
+
+/**
+ * LES FAITS D'UN POSTE AGENCE, lus comme la carte du poste les lit (`faitsAgenceDuPoste`) — UNE construction pour la file
+ * « Prospection d'agences » et pour « Aujourd'hui » (recette du 23/11/2026) : deux copies finiraient par ne plus s'accorder.
+ */
+function faitsDuPoste(
+  i: { status: FaitsPosteAgence["status"]; orderStage: FaitsPosteAgence["orderStage"]; expenseOrderId: string | null },
+  p: PiecesDuPoste | undefined,
+  agence: AgenceVue,
+  ordre: { status: string; centralStatus: string } | null,
+): FaitsPosteAgence {
+  return {
+    status: i.status, orderStage: i.orderStage,
+    bc: p?.bc ? (p.bc.etape ?? "HORS_CIRCUIT") : null,
+    factures: p?.factures.length ?? 0, expenseOrderId: i.expenseOrderId,
+    expenseOrderStatus: ordre?.status ?? null, expenseOrderCentral: ordre?.centralStatus ?? null,
+    agence: agence.faits,
+  };
 }
 
 export interface LigneFileAgence {
@@ -69,18 +119,45 @@ export async function fileAgences(user: SessionUser): Promise<LigneFileAgence[] 
     orderBy: { prospectionDemandeeAt: "asc" },
     take: 300,
     include: {
-      item: { select: { id: true, label: true, kind: true, sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true, otherRequestId: true } },
+      item: {
+        select: {
+          id: true, label: true, kind: true, status: true, orderStage: true, voie: true, conformiteRequise: true, expenseOrderId: true,
+          sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true, otherRequestId: true,
+        },
+      },
     },
   });
   const noms = new Map((await prisma.user.findMany({ where: { id: { in: [...new Set(execs.map((e) => e.assistanteId).filter((x): x is string => Boolean(x)))] } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]));
+  // L'ÉTAPE RÉELLE (recette du 23/11/2026) : les mêmes faits que la carte du poste — le BC au registre (renvoyé, à signer),
+  // le visa du DG (`orderStage`), la signature de la Direction Marketing — lus en lot, comme `tachesAgence` les lit.
+  const ids = execs.map((e) => e.item.id);
+  const [pieces, devis] = await Promise.all([piecesDesPostes(ids), devisDesPostes(ids)]);
+  const agences = await agencesDesPostes(execs.map((e) => e.item), pieces, devis);
+  const infoMed = hasRole(user, "MEDICAL_INFO_PHARMACIST") || hasRole(user, "SUPER_ADMIN");
+  const centre = siegeAuCentreAdPro(user);
+  const infos = new Map<string, ParentInfo | null>();
+  const demandeurs = new Map<string, { id: string; role: string; secondaryRole: string | null } | null>();
   const lignes: LigneFileAgence[] = [];
   for (const e of execs) {
     const owner = parentOf(e.item);
-    if (!owner) continue;
-    const info = await PARENTS[owner.parent].load(owner.id);
-    const etape = etapeDeLaFile(e);
+    // Un poste repassé hors de la voie « agence » n'a plus d'étape de prospection à montrer.
+    const agence = agences.get(e.item.id);
+    if (!owner || !agence) continue;
+    const cle = `${owner.parent}:${owner.id}`;
+    if (!infos.has(cle)) infos.set(cle, await PARENTS[owner.parent].load(owner.id));
+    const info = infos.get(cle) ?? null;
+    const faits = faitsDuPoste(e.item, pieces.get(e.item.id), agence, null);
+    const etape = etapeDeLaFile(etapeAgence(faits));
     const miennes = e.assistanteId === user.id;
-    const aMoi = (miennes && (etape === "DEVIS_A_DEPOSER" || etape === "BC_A_FINALISER")) || (marketing && !miennes && (etape === "CHOIX" || etape === "BC_SOUMIS"));
+    // « À VOUS » : la règle de la carte (`pasAgence`) — qui a la main, et non qui l'aurait eue d'après les dates.
+    if (info && !demandeurs.has(cle)) {
+      demandeurs.set(cle, info.requesterId ? await prisma.user.findUnique({ where: { id: info.requesterId }, select: { id: true, role: true, secondaryRole: true } }) : null);
+    }
+    const pas = pasAgence(faits, {
+      marketing: marketing && droitsValidation(user, demandeurs.get(cle) ?? null).marketing,
+      assistante: miennes, infoMed, centre, fige: Boolean(info?.clos || info?.refusee),
+    });
+    const aMoi = pas.geste !== null;
     lignes.push({
       itemId: e.item.id, label: e.item.label, nature: ITEM_KIND_LABELS[e.item.kind], ref: info?.ref ?? "—", etape, aMoi,
       depuis: (e.bcSoumisAt ?? e.agenceRetenueAt ?? e.devisTransmisAt ?? e.prospectionDemandeeAt ?? e.createdAt).toISOString(),
@@ -184,14 +261,7 @@ export async function tachesAgence(user: SessionUser): Promise<TacheAgence[]> {
     if (!infos.has(cle)) infos.set(cle, await PARENTS[owner.parent].load(owner.id));
     const info = infos.get(cle);
     if (!info) continue;
-    const p = pieces.get(i.id);
-    const faits: FaitsPosteAgence = {
-      status: i.status, orderStage: i.orderStage,
-      bc: p?.bc ? (p.bc.etape ?? "HORS_CIRCUIT") : null,
-      factures: p?.factures.length ?? 0, expenseOrderId: i.expenseOrderId,
-      expenseOrderStatus: ordre?.status ?? null, expenseOrderCentral: ordre?.centralStatus ?? null,
-      agence: agence.faits,
-    };
+    const faits = faitsDuPoste(i, pieces.get(i.id), agence, ordre);
     const etape = etapeAgence(faits);
     // On ne demande pas la prospection d'un poste dont la demande n'est pas encore prévalidée, ou est refusée.
     if (etape === "PROSPECTION_A_DEMANDER" && (refusAvantPrevalidation(info) || refusDemandeFermee(info))) continue;

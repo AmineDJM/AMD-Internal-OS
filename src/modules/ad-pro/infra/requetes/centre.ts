@@ -8,6 +8,8 @@ import { ITEM_KIND_LABELS } from "../../domaine/postes";
 import type { SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { totauxEnAttenteDuDg } from "../porte-dg";
+import { posteAttendLeCentreBC } from "../marche-bc";
+import { lienPosteAdPro } from "@/lib/chemins/ad-pro";
 import { sansBloquer } from "@/lib/journal";
 
 /**
@@ -22,10 +24,11 @@ import { sansBloquer } from "@/lib/journal";
  *   • `ETAPE_CIRCUIT` → `WorkflowInstance.currentSlug = 'dg'` (les quatre circuits configurables) ;
  *   • `ETAPE_PROMO`   → `PromoMaterial.circuitState = 'REVIEW_DG'` ;
  *   • `VISA_CENTRE`   → `AdProGateVisa.status = 'PENDING'` (consulting, autres demandes) ;
- *   • les BONS DE COMMANDE (§118.148), quel que soit leur montant : la demande de BC d'un poste
- *     (`AdProItem.orderStage = 'REQUESTED'`), la pièce BC du registre Legal née d'Ad & Pro
- *     (`AdProGateVisa` sur `LEGAL_DOCUMENT`), et le BC d'un dossier de matériel promotionnel de
- *     l'ancien parcours (`status = 'BC_FINANCE_REVIEW'`).
+ *   • les BONS DE COMMANDE (§118.148) au-dessus du seuil des BC (§118.149) : la demande de BC d'un
+ *     poste (`AdProItem.orderStage = 'REQUESTED'`, montant accordé au-dessus du seuil), la pièce BC
+ *     du registre Legal née d'Ad & Pro (`AdProGateVisa` sur `LEGAL_DOCUMENT`), et le BC d'un dossier
+ *     de matériel promotionnel de l'ancien parcours (`status = 'BC_FINANCE_REVIEW'`). En deçà du
+ *     seuil, un BC va directement à la signature des Finances.
  *
  * ── POURQUOI AUCUNE CLAUSE DE PORTÉE, et c'est une décision ─────────────────────────────────
  *
@@ -112,9 +115,11 @@ export async function demandesAuCentreAdPro(): Promise<LigneCentre[]> {
   // du jour — leur porte n'archive pas le seuil qui l'a ouverte, et l'inventer serait pire que
   // de rendre celui qui est en vigueur (§118.16).
   const reglage = await prisma.appSetting
-    .findUnique({ where: { id: "global" }, select: { adProDgThreshold: true } })
+    .findUnique({ where: { id: "global" }, select: { adProDgThreshold: true, bcValidationThreshold: true } })
     .catch(sansBloquer("ad-pro-centre.demandesAuCentreAdPro.appSetting", null));
   const seuilDuJour = reglage ? toNumber(reglage.adProDgThreshold) : null;
+  // Le seuil des BC du centre Ad & Pro (§118.149) — sans réglage lisible, 0 : tout BC y passe (le défaut sûr).
+  const seuilBC = reglage ? toNumber(reglage.bcValidationThreshold) : 0;
 
   const lignes: LigneCentre[] = [];
 
@@ -300,12 +305,16 @@ export async function demandesAuCentreAdPro(): Promise<LigneCentre[]> {
     });
   }
 
-  // ── 4. LES BONS DE COMMANDE (§118.148) — tous, quel que soit leur montant ──────────────────
+  // ── 4. LES BONS DE COMMANDE (§118.148) — ceux qui dépassent le seuil des BC (§118.149) ────────
   //
-  // « Concernant les BC, ils doivent tous passer soit par le centre de validation Ad&Pro si la
-  // demande est depuis Ad&Pro, soit par le centre de validation normal. » Pas de seuil ici : la
-  // colonne `seuil` reste vide, et l'écran le dit.
+  // Recette du 23/11/2026 : un BC n'arrive ici QU'AU-DESSUS du seuil des bons de commande, réglé sur
+  // cet écran ; en deçà, il passe directement à la signature des Finances (`lireLaMarcheDuBC`). La
+  // colonne `seuil` reste vide : celui des BC est affiché à côté, dans son propre réglage.
   for (const p of postes) {
+    // FILET (recette du 23/11/2026) : une demande restée « au centre » alors que son montant n'y est plus
+    // (seuil relevé depuis) ne doit jamais se lire comme attendant le DG. Le relèvement la rend aux
+    // Finances (`relacherLesPostesSousLeSeuil`) ; cette ligne garde le centre juste même si elle a été manquée.
+    if (!posteAttendLeCentreBC(p.amountGranted == null ? null : toNumber(p.amountGranted), seuilBC)) continue;
     const parent = PARENT_DU_POSTE.find(([col]) => p[col]);
     if (!parent) continue; // un poste sans opération (formation dormante) n'est pas une ligne d'Ad & Pro
     const [col, type] = parent;
@@ -323,7 +332,10 @@ export async function demandesAuCentreAdPro(): Promise<LigneCentre[]> {
       seuil: null,
       forme: "BC_POSTE",
       depuis: (p.orderRequestedAt ?? p.updatedAt).toISOString(),
-      href: kind ? lien(kind, opId) : "/ad-pro",
+      // LE POSTE, pas l'opération entière (recette du 23/11/2026) : « Voir le dossier » ouvrait la fiche en tête, et le
+      // DG cherchait le poste parmi les autres. L'adresse est celle des notifications du poste (`lienPosteAdPro` :
+      // la fiche de l'opération, ancrée sur la carte du poste).
+      href: lienPosteAdPro(type, opId, p.id),
       detail: p.orderNote,
       prestataire: p.supplier,
     });

@@ -94,19 +94,17 @@ export const EVENEMENT_CREATION: OperationIA = {
       !portee ? "la portée : nationale ou internationale" : null,
       !format ? "le format : présentiel, en ligne ou hybride" : null,
       !debut ? "la date de début" : null,
-      !fin ? "la date de fin" : null,
-      !texte(e, "lieu") ? "le lieu / la salle" : null,
+      // Facultatifs depuis le 23/11/2026 (mêmes règles que `createEvent`) : fin, lieu, pays, spécialité,
+      // budget, description. Le responsable vide reste « moi ».
       !texte(e, "ville") ? "la ville (wilaya)" : null,
-      !texte(e, "pays") ? "le pays" : null,
-      !specialite ? "la spécialité" : null,
       !nomsMedecins.length ? "le ou les médecins concernés" : null,
       !produits.length ? "le ou les produits concernés" : null,
-      budget == null || budget <= 0 ? "le budget estimé (DZD, supérieur à zéro)" : null,
+      budget != null && budget < 0 ? "un budget estimé positif (ou aucun)" : null,
       "manque" in resp ? resp.manque : null,
-      !texte(e, "description") ? "une courte description" : null,
     ].filter((x): x is string => x !== null);
     if (manque.length) return { manque };
-    if (fin! < debut!) return { erreur: "La date de fin ne peut pas précéder la date de début." };
+    if (fin && fin < debut!) return { erreur: "La date de fin ne peut pas précéder la date de début." };
+    const budgetConnu = budget != null && budget > 0 ? budget : null;
     const r = resp as { id: string; nom: string };
 
     const warnings: string[] = [];
@@ -119,9 +117,9 @@ export const EVENEMENT_CREATION: OperationIA = {
     for (const x of proches) if (await canAccessEntity(user, "EVENT", x.id, "VIEW")) visibles.push(x);
     if (visibles.length) warnings.push(`Doublon possible : ${visibles.map((x) => `« ${x.name} » créé le ${x.createdAt.toLocaleDateString("fr-FR")}`).join(" ; ")}.`);
     const seuil = (await getAppSettings()).adProDgThreshold;
-    if (porteDgRequise(budget, seuil)) warnings.push(`Au-delà du seuil de ${dzd(seuil)} : le Directeur Général validera aussi.`);
+    if (budgetConnu != null && porteDgRequise(budgetConnu, seuil)) warnings.push(`Au-delà du seuil de ${dzd(seuil)} : le Directeur Général validera aussi.`);
     if (lus.inconnus.length) warnings.push(`Hors annuaire médical (saisis tels quels) : ${lus.inconnus.join(", ")}.`);
-    warnings.push(await avertissementBudget(user, budget));
+    warnings.push(await avertissementBudget(user, budgetConnu));
     warnings.push("Créé puis soumis au circuit de validation dans la foulée.");
 
     return {
@@ -131,12 +129,12 @@ export const EVENEMENT_CREATION: OperationIA = {
           ["Type", LIBELLE_TYPE[type!]],
           ["Organisateur", texte(e, "organisateur") || null],
           ["Portée · format", `${portee === "NATIONAL" ? "Nationale" : "Internationale"} · ${LIBELLE_FORMAT[format!]}`],
-          ["Dates", `${debut} → ${fin}`],
-          ["Lieu", `${texte(e, "lieu")}, ${texte(e, "ville")} (${texte(e, "pays")})`],
-          ["Spécialité", specialite],
+          ["Dates", fin && fin !== debut ? `${debut} → ${fin}` : `${debut} (une journée)`],
+          ["Lieu", [texte(e, "lieu"), texte(e, "ville")].filter(Boolean).join(", ") + (texte(e, "pays") ? ` (${texte(e, "pays")})` : "")],
+          ["Spécialité", specialite || null],
           ["Médecin(s)", [...lus.connus.map((m) => m.nom), ...lus.inconnus].join(", ")],
           ["Produit(s)", produits.join(", ")],
-          ["Budget estimé", dzd(budget!)],
+          ["Budget estimé", budgetConnu != null ? dzd(budgetConnu) : "non renseigné"],
           ["Responsable", r.nom],
         ]),
         warnings,
@@ -145,7 +143,7 @@ export const EVENEMENT_CREATION: OperationIA = {
         name: texte(e, "nom"), type, scope: portee, format, startDate: debut, endDate: fin,
         location: texte(e, "lieu"), city: texte(e, "ville"), country: texte(e, "pays"), specialty: specialite,
         medecinsAnnuaire: JSON.stringify(lus.connus.map((m) => m.nom)), medecinsHorsAnnuaire: lus.inconnus.join("\n") || null,
-        produits: JSON.stringify(produits), estimatedBudget: String(budget), responsibleId: r.id,
+        produits: JSON.stringify(produits), estimatedBudget: budgetConnu != null ? String(budgetConnu) : null, responsibleId: r.id,
         description: texte(e, "description"), organizer: texte(e, "organisateur") || null,
       },
     };

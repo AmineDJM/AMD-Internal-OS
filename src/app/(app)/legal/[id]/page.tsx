@@ -22,7 +22,10 @@ import { formatCurrency, formatDate, formatDateTime, toNumber } from "@/lib/util
 import { effectiveStatus, expiryLevel, daysLeft } from "@/lib/legal/lifecycle";
 import { sourceHref, sourceCaption } from "@/lib/links/source-link";
 import { legalFields, dateInput } from "../legal-fields";
-import { buildFolderTree, flattenFolders, indentedLabel } from "@/lib/legal/folders";
+import { buildFolderTree, flattenFolders, folderPath, indentedLabel } from "@/lib/legal/folders";
+import { cheminLisible } from "@/lib/legal/classement";
+import { demandeDeLaPiece } from "@/modules/ad-pro/api";
+import { sansBloquer } from "@/lib/journal";
 import { EditLegalButton } from "./edit-legal";
 import { ComposerPieceButton } from "@/components/pieces/composer-piece";
 import { letterheadContextFor } from "@/lib/queries/letterheads";
@@ -132,6 +135,13 @@ export default async function LegalDocumentPage(
     },
   });
   if (!doc) return <FicheDuDeposant userId={user.id} legalDocumentId={params.id} />;
+  // LA DEMANDE ET LE DOSSIER (recette du 23/11/2026) : un BC dit à quel événement il appartient — par son
+  // poste, quelle que soit la source écrite sur la pièce — et où il est rangé dans l'armoire.
+  const [demandeLiee, dossiers] = await Promise.all([
+    demandeDeLaPiece(doc.id).catch(sansBloquer("legal-fiche.demandeDeLaPiece", null)),
+    doc.folderId ? prisma.legalFolder.findMany({ select: { id: true, name: true, parentId: true } }) : Promise.resolve([]),
+  ]);
+  const cheminDossier = doc.folderId ? cheminLisible(folderPath(dossiers, doc.folderId).map((f) => f.name)) : null;
 
   // La pièce est-elle DANS la portée de cette personne ? Un refus rend 404, comme les autres :
   // dire qu'un document existe, c'est déjà en dire trop.
@@ -452,7 +462,14 @@ export default async function LegalDocumentPage(
               <Info label="Motif d'annulation" value={doc.cancelReason} />
               {/* D'OÙ ÇA VIENT : le chemin de retour vers la demande qui a justifié cet
                   engagement. Sans lui, le lien n'existe que dans un sens et ne sert qu'à moitié. */}
-              {doc.sourceType && (
+              {demandeLiee ? (
+                <div className="min-w-0 col-span-2 sm:col-span-3">
+                  <p className="text-xs text-muted-foreground">Rattaché à</p>
+                  <Link href={demandeLiee.href} className="inline-flex items-center gap-1 font-medium text-primary hover:underline [overflow-wrap:anywhere]">
+                    {demandeLiee.libelle} <ExternalLink className="h-3 w-3 shrink-0" />
+                  </Link>
+                </div>
+              ) : doc.sourceType && (
                 <div className="min-w-0">
                   <p className="text-xs text-muted-foreground">Rattaché à</p>
                   {sourceHref(doc.sourceType, doc.sourceId) ? (
@@ -462,6 +479,12 @@ export default async function LegalDocumentPage(
                   ) : (
                     <p className="font-medium">{sourceCaption(doc.sourceType)}</p>
                   )}
+                </div>
+              )}
+              {cheminDossier && (
+                <div className="min-w-0 col-span-2 sm:col-span-3">
+                  <p className="text-xs text-muted-foreground">Rangé sous</p>
+                  <Link href={`/legal?dossier=${doc.folderId}`} className="font-medium text-primary hover:underline [overflow-wrap:anywhere]">{cheminDossier}</Link>
                 </div>
               )}
               {doc.notes && (

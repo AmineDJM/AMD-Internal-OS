@@ -237,6 +237,9 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/ad-pro/infra/bc-devis.ts → src/lib/pieces-lues/emetteur",
     "src/modules/ad-pro/infra/bc-devis.ts → src/lib/pieces-lues/lecture-fichier",
     "src/modules/ad-pro/infra/bc-devis.ts → src/lib/refs",
+    // Recette du 23/11/2026 : le classement des pièces de poste dans l'armoire Legal lit la règle PURE du chemin
+    // (`lib/legal/classement.ts`), partagée avec la recherche et la liste Legal.
+    "src/modules/ad-pro/infra/classement-juridique.ts → src/lib/legal/classement",
     "src/modules/ad-pro/infra/facture-poste-lecture.ts → src/lib/pieces-lues/service",
     "src/modules/ad-pro/infra/fiches-poste.ts → src/lib/attach-files",
     "src/modules/ad-pro/infra/fiches-poste.ts → src/lib/documents",

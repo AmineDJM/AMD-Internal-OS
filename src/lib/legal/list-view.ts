@@ -55,6 +55,8 @@ export interface LegalListRow {
   avoirs?: number;
   /** UN DEVIS D'AD & PRO NON RETENU (Direction, 11/2026) : la phrase à afficher — absent : retenu, ou pas un devis de poste. */
   nonRetenu?: string | null;
+  /** LE DOSSIER DE CLASSEMENT, en chemin lisible (« Événements › 2026 › Journée… ») — absent : non classé. */
+  dossier?: string | null;
 }
 
 /** Les niveaux d'échéance qui méritent qu'on s'en occupe — le filtre « à surveiller ». */
@@ -143,7 +145,8 @@ function inMonth(iso: string | null, month: string): boolean {
 export function visibleLegalRows(rows: readonly LegalListRow[], state: LegalListState): LegalListRow[] {
   const f = state.filters;
   return rows.filter((r) => {
-    if (f.title && !contains(r.title, f.title)) return false;
+    // Le filtre « titre » lit aussi le DOSSIER : « cardiologie » retrouve le BC rangé sous l'événement.
+    if (f.title && !contains(r.title, f.title) && !contains(r.dossier ?? null, f.title)) return false;
     if (f.reference && !contains(r.reference, f.reference)) return false;
     if (f.kind && r.kind !== f.kind) return false;
     if (f.counterparty && !contains(r.counterparty, f.counterparty)) return false;

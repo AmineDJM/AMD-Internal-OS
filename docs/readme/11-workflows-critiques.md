@@ -262,7 +262,15 @@ facultatif. Le formulaire lit désormais les **mêmes référentiels purs** que 
 `MedicalSpecialty` + libellés hérités, **plusieurs médecins** de l'annuaire, **plusieurs produits**
 au traitement réglementaire terminé, gamme déduite, et **budget obligatoire (> 0)**.
 
-> ⚠️ **Le budget facultatif était la cause de « le DG n'a pas à valider en dessous du seuil ».** La
+> **Allégé le 23/11/2026 (recette du parcours agence).** Restent obligatoires : nom, type, portée, format,
+> date de début, ville, médecins, produits (et la gamme quand elle n'est pas déduite). Deviennent
+> **facultatifs** : le budget estimé (négatif refusé ; vide ou zéro = non renseigné), la date de fin (vide =
+> une journée), le lieu, le pays, la spécialité, le responsable interne et la description. L'objection
+> ci-dessous ne tient plus : la porte du DG lit le **total des postes** (`ad-pro/infra/porte-dg.ts`), et
+> l'étape « dg » du parcours est franchie d'office depuis le 27/10. Garde : `budgetSaisi` / `datesSaisies`
+> dans `actions-evenements.ts` ; même liste chez Adam (`operations/adpro-evenement.ts`).
+
+> ⚠️ (historique) **Le budget facultatif était la cause de « le DG n'a pas à valider en dessous du seuil ».** La
 > chaîne, bout à bout : budget non saisi ⇒ `estimatedBudget` nul ⇒ le moteur lit un montant de ZÉRO ⇒
 > `settleAutoSkips` refuse de franchir une porte de contrôle sur un montant inconnu ⇒ la porte du DG reste
 > ouverte sur un événement de 80 000 DZD. Cette garde est JUSTE — on ne franchit pas une porte de contrôle

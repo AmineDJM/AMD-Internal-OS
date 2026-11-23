@@ -321,8 +321,9 @@ function LigneCard({ row }: { row: LigneCentre }) {
 
       <p className="text-sm">
         {/* Le montant ET le seuil, côte à côte : c'est le RAPPORT des deux qui explique pourquoi
-            cette demande est ici, et un montant seul ne le dit pas. Un BC, lui, n'a pas de seuil :
-            il est ici parce que TOUT bon de commande y passe, et c'est ce qu'on écrit. */}
+            cette demande est ici, et un montant seul ne le dit pas. Un BC est ici parce qu'il dépasse
+            le seuil des bons de commande, réglé plus haut sur cet écran (en deçà, il va directement à la
+            signature des Finances) : sa ligne ne répète pas ce seuil (recette du 23/11/2026). */}
         {row.montant != null && row.montant > 0
           ? <><strong>{row.montant.toLocaleString("fr-FR")} DZD</strong>{row.seuil ? <> — au-dessus du seuil de {row.seuil.toLocaleString("fr-FR")} DZD</> : null}</>
           : estBC(row)

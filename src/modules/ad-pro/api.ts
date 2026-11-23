@@ -33,10 +33,11 @@ export { type NatureDemandeAdPro, refusCategoriePourLaDemande } from "./infra/ca
 export { lireFactureDuPoste } from "./infra/facture-poste-lecture";
 export { creerPosteEtFiches, donneesVoyageur, lireFichesDuFormulaire } from "./infra/fiches-poste";
 export { ecrireAuFil } from "./infra/fil";
-export { lireLaMarcheDuBC, notificationDuCentreBC, REFUS_MARCHE_PRISE } from "./infra/marche-bc";
+export { lireLaMarcheDuBC, notificationDuCentreBC, REFUS_MARCHE_PRISE, relacherLesPostesSousLeSeuil } from "./infra/marche-bc";
 export { peutLirePasseportDuSujet, peutLirePieceDePriseEnCharge } from "./infra/passeport-acces";
 export { accesPiecesLiees, contextePiecesLiees } from "./infra/pieces-liees";
 export { annulerDemandesPiecesDuPoste, assistantesDeDirection, demandesBCDesPostes, natureDePiece, piecesDesPostes, rattacherPieceAuPoste, societeDuPoste } from "./infra/pieces-poste";
+export { demandeDeLaPiece, rangerPiecesNonClasseesDesPostes } from "./infra/classement-juridique";
 export { refusSiPorteDgFermee, refusPorteDgDuPoste, signalerPorteDgSiBesoin, statuerSurLeTotal, totalDeLaDemande, totauxEnAttenteDuDg } from "./infra/porte-dg";
 export { proposerPostesParModele, type ResultatPostes } from "./infra/postes-luna-ia";
 export { peutSaisirLesDevis } from "./infra/prise-en-charge/devis-acces";

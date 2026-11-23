@@ -913,12 +913,22 @@ export async function approveAdProItemOrder(_prev: ActionResult | undefined, for
     },
   });
   if (vise.count === 0) return { ok: false, error: changee };
-  await notifyRoles(["FINANCE_BUDGET_MANAGER", "SUPER_ADMIN"], {
-    type: "VALIDATION_REQUIRED",
-    title: "Bon de commande validé — à émettre",
-    body: cible,
-    link: lien,
-  }).catch(sansBloquer("ad-pro-item-actions.approveAdProItemOrder.notifyRoles"));
+  // LA PIÈCE EXISTE PEUT-ÊTRE DÉJÀ (§118.149) — lue AVANT de prévenir les Finances.
+  const piecesDuPoste = await prisma.adProItemPiece.findMany({
+    where: { itemId: id, nature: "BON_DE_COMMANDE" },
+    select: { legalDocumentId: true },
+  }).catch(sansBloquer("ad-pro-item-actions.approveAdProItemOrder.adProItemPiece", []));
+  // « À ÉMETTRE » SEULEMENT S'IL N'Y A RIEN À SIGNER (recette du 23/11/2026) : dans le parcours agence, le BC est déjà
+  // établi et signé par la Direction Marketing quand le DG le vise — les Finances recevaient « Bon de commande validé —
+  // à émettre » ET « Bon de commande à signer » pour la même pièce. Le second (`signalerSiASigner`) suffit alors.
+  if (piecesDuPoste.length === 0) {
+    await notifyRoles(["FINANCE_BUDGET_MANAGER", "SUPER_ADMIN"], {
+      type: "VALIDATION_REQUIRED",
+      title: "Bon de commande validé — à émettre",
+      body: cible,
+      link: lien,
+    }).catch(sansBloquer("ad-pro-item-actions.approveAdProItemOrder.notifyRoles"));
+  }
   if (item.orderRequestedById) {
     await notifyUser({
       userId: item.orderRequestedById, type: "GENERIC",
@@ -926,14 +936,9 @@ export async function approveAdProItemOrder(_prev: ActionResult | undefined, for
     }).catch(sansBloquer("ad-pro-item-actions.approveAdProItemOrder.notifyUser"));
   }
   await audit(user, owner.parent, owner.id, "UPDATE", `Bon de commande validé par le centre de validation Ad & Pro pour « ${item.label} » — transmis aux Finances.`);
-  // LA PIÈCE EXISTE PEUT-ÊTRE DÉJÀ (§118.149) : l'assistante l'a établie pendant que le centre
-  // tranchait. Le visa du poste EST sa porte (`PorteBC.source = "POSTE"`) — elle passe donc
-  // maintenant à la signature des Finances, qui doivent le savoir. Une pièce qui n'existe pas
-  // encore les préviendra elle-même en naissant (l'aiguillage lit alors un poste validé).
-  const piecesDuPoste = await prisma.adProItemPiece.findMany({
-    where: { itemId: id, nature: "BON_DE_COMMANDE" },
-    select: { legalDocumentId: true },
-  }).catch(sansBloquer("ad-pro-item-actions.approveAdProItemOrder.adProItemPiece", []));
+  // L'assistante a établi la pièce pendant que le centre tranchait. Le visa du poste EST sa porte
+  // (`PorteBC.source = "POSTE"`) — elle passe donc maintenant à la signature des Finances, qui doivent le
+  // savoir. Une pièce qui n'existe pas encore les préviendra elle-même en naissant.
   for (const p of piecesDuPoste) {
     if (p.legalDocumentId) await signalerSiASigner(p.legalDocumentId).catch(sansBloquer("ad-pro-item-actions.approveAdProItemOrder.signalerSiASigner", false));
   }

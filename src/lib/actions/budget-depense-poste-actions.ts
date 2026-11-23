@@ -94,13 +94,21 @@ const nomCategorie = (c: Categorie | null) => (c ? `${c.envelope.name} › ${c.p
 /** Un poste « Historique 2026 » (intégration des dépenses réelles) est déjà payé : sa dépense ne s'impute, ne se consomme ni ne s'annule. */
 const REFUS_HISTORIQUE = "Ce poste est « Historique 2026 » : déjà payé, il compte au budget par sa ligne du fichier — sa dépense ne s'impute, ne se consomme ni ne s'annule.";
 
+/**
+ * UN POSTE « PAR UNE AGENCE » NE SE CONSOMME PAS D'ICI (recette du 23/11/2026). Son paiement se demande depuis le poste
+ * (`demanderPaiementPoste` → `payerLesFacturesDuPoste`), qui exige la réception (et la conformité du BAT quand elle est
+ * requise), la facture déposée et contrôlée contre le BC signé, et l'empreinte du visa. « Consommer » créait l'ordre de
+ * dépense avec une facture FACULTATIVE et sans aucun de ces contrôles : un second chemin vers l'argent, qui les contournait.
+ */
+const REFUS_CONSOMMATION_AGENCE = "Ce poste passe par une agence : son paiement se demande depuis le poste, après la réception et le dépôt de la facture contrôlée.";
+
 /** Le poste et l'état de sa dépense, relus à l'instant. */
 async function lirePoste(id: string) {
   const poste = await prisma.adProItem.findUnique({
     where: { id },
     select: {
       id: true, label: true, kind: true, supplier: true, status: true, expenseOrderId: true, amountGranted: true, budgetCategoryId: true,
-      orderStage: true, updatedAt: true, depenseImputeeLe: true, depenseAnnuleeLe: true, montantPayeHistorique: true,
+      orderStage: true, updatedAt: true, depenseImputeeLe: true, depenseAnnuleeLe: true, montantPayeHistorique: true, voie: true,
       sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true, otherRequestId: true,
     },
   });
@@ -210,6 +218,7 @@ export async function consommerDepensePoste(formData: FormData): Promise<ActionR
   const lu = await lirePoste(id);
   if (!lu) return { ok: false, error: "Poste introuvable." };
   if (lu.poste.montantPayeHistorique != null) return { ok: false, error: REFUS_HISTORIQUE };
+  if (lu.poste.voie === "AGENCE") return { ok: false, error: REFUS_CONSOMMATION_AGENCE };
   const { poste, owner, lue } = lu;
   const actuelle = await categorie(poste.budgetCategoryId);
   if (!actuelle || !canManageEnvelope(user, actuelle.envelope)) return { ok: false, error: REFUS_DROIT };
