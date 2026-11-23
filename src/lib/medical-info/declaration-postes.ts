@@ -26,7 +26,7 @@ import { PARENT_COLONNE, type AdProParent } from "@/lib/chemins/ad-pro";
  */
 
 export interface PostesPourDeclaration {
-  /** Les postes qui comptent (ni refusés, ni restés en brouillon). */
+  /** Les postes qui comptent (non refusés — un brouillon compte : il doit être soumis ou supprimé). */
   total: number;
   /** Ceux qui sont validés (accordés ; agence choisie pour un poste « agence »). */
   valides: number;
@@ -36,7 +36,7 @@ export interface PostesPourDeclaration {
   montant: number;
   /** CE QUI BLOQUE ENCORE, dit en clair (« 1 poste en attente de la Direction Marketing »…) — vide quand tout est prêt. */
   blocages: string[];
-  /** Les brouillons jamais soumis, qui ne comptent pas (et ne pourront plus l'être une fois la déclaration ouverte). */
+  /** Les brouillons jamais soumis — ils RETIENNENT la déclaration, et « À venir » le dit. */
   brouillons: number;
 }
 
@@ -47,21 +47,23 @@ type PosteLu = { status: string; voie: string | null; amountGranted: unknown; am
 const pl = (n: number, s: string, p: string) => `${n} ${n > 1 ? p : s}`;
 
 /**
- * LA LECTURE DES POSTES — PURE. UN BROUILLON NE BLOQUE PAS (Direction, 23/11/2026) : un poste préparé puis jamais soumis
- * tenait la déclaration fermée pour toujours — il comptait parmi « les postes », sans que personne ne doive le valider.
- * Seuls comptent les postes soumis (en attente, à revoir, accordés) ; un refusé ne compte pas non plus.
+ * LA LECTURE DES POSTES — PURE. UN BROUILLON RETIENT LA DÉCLARATION (recette sponsoring, 23/11/2026) : une fois ouverte,
+ * la déclaration ne prend plus de poste — un brouillon ignoré à l'ouverture deviendrait insoumissable (les postes d'un
+ * sponsoring indirect naissent en brouillon de sa répartition). Il compte donc, et « À venir » dit au pharmacien ce qui
+ * retient : « 1 poste en brouillon — à soumettre ou à supprimer ». Un refusé ne compte pas.
  */
 export function lirePostesPourDeclaration(tous: readonly PosteLu[]): PostesPourDeclaration {
   const brouillons = tous.filter((p) => p.status === "DRAFT").length;
-  const postes = tous.filter((p) => p.status !== "REJECTED" && p.status !== "DRAFT");
+  const postes = tous.filter((p) => p.status !== "REJECTED");
   const sansAgence = (p: PosteLu) => p.status === "APPROVED" && p.voie === "AGENCE" && !p.execution?.agenceRetenueAt;
   const valides = postes.filter((p) => p.status === "APPROVED" && !sansAgence(p));
   const n = (f: (p: PosteLu) => boolean) => postes.filter(f).length;
   const blocages = [
+    brouillons ? `${pl(brouillons, "poste", "postes")} en brouillon — à soumettre ou à supprimer` : null,
     n((p) => p.status === "PENDING") ? `${pl(n((p) => p.status === "PENDING"), "poste", "postes")} en attente de la Direction Marketing` : null,
     n((p) => p.status === "REVISION") ? `${pl(n((p) => p.status === "REVISION"), "poste", "postes")} à revoir par le demandeur` : null,
     n(sansAgence) ? `${pl(n(sansAgence), "poste « agence » sans agence choisie", "postes « agence » sans agence choisie")}` : null,
-    postes.length === 0 ? "aucun poste soumis" : null,
+    postes.length === 0 ? "aucun poste" : null,
   ].filter((x): x is string => Boolean(x));
   return {
     total: postes.length,

@@ -170,14 +170,16 @@ suite("Information médicale — l'écran « À faire » d'Alaa", () => {
     expect((await etapeDeclaration(prim, "EVENT", `${TAG}src-depot`, true))?.aVous).toBe(true);
   });
 
-  it("UN BROUILLON NE RETIENT PLUS LA DÉCLARATION — « À venir » dit ce qui la retient, puis elle s'ouvre", async () => {
+  it("UN BROUILLON RETIENT LA DÉCLARATION — « À venir » dit ce qui la retient ; supprimé, elle s'ouvre", async () => {
     const avant = (await declarationsAVenir()).find((v) => v.id === spoId);
-    expect(avant).toMatchObject({ ouvrable: false, postes: { total: 1, valides: 0, brouillons: 1, blocages: ["1 poste en attente de la Direction Marketing"] } });
+    expect(avant).toMatchObject({ ouvrable: false, postes: { total: 2, valides: 0, brouillons: 1, blocages: ["1 poste en brouillon — à soumettre ou à supprimer", "1 poste en attente de la Direction Marketing"] } });
     expect(await ouvrirDeclarationSiPostesValides("SPONSORING", spoId)).toBeNull();
     await prisma.adProItem.updateMany({ where: { sponsoringId: spoId, status: "PENDING" }, data: { status: "APPROVED", amountGranted: 50000 } });
+    expect(await ouvrirDeclarationSiPostesValides("SPONSORING", spoId), "le brouillon la retient").toBeNull();
+    await prisma.adProItem.deleteMany({ where: { sponsoringId: spoId, status: "DRAFT" } });
     const ouverte = await ouvrirDeclarationSiPostesValides("SPONSORING", spoId);
-    expect(ouverte, "le brouillon ne la retient pas").toBeTruthy();
-    expect(await postesPourDeclaration("SPONSORING", spoId)).toMatchObject({ total: 1, valides: 1, prets: true, brouillons: 1, montant: 50000 });
+    expect(ouverte, "le brouillon retiré, elle s'ouvre").toBeTruthy();
+    expect(await postesPourDeclaration("SPONSORING", spoId)).toMatchObject({ total: 1, valides: 1, prets: true, brouillons: 0, montant: 50000 });
     expect((await declarationsAVenir()).some((v) => v.id === spoId), "ouverte : plus « à venir »").toBe(false);
   });
 

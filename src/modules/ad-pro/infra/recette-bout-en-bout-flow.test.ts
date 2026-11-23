@@ -71,7 +71,7 @@ import { lirePorteDg } from "./porte-dg";
  *   8. centre de paiement : le DG autorise, les Finances règlent ; branche du refus ;
  *   9. Legal : dossier « Événements › <année> › <nom> », recherche « BC <mot> » ;
  *  10. un poste DIRECT (association) : pro forma, paiement ;
- *  11. la déclaration d'information médicale s'ouvre quand tous les postes sont validés (un brouillon ne la bloque pas).
+ *  11. la déclaration d'information médicale s'ouvre quand tous les postes sont validés (un brouillon la retient : il est retiré).
  *
  * Le seuil des BC (`AppSetting.bcValidationThreshold`) est posé à 1 000 000 DZD pour la durée du banc, puis rendu.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -374,6 +374,8 @@ suite("Recette de bout en bout — le circuit agence d'un événement, phase par
     expect(br.ok, msg(br)).toBe(true);
     P.brouillon = br.ok ? br.id! : "";
     expect((await prisma.adProItem.findUniqueOrThrow({ where: { id: P.brouillon } })).status).toBe("DRAFT");
+    // Un brouillon RETIENT la déclaration (recette sponsoring, 23/11/2026) : on le retire, comme le ferait la DM.
+    await prisma.adProItem.delete({ where: { id: P.brouillon } });
   }, 60_000);
 
   // ═════════════════════════════ 3. LES DEVIS DE L'ASSISTANTE ═════════════════════════════
@@ -815,8 +817,7 @@ suite("Recette de bout en bout — le circuit agence d'un événement, phase par
   }, 120_000);
 
   // ═════════════════════════════ 11. LA DÉCLARATION D'INFORMATION MÉDICALE ═════════════════════════════
-  it("11. la déclaration d'information médicale est ouverte (tous les postes validés — le brouillon ne la bloque pas), assignée au pharmacien responsable", async () => {
-    expect((await prisma.adProItem.findUniqueOrThrow({ where: { id: P.brouillon } })).status, "le brouillon est resté brouillon").toBe("DRAFT");
+  it("11. la déclaration d'information médicale est ouverte (tous les postes validés), assignée au pharmacien responsable", async () => {
     const decl = await prisma.medicalInfoDeclaration.findUnique({ where: { sourceType_sourceId: { sourceType: "EVENT", sourceId: eventId } } });
     expect(decl, "la déclaration est ouverte").not.toBeNull();
     const attendu = await pharmacienAssigne();

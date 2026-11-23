@@ -50,24 +50,27 @@ describe("les postes au regard de la déclaration", () => {
     execution: { agenceRetenueAt: extra.agence ? new Date() : null },
   });
 
-  it("UN BROUILLON NE BLOQUE PAS : seuls les postes soumis comptent (un refusé non plus)", () => {
+  it("UN BROUILLON RETIENT LA DÉCLARATION et le dit ; un refusé ne compte pas", () => {
     const l = lirePostesPourDeclaration([p("APPROVED"), p("DRAFT"), p("REJECTED")]);
-    expect(l).toMatchObject({ total: 1, valides: 1, prets: true, brouillons: 1, blocages: [] });
+    expect(l).toMatchObject({ total: 2, valides: 1, prets: false, brouillons: 1, blocages: ["1 poste en brouillon — à soumettre ou à supprimer"] });
+    expect(lirePostesPourDeclaration([p("APPROVED"), p("REJECTED")])).toMatchObject({ total: 1, valides: 1, prets: true, blocages: [] });
     expect(l.montant).toBe(1000);
   });
 
   it("ce qui retient l'ouverture se dit : en attente, à revoir, agence à choisir", () => {
     const l = lirePostesPourDeclaration([p("APPROVED"), p("PENDING"), p("REVISION"), p("APPROVED", { voie: "AGENCE" }), p("DRAFT")]);
     expect(l.prets).toBe(false);
-    expect(l).toMatchObject({ total: 4, valides: 1, brouillons: 1 });
+    expect(l).toMatchObject({ total: 5, valides: 1, brouillons: 1 });
     expect(l.blocages).toEqual([
+      "1 poste en brouillon — à soumettre ou à supprimer",
       "1 poste en attente de la Direction Marketing",
       "1 poste à revoir par le demandeur",
       "1 poste « agence » sans agence choisie",
     ]);
   });
 
-  it("que des brouillons : rien de soumis, rien ne s'ouvre", () => {
-    expect(lirePostesPourDeclaration([p("DRAFT")])).toMatchObject({ total: 0, prets: false, blocages: ["aucun poste soumis"], brouillons: 1 });
+  it("que des brouillons : rien ne s'ouvre, et on dit pourquoi", () => {
+    expect(lirePostesPourDeclaration([p("DRAFT")])).toMatchObject({ total: 1, prets: false, blocages: ["1 poste en brouillon — à soumettre ou à supprimer"], brouillons: 1 });
+    expect(lirePostesPourDeclaration([])).toMatchObject({ total: 0, prets: false, blocages: ["aucun poste"] });
   });
 });
