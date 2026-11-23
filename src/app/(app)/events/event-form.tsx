@@ -15,6 +15,7 @@ import { DescriptionLuna, remplirChampsVidesEvenement, viderChampsLuna } from "@
 import type { EventDetail } from "@/modules/ad-pro/api";
 import { MultiSelectField } from "@/components/shared/create-record-button";
 import { ChampAnnuaire } from "@/components/directory/champ-annuaire";
+import { ChampLienMeet } from "@/components/google/champ-lien-meet";
 import { ConfirmationSuppression } from "@/components/shared/super-admin-delete";
 import { useFormAction } from "@/components/shared/use-action";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
@@ -241,7 +242,11 @@ function EventFields({ e, responsibles, referentiels = {}, descriptionEnTete }: 
         )}
       </div>
       <Section>Organisation</Section>
-      <W full label="Lien Meet / Zoom / Teams (webinar/hybride)"><Input name="meetingLink" inputMode="url" autoComplete="url" defaultValue={e?.meetingLink ?? ""} placeholder="https://meet.google.com/…" /></W>
+      {/* « GÉNÉRER UN LIEN GOOGLE MEET » (23/11/2026) : un vrai lien, créé dans l'agenda Google de l'entreprise avec le nom
+          et les dates ci-dessus ; il s'enregistre avec l'événement, comme un lien collé à la main. */}
+      <W full label="Lien Meet / Zoom / Teams (webinar/hybride)">
+        <ChampLienMeet name="meetingLink" defaultValue={e?.meetingLink} champs={{ titre: "name", debut: "startDate", fin: "endDate" }} />
+      </W>
       <W label="Responsable interne" facultatif>
         <Select name="responsibleId" defaultValue={e?.responsibleId ?? ""}>
           <option value="">— Choisir le responsable —</option>

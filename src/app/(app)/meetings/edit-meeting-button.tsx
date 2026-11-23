@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { actionFailureMessage } from "@/lib/action-outcome";
+import { ChampLienMeet } from "@/components/google/champ-lien-meet";
 
 interface Props {
   id: string;
@@ -88,7 +89,7 @@ export function EditMeetingButton({ id, title, description, meetLink, scheduledA
           ) : (
             <div className="space-y-1.5">
               <Label htmlFor="edit-meetLink">Lien de la réunion (Google Meet, Teams, Zoom…)</Label>
-              <Input id="edit-meetLink" name="meetLink" type="url" autoCapitalize="off" autoCorrect="off" spellCheck={false} defaultValue={meetLink} placeholder="https://meet.google.com/xxx-xxxx-xxx" />
+              <ChampLienMeet id="edit-meetLink" name="meetLink" type="url" defaultValue={meetLink} placeholder="https://meet.google.com/xxx-xxxx-xxx" champs={{ titre: "title", debut: "scheduledAt" }} />
               <p className="text-xs text-muted-foreground">Laissez vide pour retirer le lien externe.</p>
             </div>
           )}

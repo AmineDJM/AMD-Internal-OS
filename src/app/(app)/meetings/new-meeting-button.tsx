@@ -8,6 +8,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { actionFailureMessage } from "@/lib/action-outcome";
+import { ChampLienMeet } from "@/components/google/champ-lien-meet";
 
 interface UserOption { id: string; name: string; title?: string | null }
 
@@ -88,8 +89,8 @@ export function NewMeetingButton({ users }: { users: UserOption[] }) {
           ) : (
             <div className="space-y-1.5">
               <Label htmlFor="meetLink">Lien de la réunion (Google Meet, Teams, Zoom…)</Label>
-              <Input id="meetLink" name="meetLink" type="url" autoCapitalize="off" autoCorrect="off" spellCheck={false} placeholder="https://meet.google.com/xxx-xxxx-xxx" />
-              <p className="text-xs text-muted-foreground">Collez le lien de la réunion. Les participants cliqueront simplement dessus pour rejoindre.</p>
+              <ChampLienMeet id="meetLink" name="meetLink" type="url" placeholder="https://meet.google.com/xxx-xxxx-xxx" champs={{ titre: "title", debut: "scheduledAt" }} />
+              <p className="text-xs text-muted-foreground">Collez le lien de la réunion, ou générez un lien Google Meet en un clic. Les participants cliqueront simplement dessus pour rejoindre.</p>
             </div>
           )}
 

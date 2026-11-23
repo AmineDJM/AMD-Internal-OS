@@ -14,6 +14,7 @@ import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Avatar } from "@/components/ui/avatar";
 import { useConfirmer } from "@/components/ui/dialogue";
+import { ChampLienMeet } from "@/components/google/champ-lien-meet";
 import { Retour } from "@/components/ui/retour";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { actionFailureMessage } from "@/lib/action-outcome";
@@ -404,7 +405,7 @@ function EventForm({
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="meetLink">Lien visio</Label>
-          <Input id="meetLink" name="meetLink" inputMode="url" autoCapitalize="off" autoCorrect="off" spellCheck={false} defaultValue={ev?.meetLink ?? ""} placeholder="https://meet…" />
+          <ChampLienMeet id="meetLink" name="meetLink" defaultValue={ev?.meetLink} champs={{ titre: "title", debut: "start", fin: "end", journeeEntiere: "allDay" }} />
         </div>
       </div>
 
