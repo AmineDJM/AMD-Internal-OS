@@ -1,196 +1,239 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { FilterX } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { FilterX, Search, SlidersHorizontal, X } from "lucide-react";
 import { Icon } from "@/components/ui/icon";
-import { Table } from "@/components/ui/table";
-import { cn, formatCurrency, formatDate } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { kindSpec } from "@/modules/ad-pro/partage";
 import {
-  AD_PRO_KINDS, AD_PRO_STATE, AD_PRO_ENTITY_TYPE, kindSpec,
-  type AdProRequest, type AdProState, type AdProKind,
-} from "@/modules/ad-pro/partage";
-import { PartagerButton } from "@/components/shared/partager-button";
+  FILTRES_VIDES, filtrer, filtresActifs, nombreDeFiltresRanges, pastillesEtat, pastillesNature, trier, triSuivant,
+  type ColonneTri, type FiltresListe, type LigneAdPro, type Tri,
+} from "./liste";
+import { CarteDemande, EnteteTriable, LigneDemande } from "./ligne-demande";
 
 /**
- * LA LISTE UNIFIÉE. Ce qui ATTEND une décision est en tête (le tri vient du module pur) — une
- * liste rangée par date seule enterre les demandes bloquées depuis trois semaines sous celles de
- * ce matin, or ce sont précisément celles-là qu'il faut voir.
+ * LE TABLEAU DES DEMANDES AD & PRO — une barre d'outils compacte, puis le tableau.
  *
- * On filtre DANS LES COLONNES, comme une vraie feuille : chaque en-tête porte son filtre (texte
- * pour la référence, l'objet, le bénéficiaire, le demandeur ; menu pour la nature et l'état ;
- * montant minimum ; date « à partir du »). Ils se COMBINENT — « Sponsoring » + « en attente » +
- * « ≥ 100 000 » répond à une question précise sans quitter le tableau.
+ *   • les pastilles d'ÉTAT, « À vous » en tête — elles remplacent les tuiles-compteurs : même chiffre, cliquable ;
+ *   • la recherche instantanée (objet, référence, médecin ou bénéficiaire, demandeur) ;
+ *   • « Filtres » range les filtres de colonne d'avant (référence, objet, bénéficiaire, demandeur, montant, date) :
+ *     aucun n'a disparu, ils ne prennent plus de place tant qu'on ne les ouvre pas ;
+ *   • les pastilles de NATURE, avec leur compte, qui suit les autres filtres.
+ *
+ * Ce qui attend la personne connectée remonte en tête et se voit (`trier`). Au téléphone, chaque demande est une
+ * carte — pas de défilement de côté. Les règles sont dans `liste.ts` (testé) ; ce fichier dessine.
  */
 
-interface Filters {
-  reference: string;
-  kind: AdProKind | "";
-  title: string;
-  beneficiary: string;
-  minAmount: string;
-  requester: string;
-  dateFrom: string;
-  state: AdProState | "";
-}
+const pastille = "inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 sm:min-h-8";
+const pastilleOn = "border-primary bg-primary text-primary-foreground shadow-sm";
+const pastilleOff = "border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground";
+const compteur = (on: boolean) => cn("rounded-full px-1.5 text-[11px] tabular-nums", on ? "bg-primary-foreground/20" : "bg-secondary text-secondary-foreground");
+/** Police ≥ 16 px au téléphone : iOS ne zoome pas sur le champ. */
+const champ = "h-10 w-full rounded-lg border border-input bg-background px-3 text-base outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-ring sm:h-9 sm:text-sm";
 
-const EMPTY: Filters = {
-  reference: "", kind: "", title: "", beneficiary: "", minAmount: "", requester: "", dateFrom: "", state: "",
-};
+export function AdProList({ rows, maintenant }: {
+  rows: LigneAdPro[];
+  /** L'heure du rendu SERVEUR : « depuis 3 j » se lit sur la même minute au serveur et au navigateur. */
+  maintenant: number;
+}) {
+  const [f, setF] = React.useState<FiltresListe>(FILTRES_VIDES);
+  const [tri, setTri] = React.useState<Tri | null>(null);
+  const [panneau, setPanneau] = React.useState(false);
+  const recherche = React.useRef<HTMLInputElement>(null);
+  // La frappe reste fluide sur deux cents lignes : le tableau suit la recherche un battement après.
+  const q = React.useDeferredValue(f.q);
+  const filtres = React.useMemo(() => ({ ...f, q }), [f, q]);
 
-const cellInput = "h-8 w-full rounded-md border border-input bg-card px-2 text-xs font-normal normal-case tracking-normal outline-none focus:ring-1 focus:ring-ring";
-/** Le même filtre au téléphone : plus haut, police ≥ 16 px (pas de zoom iOS). */
-const pastille = "inline-flex min-h-9 items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors sm:min-h-0";
+  const visibles = React.useMemo(() => trier(filtrer(rows, filtres), tri), [rows, filtres, tri]);
+  const etats = React.useMemo(() => pastillesEtat(rows, filtres), [rows, filtres]);
+  const toutes = React.useMemo(() => filtrer(rows, { ...filtres, etat: "" }).length, [rows, filtres]);
+  const natures = React.useMemo(() => pastillesNature(rows, filtres), [rows, filtres]);
+  const nRanges = nombreDeFiltresRanges(f);
+  const actif = filtresActifs(f) || tri !== null;
 
-export function AdProList({ rows }: { rows: AdProRequest[] }) {
-  const [f, setF] = React.useState<Filters>(EMPTY);
-  const set = (k: keyof Filters) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-    setF((prev) => ({ ...prev, [k]: e.target.value }));
-
-  const has = (hay: string | null, needle: string) => (hay ?? "").toLowerCase().includes(needle.toLowerCase());
-  const shown = rows.filter((r) => {
-    if (f.reference && !has(r.reference, f.reference)) return false;
-    if (f.kind && r.kind !== f.kind) return false;
-    if (f.title && !has(r.title, f.title)) return false;
-    if (f.beneficiary && !has(r.beneficiary, f.beneficiary)) return false;
-    if (f.minAmount && !(r.amount !== null && r.amount >= Number(f.minAmount))) return false;
-    if (f.requester && !has(r.requester, f.requester)) return false;
-    if (f.dateFrom && new Date(r.createdAt) < new Date(f.dateFrom)) return false;
-    if (f.state && r.state !== f.state) return false;
-    return true;
+  const poser = <K extends keyof FiltresListe>(k: K, v: FiltresListe[K]) => setF((p) => ({ ...p, [k]: v }));
+  const champDe = (k: keyof FiltresListe) => ({
+    value: f[k], onChange: (e: React.ChangeEvent<HTMLInputElement>) => poser(k, e.target.value as never),
   });
+  const trierPar = (col: ColonneTri) => setTri((t) => triSuivant(t, col));
+  const effacer = () => { setF(FILTRES_VIDES); setTri(null); };
 
-  // Les valeurs proposées dans les menus se limitent à ce qui EXISTE dans la liste — inutile de
-  // proposer « Consulting » s'il n'y a aucune demande de ce type.
-  const kindsPresent = AD_PRO_KINDS.filter((k) => rows.some((r) => r.kind === k.kind));
-  const statesPresent = (Object.keys(AD_PRO_STATE) as AdProState[]).filter((s) => rows.some((r) => r.state === s));
-  const active = Object.values(f).some(Boolean);
+  // « / » amène à la recherche — sauf quand on est déjà en train d'écrire.
+  React.useEffect(() => {
+    const surTouche = (e: KeyboardEvent) => {
+      const cible = e.target as HTMLElement | null;
+      if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (cible && (cible.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(cible.tagName))) return;
+      e.preventDefault();
+      recherche.current?.focus();
+    };
+    window.addEventListener("keydown", surTouche);
+    return () => window.removeEventListener("keydown", surTouche);
+  }, []);
 
   return (
-    <div className="space-y-2">
-      {/* LA VUE PAR CATÉGORIE — en plus du grand tableau où il y a tout. Une pastille par nature
-          présente, avec son compte : un clic isole les demandes de matériel promotionnel, de
-          consulting, de prise en charge… C'est le MÊME filtre que le menu de la colonne Nature —
-          deux portes, une seule règle. */}
-      <div className="flex flex-wrap gap-1.5">
-        <button
-          type="button" onClick={() => setF((p) => ({ ...p, kind: "" }))}
-          className={`${pastille} ${
-            !f.kind ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground hover:bg-secondary"
-          }`}
-        >
-          Toutes ({rows.length})
-        </button>
-        {kindsPresent.map((k) => {
-          const count = rows.filter((r) => r.kind === k.kind).length;
-          const isOn = f.kind === k.kind;
-          return (
-            <button
-              key={k.kind} type="button"
-              onClick={() => setF((p) => ({ ...p, kind: isOn ? "" : k.kind }))}
-              className={`${pastille} ${
-                isOn ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground hover:bg-secondary"
-              }`}
-            >
-              {k.label} ({count})
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-        <span>{shown.length} / {rows.length} demande{rows.length > 1 ? "s" : ""}</span>
-        {active && (
-          <button type="button" onClick={() => setF(EMPTY)} className="inline-flex min-h-9 items-center gap-1 rounded-md border border-input px-2 py-1 font-medium hover:bg-secondary sm:min-h-0">
-            <FilterX className="h-3.5 w-3.5" /> Réinitialiser les filtres
+    <div className="space-y-3">
+      <section aria-label="Rechercher et filtrer" className="space-y-3 rounded-[var(--radius)] border border-border bg-card p-3 shadow-sm sm:p-4">
+        {/* L'ÉTAT — « À vous » d'abord : ce qu'on vient chercher en ouvrant l'écran. */}
+        <div role="group" aria-label="État" className="flex flex-wrap gap-1.5">
+          <button type="button" aria-pressed={!f.etat} onClick={() => poser("etat", "")} className={cn(pastille, !f.etat ? pastilleOn : pastilleOff)}>
+            Toutes <span className={compteur(!f.etat)}>{toutes}</span>
           </button>
-        )}
-      </div>
+          {etats.map((p) => {
+            const on = f.etat === p.cle;
+            const aVous = p.cle === "A_VOUS";
+            return (
+              <button
+                key={p.cle} type="button" aria-pressed={on}
+                onClick={() => poser("etat", on ? "" : p.cle)}
+                className={cn(pastille, on ? pastilleOn : pastilleOff, aVous && !on && "border-primary/40 text-primary")}
+              >
+                {aVous && <span aria-hidden className={cn("h-1.5 w-1.5 rounded-full", on ? "bg-primary-foreground" : "bg-primary")} />}
+                {p.label} <span className={compteur(on)}>{p.n}</span>
+              </button>
+            );
+          })}
+        </div>
 
-      <div className="surface overflow-x-auto">
-        <Table className="table-clean min-w-[64rem]">
-          <thead className="border-b border-border">
-            <tr className="text-xs uppercase tracking-wide text-muted-foreground">
-              <th className="px-3 pt-2 text-left font-medium">Référence</th>
-              <th className="px-3 pt-2 text-left font-medium">Nature</th>
-              <th className="px-3 pt-2 text-left font-medium">Objet</th>
-              <th className="px-3 pt-2 text-left font-medium">Bénéficiaire</th>
-              <th className="px-3 pt-2 text-right font-medium">Montant</th>
-              <th className="px-3 pt-2 text-left font-medium">Demandeur</th>
-              <th className="px-3 pt-2 text-left font-medium">Date</th>
-              <th className="px-3 pt-2 text-left font-medium">État</th>
-            </tr>
-            {/* La rangée de filtres, alignée sous chaque colonne. */}
-            <tr>
-              <th className="px-2 pb-2 pt-1"><input value={f.reference} onChange={set("reference")} placeholder="Filtrer" className={cellInput} /></th>
-              <th className="px-2 pb-2 pt-1">
-                <select value={f.kind} onChange={set("kind")} className={cellInput}>
-                  <option value="">Toutes</option>
-                  {kindsPresent.map((k) => <option key={k.kind} value={k.kind}>{k.label}</option>)}
-                </select>
-              </th>
-              <th className="px-2 pb-2 pt-1"><input value={f.title} onChange={set("title")} placeholder="Filtrer" className={cellInput} /></th>
-              <th className="px-2 pb-2 pt-1"><input value={f.beneficiary} onChange={set("beneficiary")} placeholder="Filtrer" className={cellInput} /></th>
-              <th className="px-2 pb-2 pt-1"><input type="number" value={f.minAmount} onChange={set("minAmount")} placeholder="≥" className={cn(cellInput, "text-right")} /></th>
-              <th className="px-2 pb-2 pt-1"><input value={f.requester} onChange={set("requester")} placeholder="Filtrer" className={cellInput} /></th>
-              <th className="px-2 pb-2 pt-1"><input type="date" value={f.dateFrom} onChange={set("dateFrom")} className={cellInput} title="À partir du" /></th>
-              <th className="px-2 pb-2 pt-1">
-                <select value={f.state} onChange={set("state")} className={cellInput}>
-                  <option value="">Tous</option>
-                  {statesPresent.map((s) => <option key={s} value={s}>{AD_PRO_STATE[s].label}</option>)}
-                </select>
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {shown.length === 0 ? (
-              <tr>
-                <td colSpan={8} data-sans-etiquette className="px-3 py-8 text-center text-sm text-muted-foreground">Aucune demande ne correspond à ces filtres.</td>
-              </tr>
-            ) : (
-              shown.map((r) => {
-                const spec = kindSpec(r.kind);
-                const st = AD_PRO_STATE[r.state];
-                return (
-                  <tr key={`${r.kind}-${r.id}`} className="hover:bg-secondary/50">
-                    <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{r.reference}</td>
-                    <td className="px-3 py-2">
-                      <span className="inline-flex items-center gap-1.5 text-xs">
-                        <Icon name={spec?.icon ?? "PartyPopper"} className="h-3.5 w-3.5 shrink-0 text-primary/80" />
-                        {spec?.label ?? r.kind}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2">
-                      <Link href={r.href} className="font-medium hover:underline [overflow-wrap:anywhere]">{r.title}</Link>
-                    </td>
-                    <td className="px-3 py-2 text-muted-foreground">{r.beneficiary || "—"}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">
-                      {r.amount !== null ? formatCurrency(r.amount) : <span className="text-muted-foreground">—</span>}
-                    </td>
-                    <td className="px-3 py-2 text-muted-foreground">{r.requester || "—"}</td>
-                    <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{formatDate(r.createdAt)}</td>
-                    <td className="px-3 py-2">
-                      <span className="flex items-center justify-end gap-2 sm:justify-start">
-                        <Badge tone={st.tone} dot={false}>{st.label}</Badge>
-                        {/* « Envoie la demande de sponsoring de Benali à la Direction » : le geste
-                            part de la LIGNE, sur la nature réelle du dossier — le serveur vérifie
-                            l'accès à CET enregistrement, pas au module. */}
-                        <PartagerButton
-                          iconOnly variant="ghost"
-                          refType={AD_PRO_ENTITY_TYPE[r.kind]} refId={r.id}
-                          refLabel={`${r.reference} — ${r.title}`}
-                          href={r.href}
-                        />
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative min-w-0 flex-1">
+            <label htmlFor="recherche-ad-pro" className="sr-only">Rechercher une demande</label>
+            <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              ref={recherche} id="recherche-ad-pro" type="search" autoComplete="off"
+              value={f.q} onChange={(e) => poser("q", e.target.value)}
+              placeholder="Objet, médecin, demandeur, référence…"
+              className={cn(champ, "pl-9 pr-9 [&::-webkit-search-cancel-button]:hidden")}
+            />
+            {f.q && (
+              <button
+                type="button" onClick={() => { poser("q", ""); recherche.current?.focus(); }}
+                aria-label="Effacer la recherche"
+                className="absolute right-1.5 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <X aria-hidden className="h-4 w-4" />
+              </button>
             )}
-          </tbody>
-        </Table>
-      </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button" aria-expanded={panneau} aria-controls="filtres-ad-pro" onClick={() => setPanneau((o) => !o)}
+              className={cn(
+                "inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9",
+                panneau || nRanges > 0 ? "border-primary/50 bg-accent text-accent-foreground" : "border-input bg-background hover:bg-secondary",
+              )}
+            >
+              <SlidersHorizontal aria-hidden className="h-4 w-4" /> Filtres
+              {nRanges > 0 && <span className="rounded-full bg-primary px-1.5 text-[11px] tabular-nums text-primary-foreground">{nRanges}</span>}
+            </button>
+            {actif && (
+              <button
+                type="button" onClick={effacer}
+                className="inline-flex h-10 items-center gap-1.5 rounded-lg px-2.5 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9"
+              >
+                <FilterX aria-hidden className="h-4 w-4" /> Tout effacer
+              </button>
+            )}
+          </div>
+        </div>
+
+        {panneau && (
+          <div id="filtres-ad-pro" className="grid grid-cols-1 gap-3 rounded-lg border border-border bg-secondary/40 p-3 motion-safe:animate-fade-in xs:grid-cols-2 lg:grid-cols-3">
+            <Champ label="Référence"><input {...champDe("reference")} className={champ} /></Champ>
+            <Champ label="Objet"><input {...champDe("title")} className={champ} /></Champ>
+            <Champ label="Bénéficiaire"><input {...champDe("beneficiary")} className={champ} /></Champ>
+            <Champ label="Demandeur"><input {...champDe("requester")} className={champ} /></Champ>
+            <Champ label="Montant minimum (DZD)"><input {...champDe("minAmount")} inputMode="numeric" className={champ} /></Champ>
+            <Champ label="Déposée à partir du"><input {...champDe("dateFrom")} type="date" className={champ} /></Champ>
+            {/* Au téléphone, pas d'en-têtes de colonne : le tri se choisit ici. */}
+            <Champ label="Trier par" className="md:hidden">
+              <select
+                value={tri ? `${tri.col}:${tri.sens}` : ""}
+                onChange={(e) => { const [col, sens] = e.target.value.split(":"); setTri(col ? { col: col as ColonneTri, sens: sens as Tri["sens"] } : null); }}
+                className={champ}
+              >
+                <option value="">Ce qui attend d&apos;abord</option>
+                <option value="depot:desc">Les plus récentes</option>
+                <option value="montant:desc">Montant décroissant</option>
+                <option value="echeance:asc">Échéance la plus proche</option>
+                <option value="objet:asc">Objet (A → Z)</option>
+              </select>
+            </Champ>
+          </div>
+        )}
+
+        {/* LA NATURE — une pastille par nature présente ; un clic isole, un second rend tout. */}
+        {natures.length > 1 && (
+          <div role="group" aria-label="Nature" className="flex flex-wrap gap-1.5 border-t border-border pt-3">
+            {natures.map((p) => {
+              const on = f.kind === p.cle;
+              return (
+                <button
+                  key={p.cle} type="button" aria-pressed={on}
+                  onClick={() => poser("kind", on ? "" : p.cle)}
+                  className={cn(pastille, on ? pastilleOn : pastilleOff, !on && p.n === 0 && "opacity-60")}
+                >
+                  <Icon name={kindSpec(p.cle)?.icon ?? "CircleEllipsis"} aria-hidden className={cn("h-3.5 w-3.5", !on && "text-primary/80")} />
+                  {p.label} <span className={compteur(on)}>{p.n}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <p aria-live="polite" className="px-1 text-xs text-muted-foreground">
+        {visibles.length === rows.length
+          ? `${rows.length} demande${rows.length > 1 ? "s" : ""}`
+          : `${visibles.length} sur ${rows.length} demande${rows.length > 1 ? "s" : ""}`}
+      </p>
+
+      {visibles.length === 0 ? (
+        <div className="rounded-[var(--radius)] border border-dashed border-border bg-card px-4 py-10 text-center text-sm text-muted-foreground">
+          Aucune demande ne correspond.{" "}
+          <button type="button" onClick={effacer} className="font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            Effacer les filtres
+          </button>
+        </div>
+      ) : (
+        <>
+          {/* BUREAU — l'en-tête reste visible : le tableau défile dans son cadre. */}
+          <div className="hidden overflow-auto rounded-[var(--radius)] border border-border bg-card shadow-sm md:block md:max-h-[calc(100dvh-var(--app-chrome-top)-15rem)] md:min-h-[16rem]">
+            <table className="w-full border-separate border-spacing-0 text-sm">
+              <caption className="sr-only">Demandes Ad &amp; Pro — un clic sur un en-tête trie la colonne</caption>
+              <thead className="sticky top-0 z-10 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
+                <tr className="text-left text-xs text-muted-foreground">
+                  <EnteteTriable col="nature" tri={tri} onTri={trierPar} className="pl-4">Nature</EnteteTriable>
+                  <EnteteTriable col="objet" tri={tri} onTri={trierPar}>Objet</EnteteTriable>
+                  <EnteteTriable col="demandeur" tri={tri} onTri={trierPar} className="hidden lg:table-cell">Demandeur</EnteteTriable>
+                  <EnteteTriable col="montant" tri={tri} onTri={trierPar} align="right">Montant</EnteteTriable>
+                  <EnteteTriable col="etat" tri={tri} onTri={trierPar}>État</EnteteTriable>
+                  <EnteteTriable col="echeance" tri={tri} onTri={trierPar} className="hidden xl:table-cell">Échéance</EnteteTriable>
+                  <th scope="col" className="w-10 border-b border-border px-2 py-2.5"><span className="sr-only">Partager</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibles.map((r) => <LigneDemande key={`${r.kind}-${r.id}`} r={r} maintenant={maintenant} />)}
+              </tbody>
+            </table>
+          </div>
+
+          {/* TÉLÉPHONE — une carte par demande, rien ne déborde. */}
+          <ul className="space-y-2 md:hidden">
+            {visibles.map((r) => <CarteDemande key={`${r.kind}-${r.id}`} r={r} maintenant={maintenant} />)}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
+
+function Champ({ label, className, children }: { label: string; className?: string; children: React.ReactElement<{ id?: string }> }) {
+  const id = React.useId();
+  return (
+    <div className={cn("min-w-0 space-y-1", className)}>
+      <label htmlFor={id} className="text-xs font-medium text-muted-foreground">{label}</label>
+      {React.cloneElement(children, { id })}
     </div>
   );
 }

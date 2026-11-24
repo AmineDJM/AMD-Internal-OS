@@ -1,13 +1,13 @@
 import { userCan, type Module } from "@/lib/rbac";
 import { getAdProRequests, getAdProCreateData, requireModuleOuAgences } from "@/modules/ad-pro/api";
 import { PageHeader } from "@/components/shared/page-header";
-import { KpiCard } from "@/components/shared/kpi-card";
 import { EmptyState } from "@/components/shared/empty-state";
-import { countByState, creatableKinds } from "@/modules/ad-pro/partage";
+import { creatableKinds } from "@/modules/ad-pro/partage";
 import { ModuleTabs } from "@/components/shared/module-tabs";
 import { visibleTabs } from "@/lib/nav-tabs";
 import { EVENTS_TABS } from "@/lib/labels";
 import { AdProList } from "./ad-pro-list";
+import { lignesPourLaListe } from "./attente";
 import { NewRequestPicker } from "./new-request-picker";
 
 export const dynamic = "force-dynamic";
@@ -27,6 +27,10 @@ export const dynamic = "force-dynamic";
  * L'entrée est unifiée JUSQU'AU BOUT : le formulaire de la nature choisie s'ouvre ici, dans le
  * panneau commun. Renvoyer vers l'écran du module rendait au demandeur, au dernier moment, le
  * découpage interne qu'on venait de lui épargner.
+ *
+ * L'ÉCRAN EST UN TABLEAU, SANS PHRASE (Super Admin, 24/11/2026) : le titre, « Nouvelle demande », les onglets du
+ * pôle, puis la liste. Les tuiles-compteurs d'en-tête sont devenues les pastilles d'état du tableau — le même
+ * chiffre, cliquable, et qui suit la recherche.
  */
 export default async function AdProPage() {
   // La porte d'entrée du pôle : le Sponsoring suffit à l'ouvrir, la liste s'adapte ensuite aux
@@ -41,14 +45,13 @@ export default async function AdProPage() {
     getAdProCreateData(user.id, kinds.map((k) => k.kind)),
     visibleTabs(user, EVENTS_TABS),
   ]);
-  const counts = countByState(rows);
+  // Chez qui en est chaque demande, depuis quand, et ce qui attend la personne qui regarde : lu à côté de la liste,
+  // sans la changer (`attente.ts`).
+  const lignes = await lignesPourLaListe(user, rows);
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        title="Ad & Pro"
-        description="Toutes les demandes de promotion, au même endroit : sponsoring, prises en charge, événements, matériel. Chaque demande garde son circuit — c'est l'entrée et la lecture qui sont communes."
-      >
+      <PageHeader title="Ad & Pro">
         <NewRequestPicker
           kinds={kinds}
           data={createData}
@@ -62,25 +65,14 @@ export default async function AdProPage() {
           `onglets-porte.test.ts` l'exige de toute entrée de menu à onglets. */}
       <ModuleTabs tabs={tabs} />
 
-      <div className={`grid grid-cols-2 gap-3 ${counts.RETURNED > 0 ? "md:grid-cols-5" : "md:grid-cols-4"}`}>
-        <KpiCard label="En attente de décision" value={counts.AWAITING} icon="Hourglass" tone={counts.AWAITING > 0 ? "warning" : "default"} />
-        {/* À CORRIGER (§118.186) : compté à part — c'est le DEMANDEUR qui a la main, pas un arbitre. */}
-        {counts.RETURNED > 0 && <KpiCard label="À corriger (chez le demandeur)" value={counts.RETURNED} icon="Undo2" tone="warning" />}
-        <KpiCard label="Validées" value={counts.APPROVED} icon="CheckCheck" tone="info" />
-        <KpiCard label="Terminées" value={counts.DONE} icon="Check" tone="success" />
-        <KpiCard label="Toutes demandes" value={rows.length} icon="Layers" />
-      </div>
-
       {rows.length === 0 ? (
         <EmptyState
           icon="PartyPopper"
-          title="Aucune demande"
-          description={kinds.length > 0
-            ? "Commencez par « Nouvelle demande » : décrivez ce que vous voulez faire, le formulaire s'ouvre ici même."
-            : "Aucune demande à afficher pour l'instant."}
+          title="Aucune demande pour l'instant"
+          description={kinds.length > 0 ? "« Nouvelle demande » en dépose une." : undefined}
         />
       ) : (
-        <AdProList rows={rows} />
+        <AdProList rows={lignes} maintenant={Date.now()} />
       )}
     </div>
   );
