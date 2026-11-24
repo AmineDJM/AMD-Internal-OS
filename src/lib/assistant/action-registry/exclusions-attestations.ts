@@ -635,6 +635,17 @@ export function classerExclusionsAttestations(): void {
     "budget-campagne-actions:autoriserRevisionProposition",
     "budget-campagne-actions:rouvrirRectificatif",
   ]);
+  X("LES RECETTES ET LES IMPÔTS PRÉVUS DE LA CAMPAGNE BUDGÉTAIRE (Super Admin, 24/11/2026) — le chiffre d'affaires attendu "
+    + "par société, mois et produit, les taux de TVA et d'IBS, l'ajustement d'un impôt calculé : des ENGAGEMENTS de la "
+    + "Direction générale (Super Admin et DG seuls), posés devant le résultat prévisionnel. Un modèle n'a rien décidé, et un "
+    + "document lu par une étape ne doit pas pouvoir écrire une prévision de recettes ou un taux d'impôt (§118.15). Des "
+    + "clics sur Campagne budgétaire › Recettes / Résultat prévisionnel.", [
+    "budget-campagne-recettes-actions:enregistrerRecetteCampagne",
+    "budget-campagne-recettes-actions:supprimerRecetteCampagne",
+    "budget-campagne-recettes-actions:reglerParametresImpotsCampagne",
+    "budget-campagne-recettes-actions:ajusterImpotCampagne",
+    "budget-campagne-recettes-actions:reglerTvaLigneDepense",
+  ]);
   X("LA REFONTE DES DONNÉES, lot V2-B « Personnes » (vague 2, 10/2026) — lancer une reprise (aperçu à blanc, puis lot par "
     + "lot), allumer ou éteindre la double écriture, trancher un doublon de personnes (fusionner, écarter, défaire). Gestes du "
     + "SUPER ADMIN qui conduit la migration, décidés en REGARDANT l'aperçu chiffré, le journal et les deux fiches côte à côte "

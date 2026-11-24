@@ -3,7 +3,7 @@ import { toNumber } from "@/lib/utils";
 import { recordAudit } from "@/lib/audit";
 import { enSerie } from "@/lib/refs";
 import { bornesAnnee } from "@/lib/budget/domaines";
-import { STATUTS_ACCEPTES, estStatutProposition, montantRetenu, nomEnveloppe, planEnveloppe, type LignePourEnveloppe } from "./regles";
+import { STATUTS_ACCEPTES, estPoleAdministration, estStatutProposition, montantRetenu, nomEnveloppe, planEnveloppe, type LignePourEnveloppe } from "./regles";
 
 /**
  * VALIDÉ = OUVERT — l'enveloppe de l'année d'un pôle, créée ou mise à jour depuis sa proposition validée.
@@ -23,7 +23,7 @@ export async function ouvrirEnveloppeDeLaProposition(proposalId: string, actorId
       select: {
         id: true, status: true, poleLabel: true, domaine: true, envelopeId: true, currentVersion: true, estRectificatif: true,
         campaign: { select: { year: true, title: true, companyId: true } },
-        department: { select: { companyId: true, head: { select: { userId: true } }, deputy: { select: { userId: true } } } },
+        department: { select: { companyId: true, name: true, code: true, head: { select: { userId: true } }, deputy: { select: { userId: true } } } },
         lines: { select: { id: true, key: true, label: true, categoryKey: true, categoryLineId: true, propose: true, ajuste: true, decision: true } },
         versions: { select: { lines: true } },
       },
@@ -62,6 +62,8 @@ export async function ouvrirEnveloppeDeLaProposition(proposalId: string, actorId
             companyId: p.campaign.companyId ?? p.department?.companyId ?? null,
             periodStart: debut, periodEnd: fin, totalAmount: 0, isActive: true,
             accessUserIds: lecteurs,
+            // LE BUDGET DE L'ADMINISTRATION est tenu par les FINANCES, pas par le DG (Super Admin, 24/11/2026).
+            ...(p.department && estPoleAdministration(p.department.name, p.department.code) ? { managerRoles: ["FINANCE_BUDGET_MANAGER"] } : {}),
             notes: `Ouverte par la campagne budgétaire « ${p.campaign.title} » (v${p.currentVersion}).`,
             createdById: actorId,
           },

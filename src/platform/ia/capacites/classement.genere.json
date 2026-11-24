@@ -3029,6 +3029,56 @@
   "annulation": "retour",
   "appelable": true
  },
+ "budget-campagne-recettes-actions:ajusterImpotCampagne": {
+  "risque": "R1",
+  "familles": [
+   "BUDGETS",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "budget-campagne-recettes-actions:enregistrerRecetteCampagne": {
+  "risque": "R1",
+  "familles": [
+   "BUDGETS",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "budget-campagne-recettes-actions:reglerParametresImpotsCampagne": {
+  "risque": "R4",
+  "familles": [
+   "BUDGETS",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "budget-campagne-recettes-actions:reglerTvaLigneDepense": {
+  "risque": "R4",
+  "familles": [
+   "BUDGETS",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "budget-campagne-recettes-actions:supprimerRecetteCampagne": {
+  "risque": "R4",
+  "familles": [
+   "BUDGETS",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
  "budget-depense-poste-actions:annulerDepensePoste": {
   "risque": "R1",
   "familles": [
