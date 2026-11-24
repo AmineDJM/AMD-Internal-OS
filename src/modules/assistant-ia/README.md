@@ -382,7 +382,7 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
 ## Carte d'action compacte (31/10/2026)
 
 - `ecrans/action-confirmation-card.tsx` : une carte À FORMULAIRE se résume dans le fil (`data-testid="carte-action-compacte"`) ;
-  le formulaire s'ouvre dans `ecrans/panneau-lateral.tsx` (`pleinEcranMobile`) rendu par portail — un ancêtre en
+  le formulaire s'ouvre dans `ecrans/panneau-lateral.tsx` (`pleinEcran`) rendu par portail — un ancêtre en
   `backdrop-blur` casse le `fixed`. Règles pures et testées : `domaine/ui/carte-action.ts` (avertissements uniques, état de
   simulation affiché, libellé du bouton, aperçu des champs). Zones de texte auto-ajustées : `ecrans/formulaire-carte.tsx:ZoneAuto`.
 

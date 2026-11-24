@@ -20,7 +20,7 @@ describe("où s'ouvre un objet", () => {
   it("chaque route porte l'identifiant quand l'objet a une fiche", () => {
     expect(entityHref("PAYMENT_REQUEST", "p1")).toBe("/validations/paiements/p1");
     expect(entityHref("MEDICAL_INFO_DECLARATION", "d1")).toBe("/information-medicale/d1");
-    expect(entityHref("MAIL_ENTRY", "m1")).toBe("/courriers/m1");
+    expect(entityHref("MAIL_ENTRY", "m1")).toBe("/courriers?courrier=m1");
     expect(entityHref("VALIDATION_REQUEST", "v1")).toBe("/validations/v1");
   });
 

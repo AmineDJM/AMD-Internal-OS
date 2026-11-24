@@ -196,7 +196,7 @@ actions `lib/actions/mail-folder-actions.ts`. Migration `20260824120000_mail_ent
 seule personne : le même courrier porte l'original pour l'ANPP, la copie pour le partenaire,
 l'annexe pour l'avocat. Chaque **pièce** (`MailEntryPiece`) a donc son intitulé, **son
 destinataire** et son fichier — téléversé, ou **pris dans le Drive sans le recopier** (on référence
-le nœud existant : un contrat dupliqué se met à diverger de son original). `app/(app)/courriers/[id]/mail-pieces.tsx`,
+le nœud existant : un contrat dupliqué se met à diverger de son original). `app/(app)/courriers/mail-pieces.tsx`,
 `lib/actions/mail-piece-actions.ts`, migration `20260824140000_mail_entry_piece`.
 
 **Créer un courrier depuis le Drive** : le fichier est déjà là, le retéléverser en ferait un doublon

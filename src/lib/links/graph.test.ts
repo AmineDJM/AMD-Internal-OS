@@ -102,7 +102,7 @@ describe("la paire est CANONIQUE — un seul enregistrement, lisible des deux c�
   it("un lien MÈNE quelque part — et rend null plutôt qu'une URL inventée", () => {
     expect(linkHref("PCH_TENDER", "t1")).toBe("/pch/t1");
     expect(linkHref("LEGAL_DOCUMENT", "d1")).toBe("/legal/d1");
-    expect(linkHref("MAIL_ENTRY", "m1")).toBe("/courriers/m1");
+    expect(linkHref("MAIL_ENTRY", "m1")).toBe("/courriers?courrier=m1");
     expect(linkHref("REGULATORY_PRODUCT", "r1")).toBe("/regulatory/r1");
     // Le bon de commande se lit dans la fiche de SON marché : sans ce marché, pas de lien.
     expect(linkHref("PCH_ORDER", "o1", { orderTenderId: "t9" })).toBe("/pch/t9");

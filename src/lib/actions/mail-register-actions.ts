@@ -173,7 +173,7 @@ export async function editMailEntry(
     const parties = await readParties(user.id, formData);
     if (!parties.ok) return { ok: false, error: parties.error };
     const r = await updateMailEntryFor(user, id, { ...readFields(formData), ...parties.data });
-    if (r.ok) { revalidatePath("/courriers"); revalidatePath(`/courriers/${id}`); }
+    if (r.ok) revalidatePath("/courriers");
     return r;
   });
 }
@@ -191,7 +191,7 @@ export async function setMailDate(input: {
     if (input.value && Number.isNaN(date!.getTime())) return { ok: false, error: "Date invalide." };
 
     const r = await setMailDateFor(user, { id: input.id, field: input.field, value: date });
-    if (r.ok) { revalidatePath("/courriers"); revalidatePath(`/courriers/${input.id}`); }
+    if (r.ok) revalidatePath("/courriers");
     return r;
   });
 }

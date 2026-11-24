@@ -273,7 +273,7 @@ export function ActionConfirmationCard({
         </div>
 
         {panneau && typeof document !== "undefined" && createPortal(
-          <PanneauLateral etiquette={`Formulaire : ${title}`} titre={title} pleinEcranMobile largeur="sm:w-[520px]"
+          <PanneauLateral etiquette={`Formulaire : ${title}`} titre={title} pleinEcran largeur="sm:w-[520px]"
             icone={<span className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400"><ShieldAlert className="h-4 w-4" aria-hidden /></span>}
             onFermer={fermerPanneau}
             pied={<div className="flex items-center justify-between gap-3">{boutonIgnorer}{boutonSigner}</div>}>
@@ -347,7 +347,7 @@ export function ActionConfirmationCard({
         </div>
       )}
       {detail && typeof document !== "undefined" && createPortal(
-        <PanneauLateral etiquette={detail.label} titre={`${detail.label} — ${title}`} pleinEcranMobile largeur="sm:w-[520px]"
+        <PanneauLateral etiquette={detail.label} titre={`${detail.label} — ${title}`} pleinEcran largeur="sm:w-[520px]"
           icone={<span className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400"><ShieldAlert className="h-4 w-4" aria-hidden /></span>}
           onFermer={() => setDetail(null)}>
           <ol className="space-y-1.5 text-xs text-zinc-800 dark:text-zinc-200" data-testid="panneau-detail-carte">

@@ -72,6 +72,9 @@ const TABLE: [string, string][] = [
   ["/promo-material/stock", "/stock-promotionnel"],
   ["/promo-material/stock?vue=magasin", "/stock-promotionnel?vue=magasin"],
   ["/promo-material/stock?vue=inconnue", "/stock-promotionnel"],
+  // Registres : un courrier s'ouvre dans le panneau du registre (24/11/2026)
+  ["/courriers/c1", "/courriers?courrier=c1"],
+  ["/courriers/c1#journal", "/courriers?courrier=c1#journal"],
   // Modules retirés, divers
   ["/retours-reclamations?reclamation=r1", "/mon-espace"],
   ["/office", "/drive"],

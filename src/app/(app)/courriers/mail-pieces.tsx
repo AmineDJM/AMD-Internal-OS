@@ -52,13 +52,10 @@ export function MailPieces({ entryId, pieces, canEdit }: { entryId: string; piec
 
   return (
     <section className="surface space-y-3 p-3 sm:p-4">
+      {/* Le titre est celui de la section repliable qui la porte, dans le panneau du courrier. */}
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <Paperclip className="h-4 w-4 text-primary" /> Pièces et destinataires
-          {pieces.length > 0 && <span className="text-xs font-normal text-muted-foreground">({pieces.length})</span>}
-        </h2>
         {canEdit && (
-          <Button size="sm" variant="outline" className="ml-auto" onClick={() => { setErr(null); setAdding(true); }}>
+          <Button size="sm" variant="outline" onClick={() => { setErr(null); setAdding(true); }}>
             <Plus className="h-4 w-4" /> Ajouter une pièce
           </Button>
         )}
@@ -66,7 +63,7 @@ export function MailPieces({ entryId, pieces, canEdit }: { entryId: string; piec
 
       {pieces.length === 0 ? (
         <p className="text-xs text-muted-foreground">
-          Aucune pièce nominative. {canEdit && "Ajoutez-en une par destinataire quand un même pli part à plusieurs endroits — le contrat au fournisseur, la copie aux finances."}
+          Aucune pièce nominative.{canEdit && " Ajoutez-en une par destinataire quand le pli part à plusieurs endroits."}
         </p>
       ) : (
         <ul className="divide-y divide-border">
@@ -107,8 +104,7 @@ export function MailPieces({ entryId, pieces, canEdit }: { entryId: string; piec
       )}
 
       {adding && (
-        <Sheet open onClose={() => !busy && setAdding(false)} width="md" title="Ajouter une pièce"
-          description="Téléversez un ou plusieurs fichiers, ou désignez une pièce du Drive — elle y reste, elle n'est pas recopiée.">
+        <Sheet open onClose={() => !busy && setAdding(false)} width="md" title="Ajouter une pièce">
           <form
             action={async (fd) => {
               fd.set("entryId", entryId);
@@ -146,8 +142,7 @@ export function MailPieces({ entryId, pieces, canEdit }: { entryId: string; piec
       )}
 
       {editing && (
-        <Sheet open onClose={() => !busy && setEditing(null)} width="md" title={`Pièce — ${editing.label}`}
-          description="Le fichier ne change pas : on corrige son nom, son destinataire et sa note.">
+        <Sheet open onClose={() => !busy && setEditing(null)} width="md" title={`Pièce — ${editing.label}`}>
           <form
             action={async (fd) => {
               fd.set("id", editing.id);

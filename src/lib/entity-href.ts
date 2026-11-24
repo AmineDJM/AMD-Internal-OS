@@ -65,7 +65,8 @@ export function entityHref(type: string | null | undefined, id: string | null | 
     case "TRAINING": return `/formations?formation=${encodeURIComponent(id)}`;
 
     // ── Les registres ──
-    case "MAIL_ENTRY": return `/courriers/${id}`;
+    // Un courrier s'ouvre dans le panneau du registre (`lienCourrier`, `chemins/courriers.ts`).
+    case "MAIL_ENTRY": return `/courriers?courrier=${encodeURIComponent(id)}`;
     case "LEGAL_DOCUMENT": return `/legal/${id}`;
     case "PCH_TENDER": return `/pch/${id}`;
     case "VALIDATION_REQUEST": return `/validations/${id}`;
