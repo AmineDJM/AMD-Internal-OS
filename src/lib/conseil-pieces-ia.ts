@@ -2,6 +2,7 @@ import { askModelJson } from "@/lib/models/gateway";
 import type { ModelReply } from "@/lib/models/contract";
 import { aiFeatureEnabled, interrupteurIaCoupe, logAiUsage, REFUS_IA_COUPEE, type AiUsageInput } from "@/lib/ai-settings";
 import { aiConfigured, cleModeleRequise } from "@/lib/ai";
+import { noterProposition, type PropositionANoter } from "@/modules/pilotage/api-ecriture";
 import { phraseIaNonConfiguree } from "@/lib/ia/cle-manquante";
 import { neutralizeBoundaries, wrapUntrusted } from "@/lib/comms/untrusted";
 import { BUDGET_CARACTERES, decouperPourLecture } from "@/lib/pch/extraction";
@@ -81,6 +82,12 @@ export interface DependancesConseil {
     opts: { system: string; maxOutputTokens: number; verbosity: "low" },
   ) => Promise<{ data: T | null; reply: ModelReply }>;
   journaliser: (u: AiUsageInput) => Promise<void>;
+  /**
+   * GARDER LE CONSEIL au journal du pilotage (`noterProposition`). Le conseil est CONSULTATIF : aucun geste ne le suit à
+   * l'écran, il est gardé pour être relu (et rapproché, plus tard, de l'emplacement final de la pièce). Facultative : un
+   * banc qui injecte ses dépendances n'écrit rien.
+   */
+  noter?: (p: PropositionANoter) => Promise<unknown>;
 }
 
 async function lireParLeLecteurCommun(a: { octets: Buffer; ext: string; parLuna: boolean; userId: string }): Promise<LectureConseil> {
@@ -100,6 +107,7 @@ const REELLES: DependancesConseil = {
   lire: lireParLeLecteurCommun,
   appeler: (role, prompt, schema, opts) => askModelJson(role, prompt, schema, opts),
   journaliser: (u) => logAiUsage(u),
+  noter: noterProposition,
 };
 
 export const PHRASE_DESACTIVEE = "Le conseil de rangement de Luna est désactivé (Administration › Contrôle de l'IA) : vérifiez vous-même l'emplacement de la pièce.";
@@ -127,6 +135,8 @@ export interface EntreeConseil {
   /** Faux dès que la pièce n'est pas INTERNE : rien ne sort de l'ERP. */
   confidentielle: boolean;
   userId: string;
+  /** La pièce conseillée (son `Document`) — la cible du conseil au journal du pilotage. */
+  cible?: { type: string; id: string } | null;
 }
 
 /**
@@ -198,7 +208,14 @@ export async function conseillerParModele(e: EntreeConseil, deps: DependancesCon
     costUsd: usage?.costUsd ?? null,
   });
 
-  if (conseil) return { ok: true, conseil, noteMethode: lu.noteMethode, coupe: phraseCoupeDuTexte(decoupe.total, decoupe.lu.length) };
+  if (conseil) {
+    await deps.noter?.({
+      source: FONCTION, nature: "rangement", auteurId: e.userId, cible: e.cible ?? null, producteur: "ia",
+      propose: { verdict: conseil.verdict, conseils: conseil.conseils.map((c) => ({ geste: c.geste, posteId: c.posteId ?? null, case: c.case ?? null })) },
+      contexte: { natureLue: conseil.natureLue, confiance: conseil.confiance, emplacement: e.contexte.emplacement },
+    });
+    return { ok: true, conseil, noteMethode: lu.noteMethode, coupe: phraseCoupeDuTexte(decoupe.total, decoupe.lu.length) };
+  }
   if (reply && !reply.ok && !reply.configured) return refus("NON_CONFIGUREE", phraseIaNonConfiguree(deps.cle(), POUR_QUOI));
   if (panne) return refus("ECHEC", PHRASE_PANNE);
   if (!reply?.ok) return refus("ECHEC", PHRASE_REFUS);

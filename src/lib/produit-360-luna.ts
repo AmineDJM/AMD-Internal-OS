@@ -7,6 +7,7 @@ import {
   type Fait360, type Essentiel360,
 } from "@/lib/products/essentiel-360";
 import { sansBloquer } from "@/lib/journal";
+import { ecrireSignauxSansBloquer, jourAlger, signalDeLEssentiel, societeDuProduit } from "@/modules/pilotage/api-ecriture";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -17,9 +18,10 @@ import { sansBloquer } from "@/lib/journal";
  * appel borné (15 s) → relecture stricte (faits cités, aucun nombre étranger aux faits) → journal (`logAiUsage`).
  * Chaque échec retombe sur le repli DÉTERMINISTE (les trois faits les plus urgents).
  *
- * LE CACHE D'UN JOUR réutilise la table `VoixTerrainCache` (clé préfixée « produit360| », ménage par jour identique) :
- * la clé porte l'empreinte des faits — une personne qui voit d'autres modules a d'autres faits, donc une autre entrée,
- * et Luna ne lit jamais qu'un fait que la personne voit déjà.
+ * LE CACHE D'UN JOUR réutilise la table `VoixTerrainCache` (clé préfixée « produit360| ») : la clé porte l'empreinte des
+ * faits — une personne qui voit d'autres modules a d'autres faits, donc une autre entrée, et Luna ne lit jamais qu'un fait
+ * que la personne voit déjà. Les jours passés ne sont plus purgés (lot « mémoire ») : la fiche lit l'entrée du jour, et
+ * chaque calcul est AUSSI écrit en signal daté (module `pilotage`) — l'historique de « l'essentiel » d'un produit.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
@@ -84,5 +86,8 @@ export async function essentielDuProduit(input: { productId: string; faits: read
   const parLuna = (await portesLunaOuvertes(FONCTION)) ? await demanderALuna(input.faits, input.userId) : null;
   const v: Essentiel360 = { points: parLuna ?? essentielDeterministe(input.faits), parLuna: Boolean(parLuna), calculeLe: maintenant.toISOString() };
   await ecrireCache(cle, jour, v);
+  const companyId = await societeDuProduit(input.productId).catch(sansBloquer("produit-360-luna.societeDuProduit", null));
+  const signal = signalDeLEssentiel(v, { productId: input.productId, empreinte: empreinteFaits(input.faits), jour: jourAlger(maintenant), companyId });
+  if (signal) await ecrireSignauxSansBloquer([signal], "produit-360");
   return v;
 }

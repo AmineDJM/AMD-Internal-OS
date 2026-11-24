@@ -225,6 +225,34 @@ export async function signauxLegal(user: SessionUser, opts: { horizonJours?: num
 const ENVELOPPES_MAX = 8;
 
 /** LES SIGNAUX FINANCE : budgets (rythme, projection, catégories), justificatifs, échéances, factures vs BC. */
+/**
+ * LES ENVELOPPES QU'UNE PERSONNE VOIT, LUES comme la règle de santé les attend (`EnveloppeLue`) — avec leur société, leur
+ * BU et leur produit de rattachement. Écrite une fois : les signaux de la boîte de décision et l'instantané quotidien des
+ * finances (module `pilotage`) lisent la MÊME consommation (`getBudgetOverview`), jamais un second calcul.
+ */
+export async function enveloppesLues(user: SessionUser, opts: { max?: number } = {}): Promise<{ lue: EnveloppeLue; companyId: string | null; buId: string | null; productId: string | null }[]> {
+  const enveloppes = (await getEnvelopes(user)).slice(0, opts.max ?? ENVELOPPES_MAX);
+  const societes = new Map((await prisma.budgetEnvelope.findMany({ where: { id: { in: enveloppes.map((e) => e.id) } }, select: { id: true, companyId: true } })).map((e) => [e.id, e.companyId]));
+  const vues = await Promise.all(enveloppes.map((e) => getBudgetOverview(user, e.id).catch(sansBloquer("intelligence.signauxFinance.getBudgetOverview", null))));
+  const out: { lue: EnveloppeLue; companyId: string | null; buId: string | null; productId: string | null }[] = [];
+  for (const [i, v] of vues.entries()) {
+    if (!v) continue;
+    out.push({
+      lue: {
+        id: v.envelope.id, nom: v.envelope.name, alloue: v.totals.total, consomme: v.totals.consumed, engage: v.totals.committed,
+        debut: v.period.from, fin: v.period.to,
+        // Une catégorie comprend ses sous-catégories (une sous-catégorie ne se rattache qu'à une catégorie de tête).
+        categories: v.categories.filter((c) => !c.parentId).map((c) => ({
+          id: c.id, nom: c.name, alloue: c.allocated,
+          consomme: c.consumed + v.categories.filter((s) => s.parentId === c.id).reduce((a, s) => a + s.consumed, 0),
+        })),
+      },
+      companyId: societes.get(v.envelope.id) ?? null, buId: enveloppes[i]?.businessUnitId ?? null, productId: enveloppes[i]?.productId ?? null,
+    });
+  }
+  return out;
+}
+
 export async function signauxFinance(user: SessionUser, opts: { horizonJours?: number; maintenant?: Date; leger?: boolean } = {}): Promise<LectureIntelligence> {
   const t0 = Date.now();
   if (!peutLireFinance(user)) return vide("FINANCE", "sans droit de lecture sur les Finances ni les Budgets", t0);
@@ -236,23 +264,10 @@ export async function signauxFinance(user: SessionUser, opts: { horizonJours?: n
 
   const budgets = userCan(user, "BUDGETS", "VIEW")
     ? (async () => {
-      const enveloppes = (await getEnvelopes(user)).slice(0, opts.leger ? 3 : ENVELOPPES_MAX);
-      lus.enveloppes = enveloppes.length;
-      const vues = await Promise.all(enveloppes.map((e) => getBudgetOverview(user, e.id).catch(sansBloquer("intelligence.signauxFinance.getBudgetOverview", null))));
-      for (const v of vues) {
-        if (!v) continue;
-        const lue: EnveloppeLue = {
-          id: v.envelope.id, nom: v.envelope.name, alloue: v.totals.total, consomme: v.totals.consumed, engage: v.totals.committed,
-          debut: v.period.from, fin: v.period.to,
-          // Une catégorie comprend ses sous-catégories (une sous-catégorie ne se rattache qu'à une catégorie de tête).
-          categories: v.categories.filter((c) => !c.parentId).map((c) => ({
-            id: c.id, nom: c.name, alloue: c.allocated,
-            consomme: c.consumed + v.categories.filter((s) => s.parentId === c.id).reduce((a, s) => a + s.consumed, 0),
-          })),
-        };
-        signaux.push(...signauxBudget(lue, now));
-      }
-      if (enveloppes.length) notes.push("aucune prévision d'atterrissage déclarée sur les enveloppes : la cohérence prévision/réel ne peut être jugée que sur le rythme");
+      const lues = await enveloppesLues(user, { max: opts.leger ? 3 : ENVELOPPES_MAX });
+      lus.enveloppes = lues.length;
+      for (const { lue } of lues) signaux.push(...signauxBudget(lue, now));
+      if (lues.length) notes.push("aucune prévision d'atterrissage déclarée sur les enveloppes : la cohérence prévision/réel ne peut être jugée que sur le rythme");
     })()
     : Promise.resolve(void notes.push("budgets non lus : sans droit sur le module Budgets"));
 

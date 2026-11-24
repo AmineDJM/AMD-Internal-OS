@@ -26,7 +26,7 @@ import { prevenirLeSecretariat } from "@/lib/secretariat/annulation";
 import { supprimerReversible } from "@/lib/suppression/coeur";
 import { apercuSuppression } from "@/lib/admin-delete-registry";
 import { sansBloquer } from "@/lib/journal";
-import { PARENTS, isParent, revalidate, canEditItems, canAllocate, valideursDuPoste, demandeurDe, peutTrancherSur, prevenirLeTemps, audit, refusSiClos, refusDemandeFermee, refusAvantPrevalidation, refusPostesClos, reprojeterMontantDemande, demandeVisible, loadItem, REFUS_HISTORIQUE, compterFichesPersonnes, priseEnChargeIndirecte, etatBcDe, appliquerGesteVisa, cloreDemandesAuBureau, resumeRepartition, postesRepartis, recordDecision, piecesOuvertes, envoyerDemandeBC, pieceComptee, depassementDuPoste } from "./infra/postes/commun";
+import { PARENTS, isParent, revalidate, canEditItems, canAllocate, valideursDuPoste, demandeurDe, peutTrancherSur, prevenirLeTemps, audit, refusSiClos, refusDemandeFermee, refusAvantPrevalidation, refusPostesClos, reprojeterMontantDemande, demandeVisible, loadItem, REFUS_HISTORIQUE, compterFichesPersonnes, priseEnChargeIndirecte, etatBcDe, appliquerGesteVisa, cloreDemandesAuBureau, resumeRepartition, postesRepartis, recordDecision, piecesOuvertes, envoyerDemandeBC, pieceComptee, depassementDuPoste, noterPosteRetenu } from "./infra/postes/commun";
 import { actionReversible } from "@/lib/effets/reversible";
 import { conformiteParDefaut, voieAgencePossible } from "./domaine/parcours-agence";
 import { lancerLePosteAgence } from "./infra/postes/agence-ajout";
@@ -156,7 +156,7 @@ export async function addAdProItem(_prev: ActionResult | undefined, formData: Fo
     } else {
       created = await prisma.adProItem.create({ data, select: { id: true } });
     }
-
+    await noterPosteRetenu(user.id, parentRaw, parentId, { nature: kind, libelle: label }); // proposé par Luna ? (journal du pilotage)
     await audit(user, parentRaw, parentId, "CREATE",
       `Poste ajouté — ${ITEM_KIND_LABELS[kind]} « ${label} »${late ? " — APRÈS la décision définitive" : ""}${detailFiches}.`);
     // UN POSTE AJOUTÉ APRÈS LA DÉCISION SE DIT, EN LECTURE, À CEUX QUI DÉCIDENT (§118.200) : il change ce que la demande coûtera.

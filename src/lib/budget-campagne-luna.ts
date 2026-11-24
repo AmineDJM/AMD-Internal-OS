@@ -2,6 +2,7 @@ import { callLuna, lunaModel, type LunaResult, portesLunaOuvertes } from "@/lib/
 import { logAiUsage } from "@/lib/ai-settings";
 import { ecartPct, montantCourt, resumeDiff, LIBELLE_SOURCE, type DiffVersions, type SourceLigne } from "@/lib/budget-campagne/regles";
 import { sansBloquer } from "@/lib/journal";
+import { noterProposition } from "@/modules/pilotage/api-ecriture";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -67,8 +68,18 @@ export function justificationDeRepli(e: EntreeJustification): string {
   return `${sens}${base} — source : ${LIBELLE_SOURCE[e.source]}.${e.contexte ? ` ${e.contexte}` : ""}`;
 }
 
-/** Un brouillon de justification — Luna si elle répond, le repli sinon. Ne lève jamais. */
-export async function brouillonJustification(e: EntreeJustification, userId: string | null): Promise<{ texte: string; parLuna: boolean }> {
+/**
+ * Un brouillon de justification — Luna si elle répond, le repli sinon. Ne lève jamais. `ligneId` : la ligne de la
+ * proposition budgétaire — le brouillon est GARDÉ (module `pilotage`), et l'enregistrement de la ligne dira ce que le pôle
+ * en a retenu.
+ */
+export async function brouillonJustification(e: EntreeJustification, userId: string | null, ligneId?: string | null): Promise<{ texte: string; parLuna: boolean }> {
+  const b = await brouillon(e, userId);
+  if (userId && ligneId) await noterProposition({ source: FONCTION, nature: "justification", auteurId: userId, cible: { type: "BudgetProposalLine", id: ligneId }, propose: b.texte, producteur: b.parLuna ? "ia" : "repli" });
+  return b;
+}
+
+async function brouillon(e: EntreeJustification, userId: string | null): Promise<{ texte: string; parLuna: boolean }> {
   const repli = justificationDeRepli(e);
   if (!(await portesLunaOuvertes(FONCTION))) return { texte: repli, parLuna: false };
   const system = "Tu aides le responsable d'un pôle à justifier une ligne de son budget annuel (entreprise pharmaceutique, Algérie, DZD). "

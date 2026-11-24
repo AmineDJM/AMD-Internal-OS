@@ -5,6 +5,7 @@ import { logAiUsage } from "@/lib/ai-settings";
 import { wrapUntrusted } from "@/lib/comms/untrusted";
 import { CONSIGNE_VOIX, SCHEMA_VOIX, lireReponseVoix, regrouperParMotsCles, type RapportTerrain, type VoixTerrain } from "@/lib/voix-terrain/pur";
 import { sansBloquer } from "@/lib/journal";
+import { ecrireSignauxSansBloquer, jourAlger, signauxDeLaVoix, societeDeLaBu, buDuPerimetre } from "@/modules/pilotage/api-ecriture";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -14,8 +15,13 @@ import { sansBloquer } from "@/lib/journal";
  *
  * L'ordre des portes : cache du jour → interrupteur général → bascule (« rapports terrain ») → clé → appel borné
  * (20 s) → relecture stricte (citations vérifiées MOT POUR MOT) → journal (`logAiUsage`, fonction « voix_terrain »).
- * Chaque échec retombe sur le repli DÉTERMINISTE par mots-clés. Le résultat est gardé UNE JOURNÉE par périmètre
- * (`VoixTerrainCache`) : un cockpit rouvert ne rappelle pas le modèle.
+ * Chaque échec retombe sur le repli DÉTERMINISTE par mots-clés. Le résultat est gardé par JOUR et par périmètre
+ * (`VoixTerrainCache`) : un cockpit rouvert ne rappelle pas le modèle, et l'écran lit l'entrée du jour.
+ *
+ * PLUS DE PURGE (lot « mémoire », décision du Super Admin du 24/11/2026 : l'historique des données IA est conservé) : les
+ * jours passés restent en base, et chaque calcul est AUSSI écrit en signaux datés (module `pilotage`, une ligne par
+ * famille et par jour, rattachée à la BU et à sa société) — la tendance « les objections montent depuis trois mois »
+ * devient lisible.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
@@ -37,8 +43,6 @@ async function ecrireCache(cle: string, jour: string, v: VoixTerrain): Promise<v
   try {
     const contenu = v as unknown as Prisma.InputJsonValue;
     await prisma.voixTerrainCache.upsert({ where: { cle }, update: { contenu, parLuna: v.parLuna, jour }, create: { cle, jour, contenu, parLuna: v.parLuna } });
-    // Le ménage : les jours passés ne servent plus.
-    await prisma.voixTerrainCache.deleteMany({ where: { jour: { lt: jour } } });
   } catch {
     // Un cache est un confort : son échec ne casse pas l'écran.
   }
@@ -94,5 +98,8 @@ export async function voixDuTerrain(input: {
   const parLuna = (await portesLunaOuvertes(FONCTION)) ? await classerParLuna(input.rapports, input.jours, maintenant, input.userId) : null;
   const v = parLuna ?? regrouperParMotsCles(input.rapports, input.jours, maintenant);
   await ecrireCache(cle, jour, v);
+  // LA MÉMOIRE : le calcul du jour, daté, à côté des jours d'avant (jamais bloquant).
+  const companyId = await societeDeLaBu(buDuPerimetre(input.perimetre)).catch(sansBloquer("voix-terrain-luna.societeDeLaBu", null));
+  await ecrireSignauxSansBloquer(signauxDeLaVoix(v, { perimetre: input.perimetre, jour: jourAlger(maintenant), companyId }), "voix-terrain");
   return v;
 }

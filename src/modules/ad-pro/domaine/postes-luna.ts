@@ -130,6 +130,15 @@ export type ResultatPostes =
   | { ok: true; proposition: PropositionPostes }
   | { ok: false; raison: RaisonPostes; error: string };
 
+/**
+ * CE QUI SE COMPARE d'un poste proposé à un poste ajouté (journal « proposition → décision », module `pilotage`) : sa
+ * nature et son libellé. Le montant et les fiches se règlent après : les retoucher n'est pas écarter la proposition.
+ */
+export const posteCompare = (p: { nature: string; libelle: string }) => ({ nature: p.nature, libelle: p.libelle });
+export const postesCompares = (postes: readonly { nature: string; libelle: string }[]) => postes.map(posteCompare);
+/** La cible d'une proposition de postes : la demande (son parent Ad & Pro et son id). */
+export const cibleDuJournalIa = (parent: string, parentId: string) => ({ type: `adpro.${parent}`, id: parentId });
+
 /** Les abstentions : l'écran n'en dit rien (Luna reste invisible). */
 export const ABSTENTIONS: readonly RaisonPostes[] = ["IA_COUPEE", "DESACTIVEE", "NON_CONFIGUREE", "TROP_COURT", "RIEN"];
 

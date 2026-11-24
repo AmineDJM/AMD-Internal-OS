@@ -23,7 +23,8 @@ import {
   apercuDefinitions, chargerBilanKpi, colonnesDefinition, definitionParId, definitionsActives, detailKpi, faitsKpi,
   kpisPourCommentaire, lignesAFiger, nouvelleFamille, sourcesEvaluation,
 } from "@/lib/kpi/service";
-import { proposerCibles, proposerDefinitions, proposerNiveau, redigerCommentaire } from "@/lib/kpi-luna";
+import { empreinteDefinition, proposerCibles, proposerDefinitions, proposerNiveau, redigerCommentaire } from "@/lib/kpi-luna";
+import { noterDecision } from "@/modules/pilotage/api-ecriture";
 import type { ApercuKpi, BilanKpi, LigneDetail } from "@/lib/kpi/types";
 import type { HorsBriques } from "@/lib/kpi/luna-pur";
 import { sansBloquer } from "@/lib/journal";
@@ -165,6 +166,9 @@ export async function creerKpi(formData: FormData): Promise<ActionResult> {
     }
   });
   await recordAudit({ actorId: user.id, action: "CREATE", module: MODULE, summary: `${lu.defs.length} KPI créé(s) : ${lu.defs.map((d) => d.nom).join(", ")}` });
+  // CE QUE LE MANAGER A FAIT DES PROPOSITIONS DE LUNA (définitions, objectifs) — journal du pilotage, jamais bloquant.
+  await noterDecision({ source: "kpi", nature: "definitions", auteurId: user.id, retenu: lu.defs.map(empreinteDefinition), decideurId: user.id });
+  await noterDecision({ source: "kpi", nature: "cibles", auteurId: user.id, retenu: Object.fromEntries(lu.defs.map((d) => [d.nom, d.cible])), decideurId: user.id });
   revalider();
   return { ok: true, message: `${lu.defs.length} KPI ajouté${lu.defs.length > 1 ? "s" : ""}.` };
 }

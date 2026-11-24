@@ -8,6 +8,7 @@ import {
   type CategorieConnue, type PropositionNature,
 } from "@/lib/general-means/natures";
 import { sansBloquer } from "@/lib/journal";
+import { noterProposition } from "@/modules/pilotage/api-ecriture";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -62,6 +63,12 @@ export interface EntreeNatures {
   objet?: string | null;
   categories: CategorieConnue[];
   userId: string;
+  /**
+   * La proposition est MONTRÉE à la personne, qui la garde ou la change avant d'enregistrer (la saisie d'un ticket) : elle
+   * est alors gardée au journal du pilotage, et l'enregistrement dira ce qui a été retenu (`finaliserNatures`). Un
+   * classement appliqué d'office (rattrapage du Super Admin, article laissé sans catégorie) n'est pas une proposition.
+   */
+  montree?: boolean;
 }
 
 /** Une proposition par libellé ; `ia` dit si le modèle a répondu (sinon : mots-clés seuls). */
@@ -151,5 +158,12 @@ export async function classerLibelles(e: EntreeNatures, deps: DependancesNatures
     const id = devinerParMotsCles(l, e.categories);
     if (id) propositions[i] = { categorieId: id };
   });
+  if (e.montree && propositions.some(Boolean)) {
+    const propose = Object.fromEntries(libelles.flatMap((l, i) => {
+      const p = propositions[i];
+      return p ? [[l, "categorieId" in p ? p.categorieId : `nouvelle:${p.nouvelle}`]] : [];
+    }));
+    await noterProposition({ source: FONCTION, nature: "natures", auteurId: e.userId, propose, producteur: ia ? "ia" : "repli" });
+  }
   return { propositions, ia };
 }

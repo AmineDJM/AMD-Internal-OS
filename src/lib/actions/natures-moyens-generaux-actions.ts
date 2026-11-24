@@ -54,7 +54,7 @@ export async function proposerNaturesLignes(formData: FormData): Promise<Resulta
   await assurerNaturesMoyensGeneraux();
   const categories = await naturesConnues();
   const noms = new Map(categories.map((c) => [c.id, c.nom]));
-  const { propositions } = await classerLibelles({ libelles, objet: fdStr(formData, "objet"), categories, userId: user.id });
+  const { propositions } = await classerLibelles({ libelles, objet: fdStr(formData, "objet"), categories, userId: user.id, montree: true });
   return {
     ok: true,
     propositions: propositions.map((p) => {

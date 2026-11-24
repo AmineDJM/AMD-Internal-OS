@@ -12,6 +12,7 @@ import { parseLinesField, validateReceipt, receiptTotal, receiptLabel, type Rece
 import { lireValeurNouvelle, valeurNouvelle } from "./natures";
 import { assurerNaturesMoyensGeneraux, categoriePourNom, naturesConnues } from "./natures-store";
 import { classerLibelles } from "@/lib/natures-depenses-ia";
+import { noterDecision } from "@/modules/pilotage/api-ecriture";
 
 export interface ReceiptDraft {
   lines: ReceiptLine[];
@@ -72,6 +73,12 @@ export async function finaliserNatures(
   lines: ReceiptLine[],
   opts: { userId: string; objet?: string | null; classer: boolean },
 ): Promise<ReceiptLine[]> {
+  // CE QUE LA PERSONNE A RETENU des natures proposées pendant la saisie — avant tout classement d'office (journal du
+  // pilotage, jamais bloquant ; sans proposition ouverte, rien n'est écrit).
+  await noterDecision({
+    source: "nature_depense", nature: "natures", auteurId: opts.userId, decideurId: opts.userId,
+    retenu: Object.fromEntries(lines.filter((l) => l.label.trim()).map((l) => [l.label.trim(), l.budgetCategoryId ?? null])),
+  });
   const sansNouvelle = (ls: ReceiptLine[]) => ls.map((l) => (lireValeurNouvelle(l.budgetCategoryId) ? { ...l, budgetCategoryId: null } : l));
   const aFaire = lines.some((l) => lireValeurNouvelle(l.budgetCategoryId)) || (opts.classer && lines.some((l) => !l.budgetCategoryId));
   if (!aFaire) return lines;

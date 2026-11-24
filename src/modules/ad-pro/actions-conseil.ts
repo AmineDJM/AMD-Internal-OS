@@ -139,6 +139,7 @@ export async function conseillerPiece(formData: FormData): Promise<ResultatConse
     octets,
     confidentielle,
     userId: user.id,
+    cible: { type: "Document", id: fichierId },
     contexte: { natureDemande: nature, titre, postes, emplacement, nomFichier: doc.name },
   });
 }
