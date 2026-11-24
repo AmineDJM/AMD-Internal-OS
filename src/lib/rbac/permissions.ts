@@ -543,7 +543,9 @@ for (const role of Object.keys(PERMISSIONS) as UserRole[]) {
  * « Examiner » un groupe de doublons demandait `FINANCES` Modifier OU la vue globale (`hasGlobalView`) : la vue globale est
  * celle du Super Admin et de la Direction, qui ont tous deux Modifier sur `FINANCES` par défaut — la copie le leur donne déjà.
  */
-const ECRANS_FINANCES: Module[] = ["FINANCES_BANQUE", "FINANCES_COMPTABILITE", "FINANCES_DOUBLONS"];
+// « Impôts & cotisations » (24/11/2026) suit la même règle : les gestes de `FINANCES` du rôle, recopiés par défaut
+// (migration `impots_cotisations` pour les accès personnalisés ou bloqués).
+const ECRANS_FINANCES: Module[] = ["FINANCES_BANQUE", "FINANCES_COMPTABILITE", "FINANCES_DOUBLONS", "FINANCES_IMPOTS"];
 for (const role of Object.keys(PERMISSIONS) as UserRole[]) {
   if (role === "SUPER_ADMIN") continue;
   const matrice = PERMISSIONS[role];

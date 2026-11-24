@@ -59,6 +59,10 @@ function hier(u: SessionUser): Record<string, boolean> {
     "/finances/comptabilite › supprimer": userCan(u, "FINANCES", "DELETE"),
     "/finances/doublons-factures": userCan(u, "FINANCES", "VIEW"),
     "/finances/doublons-factures › examiner": userCan(u, "FINANCES", "VIEW") && (userCan(u, "FINANCES", "UPDATE") || ["SUPER_ADMIN", "DIRECTION"].includes(u.role)),
+    // Impôts & cotisations (24/11/2026) : un écran neuf, ouvert par défaut à qui tenait FINANCES, avec ses gestes.
+    "/finances/impots-cotisations": userCan(u, "FINANCES", "VIEW"),
+    "/finances/impots-cotisations › préparer, envoyer": userCan(u, "FINANCES", "UPDATE"),
+    "/finances/impots-cotisations › paiement ponctuel": userCan(u, "FINANCES", "CREATE"),
     "/centre-de-paiement › siéger": roles.some((r) => R_PAIEMENT.includes(r)),
     "/centre-de-validations": userCan(u, "VALIDATION_CENTRE", "VIEW") && R_CENTRE.includes(u.role),
     "/centre-ad-pro": userCan(u, "AD_PRO_CENTRE", "VIEW") && siegeAdPro,
@@ -83,6 +87,9 @@ function aujourdhui(u: SessionUser): Record<string, boolean> {
     "/finances/comptabilite › supprimer": userCan(u, "FINANCES_COMPTABILITE", "DELETE"),
     "/finances/doublons-factures": userCan(u, "FINANCES_DOUBLONS", "VIEW"),
     "/finances/doublons-factures › examiner": userCan(u, "FINANCES_DOUBLONS", "UPDATE"),
+    "/finances/impots-cotisations": userCan(u, "FINANCES_IMPOTS", "VIEW"),
+    "/finances/impots-cotisations › préparer, envoyer": userCan(u, "FINANCES_IMPOTS", "UPDATE"),
+    "/finances/impots-cotisations › paiement ponctuel": userCan(u, "FINANCES_IMPOTS", "CREATE"),
     "/centre-de-paiement › siéger": sitsOnPaymentCentre(u),
     "/centre-de-validations": ouvreLeCentreDeValidations(u),
     "/centre-ad-pro": userCan(u, "AD_PRO_CENTRE", "VIEW") && siegeAuCentreAdPro(u),
@@ -136,6 +143,7 @@ describe("chaque écran a sa clé, réglable dans la console", () => {
   it("les nouvelles clés existent, sont nommées comme le menu, et aucun module retiré n'en fait partie", () => {
     const attendus: Record<string, string> = {
       FINANCES_BANQUE: "Banque & paiements", FINANCES_COMPTABILITE: "Comptabilité", FINANCES_DOUBLONS: "Doublons de factures",
+      FINANCES_IMPOTS: "Impôts & cotisations",
       PROSPECTION_AGENCES: "Prospection d'agences", CONTROLES_CONFORMITE: "Contrôles de conformité", PAIE: "Paie", CORBEILLE: "Corbeille",
     };
     for (const [cle, libelle] of Object.entries(attendus)) {
@@ -154,6 +162,17 @@ describe("chaque écran a sa clé, réglable dans la console", () => {
     expect(userCan(u, "FINANCES_DOUBLONS", "VIEW")).toBe(false);
     expect(userCan(u, "FINANCES_BANQUE", "UPDATE")).toBe(true);
     expect(userCan(u, "FINANCES_COMPTABILITE", "VIEW")).toBe(true);
+    expect(userCan(u, "FINANCES_IMPOTS", "UPDATE")).toBe(true);
+  });
+
+  it("BLOQUÉ sur Impôts & cotisations : la personne ne les voit plus, et garde Banque & paiements", () => {
+    const bloque: LigneAccesAttribue = {
+      module: "FINANCES_IMPOTS", canView: false, canCreate: false, canUpdate: false, canDelete: false, canValidate: false,
+      canExport: false, canUpload: false, scope: "ASSIGNED", sections: [],
+    };
+    const u = personne("FINANCE_BUDGET_MANAGER", null, [bloque]);
+    expect(userCan(u, "FINANCES_IMPOTS", "VIEW")).toBe(false);
+    expect(userCan(u, "FINANCES_BANQUE", "UPDATE")).toBe(true);
   });
 
   it("le Centre de paiement : bloqué, il retire le siège au DG ; accordé à un autre rôle, il ne fait PAS siéger (24/11/2026) — au Super Admin près", () => {

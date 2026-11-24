@@ -116,16 +116,6 @@
   "annulation": "retour",
   "appelable": false
  },
- "actualisation-soldes-actions:ouvrirActualisationSoldes": {
-  "risque": "R1",
-  "familles": [
-   "BUDGETS",
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
  "actualisation-soldes-actions:repondreActualisationSoldes": {
   "risque": "R4",
   "familles": [
@@ -1297,6 +1287,24 @@
  },
  "admin-request-actions:submitAttachmentValidation": {
   "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "admin-request-actions:toggleMissionStop": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "admin-request-actions:updateMission": {
+  "risque": "R2",
   "familles": [
    "ECRITURES"
   ],
@@ -3029,56 +3037,6 @@
   "annulation": "retour",
   "appelable": true
  },
- "budget-campagne-recettes-actions:ajusterImpotCampagne": {
-  "risque": "R1",
-  "familles": [
-   "BUDGETS",
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
- "budget-campagne-recettes-actions:enregistrerRecetteCampagne": {
-  "risque": "R1",
-  "familles": [
-   "BUDGETS",
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
- "budget-campagne-recettes-actions:reglerParametresImpotsCampagne": {
-  "risque": "R4",
-  "familles": [
-   "BUDGETS",
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
- "budget-campagne-recettes-actions:reglerTvaLigneDepense": {
-  "risque": "R4",
-  "familles": [
-   "BUDGETS",
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
- "budget-campagne-recettes-actions:supprimerRecetteCampagne": {
-  "risque": "R4",
-  "familles": [
-   "BUDGETS",
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
  "budget-depense-poste-actions:annulerDepensePoste": {
   "risque": "R1",
   "familles": [
@@ -3280,7 +3238,7 @@
   "appelable": true
  },
  "budget-pole-actions:reallouerCategorie": {
-  "risque": "R2",
+  "risque": "R1",
   "familles": [
    "BUDGETS",
    "ECRITURES"
@@ -3395,16 +3353,6 @@
   "annulation": "retour",
   "appelable": true
  },
- "care-actions:acheterLignePec": {
-  "risque": "R1",
-  "familles": [
-   "AD_PRO",
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
  "care-actions:addCareBeneficiary": {
   "risque": "R1",
   "familles": [
@@ -3503,26 +3451,6 @@
   "annulation": "compensation",
   "appelable": true
  },
- "care-actions:demanderChiffragePec": {
-  "risque": "R1",
-  "familles": [
-   "AD_PRO",
-   "ECRITURES"
-  ],
-  "simulable": "inconnu",
-  "annulation": "compensation",
-  "appelable": true
- },
- "care-actions:demanderPaiementBcPec": {
-  "risque": "R4",
-  "familles": [
-   "AD_PRO",
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "compensation",
-  "appelable": true
- },
  "care-actions:demanderPiecesPriseEnCharge": {
   "risque": "R2",
   "familles": [
@@ -3563,36 +3491,6 @@
   "annulation": "compensation",
   "appelable": true
  },
- "care-actions:enregistrerMontantsPec": {
-  "risque": "R2",
-  "familles": [
-   "AD_PRO",
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "compensation",
-  "appelable": true
- },
- "care-actions:homonymesAnnuairePec": {
-  "risque": "R1",
-  "familles": [
-   "AD_PRO",
-   "ECRITURES"
-  ],
-  "simulable": "inconnu",
-  "annulation": "retour",
-  "appelable": true
- },
- "care-actions:lancerAchatsPec": {
-  "risque": "R1",
-  "familles": [
-   "AD_PRO",
-   "ECRITURES"
-  ],
-  "simulable": "inconnu",
-  "annulation": "retour",
-  "appelable": true
- },
  "care-actions:linkCareCellPromoMaterial": {
   "risque": "R1",
   "familles": [
@@ -3610,16 +3508,6 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
- "care-actions:modifierMontantPec": {
-  "risque": "R1",
-  "familles": [
-   "AD_PRO",
-   "ECRITURES"
-  ],
-  "simulable": "inconnu",
   "annulation": "retour",
   "appelable": true
  },
@@ -3655,16 +3543,6 @@
  },
  "care-actions:removeCareCell": {
   "risque": "R1",
-  "familles": [
-   "AD_PRO",
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
- "care-actions:repondreRemboursementPec": {
-  "risque": "R4",
   "familles": [
    "AD_PRO",
    "ECRITURES"
@@ -3713,16 +3591,6 @@
   "annulation": "retour",
   "appelable": true
  },
- "care-actions:retirerProfessionnelPec": {
-  "risque": "R1",
-  "familles": [
-   "AD_PRO",
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
  "care-actions:sendCareToFinance": {
   "risque": "R2",
   "familles": [
@@ -3750,62 +3618,6 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
- "care-actions:signerBcPec": {
-  "risque": "R4",
-  "familles": [
-   "AD_PRO",
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "compensation",
-  "appelable": true
- },
- "care-actions:validerProfessionnelsPec": {
-  "risque": "R4",
-  "familles": [
-   "AD_PRO",
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
- "charges-fixes-actions:demanderPaiementChargeFixe": {
-  "risque": "R1",
-  "familles": [
-   "ECRITURES"
-  ],
-  "simulable": "inconnu",
-  "annulation": "compensation",
-  "appelable": true
- },
- "charges-fixes-actions:enregistrerChargeFixe": {
-  "risque": "R1",
-  "familles": [
-   "ECRITURES"
-  ],
-  "simulable": "inconnu",
-  "annulation": "retour",
-  "appelable": true
- },
- "charges-fixes-actions:libererReserveImprevus": {
-  "risque": "R1",
-  "familles": [
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
- "charges-fixes-actions:retirerChargeFixe": {
-  "risque": "R1",
-  "familles": [
-   "ECRITURES"
-  ],
-  "simulable": "inconnu",
   "annulation": "retour",
   "appelable": true
  },
@@ -3965,33 +3777,6 @@
   ],
   "simulable": "oui",
   "annulation": "compensation",
-  "appelable": false
- },
- "comptabilite-actions:contrePasserEcriture": {
-  "risque": "R1",
-  "familles": [
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "compensation",
-  "appelable": true
- },
- "comptabilite-actions:demanderPieceEcriture": {
-  "risque": "R2",
-  "familles": [
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
- "comptabilite-actions:joindreJustificatifEcriture": {
-  "risque": "R4",
-  "familles": [
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
   "appelable": false
  },
  "conge-discussion-actions:commenterConge": {
@@ -4400,115 +4185,6 @@
   "annulation": "compensation",
   "appelable": true
  },
- "depart-salarie-actions:annulerFinDeContrat": {
-  "risque": "R1",
-  "familles": [
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
- "depart-salarie-actions:cocherLigneDeSortie": {
-  "risque": "R1",
-  "familles": [
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
- "depart-salarie-actions:corrigerFinDeContrat": {
-  "risque": "R1",
-  "familles": [
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
- "depart-salarie-actions:creerCompteSalarie": {
-  "risque": "R4",
-  "familles": [
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "compensation",
-  "appelable": false
- },
- "depart-salarie-actions:ecrireLigneDeSortie": {
-  "risque": "R1",
-  "familles": [
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
- "depart-salarie-actions:enregistrerCertificatDeTravail": {
-  "risque": "R1",
-  "familles": [
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "compensation",
-  "appelable": true
- },
- "depart-salarie-actions:enregistrerSoldeDeToutCompte": {
-  "risque": "R1",
-  "familles": [
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "compensation",
-  "appelable": true
- },
- "depart-salarie-actions:genererCertificatDeTravail": {
-  "risque": "R1",
-  "familles": [
-   "CONTRATS_RH",
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "compensation",
-  "appelable": true
- },
- "depart-salarie-actions:ouvrirFinDeContrat": {
-  "risque": "R2",
-  "familles": [
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
- "depart-salarie-actions:renouvelerInvitation": {
-  "risque": "R1",
-  "familles": [
-   "ECRITURES"
-  ],
-  "simulable": "inconnu",
-  "annulation": "retour",
-  "appelable": true
- },
- "depart-salarie-actions:retirerLigneDeSortie": {
-  "risque": "R1",
-  "familles": [
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
- "depart-salarie-actions:transfererLigneDeSortie": {
-  "risque": "R1",
-  "familles": [
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
  "department-actions:assignEmployeeDepartment": {
   "risque": "R4",
   "familles": [
@@ -4802,15 +4478,6 @@
   "annulation": "compensation",
   "appelable": true
  },
- "document-actions:listerVersionsDuDocument": {
-  "risque": "R0",
-  "familles": [
-   "DRIVE"
-  ],
-  "simulable": "oui",
-  "annulation": "aucune",
-  "appelable": true
- },
  "document-actions:renameDocument": {
   "risque": "R1",
   "familles": [
@@ -5047,16 +4714,6 @@
   "annulation": "compensation",
   "appelable": true
  },
- "drive-actions:doublonsAuDepot": {
-  "risque": "R1",
-  "familles": [
-   "DRIVE",
-   "ECRITURES"
-  ],
-  "simulable": "inconnu",
-  "annulation": "retour",
-  "appelable": true
- },
  "drive-actions:ensureDriveFolders": {
   "risque": "R1",
   "familles": [
@@ -5115,16 +4772,6 @@
   "annulation": "retour",
   "appelable": true
  },
- "drive-actions:restaurerVersionDrive": {
-  "risque": "R1",
-  "familles": [
-   "DRIVE",
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
  "drive-actions:restoreNode": {
   "risque": "R1",
   "familles": [
@@ -5132,16 +4779,6 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
- "drive-actions:restoreNodes": {
-  "risque": "R1",
-  "familles": [
-   "DRIVE",
-   "ECRITURES"
-  ],
-  "simulable": "inconnu",
   "annulation": "retour",
   "appelable": true
  },
@@ -5716,15 +5353,6 @@
   "annulation": "retour",
   "appelable": true
  },
- "finance-actions:apercuReleve": {
-  "risque": "R0",
-  "familles": [
-   "BUDGETS"
-  ],
-  "simulable": "oui",
-  "annulation": "aucune",
-  "appelable": true
- },
  "finance-actions:corrigerAncrageTresorerie": {
   "risque": "R4",
   "familles": [
@@ -5846,46 +5474,6 @@
   "appelable": true
  },
  "finance-actions:updateTransactionStatus": {
-  "risque": "R4",
-  "familles": [
-   "BUDGETS",
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
- "finances-questions:marquerReponseLue": {
-  "risque": "R4",
-  "familles": [
-   "BUDGETS",
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
- "finances-questions:poserQuestionAuDemandeur": {
-  "risque": "R4",
-  "familles": [
-   "BUDGETS",
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
- "finances-questions:relancerQuestionDemandeur": {
-  "risque": "R4",
-  "familles": [
-   "BUDGETS",
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
- "finances-questions:repondreAuxFinances": {
   "risque": "R4",
   "familles": [
    "BUDGETS",
@@ -6312,7 +5900,16 @@
   "annulation": "retour",
   "appelable": false
  },
- "informatique-abonnements-actions:creerAbonnement": {
+ "impots-cotisations-actions:corrigerImpotRefuse": {
+  "risque": "R4",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "impots-cotisations-actions:enregistrerBrouillonImpot": {
   "risque": "R1",
   "familles": [
    "ECRITURES"
@@ -6321,7 +5918,7 @@
   "annulation": "retour",
   "appelable": true
  },
- "informatique-abonnements-actions:modifierAbonnement": {
+ "impots-cotisations-actions:enregistrerCalendrierFiscal": {
   "risque": "R1",
   "familles": [
    "ECRITURES"
@@ -6330,7 +5927,25 @@
   "annulation": "retour",
   "appelable": true
  },
- "informatique-abonnements-actions:resilierAbonnement": {
+ "impots-cotisations-actions:envoyerImpotAuCentre": {
+  "risque": "R4",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "compensation",
+  "appelable": true
+ },
+ "impots-cotisations-actions:envoyerPaiementPonctuel": {
+  "risque": "R4",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "compensation",
+  "appelable": true
+ },
+ "impots-cotisations-actions:joindreQuittanceImpot": {
   "risque": "R1",
   "familles": [
    "ECRITURES"
@@ -6339,26 +5954,8 @@
   "annulation": "retour",
   "appelable": true
  },
- "informatique-cout-ia-actions:imputerCoutIa": {
-  "risque": "R1",
-  "familles": [
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
- "informatique-parc-actions:creerMateriel": {
-  "risque": "R1",
-  "familles": [
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
- "informatique-parc-actions:modifierMateriel": {
-  "risque": "R1",
+ "impots-cotisations-actions:retirerImpotDuCentre": {
+  "risque": "R4",
   "familles": [
    "ECRITURES"
   ],
@@ -8892,7 +8489,7 @@
    "BUDGETS",
    "ECRITURES"
   ],
-  "simulable": "inconnu",
+  "simulable": "oui",
   "annulation": "retour",
   "appelable": false
  },
@@ -9559,46 +9156,6 @@
   "annulation": "retour",
   "appelable": true
  },
- "pharmacovigilance-actions:declarerCasPv": {
-  "risque": "R2",
-  "familles": [
-   "REGLEMENTAIRE",
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
- "pharmacovigilance-actions:enregistrerAccuseCasPv": {
-  "risque": "R1",
-  "familles": [
-   "REGLEMENTAIRE",
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "compensation",
-  "appelable": true
- },
- "pharmacovigilance-actions:evaluerCasPv": {
-  "risque": "R2",
-  "familles": [
-   "REGLEMENTAIRE",
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
- "pharmacovigilance-actions:modifierReglagesPv": {
-  "risque": "R1",
-  "familles": [
-   "REGLEMENTAIRE",
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
  "pharmacovigilance-actions:ouvrirEnquetePv": {
   "risque": "R2",
   "familles": [
@@ -9620,16 +9177,6 @@
   "appelable": true
  },
  "pharmacovigilance-actions:signalerCasPv": {
-  "risque": "R2",
-  "familles": [
-   "REGLEMENTAIRE",
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
- "pharmacovigilance-actions:viserCasPv": {
   "risque": "R2",
   "familles": [
    "REGLEMENTAIRE",
@@ -10937,14 +10484,14 @@
   "appelable": true
  },
  "recruitment-actions:onboardRecruitment": {
-  "risque": "R4",
+  "risque": "R1",
   "familles": [
    "FICHES",
    "ECRITURES"
   ],
   "simulable": "oui",
   "annulation": "retour",
-  "appelable": false
+  "appelable": true
  },
  "recruitment-actions:openRecruitmentSourcing": {
   "risque": "R2",
@@ -11415,45 +10962,6 @@
   ],
   "simulable": "oui",
   "annulation": "retour",
-  "appelable": true
- },
- "regulatory-validite-actions:confirmerPrixAttestation": {
-  "risque": "R1",
-  "familles": [
-   "REGLEMENTAIRE",
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
- "regulatory-validite-actions:confirmerValiditeEnregistrement": {
-  "risque": "R1",
-  "familles": [
-   "REGLEMENTAIRE",
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
- "regulatory-validite-actions:joindrePieceEnregistrement": {
-  "risque": "R1",
-  "familles": [
-   "REGLEMENTAIRE",
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": false
- },
- "regulatory-validite-actions:relirePieceEnregistrement": {
-  "risque": "R0",
-  "familles": [
-   "REGLEMENTAIRE"
-  ],
-  "simulable": "oui",
-  "annulation": "aucune",
   "appelable": true
  },
  "relance-paiement-actions:relancerPaiement": {
@@ -12909,7 +12417,7 @@
   "appelable": true
  },
  "training-actions:createHrTraining": {
-  "risque": "R1",
+  "risque": "R2",
   "familles": [
    "FICHES",
    "ECRITURES"
@@ -13171,15 +12679,6 @@
   "appelable": true
  },
  "visite-medicale-actions:prevenirSuperviseurPanelVide": {
-  "risque": "R2",
-  "familles": [
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
- "visite-pv-ecart-actions:ecarterAlertePvVisite": {
   "risque": "R2",
   "familles": [
    "ECRITURES"

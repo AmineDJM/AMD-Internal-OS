@@ -22,7 +22,9 @@ export const MODULES = [
   //   FINANCES_BANQUE       — « Banque & paiements » : la file des ordres à régler, la trésorerie et ses comptes ;
   //   FINANCES_COMPTABILITE — « Comptabilité » : le livre, l'import des relevés, le cockpit du DAF ;
   //   FINANCES_DOUBLONS     — « Doublons de factures » : le recensement ; « Modifier » = marquer un groupe examiné.
-  "FINANCES_BANQUE", "FINANCES_COMPTABILITE", "FINANCES_DOUBLONS",
+  //   FINANCES_IMPOTS       — « Impôts & cotisations » (24/11/2026) : G50, CNAS, acomptes… demandés au centre de paiement ;
+  //                           « Modifier » = préparer, envoyer, retirer, régler le calendrier ; « Créer » = un paiement ponctuel.
+  "FINANCES_BANQUE", "FINANCES_COMPTABILITE", "FINANCES_DOUBLONS", "FINANCES_IMPOTS",
   "RH",
   "CONGRESS_INTERNATIONAL", "CONGRESS_NATIONAL", "EVENTS", "SALES", "LOGISTICS", "MEDICAL", "FIELD_REPORTS", "SALES_PLANNING",
   "BUSINESS_DEVELOPMENT", "PRODUCT_EXPLORER", "PCH", "STOCKS", "MEDICAL_INFO", "PROMO_MATERIAL", "CONSULTING", "AD_PRO_OTHER", "GENERAL_MEANS", "VALIDATIONS", "VALIDATION_CENTRE", "DIRECTIVES", "SUPPORT", "DOSSIERS", "DOCUMENTS", "DRIVE", "ADMIN_REQUESTS", "NOTIFICATIONS",

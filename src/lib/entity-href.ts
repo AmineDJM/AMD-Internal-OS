@@ -42,6 +42,8 @@ export function entityHref(type: string | null | undefined, id: string | null | 
     case "PAYROLL": return "/rh/paie";
     // UNE ÉCHÉANCE DE CHARGE FIXE (24/11/2026) : la section « Locaux & charges fixes » d'Informations de la société.
     case "FIXED_CHARGE": return "/legal/identites#charges-fixes";
+    // UNE ÉCHÉANCE D'IMPÔT OU DE COTISATION (24/11/2026) : la ligne s'ouvre dans Finances › Impôts & cotisations.
+    case "TAX_PAYMENT": return `/finances/impots-cotisations?ligne=${id}`;
 
     // ── Les circuits métier ──
     case "REGULATORY_PRODUCT": return `/regulatory/${id}`;

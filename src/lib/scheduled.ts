@@ -320,6 +320,9 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
   // LES CHARGES FIXES DES LOCAUX (24/11/2026) : chaque échéance prévient les Finances une fois, quinze jours avant — elles
   // joignent la facture et demandent le paiement. La ligne « Aujourd'hui » se lit sans attendre la tâche. Idempotent.
   { cle: "finances.charges-fixes", executer: async () => (await import("@/modules/finances/api")).rappelerEcheancesChargesFixes() },
+  // IMPÔTS & COTISATIONS (24/11/2026) : le calendrier réglé par les Finances fait naître les lignes « À préparer » de la
+  // période, puis le rappel J-7 part une fois par ligne aux gestionnaires de sa société. Idempotent.
+  { cle: "finances.impots-cotisations", executer: async () => (await import("@/modules/finances/api")).echeancesFiscalesDues() },
   // Échéances des engagements (contrats, BC, assurances, baux) : aligne le statut d'un terme
   // passé, et prévient À L'ENTRÉE dans une zone d'urgence (90 j, 30 j, dépassement) — pas tous
   // les jours, sinon la personne coupe les notifications et rate la vraie.

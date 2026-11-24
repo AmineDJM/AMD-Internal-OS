@@ -99,6 +99,8 @@ export const ENTITY_MODULE: Record<EntityType, Module> = {
   IT_SUBSCRIPTION: "INFORMATIQUE_ABONNEMENTS",
   // Une échéance de charge fixe des locaux (Informations de la société, 24/11/2026) : payée par les Finances.
   FIXED_CHARGE: "FINANCES",
+  // Une échéance d'impôt ou de cotisation (Finances › Impôts & cotisations) : la source des ordres qui la paient.
+  TAX_PAYMENT: "FINANCES_IMPOTS",
 };
 
 /**

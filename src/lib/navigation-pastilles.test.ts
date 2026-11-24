@@ -28,7 +28,7 @@ describe("pastillesDesEntrees — chaque module compté une fois", () => {
     const modules = legal.children?.map((c) => c.module) ?? [];
     expect(modules.length).toBeGreaterThanOrEqual(1);
     expect(new Set(modules)).toEqual(new Set(["LEGAL"]));
-    expect(new Set(entree("Finances").children?.map((c) => c.module))).toEqual(new Set(["FINANCES_BANQUE", "FINANCES_COMPTABILITE", "FINANCES_DOUBLONS"]));
+    expect(new Set(entree("Finances").children?.map((c) => c.module))).toEqual(new Set(["FINANCES_BANQUE", "FINANCES_COMPTABILITE", "FINANCES_DOUBLONS", "FINANCES_IMPOTS"]));
   });
 
   it("le parent porte la pastille ; ses sous-menus du même module n'en portent aucune", () => {

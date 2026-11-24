@@ -99,6 +99,10 @@ const POINTS: Point[] = [
   ["src/modules/finances/ecrans/charges-fixes/section.tsx", "envoyer()", 1],
   ["src/modules/finances/ecrans/charges-fixes/section.tsx", "retirerChargeFixe", 1],
   ["src/modules/finances/ecrans/charges-fixes/section.tsx", "Libérer la réserve", 1],
+  // Impôts & cotisations (24/11/2026) : envoyer au centre de paiement (préparer, ponctuel), retirer la demande.
+  ["src/modules/finances/ecrans/impots-cotisations/preparer.tsx", "envoyer()", 1],
+  ["src/modules/finances/ecrans/impots-cotisations/ponctuel.tsx", "envoyer()", 1],
+  ["src/modules/finances/ecrans/impots-cotisations/suivi.tsx", "geste(retirerImpotDuCentre)", 1],
   // Matériel promotionnel
   ["src/app/(app)/promo-material/[id]/circuit-card.tsx", "startPromoCircuit", 1],
   ["src/app/(app)/promo-material/[id]/circuit-card.tsx", "validatePromoStep", 1],

@@ -140,6 +140,8 @@ const COMPANY_OF_SOURCE: Partial<Record<EntityType, (id: string) => Promise<{ co
   PAYROLL: (id) => prisma.payrollWire.findUnique({ where: { id }, select: { companyId: true } }),
   // UNE ÉCHÉANCE DE CHARGE FIXE DES LOCAUX (24/11/2026) : la société qui loue, ou qui reçoit la facture.
   FIXED_CHARGE: (id) => prisma.echeanceChargeFixe.findUnique({ where: { id }, select: { companyId: true } }),
+  // UNE ÉCHÉANCE D'IMPÔT OU DE COTISATION (24/11/2026) : la société qui doit l'impôt.
+  TAX_PAYMENT: (id) => prisma.echeanceFiscale.findUnique({ where: { id }, select: { companyId: true } }),
 };
 
 /**

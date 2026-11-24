@@ -113,6 +113,7 @@ export const SERVICE_DU_MODULE: Record<CleModule, ServiceDuModule> = {
   FINANCES_BANQUE: { domaines: ["FINANCE"] },
   FINANCES_COMPTABILITE: { domaines: ["FINANCE"] },
   FINANCES_DOUBLONS: { domaines: ["FINANCE"] },
+  FINANCES_IMPOTS: { domaines: ["FINANCE"] },
   PAIE: { domaines: ["HR"] },
   RH: { domaines: ["HR"] },
   RECRUITMENT: { domaines: ["HR"] },

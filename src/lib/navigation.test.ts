@@ -337,7 +337,7 @@ describe("Finances — trois écrans, et cliquer le module conduit au travail", 
     // Depuis le 24/11/2026, chaque écran a sa clé : le groupe mène au premier ouvert (`sansEcran`, `nav-access.ts`), et
     // `firstAccessibleHref` ne propose jamais le lien du groupe lui-même.
     expect(finances?.sansEcran).toBe(true);
-    expect(finances?.children?.map((c) => c.module)).toEqual(["FINANCES_BANQUE", "FINANCES_COMPTABILITE", "FINANCES_DOUBLONS"]);
+    expect(finances?.children?.map((c) => c.module)).toEqual(["FINANCES_BANQUE", "FINANCES_COMPTABILITE", "FINANCES_DOUBLONS", "FINANCES_IMPOTS"]);
     expect(firstAccessibleHref((m) => m === "FINANCES" || m === "FINANCES_COMPTABILITE")).toBe("/finances/comptabilite");
     expect(firstAccessibleHref((m) => m === "FINANCES")).toBeNull();
   });
@@ -348,7 +348,8 @@ describe("Finances — trois écrans, et cliquer le module conduit au travail", 
     // « Bons de commande » a quitté les Finances (§118.176) : un module À PART, et non plus un
     // troisième sous-module — sinon il s'ouvrirait encore à quiconque lit les Finances.
     // « Doublons de factures » (Direction, 14/10/2026) : le recensement unique des doublons, en lecture seule.
-    expect(enfants).toEqual(["Banque & paiements", "Comptabilité", "Doublons de factures"]);
+    // « Impôts & cotisations » (24/11/2026) : G50, CNAS, acomptes demandés au centre de paiement.
+    expect(enfants).toEqual(["Banque & paiements", "Comptabilité", "Doublons de factures", "Impôts & cotisations"]);
   });
 
   it("LES BONS DE COMMANDE SONT UN MODULE À PART — leur propre entrée, leur propre droit (§118.176)", () => {

@@ -150,3 +150,10 @@ export {
   peutDemanderPaiement, peutLibererReserve, previsionChargesFixes, REFUS_RESERVE, refusSurReserve, SEUIL_ECART_FACTURE,
   SOURCE_PREFILL_CHARGES_FIXES, TON_ETAT_ECHEANCE,
 } from "./domaine/charges-fixes";
+// Les impôts et cotisations dans le budget (Super Admin, 24/11/2026, audit des dépenses) : l'enveloppe « Impôts & taxes »
+// (TVA_NETTE, IBS) et les lignes IRG / CNAS de la masse salariale (MS_IRG, MS_CNAS) — des clés STABLES que la campagne
+// budgétaire et les autres lots importent d'ici.
+export {
+  CATEGORIES_BUDGET_IMPOTS, CATEGORIES_MASSE_SALARIALE_IMPOTS, type CleLigneBudgetImpots, type CleLigneMasseSalariale,
+  CODE_ENVELOPPE_IMPOTS, LIGNES_BUDGET_IMPOTS, LIGNES_MASSE_SALARIALE, nomEnveloppeImpots,
+} from "./domaine/budget-impots";
