@@ -2,6 +2,15 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { CurrentUser } from "@/lib/session";
 
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
+/**
+ * LE SERVICE DES MOYENS GÉNÉRAUX EST UN RÉGLAGE GLOBAL (§118.132) : le banc l'injecte dans son processus — seule sa
+ * caisse reçoit les remises (Super Admin, 24/11/2026) —, la base partagée garde son réglage.
+ */
+let SERVICE: string | null = null;
+vi.mock("@/lib/settings", async (importOriginal) => {
+  const vrai = await importOriginal<typeof import("@/lib/settings")>();
+  return { ...vrai, getAppSettings: async () => ({ ...(await vrai.getAppSettings()), generalMeansDepartmentId: SERVICE }) };
+});
 
 let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
@@ -12,9 +21,10 @@ import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac"
 import { continuousCash } from "@/lib/general-means/continuous-cash";
 import { openRemittances } from "@/lib/queries/general-means";
 import { deleteFileByKey } from "@/lib/storage";
-import { allotPettyCash, spendFromPettyCash } from "./petty-cash-actions";
+import { allotPettyCash, confirmPettyCashReceipt, spendFromPettyCash } from "./petty-cash-actions";
 import { addDepartmentExpense } from "./department-budget-actions";
 import { decidePayment } from "@/modules/finances/actions-centre";
+import { settleExpenseOrder } from "@/modules/finances/actions-depenses";
 import { peutOuvrirDocument } from "@/lib/entity-access/ouverture-pieces";
 import { empreinteDe, VERSION_LECTEUR } from "@/lib/pieces-lues/lecture-fichier";
 import { articleKey } from "@/lib/general-means/catalog-normalize";
@@ -77,6 +87,7 @@ suite("moyens généraux — une pièce refusée n'écrit aucune dépense", () =
     ]);
     adminId = admin.id; holderId = holder.id; pdgId = pdg.id; comptableId = cpt.id;
     deptId = (await prisma.department.create({ data: { name: `${TAG} Moyens généraux`, code: `${TAG}MG` } })).id;
+    SERVICE = deptId;
     // L'assistante achète au quotidien : c'est son module, sur le département dont elle tient la caisse.
     await prisma.userAccess.create({
       data: { userId: holderId, module: "GENERAL_MEANS", canView: true, canCreate: true, canUpdate: true, scope: "ALL" },
@@ -87,10 +98,16 @@ suite("moyens généraux — une pièce refusée n'écrit aucune dépense", () =
     const remise = await allotPettyCash(form({ departmentId: deptId, holderId, amount: "100000" }));
     expect(remise.ok, remise.error).toBe(true);
     const ligne = await prisma.pettyCashAllotment.findFirstOrThrow({ where: { departmentId: deptId }, select: { id: true, expenseOrderId: true } });
-    // Autorisée par le centre — par le PDG, pas par qui l'a demandée (séparation des tâches, ARGENT-06) — la
-    // remise est versée et EN MAIN (règle du 28/10/2026).
+    // Autorisée par le centre — par le PDG, pas par qui l'a demandée (séparation des tâches, ARGENT-06) —, payée par
+    // les Finances, puis confirmée par la caissière : la remise est EN MAIN (Super Admin, 24/11/2026).
     ACTOR = await actorFor(pdgId, "DIRECTION");
     expect((await decidePayment(form({ id: ligne.expenseOrderId!, decision: "APPROVE" }))).ok).toBe(true);
+    ACTOR = await actorFor(comptableId, "FINANCE_BUDGET_MANAGER");
+    const payee = await settleExpenseOrder(form({ id: ligne.expenseOrderId! }));
+    expect(payee.ok, payee.error).toBe(true);
+    ACTOR = await actorFor(holderId, "DIRECTION_ASSISTANT");
+    const recue = await confirmPettyCashReceipt(form({ id: ligne.id }));
+    expect(recue.ok, recue.error).toBe(true);
     expect((await prisma.pettyCashAllotment.findUniqueOrThrow({ where: { id: ligne.id } })).status).toBe("RECEIVED");
   }, 60_000);
 

@@ -1,9 +1,19 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess, Module, Action } from "@/lib/rbac";
 import { buildProposal, type AssistantActionPayload } from "@/lib/assistant";
+
+/**
+ * LE SERVICE DES MOYENS GÉNÉRAUX EST UN RÉGLAGE GLOBAL (§118.132) : le banc l'injecte dans son processus (Ventes) —
+ * seule sa caisse reçoit remises et rechargement (Super Admin, 24/11/2026) —, la base partagée garde son réglage.
+ */
+let SERVICE: string | null = null;
+vi.mock("@/lib/settings", async (importOriginal) => {
+  const vrai = await importOriginal<typeof import("@/lib/settings")>();
+  return { ...vrai, getAppSettings: async () => ({ ...(await vrai.getAppSettings()), generalMeansDepartmentId: SERVICE }) };
+});
 
 /**
  * GOLDEN OPS FINANCES — VAGUE 1 (45 ops : budgets, caisse d'avance, ordres, demandes de
@@ -118,6 +128,7 @@ suite("ops FINANCES vague 1 — budgets, caisse, paiements, écritures, paie (go
     // Médical = RECEIVED (dépensable → rallonge demandable, soldable).
     const ventes = await prisma.department.create({ data: { name: `${TAG} Ventes`, code: `${TAG}-VTE` } });
     const medical = await prisma.department.create({ data: { name: `${TAG} Médical`, code: `${TAG}-MED` } });
+    SERVICE = ventes.id;
     const cashV = await prisma.pettyCashAllotment.create({
       data: { departmentId: ventes.id, period: "2026-08", amount: 60_000, holderId: c.id },
     });
@@ -299,6 +310,17 @@ suite("ops FINANCES vague 1 — budgets, caisse, paiements, écritures, paie (go
       expect("error" in autreMois).toBe(false);
       if ("error" in autreMois) return;
       expect(autreMois.title).toContain("Remettre");
+    });
+
+    it("allot_petty_cash / set_petty_cash_plan : UN AUTRE DÉPARTEMENT QUE LES MOYENS GÉNÉRAUX est refusé dès la proposition, avec le remède", async () => {
+      const remise = await buildProposal("finance_operation", {
+        op: "allot_petty_cash", department: `${TAG} Médical`, amount: "20000", holder: "Caissier",
+      }, sa());
+      expect("error" in remise && remise.error).toMatch(/caisse d'avance est celle des moyens généraux \(« .* Ventes »\)/);
+      const plan = await buildProposal("finance_operation", {
+        op: "set_petty_cash_plan", department: `${TAG} Médical`, amount: "30000", day: "5",
+      }, sa());
+      expect("error" in plan && plan.error).toMatch(/caisse d'avance est celle des moyens généraux/);
     });
 
     it("confirm_petty_cash_receipt : la caisse ALLOTTED se résout par département + période FR (« août 2026 »)", async () => {

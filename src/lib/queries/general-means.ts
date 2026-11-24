@@ -6,7 +6,7 @@ import { mergeGrants, canViewDepartmentBudget, editableKindsOn, type DeptBudgetG
 import { headedDepartmentIds } from "@/lib/queries/department-budget";
 import { nextRechargeDate, type PettyCashStatus } from "@/lib/petty-cash";
 import { continuousCash, remittanceSpent, type ContinuousCash, type CashRemittance } from "@/lib/general-means/continuous-cash";
-import { etatRemise, remiseEnAttente, type EtatRemise } from "@/lib/general-means/remise-centre";
+import { etatRemise, remiseEnAttente, statutPourLeFond, motifDuRefus, type EtatRemise } from "@/lib/general-means/remise-centre";
 import { isFullyClassified } from "@/lib/budget/imputation";
 import { natureDeLaDepense, partsParNature, type PartDeNature } from "@/lib/general-means/ecran";
 import { getAppSettings } from "@/lib/settings";
@@ -136,6 +136,18 @@ export interface GeneralMeansView {
    *  avec la MÊME règle que le serveur, pour qu'un bouton visible ne mène pas à un refus. */
   canAmendCash: boolean;
   cash: GeneralMeansCash | null;
+  /**
+   * Ce département est-il LE service des moyens généraux désigné ? Une remise, une rallonge ou un
+   * réglage mensuel ne visent que sa caisse : ailleurs (repli sans service désigné), l'écran ne les
+   * propose pas plutôt que de les laisser refuser après la saisie.
+   */
+  estLeService: boolean;
+  /**
+   * LA DERNIÈRE REMISE, QUAND LE CENTRE L'A REFUSÉE — montrée dans le bandeau de la caisse avec son
+   * motif, jusqu'à ce qu'une nouvelle remise soit faite (elle n'est alors plus la dernière). Close
+   * par le refus, elle ne vivait plus que dans l'historique replié : on remettait, on n'apprenait rien.
+   */
+  refusee: (GeneralMeansRemittance & { motif: string | null }) | null;
   /** Réglage mensuel — `null` tant que les RH ne l'ont pas posé. */
   plan: GeneralMeansPlan | null;
   /** Demandes de rallonge sur la caisse en cours, la plus récente d'abord. */
@@ -182,20 +194,52 @@ export async function openRemittances(
       expenses: { select: { id: true, amount: true } },
     },
   });
-  return rows.map((r) => ({
-    id: r.id,
-    period: r.period,
-    remittedAt: r.createdAt.toISOString(),
-    amount: toNumber(r.amount),
-    status: r.status,
-    holderId: r.holderId,
-    // UNE REMISE QUI ATTEND LE CENTRE (§118.176) n'est pas encore dans le fond : elle ne se solde
-    // pas avec lui, et elle ne se confirme pas.
-    enAttenteDuCentre: remiseEnAttente(etatRemise({
-      aUnOrdre: Boolean(r.expenseOrderId), ordre: r.expenseOrder, transactionId: r.transactionId,
-    })),
-    expenses: r.expenses.map((e) => ({ id: e.id, amount: toNumber(e.amount) })),
-  }));
+  return rows.map((r) => {
+    const etat = etatRemise({ aUnOrdre: Boolean(r.expenseOrderId), ordre: r.expenseOrder, transactionId: r.transactionId });
+    return {
+      id: r.id,
+      period: r.period,
+      remittedAt: r.createdAt.toISOString(),
+      amount: toNumber(r.amount),
+      // Confirmée puis « non payée » par les Finances : plus en main (`statutPourLeFond`) — le même
+      // calcul que l'écran, pour que la saisie ne dépense pas une somme que l'écran a retirée.
+      status: statutPourLeFond(etat, r.status, r.expenses.length) ?? r.status,
+      holderId: r.holderId,
+      // UNE REMISE QUI ATTEND LE CENTRE OU LES FINANCES (§118.176) n'est pas encore dans le fond :
+      // elle ne se solde pas avec lui, et elle ne se confirme pas.
+      enAttenteDuCentre: remiseEnAttente(etat),
+      expenses: r.expenses.map((e) => ({ id: e.id, amount: toNumber(e.amount) })),
+    };
+  });
+}
+
+/**
+ * LE SERVICE DES MOYENS GÉNÉRAUX — le département désigné par le Super Admin (Administration ›
+ * Réglages), s'il existe encore ; `null` sinon. Le réglage n'est pas une clé étrangère : il survit
+ * au département qu'il nomme.
+ */
+export async function serviceDesMoyensGeneraux(): Promise<{ id: string; name: string } | null> {
+  const { generalMeansDepartmentId } = await getAppSettings();
+  if (!generalMeansDepartmentId) return null;
+  return prisma.department.findUnique({ where: { id: generalMeansDepartmentId }, select: { id: true, name: true } });
+}
+
+/**
+ * UNE SEULE CAISSE D'AVANCE : CELLE DU SERVICE DES MOYENS GÉNÉRAUX (Super Admin, 24/11/2026) — ou la
+ * phrase du refus. Remettre une somme, accorder une rallonge, régler le rechargement mensuel ne
+ * visent qu'elle : l'écran n'en montre pas d'autre, et une remise faite ailleurs (par l'assistant, qui
+ * résolvait n'importe quel département par son nom) alimentait une caisse que personne ne voit plus.
+ * Les anciennes caisses d'autres départements restent en base, intactes.
+ */
+export async function refusHorsServiceMoyensGeneraux(departmentId: string): Promise<string | null> {
+  const service = await serviceDesMoyensGeneraux();
+  if (!service) {
+    return "Aucun service des moyens généraux n'est désigné : le Super Admin le choisit dans Administration › Réglages ; la caisse d'avance est la sienne.";
+  }
+  if (service.id !== departmentId) {
+    return `La caisse d'avance est celle des moyens généraux (« ${service.name} ») : elle seule reçoit les remises, les rallonges et le rechargement mensuel. Faites-le sur la caisse des Moyens généraux.`;
+  }
+  return null;
 }
 
 /**
@@ -218,17 +262,12 @@ export async function resolveGeneralMeansDepartment(user: SessionUser): Promise<
   // paramètre n'a plus d'appelant, il est retiré — le garder ferait une porte cachée vers ce
   // qu'on vient de retirer de l'écran (§118.14). Le découpage par département n'a pas disparu :
   // il reste la façon dont l'argent est IMPUTÉ, et il se lit dans Budgets › par département.
-  const { generalMeansDepartmentId } = await getAppSettings();
   // Le service doit EXISTER : le réglage n'est pas une clé étrangère, et un département supprimé
   // laisserait tout le module en 404 — sans plus aucun `?dept=` pour en sortir. On retombe alors
-  // sur le repli ; et le Super Admin, qu'il ait un département à lui ou non, retrouve de quoi en
-  // redésigner un (« Changer de service… », et l'écran vide qui le propose d'office). Sans ce
-  // second geste, le premier jet de cette phrase promettait une issue qui n'existait pas pour un
-  // Super Admin sans département — le repli rend alors `null`.
-  if (generalMeansDepartmentId) {
-    const service = await prisma.department.findUnique({ where: { id: generalMeansDepartmentId }, select: { id: true } });
-    if (service) return service.id;
-  }
+  // sur le repli ; le Super Admin, lui, redésigne le service dans Administration › Réglages (l'écran
+  // vide des moyens généraux l'y renvoie) — pour un Super Admin sans département, le repli rend `null`.
+  const service = await serviceDesMoyensGeneraux();
+  if (service) return service.id;
 
   // Aucun service désigné : on retombe sur l'ancien comportement plutôt que sur un écran vide.
   // Une plateforme qui n'a pas encore été réglée doit continuer de fonctionner.
@@ -461,7 +500,11 @@ export async function getGeneralMeans(
   // LE FOND NE COMPTE QUE CE QUI A ÉTÉ VERSÉ (§118.176). Une remise qui attend le centre n'a pas
   // quitté la banque : la compter « remise » ferait annoncer à la détentrice une somme à
   // confirmer qu'elle ne peut pas recevoir. Elle reste dans la liste, avec ce qu'elle attend.
-  const fund = continuousCash(openRows.filter((r) => !remiseEnAttente(centreDe(r))).map(asRemittance));
+  // Payée mais pas encore confirmée par le caissier, elle y entre « à confirmer » : remise, pas en main.
+  const fund = continuousCash(openRows.flatMap((r) => {
+    const status = statutPourLeFond(centreDe(r), r.status, r.expenses.length);
+    return status ? [{ ...asRemittance(r), status }] : [];
+  }));
   const cash: GeneralMeansCash | null = latest
     ? {
         currentId: fund.currentId,
@@ -471,6 +514,10 @@ export async function getGeneralMeans(
         remittances: openRows.map(readable),
       }
     : null;
+
+  /** La remise la plus récente, toutes confondues — refusée, c'est elle que le bandeau montre. */
+  const derniere = remittanceRows[0] ?? null;
+  const estLeService = (await serviceDesMoyensGeneraux())?.id === departmentId;
 
   const plan: GeneralMeansPlan | null = planRow
     ? {
@@ -523,5 +570,7 @@ export async function getGeneralMeans(
     })),
     history: closedRows.map(readable),
     expenses: allExpenses,
+    estLeService,
+    refusee: derniere && centreDe(derniere) === "REFUSEE" ? { ...readable(derniere), motif: motifDuRefus(derniere.note) } : null,
   };
 }

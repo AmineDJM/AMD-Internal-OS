@@ -89,11 +89,11 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
   // ── UNE REMISE DE CAISSE D'AVANCE N'EST PAS UNE DÉPENSE (§118.176) ─────────────────────────
   //
   // Ce qu'elle paie est un CHANGEMENT DE TIROIR : l'argent quitte la banque pour la caisse, et chaque
-  // achat fait ensuite sur la caisse s'impute à SON budget. Depuis le 28/10/2026, l'autorisation du
-  // centre VAUT versement — la remise entre dans la caisse sans passer par cette file. N'arrive donc ici
-  // qu'une remise autorisée AVANT cette règle : elle est versée par le MÊME écrivain que le centre
-  // (`finance/verser-remise.ts`), sans classement, en liquide, et entre dans le fond.
-  const versementRemise = await verserLaRemise({ orderId: order.id, acteurId: user.id, compteId: fdStr(formData, "treasuryAccountId"), par: "FINANCES" });
+  // achat fait ensuite sur la caisse s'impute à SON budget. Autorisée par le centre, elle arrive ici
+  // comme tout ordre (Super Admin, 24/11/2026) ; payée, elle est écrite par son seul écrivain
+  // (`finances/infra/verser-remise.ts`), sans classement, en liquide — et attend la confirmation du
+  // caissier pour compter dans la caisse.
+  const versementRemise = await verserLaRemise({ orderId: order.id, acteurId: user.id, compteId: fdStr(formData, "treasuryAccountId") });
   if (versementRemise) {
     if (!versementRemise.ok) return { ok: false, error: versementRemise.error };
     if (order.requestedById && !versementRemise.dejaVersee) {
@@ -105,7 +105,11 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
     revalidatePath("/finances");
     revalidatePath("/finances/paiements-a-faire");
     revalidatePath("/moyens-generaux");
-    return { ok: true };
+    return {
+      ok: true,
+      message: versementRemise.dejaVersee ? undefined
+        : `Payé : ${versementRemise.montant.toLocaleString("fr-FR")} DZD pour la caisse d'avance ${versementRemise.departement} — ils y compteront quand le caissier en aura confirmé la réception.`,
+    };
   }
 
   // ── ON CLASSE AVANT DE PAYER ───────────────────────────────────────────────────────────────

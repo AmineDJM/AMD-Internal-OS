@@ -5,7 +5,7 @@ import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { actionFailureMessage } from "@/lib/action-outcome";
 import {
   Loader2, Check, Plus, HandCoins, AlertTriangle, Lock,
-  CalendarClock, ThumbsUp, ThumbsDown,
+  CalendarClock, ThumbsUp, ThumbsDown, XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,9 +17,9 @@ import { partDepensee } from "@/lib/general-means/ecran";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/shared/empty-state";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { PETTY_CASH_STATUS_LABEL, periodLabel, MAX_RECHARGE_DAY } from "@/lib/petty-cash";
+import { periodLabel, MAX_RECHARGE_DAY } from "@/lib/petty-cash";
 import { cashWarning } from "@/lib/general-means/continuous-cash";
-import { ETAT_REMISE_LABEL, remiseEnAttente } from "@/lib/general-means/remise-centre";
+import { libelleRemise, remiseEnAttente, LIBELLE_A_CONFIRMER } from "@/lib/general-means/remise-centre";
 import {
   allotPettyCash, confirmPettyCashReceipt, requestPettyCashTopUp, closePettyCash,
   decidePettyCashTopUp, setPettyCashPlan, annulerRallongeCaisse,
@@ -72,15 +72,36 @@ export function CashPanel({ view, people }: { view: GeneralMeansView; people: { 
   const fund = cash?.fund ?? null;
   const warning = cashWarning(fund, formatCurrency);
   /**
-   * La remise qui attend une confirmation de réception, quand c'est à moi de la donner — et
-   * seulement une fois VERSÉE (§118.176) : on ne confirme pas avoir reçu ce qui attend le centre.
+   * REMETTRE, RALLONGER, RÉGLER LE MOIS : sur la caisse des moyens généraux seulement (Super Admin,
+   * 24/11/2026). Ailleurs, l'écran ne propose pas un geste que l'action refuserait après la saisie.
    */
-  const aConfirmer = view.isHolder ? cash?.remittances.filter((r) => r.status === "ALLOTTED" && r.centre === "VERSEE") ?? [] : [];
-  /** Les remises demandées au centre, pas encore versées — montrées à part, hors du fond. */
+  const peutRemettre = view.canAllot && view.estLeService;
+  /** Payées par les Finances, pas encore confirmées : hors du solde, jusqu'au geste du caissier. */
+  const versees = cash?.remittances.filter((r) => r.status === "ALLOTTED" && r.centre === "VERSEE") ?? [];
+  /** Celles que JE confirme — le caissier ; les autres les voient attendre, sans bouton. */
+  const aConfirmer = view.isHolder ? versees : [];
+  const aConfirmerAilleurs = view.isHolder ? [] : versees;
+  /** Les remises demandées au centre, pas encore payées — montrées à part, hors du fond. */
   const enAttente = cash?.remittances.filter((r) => remiseEnAttente(r.centre)) ?? [];
+  const refusee = view.refusee;
 
   return (
     <div className="space-y-3">
+      {/* LA DERNIÈRE REMISE, REFUSÉE PAR LE CENTRE — avec son motif, en tête de la caisse : close par le
+          refus, elle ne se lisait que dans l'historique replié. Elle reste ici jusqu'à la remise suivante. */}
+      {refusee && (
+        <div id={ancreRemise(refusee.id)} className="flex flex-wrap items-center gap-2 rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm">
+          <XCircle className="h-4 w-4 shrink-0 text-destructive" />
+          <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">
+            <strong>{formatCurrency(refusee.amount)}</strong> demandés le {formatDate(refusee.remittedAt)}
+            {refusee.holder ? ` pour ${refusee.holder}` : ""} — refusés par le centre de paiement
+            {refusee.motif ? <> : « {refusee.motif} »</> : "."}
+            {peutRemettre && " Une nouvelle remise peut être envoyée."}
+          </span>
+          <Badge tone="danger" dot={false}>Refusé</Badge>
+        </div>
+      )}
+
       {cash && fund ? (
         <>
           {/* UNE BARRE, UN RESTE : dépensé sur remis. Le détail (reçu, à confirmer, remises) est dans l'historique. */}
@@ -125,35 +146,47 @@ export function CashPanel({ view, people }: { view: GeneralMeansView; people: { 
             </p>
           )}
 
-          {/* LES REMISES DEMANDÉES AU CENTRE DE PAIEMENT (§118.176) — elles ne sont pas encore dans
-              le fond : le centre doit les autoriser, puis les Finances les verser. La détentrice
-              confirmera leur réception à ce moment-là, et pas avant. */}
+          {/* LES REMISES EN COURS DE CIRCUIT (§118.176) — elles ne sont pas encore dans le fond : le
+              centre doit les autoriser, puis les Finances les payer. Le caissier confirmera leur
+              réception à ce moment-là, et pas avant. */}
           {enAttente.map((r) => (
             <div key={r.id} id={ancreRemise(r.id)} className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-secondary/30 p-3 text-sm">
               <CalendarClock className="h-4 w-4 shrink-0 text-muted-foreground" />
               <span className="min-w-0 flex-1">
                 <strong>{formatCurrency(r.amount)}</strong> demandés le {formatDate(r.remittedAt)}
-                {r.holder ? ` pour ${r.holder}` : ""} — {ETAT_REMISE_LABEL[r.centre].label.toLowerCase()}.
-                Ils s&apos;ajouteront au fond dès que le centre les autorise.
+                {r.holder ? ` pour ${r.holder}` : ""} — {libelleRemise(r.centre, r.status).label.toLowerCase()}.
+                Ils compteront dans la caisse une fois payés par les Finances et leur réception confirmée.
               </span>
-              <Badge tone="warning" dot={false}>{ETAT_REMISE_LABEL[r.centre].label}</Badge>
+              <Badge tone="warning" dot={false}>{libelleRemise(r.centre, r.status).label}</Badge>
             </div>
           ))}
 
-          {/* CONFIRMER LA RÉCEPTION, REMISE PAR REMISE. Une somme décidée n'est pas une somme
-              détenue : tant que la personne n'a pas dit l'avoir reçue, elle n'est pas dépensable. */}
+          {/* PAYÉES, À CONFIRMER PAR LE CAISSIER — vues par les autres, sans bouton : c'est son geste. */}
+          {aConfirmerAilleurs.map((r) => (
+            <div key={r.id} id={ancreRemise(r.id)} className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-secondary/30 p-3 text-sm">
+              <CalendarClock className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 flex-1">
+                <strong>{formatCurrency(r.amount)}</strong> payés par les Finances (remise du {formatDate(r.remittedAt)})
+                {r.holder ? ` — ${r.holder} doit en confirmer la réception` : ""} : ils ne comptent pas encore dans la caisse.
+              </span>
+              <Badge tone="warning" dot={false}>{LIBELLE_A_CONFIRMER}</Badge>
+            </div>
+          ))}
+
+          {/* CONFIRMER LA RÉCEPTION, REMISE PAR REMISE (Super Admin, 24/11/2026). Payée n'est pas reçue :
+              tant que le caissier n'a pas dit l'avoir en main, la somme ne compte pas dans la caisse. */}
           {aConfirmer.map((r) => (
             <div key={r.id} id={ancreRemise(r.id)} className="flex flex-wrap items-center gap-2 rounded-xl border border-warning/40 bg-warning/5 p-3 text-sm">
               <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
               <span className="min-w-0 flex-1">
-                <strong>{formatCurrency(r.amount)}</strong> ont été versés pour votre caisse (remise du {formatDate(r.remittedAt)}) —
-                cette somme n&apos;est pas dépensable tant que vous n&apos;avez pas confirmé l&apos;avoir reçue.
+                <strong>{formatCurrency(r.amount)}</strong> ont été payés par les Finances pour votre caisse (remise du {formatDate(r.remittedAt)}) —
+                cette somme ne compte pas dans la caisse tant que vous n&apos;avez pas confirmé l&apos;avoir reçue.
               </span>
               <BoutonDecisif size="sm" className="h-10 w-full sm:h-8 sm:w-auto" disabled={busy === `recv:${r.id}`} onClick={() => {
                 const fd = new FormData(); fd.set("id", r.id);
                 void run(`recv:${r.id}`, () => confirmPettyCashReceipt(fd), "Réception confirmée.");
               }}>
-                {busy === `recv:${r.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} J&apos;ai reçu la somme
+                {busy === `recv:${r.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Confirmer la réception
               </BoutonDecisif>
             </div>
           ))}
@@ -169,15 +202,15 @@ export function CashPanel({ view, people }: { view: GeneralMeansView; people: { 
                 <HandCoins className="h-4 w-4" /> Demander une rallonge
               </Button>
             )}
-            {view.canAllot && (
+            {peutRemettre && (
               <Button size="sm" variant="outline" onClick={() => setPane(pane === "allot" ? "none" : "allot")}>
                 <Plus className="h-4 w-4" /> Remettre une somme
               </Button>
             )}
             {/* « Réglage mensuel » et « Solder la caisse » : rares, donc derrière ⋯ (Direction, 09/10). */}
-            {(view.canAllot || ((view.isHolder || view.canAllot) && cash.currentId)) && (
+            {(peutRemettre || ((view.isHolder || view.canAllot) && cash.currentId)) && (
               <MenuPlus label="Autres gestes de la caisse">
-                {view.canAllot && (
+                {peutRemettre && (
                   <EntreeMenu onClick={() => setPane("plan")}><CalendarClock className="h-4 w-4 text-muted-foreground" /> Réglage mensuel</EntreeMenu>
                 )}
                 {(view.isHolder || view.canAllot) && cash.currentId && (
@@ -209,27 +242,27 @@ export function CashPanel({ view, people }: { view: GeneralMeansView; people: { 
         <EmptyState
           icon="Wallet"
           title="Aucune somme en caisse"
-          description={view.canAllot
+          description={peutRemettre
             ? "Remettez une somme à la personne qui achète au quotidien."
             : "L'administration n'a pas encore remis de somme pour ce département."}
         />
       )}
 
-      {view.canAllot && (pane === "allot" || !cash) && (
+      {peutRemettre && (pane === "allot" || !cash) && (
         <form
           onSubmit={(e) => {
             e.preventDefault();
             const fd = new FormData(e.currentTarget);
             fd.set("departmentId", view.department.id);
-            void run("allot", () => allotPettyCash(fd), "Remise envoyée au centre de paiement — elle s'ajoutera au fond dès qu'il l'autorise.");
+            void run("allot", () => allotPettyCash(fd), "Remise envoyée au centre de paiement — payée par les Finances, elle comptera dans la caisse dès que le caissier en confirme la réception.");
           }}
           className="space-y-2 rounded-xl border border-primary/30 bg-primary/5 p-3"
         >
           <p className="flex items-center gap-1 text-sm font-medium">
             Remettre une somme en caisse
             <InfoBulle label="À propos de la remise" align="left">
-              La remise part d&apos;abord au centre de paiement : dès qu&apos;il l&apos;autorise, elle s&apos;ajoute au fond en cours
-              et garde sa date — rien n&apos;est clos, et il n&apos;y a pas de réception à confirmer.
+              La remise part d&apos;abord au centre de paiement ; autorisée, elle passe aux Finances ; payée, elle s&apos;ajoute
+              au fond en cours quand le caissier en confirme la réception, et garde sa date — rien n&apos;est clos.
             </InfoBulle>
           </p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -291,7 +324,7 @@ export function CashPanel({ view, people }: { view: GeneralMeansView; people: { 
       {/* RÉGLAGE MENSUEL — posé par les RH. La caisse ne se ferme plus au changement de mois,
           mais le RECHARGEMENT, lui, reste une échéance d'agenda : sans lui, la remise dépend d'un
           geste dont personne ne se souvient à date fixe, et l'on ne peut prévenir de rien. */}
-      {view.canAllot && pane === "plan" && (
+      {peutRemettre && pane === "plan" && (
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -353,7 +386,7 @@ export function CashPanel({ view, people }: { view: GeneralMeansView; people: { 
                   </span>
                 </span>
                 {t.status === "PENDING" ? (
-                  view.canAllot ? (
+                  peutRemettre ? (
                     <span className="flex flex-wrap items-center gap-1.5">
                       <Input
                         value={grant[t.id] ?? String(t.amountRequested)}
@@ -424,10 +457,10 @@ export function CashPanel({ view, people }: { view: GeneralMeansView; people: { 
           </summary>
           <div className="space-y-3 border-t border-border p-3">
             {cash && cash.remittances.length > 0 && (
-              <RemittanceList title={`Remises en cours (${cash.remittances.length})`} rows={cash.remittances} dejaAncrees={new Set([...enAttente, ...aConfirmer].map((r) => r.id))} />
+              <RemittanceList title={`Remises en cours (${cash.remittances.length})`} rows={cash.remittances} dejaAncrees={new Set([...enAttente, ...versees].map((r) => r.id))} />
             )}
             {view.history.length > 0 && (
-              <RemittanceList title="Remises soldées" rows={view.history} muted />
+              <RemittanceList title="Remises soldées" rows={view.history} muted dejaAncrees={new Set(refusee ? [refusee.id] : [])} />
             )}
           </div>
         </details>
@@ -470,15 +503,10 @@ function RemittanceList({ title, rows, muted, dejaAncrees }: {
                 <TableCell className="whitespace-nowrap text-right tabular-nums sm:py-1.5">{formatCurrency(r.amount)}</TableCell>
                 <TableCell className="whitespace-nowrap text-right tabular-nums sm:py-1.5">{r.spent > 0 ? formatCurrency(r.spent) : "—"}</TableCell>
                 <TableCell className="sm:py-1.5">
-                  {/* L'ARGENT D'ABORD (§118.176) : une remise pas encore versée — ou refusée — dit ce
-                      qu'elle attend ; « soldée » sur une remise refusée ferait croire qu'elle a eu lieu. */}
-                  {r.centre !== "VERSEE" ? (
-                    <Badge tone={ETAT_REMISE_LABEL[r.centre].tone} dot={false}>
-                      {ETAT_REMISE_LABEL[r.centre].label}
-                    </Badge>
-                  ) : (
-                    <Badge tone={PETTY_CASH_STATUS_LABEL[r.status].tone} dot={false}>{PETTY_CASH_STATUS_LABEL[r.status].label}</Badge>
-                  )}
+                  {/* L'ARGENT D'ABORD (§118.176) : une remise pas encore payée — ou refusée — dit ce qu'elle
+                      attend ; « soldée » sur une remise refusée ferait croire qu'elle a eu lieu. Payée, elle
+                      dit si le caissier l'a reçue. */}
+                  <Badge tone={libelleRemise(r.centre, r.status).tone} dot={false}>{libelleRemise(r.centre, r.status).label}</Badge>
                 </TableCell>
               </TableRow>
             ))}

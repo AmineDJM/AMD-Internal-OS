@@ -15,7 +15,7 @@ import {
   currentPeriod, periodLabel, normalizeRechargeDay, nextRechargeDate, grantedTopUpAmount,
 } from "@/lib/petty-cash";
 import { continuousCash, canSpendFromFund } from "@/lib/general-means/continuous-cash";
-import { openRemittances } from "@/lib/queries/general-means";
+import { openRemittances, refusHorsServiceMoyensGeneraux, serviceDesMoyensGeneraux } from "@/lib/queries/general-means";
 import { toNumber } from "@/lib/utils";
 import { createExpenseOrder } from "@/modules/finances/api";
 import { ordreDeRemise } from "@/lib/general-means/remettre";
@@ -114,6 +114,9 @@ export async function allotPettyCash(formData: FormData): Promise<ActionResult> 
 
   const department = await prisma.department.findUnique({ where: { id: departmentId }, select: { name: true, companyId: true } });
   if (!department) return { ok: false, error: "Département introuvable." };
+  // LA CAISSE DES MOYENS GÉNÉRAUX, ET ELLE SEULE (Super Admin, 24/11/2026).
+  const horsService = await refusHorsServiceMoyensGeneraux(departmentId);
+  if (horsService) return { ok: false, error: horsService };
 
   // À QUI ? La personne nommée sur le formulaire ; à défaut celle qui détient déjà le fond, à
   // défaut celle que les RH ont désignée dans le réglage mensuel. Sans ce repli, une rallonge
@@ -160,24 +163,26 @@ export async function allotPettyCash(formData: FormData): Promise<ActionResult> 
     entityType: "BUDGET", entityId: departmentId,
     summary: `Caisse d'avance — ${department.name} : ${premiere ? "" : "nouvelle "}remise de ${amount} DZD (${periodLabel(period)}) envoyée au centre de paiement (${ordre.reference})`,
   });
-  // LA DÉTENTRICE APPREND CE QUI L'ATTEND — pas « confirmez la réception » d'une somme qui n'est
-  // pas partie : elle sera prévenue une seconde fois au versement, et c'est alors qu'elle confirme.
+  // LE CAISSIER APPREND CE QUI L'ATTEND — pas « confirmez la réception » d'une somme qui n'est
+  // pas partie : il sera prévenu une seconde fois quand les Finances l'auront payée, et c'est alors
+  // qu'il confirme l'avoir reçue.
   await notifyUser({
     userId: holder, type: "GENERIC",
     title: premiere ? "Caisse d'avance annoncée" : "Nouvelle remise en caisse d'avance annoncée",
-    body: `${amount} DZD demandés au centre de paiement le ${new Date().toLocaleDateString("fr-FR")} — elle s'ajoutera à la caisse dès que le centre l'autorise ; vous en serez prévenue.`,
+    body: `${amount} DZD demandés au centre de paiement le ${new Date().toLocaleDateString("fr-FR")} — une fois autorisés puis payés par les Finances, vous confirmerez leur réception : ils compteront alors dans la caisse.`,
     link: lienRemiseCaisse(remise.id),
   });
   revalidatePath(PATH);
   revalidatePath("/centre-de-paiement");
-  return { ok: true, message: `Remise de ${amount.toLocaleString("fr-FR")} DZD envoyée au centre de paiement (${ordre.reference}) : elle s'ajoutera au fond dès que le centre l'autorise.` };
+  return { ok: true, message: `Remise de ${amount.toLocaleString("fr-FR")} DZD envoyée au centre de paiement (${ordre.reference}) : autorisée, elle passera aux Finances ; payée, elle comptera dans la caisse dès que le caissier en confirme la réception.` };
 }); }
 
 /**
- * CONFIRMER LA RÉCEPTION — par la détentrice, et par elle seule.
+ * CONFIRMER LA RÉCEPTION — par le caissier (la personne à qui la remise est faite), et par lui seul.
  *
- * Tant qu'elle n'a pas confirmé, le solde disponible reste à zéro : afficher un fonds qu'on
- * n'a pas encore en main conduit à engager des dépenses qu'on ne peut pas payer.
+ * C'est CE geste qui fait compter la somme dans la caisse (Super Admin, 24/11/2026) : payée par les
+ * Finances, une remise reste « à confirmer » et hors du solde. Afficher un fonds qu'on n'a pas encore
+ * en main conduit à engager des dépenses qu'on ne peut pas payer.
  */
 export async function confirmPettyCashReceipt(formData: FormData): Promise<ActionResult> { return annulable("petty-cash-actions:confirmPettyCashReceipt", "Confirmer la réception d'une caisse", async () => {
   const user = await requireUser();
@@ -195,7 +200,7 @@ export async function confirmPettyCashReceipt(formData: FormData): Promise<Actio
     return { ok: false, error: "Seule la personne à qui la somme a été remise confirme sa réception." };
   }
   // ON NE CONFIRME PAS AVOIR REÇU CE QUI N'EST PAS PARTI (§118.176) : tant que le centre n'a pas
-  // autorisé la remise et que les Finances ne l'ont pas versée, il n'y a rien à recevoir. Une
+  // autorisé la remise et que les Finances ne l'ont pas payée, il n'y a rien à recevoir. Une
   // remise d'avant la règle (sans ordre) se confirme comme avant.
   const refusAttente = refusConfirmationRemise(etatRemise({
     aUnOrdre: Boolean(cash.expenseOrderId), ordre: cash.expenseOrder, transactionId: cash.transactionId,
@@ -215,7 +220,7 @@ export async function confirmPettyCashReceipt(formData: FormData): Promise<Actio
     summary: `Remise en caisse d'avance reçue — ${toNumber(cash.amount)} DZD (${periodLabel(cash.period)})`,
   });
   revalidatePath(PATH);
-  return { ok: true };
+  return { ok: true, message: `Réception confirmée : ${toNumber(cash.amount).toLocaleString("fr-FR")} DZD comptent désormais dans la caisse.` };
 }); }
 
 /**
@@ -412,6 +417,8 @@ export async function requestPettyCashTopUp(formData: FormData): Promise<ActionR
   if (!cash) return { ok: false, error: "Caisse introuvable." };
   const ouvertes = await openRemittances(cash.departmentId);
   if (!ouvertes.some((r) => r.holderId === user.id) && !hasGlobalView(user)) return { ok: false, error: "Non autorisé." };
+  const horsService = await refusHorsServiceMoyensGeneraux(cash.departmentId);
+  if (horsService) return { ok: false, error: horsService };
 
   const amount = normalizeAmount(fdStr(formData, "amount"));
   if (typeof amount !== "number") return { ok: false, error: amount.error };
@@ -499,6 +506,12 @@ export async function decidePettyCashTopUp(formData: FormData): Promise<ActionRe
   });
   if (!req) return { ok: false, error: "Demande introuvable." };
   if (req.status !== "PENDING") return { ok: false, error: "Cette demande a déjà été tranchée." };
+  // ACCORDER crée une remise : elle ne vise que la caisse des moyens généraux. Refuser une vieille
+  // demande restée sur une autre caisse reste permis — cela ne crée rien.
+  if (decision === "APPROVED") {
+    const horsService = await refusHorsServiceMoyensGeneraux(req.allotment.departmentId);
+    if (horsService) return { ok: false, error: horsService };
+  }
 
   const written = fdNum(formData, "amountGranted");
   const granted = decision === "APPROVED"
@@ -524,8 +537,8 @@ export async function decidePettyCashTopUp(formData: FormData): Promise<ActionRe
     // ── LA RALLONGE PASSE PAR LE CENTRE DE PAIEMENT (§118.202) ─────────────────────────────
     //
     // « La rallonge de caisse doit passer dans le centre de paiement » (la Direction, 04/10/2026).
-    // Accordée, elle devient une REMISE comme les autres : son ordre attend le centre, elle rejoint
-    // le fond une fois versée, et la détentrice confirme alors sa réception. Elle ne s'écrit plus
+    // Accordée, elle devient une REMISE comme les autres : son ordre attend le centre, puis les
+    // Finances ; payée, elle compte dans le fond dès que le caissier confirme sa réception. Elle ne s'écrit plus
     // au livre ici : c'est le règlement de l'ordre qui le fait, là où l'argent quitte la banque.
     const holder = req.allotment.holderId ?? req.requestedById;
     const holderName = holder ? (await prisma.user.findUnique({ where: { id: holder }, select: { name: true } }))?.name ?? null : null;
@@ -562,7 +575,7 @@ export async function decidePettyCashTopUp(formData: FormData): Promise<ActionRe
       userId: req.requestedById, type: "GENERIC",
       title: decision === "APPROVED" ? "Rallonge accordée" : "Rallonge refusée",
       body: decision === "APPROVED"
-        ? `${granted} DZD accordés, envoyés au centre de paiement${reference ? ` (${reference})` : ""} : ils s'ajouteront à la caisse dès que le centre les autorise${note ? ` — ${note}` : ""}`
+        ? `${granted} DZD accordés, envoyés au centre de paiement${reference ? ` (${reference})` : ""} : autorisés puis payés par les Finances, ils compteront dans la caisse quand vous en confirmerez la réception${note ? ` — ${note}` : ""}`
         : `Demande refusée${note ? ` — ${note}` : ""}`,
       link: lienRallongeCaisse(id),
     });
@@ -574,7 +587,7 @@ export async function decidePettyCashTopUp(formData: FormData): Promise<ActionRe
   });
   revalidatePath(PATH);
   revalidatePath("/centre-de-paiement");
-  return { ok: true, message: reference ? `Rallonge accordée et envoyée au centre de paiement (${reference}) : elle s'ajoutera à la caisse dès que le centre l'autorise.` : undefined };
+  return { ok: true, message: reference ? `Rallonge accordée et envoyée au centre de paiement (${reference}) : autorisée, elle passera aux Finances ; payée, elle comptera dans la caisse dès que le caissier en confirme la réception.` : undefined };
 }); }
 
 /**
@@ -592,6 +605,8 @@ export async function setPettyCashPlan(formData: FormData): Promise<ActionResult
   if (!departmentId) return { ok: false, error: "Département non précisé." };
   const department = await prisma.department.findUnique({ where: { id: departmentId }, select: { name: true } });
   if (!department) return { ok: false, error: "Département introuvable." };
+  const horsService = await refusHorsServiceMoyensGeneraux(departmentId);
+  if (horsService) return { ok: false, error: horsService };
 
   const monthlyAmount = normalizeAmount(fdStr(formData, "monthlyAmount"));
   if (typeof monthlyAmount !== "number") return { ok: false, error: monthlyAmount.error };
@@ -637,8 +652,12 @@ export async function runPettyCashRechargeReminders(now = new Date()): Promise<n
   const plans = await prisma.pettyCashPlan
     .findMany({ where: { isActive: true }, include: { department: { select: { name: true } } } })
     .catch(sansBloquer("petty-cash-actions.runPettyCashRechargeReminders.pettyCashPlan", []));
+  // Le rechargement ne se remet que sur la caisse des moyens généraux : rappeler celui d'un ancien
+  // plan d'un autre département ferait préparer une remise que l'action refusera.
+  const service = await serviceDesMoyensGeneraux().catch(sansBloquer("petty-cash-actions.runPettyCashRechargeReminders.service", null));
   let sent = 0;
   for (const plan of plans) {
+    if (plan.departmentId !== service?.id) continue;
     const r = shouldRemindRecharge(
       { rechargeDay: plan.rechargeDay, isActive: plan.isActive, lastReminderPeriod: plan.lastReminderPeriod },
       now,
@@ -647,7 +666,7 @@ export async function runPettyCashRechargeReminders(now = new Date()): Promise<n
     await prevenirQuiTranche({
       type: "GENERIC",
       title: "Caisse d'avance — rechargement dans 48 h",
-      body: `${plan.department.name} : ${toNumber(plan.monthlyAmount)} DZD à remettre le ${r.at.toLocaleDateString("fr-FR")}. La remise passe par le centre de paiement : envoyez-la dès maintenant pour qu'elle soit autorisée et versée à temps.`,
+      body: `${plan.department.name} : ${toNumber(plan.monthlyAmount)} DZD à remettre le ${r.at.toLocaleDateString("fr-FR")}. La remise passe par le centre de paiement puis les Finances : envoyez-la dès maintenant pour qu'elle soit autorisée et payée à temps.`,
       link: lienCaisseAvance(),
     });
     await prisma.pettyCashPlan.update({ where: { id: plan.id }, data: { lastReminderPeriod: r.period } });

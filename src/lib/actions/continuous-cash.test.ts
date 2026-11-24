@@ -2,6 +2,15 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { CurrentUser } from "@/lib/session";
 
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
+/**
+ * LE SERVICE DES MOYENS GÉNÉRAUX EST UN RÉGLAGE GLOBAL (§118.132) : le banc l'injecte dans son processus — seule sa
+ * caisse reçoit les remises (Super Admin, 24/11/2026) —, la base partagée garde son réglage.
+ */
+let SERVICE: string | null = null;
+vi.mock("@/lib/settings", async (importOriginal) => {
+  const vrai = await importOriginal<typeof import("@/lib/settings")>();
+  return { ...vrai, getAppSettings: async () => ({ ...(await vrai.getAppSettings()), generalMeansDepartmentId: SERVICE }) };
+});
 
 let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
@@ -14,6 +23,7 @@ import { openRemittances } from "@/lib/queries/general-means";
 import { allotPettyCash, confirmPettyCashReceipt, closePettyCash } from "./petty-cash-actions";
 import { addDepartmentExpense } from "./department-budget-actions";
 import { decidePayment } from "@/modules/finances/actions-centre";
+import { settleExpenseOrder } from "@/modules/finances/actions-depenses";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
@@ -70,6 +80,7 @@ suite("Caisse d'avance continue", () => {
     adminId = admin.id; holderId = holder.id; pdgId = pdg.id; comptableId = comptable.id;
     const dept = await prisma.department.create({ data: { name: `${TAG} Direction générale`, code: `${TAG}DG` } });
     deptId = dept.id;
+    SERVICE = deptId;
     // L'assistante achète au quotidien : c'est son module.
     await prisma.userAccess.create({
       data: { userId: holderId, module: "GENERAL_MEANS", canView: true, canCreate: true, canUpdate: true, scope: "ALL" },
@@ -103,18 +114,25 @@ suite("Caisse d'avance continue", () => {
     return allotPettyCash(form({ departmentId: deptId, holderId, amount, period }));
   };
   /**
-   * LE CENTRE AUTORISE, ET LA SOMME ENTRE DANS LA CAISSE (§118.176, règle du 28/10/2026) — par la vraie
-   * action, celle du bouton. Sans ce passage, rien n'est dans le fond : la somme n'est pas partie.
+   * LE CENTRE AUTORISE, LES FINANCES PAIENT, LE CAISSIER CONFIRME — et la somme compte dans la caisse
+   * (§118.176, Super Admin 24/11/2026). Par les vraies actions, celles des boutons : sans ce passage,
+   * rien n'est dans le fond.
    */
   const verserTout = async () => {
-    const [pdg, comptable] = await Promise.all([actorFor(pdgId, "DIRECTION"), actorFor(comptableId, "FINANCE_BUDGET_MANAGER")]);
+    const [pdg, comptable, caissier] = await Promise.all([actorFor(pdgId, "DIRECTION"), actorFor(comptableId, "FINANCE_BUDGET_MANAGER"), actorFor(holderId, "DIRECTION_ASSISTANT")]);
     const attente = await prisma.pettyCashAllotment.findMany({
       where: { departmentId: deptId, status: "ALLOTTED", transactionId: null, expenseOrderId: { not: null } },
-      select: { expenseOrderId: true },
+      select: { id: true, expenseOrderId: true },
     });
     for (const r of attente) {
       ACTOR = pdg;
       expect((await decidePayment(form({ id: r.expenseOrderId!, decision: "APPROVE" }))).ok).toBe(true);
+      ACTOR = comptable;
+      const regle = await settleExpenseOrder(form({ id: r.expenseOrderId! }));
+      expect(regle.ok, regle.error).toBe(true);
+      ACTOR = caissier;
+      const recue = await confirmPettyCashReceipt(form({ id: r.id }));
+      expect(recue.ok, recue.error).toBe(true);
     }
   };
   const fond = async () => continuousCash(await openRemittances(deptId));
@@ -144,7 +162,7 @@ suite("Caisse d'avance continue", () => {
     const f = await fond();
     expect(f.remitted).toBe(80_000);
     expect(f.remittanceCount).toBe(2);
-    // Autorisée par le centre, la remise est EN MAIN : plus de confirmation à attendre.
+    // Autorisée, payée et confirmée : la remise est EN MAIN.
     expect(f.received).toBe(80_000);
     expect(f.awaitingAmount).toBe(0);
   });
@@ -157,7 +175,7 @@ suite("Caisse d'avance continue", () => {
     expect(derniere?.holderId).toBe(holderId);
   });
 
-  it("chaque remise entre dans le fond à SON autorisation", async () => {
+  it("chaque remise entre dans le fond à SA confirmation de réception", async () => {
     await verserTout();
     const f = await fond();
     expect(f.received).toBe(90_000);

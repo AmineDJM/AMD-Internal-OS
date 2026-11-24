@@ -1,6 +1,15 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
+/**
+ * LE SERVICE DES MOYENS GÉNÉRAUX EST UN RÉGLAGE GLOBAL (§118.132) : le banc l'injecte dans son processus — seule sa
+ * caisse reçoit les remises (Super Admin, 24/11/2026) —, la base partagée garde son réglage.
+ */
+let SERVICE: string | null = null;
+vi.mock("@/lib/settings", async (importOriginal) => {
+  const vrai = await importOriginal<typeof import("@/lib/settings")>();
+  return { ...vrai, getAppSettings: async () => ({ ...(await vrai.getAppSettings()), generalMeansDepartmentId: SERVICE }) };
+});
 
 let ACTEUR: unknown = null;
 vi.mock("@/lib/session", () => ({
@@ -202,6 +211,7 @@ suite("les portes du centre, par leurs vrais points d'entrée", () => {
   it("`decidePettyCashTopUp` : une rallonge accordée part au CENTRE (une remise et son ordre en attente), rien au livre ; une seule fois ; refusée, rien", async () => {
     ACTEUR = sa;
     const dept = await prisma.department.create({ data: { name: `${TAG}Moyens généraux`, code: `${TAG}MG` }, select: { id: true } });
+    SERVICE = dept.id;
     const caisse = await prisma.pettyCashAllotment.create({
       data: { departmentId: dept.id, period: "2026-09", amount: 50_000, holderId: autreId, note: `${TAG}caisse` },
       select: { id: true },
@@ -240,6 +250,7 @@ suite("les portes du centre, par leurs vrais points d'entrée", () => {
   it("`decidePettyCashTopUp` : deux accords SIMULTANÉS n'envoient qu'une rallonge au centre (course forcée)", async () => {
     ACTEUR = sa;
     const dept = await prisma.department.create({ data: { name: `${TAG}MG course`, code: `${TAG}MGC` }, select: { id: true } });
+    SERVICE = dept.id;
     const caisse = await prisma.pettyCashAllotment.create({ data: { departmentId: dept.id, period: "2026-09", amount: 10_000, holderId: autreId }, select: { id: true } });
     const dem = await prisma.pettyCashTopUpRequest.create({ data: { allotmentId: caisse.id, amountRequested: 7_000, reason: `${TAG}course`, requestedById: autreId }, select: { id: true } });
     // Le banc tient la ligne de la demande : les deux accords LISENT « en attente » (une lecture

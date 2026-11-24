@@ -6,6 +6,7 @@ import { prisma } from "./erp";
 import { toNumber } from "@/lib/utils";
 import { allotPettyCash, confirmPettyCashReceipt, closePettyCash, requestPettyCashTopUp, setPettyCashPlan } from "@/lib/actions/petty-cash-actions";
 import { requestInvoice, deferExpenseOrder, resumeExpenseOrder } from "@/modules/finances/actions-depenses";
+import { refusHorsServiceMoyensGeneraux } from "@/lib/queries/general-means";
 import type { OpImpl, OpProposalDraft } from "../../types";
 import { opStr } from "../../types";
 import { runFd, dzd, fieldsOf, resolveOne, monthOf, isoDate } from "../../helpers";
@@ -102,6 +103,9 @@ export const CAISSE_DEPENSES_OPS_IMPL: Record<string, OpImpl> = {
     async propose(input): Promise<OpProposalDraft | { error: string }> {
       const dept = await resolveDept(opStr(input, "department"));
       if ("error" in dept) return dept;
+      // UNE SEULE CAISSE, CELLE DES MOYENS GÉNÉRAUX : refusé dès la proposition plutôt qu'à l'exécution.
+      const horsService = await refusHorsServiceMoyensGeneraux(dept.id);
+      if (horsService) return { error: horsService };
       const amount = num(input, "amount");
       if (amount === null || amount <= 0) return { error: "Précisez la somme remise (champ « amount »)." };
       const period = periodOf(opStr(input, "period"));
@@ -137,8 +141,8 @@ export const CAISSE_DEPENSES_OPS_IMPL: Record<string, OpImpl> = {
           ["Détenteur·rice", holderName], ["Note", opStr(input, "note") || null],
         ]),
         warnings: [
-          "La remise part d'abord au CENTRE DE PAIEMENT : rien ne sort de la banque avant son autorisation et le versement par les Finances.",
-          "Une fois versée, elle S'AJOUTE au fond (aucune remise antérieure n'est close) et la personne détentrice confirme alors la réception.",
+          "La remise part d'abord au CENTRE DE PAIEMENT : rien ne sort de la banque avant son autorisation puis son paiement par les Finances.",
+          "Payée, elle S'AJOUTE au fond (aucune remise antérieure n'est close) quand la personne détentrice en confirme la réception.",
         ],
         args: { departmentId: dept.id, holderId, period, amount: String(amount), note: opStr(input, "note") || null },
         successMessage: `Remise de ${dzd(amount)} pour la caisse de ${dept.name} envoyée au centre de paiement.`,
@@ -163,7 +167,7 @@ export const CAISSE_DEPENSES_OPS_IMPL: Record<string, OpImpl> = {
           ["Période enregistrée", cash.period],
           ["Détenteur·rice", cash.holderName],
         ]),
-        warnings: ["Seule la personne détentrice (ou la Direction) confirme, et seulement une fois la remise VERSÉE (centre de paiement puis Finances) — l'action refusera sinon. La somme devient alors dépensable."],
+        warnings: ["Seule la personne détentrice (ou la Direction) confirme, et seulement une fois la remise PAYÉE (centre de paiement puis Finances) — l'action refusera sinon. La somme compte alors dans la caisse."],
         args: { id: cash.id },
         successMessage: `Réception confirmée — la somme est en main chez ${cash.deptName}.`,
         revalidate: ["/moyens-generaux"],
@@ -219,6 +223,8 @@ export const CAISSE_DEPENSES_OPS_IMPL: Record<string, OpImpl> = {
     async propose(input): Promise<OpProposalDraft | { error: string }> {
       const dept = await resolveDept(opStr(input, "department"));
       if ("error" in dept) return dept;
+      const horsService = await refusHorsServiceMoyensGeneraux(dept.id);
+      if (horsService) return { error: horsService };
       // FUSION avec le plan existant : l'action REMPLACE le réglage entier — un montant corrigé
       // sans redonner le jour ou la détentrice ne doit pas les effacer.
       const existing = await prisma.pettyCashPlan.findUnique({

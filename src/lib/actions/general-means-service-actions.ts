@@ -13,6 +13,9 @@ import { fdStr, type ActionResult } from "@/lib/actions/types";
  * directions, alors qu'il n'y a qu'un service qui achète et qui décaisse. Ce réglage dit lequel,
  * et c'est celui-là que tout le monde ouvre.
  *
+ * Il se règle dans Administration › Réglages (`admin/settings/service-moyens-generaux.tsx`) — plus sur
+ * l'écran des Moyens généraux, qui montre la caisse sans la déplacer (Super Admin, 24/11/2026).
+ *
  * Il appartient au SUPER ADMIN, et à lui seul : déplacer la caisse de toute l'entreprise n'est
  * pas un geste de service. Ce n'est pas un droit de module qu'on peut se voir accorder — c'est le
  * rôle, vérifié ici, et le rôle secondaire ne l'étend pas non plus par surprise : il est traité
@@ -40,5 +43,6 @@ export async function setGeneralMeansDepartment(formData: FormData): Promise<Act
     summary: `« ${dept.name} » devient le service des moyens généraux de la société`,
   });
   revalidatePath("/moyens-generaux");
+  revalidatePath("/admin/settings");
   return { ok: true, message: `« ${dept.name} » est désormais le service des moyens généraux — c'est cette caisse que tout le monde ouvre.` };
 }
