@@ -86,7 +86,7 @@ const fichier = (nom: string) => new File(["x"], nom, { type: "application/pdf" 
  */
 suite("Demande de paiement — le montant est celui de la facture ; retirée, elle quitte le centre", () => {
   const u: Record<string, string> = {};
-  const roles: Record<string, SessionUser["role"]> = { req: "MEDICAL_DELEGATE", autre: "MEDICAL_DELEGATE", fin: "FINANCE_BUDGET_MANAGER", dir: "DIRECTION", sa: "SUPER_ADMIN" };
+  const roles: Record<string, SessionUser["role"]> = { req: "MEDICAL_DELEGATE", autre: "MEDICAL_DELEGATE", fin: "FINANCE_BUDGET_MANAGER", dir: "GENERAL_MANAGER", sa: "SUPER_ADMIN" };
   let A = "";
   const comme = async (k: string) => {
     const x = await prisma.user.findUniqueOrThrow({ where: { id: u[k] } });

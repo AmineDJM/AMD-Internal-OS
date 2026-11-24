@@ -10,7 +10,7 @@ import {
   sitsOnPaymentCentre, applyDecision, applyResubmission, canResubmitAuCentre as canResubmit, memeBeneficiaire,
   CENTRAL_DECISION_LABEL, CENTRAL_STATUS_LABEL, type CentralDecision, type CentralStatus,
   PAYMENT_CENTRE_REFUSAL, refusOrdreFerme, ROLES_CENTRE_DE_PAIEMENT, dossierHrefByOrder, ENTITE_SANS,
-  refusSeparationDesTaches,
+  refusSeparationDesTaches, approbateursEnAmont, signauxDeFractionnement, phraseFractionnement,
 } from "@/modules/finances/api";
 import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
 import { lienCentreDePaiement, lienOrdreAPayer } from "@/lib/chemins/finances";
@@ -20,7 +20,7 @@ import { sansBloquer } from "@/lib/journal";
 import { annulable } from "@/lib/effets/ecran";
 
 /**
- * LE CENTRE DE PAIEMENT — le PDG, le Directeur Général et le Super Admin autorisent, la comptabilité exécute.
+ * LE CENTRE DE PAIEMENT — la Direction générale (le Directeur Général et le Super Admin) autorise, la comptabilité exécute.
  *
  * DEUX ISSUES : autoriser ou refuser (décision de la Direction, 02/09/2026 — voir `isDecision`).
  * Ce texte en annonçait quatre, et l'en-tête de l'écran promettait encore « une révision du
@@ -130,9 +130,13 @@ export async function decidePayment(formData: FormData): Promise<ActionResult> {
     select: { id: true, reference: true, label: true, amount: true, beneficiary: true, centralStatus: true, requestedById: true, centralDecidedById: true, status: true, dueDate: true, sourceType: true, sourceId: true },
   });
   if (!order) return { ok: false, error: "Ordre de dépense introuvable." };
-  // QUI DEMANDE N'AUTORISE PAS (audit 27/10, ARGENT-06) — refuser son propre paiement reste permis.
+  // QUI DEMANDE N'AUTORISE PAS (audit 27/10, ARGENT-06), ET QUI A APPROUVÉ EN AMONT NON PLUS (garde-fous, 24/11/2026) —
+  // refuser reste permis. Les approbateurs ne se lisent que pour autoriser, et que si la règle est active.
   if (decision === "APPROVE") {
-    const separation = refusSeparationDesTaches("AUTORISER", order, user.id, (await getAppSettings()).separationTachesPaiement, user.role === "SUPER_ADMIN");
+    const active = (await getAppSettings()).separationTachesPaiement;
+    const superAdmin = user.role === "SUPER_ADMIN";
+    const enAmont = active && !superAdmin ? await approbateursEnAmont(order) : [];
+    const separation = refusSeparationDesTaches("AUTORISER", { ...order, approbateursEnAmont: enAmont }, user.id, active, superAdmin);
     if (separation) return { ok: false, error: separation };
   }
   // UN ORDRE ANNULÉ (demande retirée) OU RÉGLÉ NE SE DÉCIDE PLUS : son autorisation est restée « en attente », jamais
@@ -213,6 +217,18 @@ export async function decidePayment(formData: FormData): Promise<ActionResult> {
     summary: `Centre de paiement — ${CENTRAL_DECISION_LABEL[decision]} : ${order.reference} « ${order.label} » (${money})`,
   });
 
+  // LE SIGNAL « POSSIBLE FRACTIONNEMENT » SE JOURNALISE AVEC LA DÉCISION : on saura qu'il était là quand on a tranché. Il
+  // ne bloque rien (les circuits gardent leurs seuils — Super Admin, 24/11/2026). Sa lecture ne défait pas la décision.
+  const fractionnement = await signauxDeFractionnement([id]).then((m) => m.get(id) ?? null)
+    .catch(sansBloquer("payment-centre-actions.decidePayment.fractionnement", null));
+  if (fractionnement) {
+    await recordAudit({
+      actorId: user.id, action: "UPDATE", module: "Finances", entityType: "EXPENSE_ORDER", entityId: id,
+      field: "fractionnement", newValue: fractionnement.liees.map((l) => l.reference ?? l.id).join(", "),
+      summary: `Centre de paiement — ${CENTRAL_DECISION_LABEL[decision]} sous signal de fractionnement : ${order.reference}. ${phraseFractionnement(fractionnement)}`,
+    });
+  }
+
   if (next === "REFUSED") await suitesDuRefus(id, body.trim());
 
   // On prévient CELUI QUI ATTEND : le demandeur quand la balle lui revient, la comptabilité quand
@@ -248,9 +264,10 @@ export async function decidePayment(formData: FormData): Promise<ActionResult> {
   // se lisait comme un bouton, pas comme un fait ; elle dit désormais ce qui s'est passé, et pour quel ordre.
   return {
     ok: true,
-    message: next === "APPROVED"
+    message: (next === "APPROVED"
       ? `Paiement autorisé : ${order.reference} (${money}) passe aux Finances, qui le régleront.`
-      : `Paiement refusé : ${order.reference} (${money}). Le demandeur est prévenu, avec votre motif.`,
+      : `Paiement refusé : ${order.reference} (${money}). Le demandeur est prévenu, avec votre motif.`)
+      + (fractionnement ? ` ${phraseFractionnement(fractionnement)} (signal journalisé)` : ""),
   };
 }); }
 

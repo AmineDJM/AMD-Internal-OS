@@ -81,9 +81,13 @@ export {
 export { CHOIX_PERIODE, lirePeriode, moisAlger, type Periode, type ResultatPeriode } from "./domaine/resultat-mensuel";
 export { ENTITE_SANS } from "./domaine/entite-centre";
 export {
-  REFUS_AUTORISER_SA_DEMANDE, REFUS_REGLER_SA_DEMANDE, REFUS_REGLER_SON_AUTORISATION,
+  REFUS_AUTORISER_SA_DEMANDE, REFUS_AUTORISER_SON_APPROBATION, REFUS_REGLER_SA_DEMANDE, REFUS_REGLER_SON_AUTORISATION,
   refusSeparationDesTaches,
 } from "./domaine/separation";
+export {
+  FENETRE_FRACTIONNEMENT_JOURS, detecterFractionnement, seuilsDeFractionnement, phraseFractionnement,
+  type DemandeComparable, type SeuilDeFractionnement, type SignalFractionnement,
+} from "./domaine/fractionnement";
 export { BUDGET_CLASSIFY_PROMPT, budgetGate, needsBudgetChoice } from "./domaine/settle-budget";
 export { STATUTS_SOLDES_PAR_UN_REGLEMENT } from "./domaine/soldes-au-reglement";
 export {

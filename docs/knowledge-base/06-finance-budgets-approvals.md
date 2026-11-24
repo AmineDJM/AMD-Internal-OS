@@ -37,7 +37,8 @@ registry internals, promo-material execution chantiers.
 
 1. Every outgoing payment is an `ExpenseOrder` created by **one** writer, `createExpenseOrder`
    (`src/modules/finances/infra/expense-orders.ts:269`), which always sets `centralStatus = "AWAITING"` [V]. 21 call sites feed it.
-2. The **payment centre** (PDG = role `DIRECTION`, `SUPER_ADMIN`, named `PaymentCentreSeat`s) authorises or refuses
+2. The **payment centre** (since 2026-11-24: Direction générale only = `GENERAL_MANAGER` + `SUPER_ADMIN`; `DIRECTION`
+   and named `PaymentCentreSeat`s no longer sit — rows kept, ignored) authorises or refuses
    (`decidePayment`), and **Finances** pays (`settleExpenseOrder`), which is the only place `PAID` is written and is
    gated by `canDisburse` (`src/modules/finances/domaine/authorization.ts:94`) [V]. A source-reading ratchet test enforces both.
 3. Ad & Pro requests are routed by **who asks** (`parcoursAdPro`, `src/lib/workflow/parcours.ts:146`), with a DG gate
@@ -48,8 +49,12 @@ registry internals, promo-material execution chantiers.
 5. Budget **consumption** = settled OUT `FinanceTransaction`s carrying `budgetCategoryId` (+ budget-only lines);
    **engagé** is computed from open orders and signed BCs. Overspend is **displayed, never blocked** [V].
 6. Amounts are `Decimal(14,2)` in DB, handled as JS `number` in logic, displayed with `toLocaleString("fr-FR")` + DZD [V].
-7. Separation of duties is a **role-default convention, not a per-person check**: the `DIRECTION` role can approve
-   the request, authorise at the centre, and settle in Finances (it has `FINANCES: MANAGE`) [V].
+7. Separation of duties is a **per-person check** (`finances/domaine/separation.ts`, setting `separationTachesPaiement`,
+   Super Admin exempt): the requester and anyone who **approved upstream** (validation steps, workflow APPROVE, DG total
+   gate, Ad & Pro visa, poste decisions — `infra/approbateurs-amont.ts`) cannot authorise at the centre; the requester
+   and the authoriser cannot settle. **Anti-splitting** (`domaine/fractionnement.ts`, `infra/requetes/fractionnement.ts`)
+   flags same-requester + same-beneficiary/budget-line orders whose 30-day sum crosses a threshold; shown in the centre's
+   decision context and audited at `decidePayment`, never re-routed.
 
 ## 3. Key files
 

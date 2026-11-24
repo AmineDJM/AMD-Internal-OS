@@ -85,12 +85,12 @@ suite("la fiche de décision du centre : une famille par ordre, en lot", () => {
   beforeAll(async () => {
     await nettoyer();
     aId = (await prisma.company.create({ data: { name: `${TAG}A`, shortName: `${TAG}Alpha`, sortOrder: 9101 }, select: { id: true } })).id;
-    for (const [k, role] of [["siege", "DIRECTION_ASSISTANT"], ["demandeur", "DIRECTION_ASSISTANT"], ["rh", "VIEWER"], ["fin", "FINANCE_BUDGET_MANAGER"]] as const) {
+    for (const [k, role] of [["siege", "GENERAL_MANAGER"], ["demandeur", "DIRECTION_ASSISTANT"], ["rh", "VIEWER"], ["fin", "FINANCE_BUDGET_MANAGER"]] as const) {
       u[k] = (await prisma.user.create({ data: { name: `${TAG}${k}`, email: `${TAG}${k}@t.dz`, passwordHash: "x", role: role as never }, select: { id: true } })).id;
     }
     await prisma.userCompanyAccess.create({ data: { userId: u.siege, companyId: aId } });
-    await prisma.paymentCentreSeat.create({ data: { userId: u.siege, note: `${TAG}siège` } });
-    siege = { id: u.siege, name: `${TAG}siege`, email: `${TAG}siege@t.dz`, role: "DIRECTION_ASSISTANT", secondaryRole: null, access: await getAccess(u.siege, "DIRECTION_ASSISTANT" as never), mustChangePassword: false } as unknown as SessionUser;
+    // Le siège : le Directeur Général — le centre est réservé à la Direction générale (24/11/2026).
+    siege = { id: u.siege, name: `${TAG}siege`, email: `${TAG}siege@t.dz`, role: "GENERAL_MANAGER", secondaryRole: null, access: await getAccess(u.siege, "GENERAL_MANAGER" as never), mustChangePassword: false } as unknown as SessionUser;
 
     // ── Le budget : une ligne de 1 000 000 DZD, sur laquelle le poste agence s'impute.
     const env = await prisma.budgetEnvelope.create({ data: { name: `${TAG}Marketing`, periodStart: new Date(Date.now() - 200 * JOUR), periodEnd: new Date(Date.now() + 200 * JOUR), totalAmount: 1_000_000, companyId: aId }, select: { id: true } });
@@ -295,9 +295,11 @@ suite("la fiche de décision du centre : une famille par ordre, en lot", () => {
     expect(lus.find((f) => f.id === o.paie)!.chaine.some((c) => c.etape.startsWith("Paie calculée"))).toBe(true);
   });
 
-  it("LE DOSSIER DE LA DEMANDE s'ouvre en LECTURE au siège nommé (sans droit Finances), et son « Refuser » s'appelle « Annuler la demande »", async () => {
-    expect(await canAccessEntity(siege, "PAYMENT_REQUEST", prId, "VIEW")).toBe(true);
-    expect(await canAccessEntity(siege, "PAYMENT_REQUEST", prId, "UPDATE"), "lecture seule").toBe(false);
+  it("LE DOSSIER DE LA DEMANDE s'ouvre en LECTURE au siège sans droit Finances, et son « Refuser » s'appelle « Annuler la demande »", async () => {
+    // Un Directeur Général dont la console a fermé le module Finances : il siège, il lit, il n'écrit pas.
+    const sansFinances = { ...siege, access: { ...siege.access, modules: new Map([...siege.access.modules].filter(([m]) => m !== "FINANCES")) } } as SessionUser;
+    expect(await canAccessEntity(sansFinances, "PAYMENT_REQUEST", prId, "VIEW")).toBe(true);
+    expect(await canAccessEntity(sansFinances, "PAYMENT_REQUEST", prId, "UPDATE"), "lecture seule").toBe(false);
     const page = readFileSync("src/app/(app)/validations/paiements/[id]/page.tsx", "utf8");
     expect(page).toMatch(/!siegeDuCentre\) redirect\(/);
     const dossier = readFileSync("src/app/(app)/validations/paiements/[id]/dossier.tsx", "utf8");

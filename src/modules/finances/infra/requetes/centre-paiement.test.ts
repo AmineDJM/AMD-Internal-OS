@@ -83,14 +83,15 @@ suite("le centre de paiement : une file par entité, par le chargeur", () => {
     aId = a.id; bId = b.id;
     const mk = (s: string, role: string) =>
       prisma.user.create({ data: { name: `${TAG}${s}`, email: `${TAG}${s}@t.dz`, passwordHash: "x", role: role as never }, select: { id: true } });
-    const [u1, u2, u3, u4] = await Promise.all([mk("siege", "DIRECTION_ASSISTANT"), mk("demandeur", "DIRECTION_ASSISTANT"), mk("sa", "SUPER_ADMIN"), mk("vide", "DIRECTION_ASSISTANT")]);
+    const [u1, u2, u3, u4] = await Promise.all([mk("siege", "GENERAL_MANAGER"), mk("demandeur", "DIRECTION_ASSISTANT"), mk("sa", "SUPER_ADMIN"), mk("vide", "DIRECTION_ASSISTANT")]);
     siegeId = u1.id; demandeurId = u2.id; saId = u3.id; videId = u4.id;
     // Le siège ET le demandeur sont rattachés à UNE société (A) : la société B ne leur est pas ouverte.
     await prisma.userCompanyAccess.createMany({ data: [
       { userId: siegeId, companyId: aId }, { userId: demandeurId, companyId: aId }, { userId: videId, companyId: aId },
     ] });
-    await prisma.paymentCentreSeat.create({ data: { userId: siegeId, note: `${TAG}siège` } });
-    siege = await session(siegeId, "DIRECTION_ASSISTANT");
+    // Le siège : le Directeur Général — le centre est réservé à la Direction générale (24/11/2026), un siège nommé
+    // n'ouvre plus rien.
+    siege = await session(siegeId, "GENERAL_MANAGER");
     demandeur = await session(demandeurId, "DIRECTION_ASSISTANT");
     vide = await session(videId, "DIRECTION_ASSISTANT");
     sa = await session(saId, "SUPER_ADMIN");
@@ -119,7 +120,7 @@ suite("le centre de paiement : une file par entité, par le chargeur", () => {
   const DE_A = ["A-regulatory", "A-adpro", "A-rh", "A-autorise", "A-refuse", "A-sans-source", "A-du-demandeur"];
 
   it("PRÉMISSES : le siège siège, n'a pas la vue globale, et ne voit pas la société B — sans quoi le reste ne prouve rien", async () => {
-    expect(siege.access?.paymentCentreSeat).toBe(true);
+    expect((await chargerCentre(siege, {})).canDecide).toBe(true);
     expect(siege.role).not.toBe("SUPER_ADMIN");
     const ouvertes = await prisma.userCompanyAccess.findMany({ where: { userId: siegeId }, select: { companyId: true } });
     expect(ouvertes.map((o) => o.companyId)).toEqual([aId]);

@@ -61,7 +61,7 @@ suite("BV d'un dossier réglementaire — étape → centre de paiement → Fina
     const mk = (n: string, role: SessionUser["role"]) =>
       prisma.user.create({ data: { name: `${TAG}${n}`, email: `${TAG}${n}@t.dz`, role, passwordHash: "x" } });
     raId = (await mk("ra", "SUPER_ADMIN")).id;
-    dirId = (await mk("dir", "DIRECTION")).id;
+    dirId = (await mk("dir", "GENERAL_MANAGER")).id;
     saId = (await mk("sa", "SUPER_ADMIN")).id;
     siegeId = (await mk("siege", "COORDINATOR")).id;
     tiersId = (await mk("tiers", "COORDINATOR")).id;
@@ -113,8 +113,10 @@ suite("BV d'un dossier réglementaire — étape → centre de paiement → Fina
     expect(o.centralStatus, "le centre d'abord").toBe("AWAITING");
     expect(o.label).toContain(`${TAG}REG`);
     expect(etatDeLOrdreBv(o)).toBe("DEMANDE");
-    // Le siège NOMMÉ du centre (sans module Finances) ouvre l'ordre ; un tiers, non.
-    expect(await canAccessEntity(await actorFor(siegeId, "COORDINATOR"), "EXPENSE_ORDER", o.id, "VIEW")).toBe(true);
+    // Le Directeur Général (centre de paiement) ouvre l'ordre ; un siège NOMMÉ d'hier, non (centre réservé à la Direction
+    // générale, 24/11/2026) ; un tiers, non plus.
+    expect(await canAccessEntity(await actorFor(dirId, "GENERAL_MANAGER"), "EXPENSE_ORDER", o.id, "VIEW")).toBe(true);
+    expect(await canAccessEntity(await actorFor(siegeId, "COORDINATOR"), "EXPENSE_ORDER", o.id, "VIEW")).toBe(false);
     expect(await canAccessEntity(await actorFor(tiersId, "COORDINATOR"), "EXPENSE_ORDER", o.id, "VIEW")).toBe(false);
 
     ACTOR = await actorFor(raId, "SUPER_ADMIN");
@@ -126,7 +128,7 @@ suite("BV d'un dossier réglementaire — étape → centre de paiement → Fina
 
   it("refus « Non prioritaire » : l'étape le dit avec le motif ; la redemande part au CENTRE DE VALIDATIONS (plus d'ordre)", async () => {
     const o25 = (await ordresDuDossier(produitId)).find((o) => natureDeLOrdreBv(o) === "25")!;
-    ACTOR = await actorFor(dirId, "DIRECTION");
+    ACTOR = await actorFor(dirId, "GENERAL_MANAGER");
     const r = await decidePayment(form({ id: o25.id, decision: "REFUSE", body: "Non prioritaire" }));
     expect(r.ok, r.ok ? "" : r.error).toBe(true);
 
@@ -144,7 +146,7 @@ suite("BV d'un dossier réglementaire — étape → centre de paiement → Fina
 
   it("ancien ordre autorisé → chez les Finances ; payé avec la quittance → l'étape « Paiement du BV 75 % » est cochée", async () => {
     const o75 = ordreQuiDitLEtat(await ordresDuDossier(produitId), "75")!.ordre;
-    ACTOR = await actorFor(dirId, "DIRECTION");
+    ACTOR = await actorFor(dirId, "GENERAL_MANAGER");
     const ok = await decidePayment(form({ id: o75.id, decision: "APPROVE", body: "" }));
     expect(ok.ok, ok.ok ? "" : ok.error).toBe(true);
     expect(ordreQuiDitLEtat(await ordresDuDossier(produitId), "75")?.etat).toBe("AUTORISE");

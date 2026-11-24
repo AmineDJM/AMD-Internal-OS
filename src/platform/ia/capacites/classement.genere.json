@@ -8607,7 +8607,7 @@
    "BUDGETS",
    "ECRITURES"
   ],
-  "simulable": "oui",
+  "simulable": "inconnu",
   "annulation": "retour",
   "appelable": false
  },

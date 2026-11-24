@@ -820,9 +820,9 @@ suite("Matériel promotionnel — circuit 2 de bout en bout", () => {
     const visa = await completePromoTrack(form({ id: pmId, track: "AD_VISA" }));
     expect(visa.ok, visa.ok ? "" : visa.error).toBe(true);
 
-    // Le centre autorise, les Finances règlent : le chantier se clôt, et le dossier avec.
+    // Le centre autorise (la Direction générale, 24/11/2026), les Finances règlent : le chantier se clôt, et le dossier avec.
     for (const o of ordres) {
-      ACTOR = await actorFor(u.ops);
+      ACTOR = await actorFor(u.dg);
       const d = await decidePayment(form({ id: o.id, decision: "APPROVE" }));
       expect(d.ok, d.ok ? "" : d.error).toBe(true);
       await prisma.expenseOrder.update({ where: { id: o.id }, data: { status: "PAID", paidDate: new Date() } });

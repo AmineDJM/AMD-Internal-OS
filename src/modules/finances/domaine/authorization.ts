@@ -2,7 +2,7 @@
  * LE CENTRE DE PAIEMENT — la règle unique qui décide si un décaissement peut partir.
  *
  * Le principe : AUCUN paiement de la société ne quitte les Finances sans être passé par le centre,
- * tenu par le PDG, le Directeur Général et le Super Admin. **Sans exception, et quel que soit le montant.**
+ * tenu par la Direction générale (le Directeur Général et le Super Admin). **Sans exception, et quel que soit le montant.**
  *
  * ── POURQUOI LE SEUIL A DISPARU ────────────────────────────────────────────────────────────────
  *
@@ -169,85 +169,60 @@ export function awaitsRequester(status: CentralStatus): boolean {
 }
 
 /**
- * QUI SIÈGE AU CENTRE DE PAIEMENT — deux rôles, plus les personnes NOMMÉMENT désignées.
+ * QUI SIÈGE AU CENTRE DE PAIEMENT — la Direction générale, et elle seule (Super Admin, 24/11/2026).
  *
- * ── LE CERCLE PAR DÉFAUT N'A PAS BOUGÉ ───────────────────────────────────────────────────────
+ * « Centre de paiement : AUCUN siège par pôle. Il est réservé à la Direction générale = Super Admin + Directeur général
+ * uniquement. » La décision précède la délégation de pouvoirs aux directeurs : l'argent doit avoir ses garde-fous AVANT que
+ * d'autres mains n'engagent la société.
  *
- * Le PDG (`DIRECTION`), le Directeur Général (`GENERAL_MANAGER`, depuis le 27/10 : le centre est
- * celui de la « Direction Générale ») et le Super Admin. Le centre existe pour que le sommet de
- * l'entreprise voie passer chaque engagement important — il ne s'ouvre pas au-delà, en bloc, à la
- * direction opérationnelle : ce serait recréer le circuit qu'il remplace.
+ * Ce qui en sort, et pourquoi :
+ *   • le PDG (`DIRECTION`) — le même rôle approuvait la demande, l'autorisait au centre et la réglait (ARGENT-06) : trois
+ *     gestes, une personne. Il demande et approuve en amont ; il n'autorise plus ;
+ *   • le SIÈGE NOMMÉ (`PaymentCentreSeat`) — les lignes restent en base (on n'efface rien), elles n'ouvrent plus rien ;
+ *   • l'ACCÈS DONNÉ PAR LA CONSOLE à un autre rôle — la clé `PAYMENT_CENTRE` ne fait plus siéger qui n'est pas de la
+ *     Direction générale. Elle garde un seul pouvoir : BLOQUER le Directeur Général (« un bloqué ne voit ni ne décide »).
  *
- * ── CE QUI S'AJOUTE : LE SIÈGE NOMMÉ ─────────────────────────────────────────────────────────
- *
- * Le cercle restait strictement lié au RÔLE, si bien que faire entrer une personne de plus
- * n'avait qu'un seul chemin : lui donner le rôle `DIRECTION` — MANAGE sur tous les pôles, vue
- * globale sur les validations de toute l'entreprise, My Chief of Staff. Autoriser des paiements
- * coûtait donc de devenir quasi-administrateur, et le refus d'élargir se payait en sur-attribution.
- *
- * Le siège nommé (`PaymentCentreSeat`) donne EXACTEMENT une chose : siéger ici. Il s'accorde
- * personne par personne, par le Super Admin, avec un motif et une trace. Il n'ouvre aucun autre
- * module, aucune vue globale, aucun droit sur les Finances.
- *
- * ── POURQUOI IL ARRIVE PAR `access` ET NON PAR UNE LECTURE ICI ───────────────────────────────
- *
- * Cette fonction est SYNCHRONE et appelée partout — écran, action, assistant, recherche. Lui
- * donner une lecture de base la rendrait asynchrone d'un bout à l'autre de la chaîne. Le siège
- * est donc résolu UNE FOIS par requête dans `getAccess`, exactement comme les accès au pipeline
- * réglementaire, et voyage dans l'accès effectif.
+ * Le rôle SECONDAIRE compte (15/11/2026) : un Directeur Général porté en « autre rôle » est le Directeur Général. L'intérim,
+ * lui, ne prête aucun rôle (`hr/stand-in.ts`) : ce siège ne se délègue pas.
  */
 export interface PaymentCentreMember {
   role: string;
   /** L'« autre rôle » cumulé — un DG porté en rôle secondaire siège aussi. */
   secondaryRole?: string | null;
-  /** L'accès effectif de la session — le module `PAYMENT_CENTRE` et le siège nommé y sont résolus par `getAccess`. */
-  access?: AccesStructurel & { paymentCentreSeat?: boolean };
+  /** L'accès effectif de la session — un BLOCAGE de la clé `PAYMENT_CENTRE` par la console y est résolu par `getAccess`. */
+  access?: AccesStructurel;
 }
 
 /**
- * LES RÔLES QUI SIÈGENT AU CENTRE (Direction, 27/10 — point 24) : le centre « Direction Générale » accueille le
- * Directeur Général (`GENERAL_MANAGER`) et le Super Admin ; le PDG (`DIRECTION`) y reste. Les mêmes rôles sont
- * prévenus quand un paiement attend le centre — un siège qu'on ne prévient pas ne siège qu'à moitié.
+ * LES RÔLES DE LA DIRECTION GÉNÉRALE, qui siègent au centre — et qui sont prévenus quand un paiement l'attend : un siège
+ * qu'on ne prévient pas ne siège qu'à moitié.
  */
-export const ROLES_CENTRE_DE_PAIEMENT = ["DIRECTION", "GENERAL_MANAGER", "SUPER_ADMIN"] as const;
+export const ROLES_CENTRE_DE_PAIEMENT = ["GENERAL_MANAGER", "SUPER_ADMIN"] as const;
 
 /**
- * SIÉGER AU CENTRE, C'EST Y AVOIR ACCÈS — la clé `PAYMENT_CENTRE` que la console règle (Super Admin, 24/11/2026 : « un
- * BLOQUÉ ne doit plus voir ni décider ; un accès donné par la console doit valoir siège »).
- *
- * Hier, le siège se lisait sur le RÔLE, à côté du module : bloquer le PDG dans Administration › Accès lui retirait l'entrée
- * de menu, et il décidait encore par l'adresse ; ouvrir le module à quelqu'un lui donnait une entrée qui ne décidait rien.
- * Le geste lu est « Voir » : la console ne connaît que « par défaut / personnalisé / bloqué », et l'écran du centre n'a pas
- * de lecture SANS décision (un demandeur y suit ses propres demandes par la règle de l'écran, pas par ce module).
- *
- * Les titres d'hier y arrivent tous par l'accès résolu, sans rien perdre : les trois rôles par leur défaut (`PAYMENT_CENTRE:
- * MANAGE`, rôle principal ou secondaire), le SIÈGE NOMMÉ par l'accès implicite qu'il ouvre (`getAccess`). Un blocage de la
- * console prime sur les deux.
+ * SIÈGE-T-IL AU CENTRE ? Le rôle de Direction générale (principal ou secondaire), sauf blocage de la console.
  *
  * LE SUPER ADMIN, en rôle principal, siège toujours : c'est lui qui règle la console — se bloquer par mégarde fermerait le
- * centre à la seule personne qui peut le rouvrir.
- *
- * Sans accès résolu (règle appelée hors session, avec un simple `{ role }`), on lit le défaut : les trois rôles et le siège.
+ * centre à la seule personne qui peut le rouvrir. Sans accès résolu (règle appelée hors session, avec un simple
+ * `{ role }`), on lit le rôle seul.
  */
 export function sitsOnPaymentCentre(user: PaymentCentreMember): boolean {
   if (user.role === "SUPER_ADMIN") return true;
-  const parLaConsole = accesOuvertParLaConsole(user.access, "PAYMENT_CENTRE", "VIEW");
-  if (parLaConsole !== null) return parLaConsole;
-  // Le rôle SECONDAIRE compte aussi (15/11/2026) : un DG porté en « autre rôle » siège comme un DG en rôle principal.
-  return [user.role, user.secondaryRole].some((r) => r != null && (ROLES_CENTRE_DE_PAIEMENT as readonly string[]).includes(r))
-    || user.access?.paymentCentreSeat === true;
+  const directionGenerale = [user.role, user.secondaryRole]
+    .some((r) => r != null && (ROLES_CENTRE_DE_PAIEMENT as readonly string[]).includes(r));
+  if (!directionGenerale) return false;
+  // La console peut FERMER le centre au Directeur Général ; elle ne l'ouvre plus à personne d'autre.
+  return accesOuvertParLaConsole(user.access, "PAYMENT_CENTRE", "VIEW") !== false;
 }
 
 /**
- * LE REFUS, ÉCRIT UNE SEULE FOIS.
- *
- * Trois endroits refusaient l'accès au centre avec la même phrase recopiée — « Seuls le PDG et le
- * Super Admin siègent au centre de paiement ». Depuis le siège nommé, cette phrase est FAUSSE, et
- * trois copies d'un message faux se corrigent rarement toutes les trois. La formulation vit ici.
+ * LE REFUS, ÉCRIT UNE SEULE FOIS — écran, action, assistant disent la même phrase, qui nomme qui siège et ce qu'il reste à
+ * faire (§118.30).
  */
 export const PAYMENT_CENTRE_REFUSAL =
-  "Vous ne siégez pas au centre de paiement. Y siègent le PDG, le Directeur Général, le Super Admin, et les personnes "
-  + "qui y ont été nommément désignées — un Super Admin peut vous y désigner depuis Administration → Accès.";
+  "Le centre de paiement est réservé à la Direction générale : seuls le Directeur Général et le Super Admin y voient la file "
+  + "et y décident. Pour faire autoriser un paiement, déposez la demande : elle leur arrive d'elle-même, et vous la suivez "
+  + "depuis son dossier.";
 
 /**
  * LES MOTIFS DE REFUS QU'ON PROPOSE EN UN CLIC (Direction, 10/2026) — « refusé pour “non prioritaire” ou

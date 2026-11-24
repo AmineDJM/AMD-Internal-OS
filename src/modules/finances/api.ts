@@ -51,6 +51,10 @@ export {
   type ApportContexte, type BriquesContexte, contexteDecisionDesOrdres, historiqueDuCentre, type LigneHistoriqueCentre,
   type OrdrePourBrique,
 } from "./infra/requetes/contexte-decision";
+export {
+  seuilsDeFractionnementEnVigueur, signauxDeFractionnement, signalDeFractionnementPour,
+} from "./infra/requetes/fractionnement";
+export { approbateursEnAmont, approbateursEnAmontDesOrdres } from "./infra/approbateurs-amont";
 export { chargerOrdresDesFinances, HISTORIQUE_MAX } from "./infra/requetes/paiements-a-faire";
 export { chargerDossiersDesLignes, type DossierDeLigne, type MessageFil, type PieceVue } from "./infra/requetes/banque-paiements";
 // La question des Finances au demandeur, sur le fil du dossier compagnon (24/11/2026).

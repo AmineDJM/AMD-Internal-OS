@@ -269,16 +269,14 @@ describe("actions d'écriture — la proposition ET l'exécution revérifient le
     expect(r.error).toBe(PAYMENT_CENTRE_REFUSAL);
   });
 
-  it("decide_payment : un SIÈGE NOMMÉ passe la garde, sans aucun droit Finances", async () => {
-    // Le contraire du test précédent, et c'est lui qui prouve que le siège sert à quelque chose :
-    // sans droit sur les Finances, sans rôle Direction, la personne désignée n'est plus refusée
-    // au motif qu'elle ne siège pas — elle bute sur la référence introuvable, ce qui est la
-    // suite normale du traitement.
-    // Le siège nommé ouvre le module `PAYMENT_CENTRE` (Voir + Valider) dans l'accès résolu (`getAccess`) — et c'est CE module
-    // que lit la règle depuis le 24/11/2026 (`sitsOnPaymentCentre`) : la fabrique pose ce que `getAccess` aurait posé.
-    const seated = userWith({ PAYMENT_CENTRE: ["VIEW", "VALIDATE"] });
-    seated.access.paymentCentreSeat = true;
-    const r = await buildProposal("decide_payment", { reference: "ORD-INEXISTANT", decision: "APPROVE" }, seated);
+  it("decide_payment : ni un siège nommé ni le module accordé par la console ne font siéger — la Direction générale, si", async () => {
+    // Centre réservé à la Direction générale (Super Admin, 24/11/2026) : le module `PAYMENT_CENTRE` ouvert à un autre rôle
+    // n'ouvre plus la garde ; le Directeur Général, lui, la passe et bute sur la référence introuvable (la suite normale).
+    const ouvertParLaConsole = userWith({ PAYMENT_CENTRE: ["VIEW", "VALIDATE"] });
+    const refuse = await buildProposal("decide_payment", { reference: "ORD-INEXISTANT", decision: "APPROVE" }, ouvertParLaConsole);
+    expect("error" in refuse && refuse.error).toBe(PAYMENT_CENTRE_REFUSAL);
+    const dg = userWith({ PAYMENT_CENTRE: ["VIEW", "VALIDATE"] }, "GENERAL_MANAGER");
+    const r = await buildProposal("decide_payment", { reference: "ORD-INEXISTANT", decision: "APPROVE" }, dg);
     expect("error" in r && r.error).not.toBe(PAYMENT_CENTRE_REFUSAL);
   });
 

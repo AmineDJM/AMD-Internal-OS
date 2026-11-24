@@ -128,7 +128,8 @@ suite("Paie et caisse d'avance par le centre de paiement", () => {
   let categoryId = "", envelopeId = "";
 
   const rh = () => actorFor(rhId, "DIRECTION_ASSISTANT");
-  const direction = () => actorFor(directionId, "DIRECTION");
+  // Le centre de paiement : la Direction générale (24/11/2026) — ici le Directeur Général.
+  const direction = () => actorFor(directionId, "GENERAL_MANAGER");
   const finance = () => actorFor(financeId, "FINANCE_BUDGET_MANAGER");
 
   const saisir = async (employeeId: string, net: string, cost = "150000") => {
@@ -186,7 +187,7 @@ suite("Paie et caisse d'avance par le centre de paiement", () => {
     const mk = (n: string, role: SessionUser["role"]) =>
       prisma.user.create({ data: { name: `${TAG}${n}`, email: `${TAG}${n}@t.dz`, role, passwordHash: "x" } }).then((u) => u.id);
     [rhId, directionId, financeId, holderId] = await Promise.all([
-      mk("rh", "DIRECTION_ASSISTANT"), mk("direction", "DIRECTION"), mk("finance", "FINANCE_BUDGET_MANAGER"), mk("holder", "DIRECTION_ASSISTANT"),
+      mk("rh", "DIRECTION_ASSISTANT"), mk("direction", "GENERAL_MANAGER"), mk("finance", "FINANCE_BUDGET_MANAGER"), mk("holder", "DIRECTION_ASSISTANT"),
     ]);
     // LA RH N'A QUE LE MODULE RH, ET NE VOIT QUE L'ENTITÉ A : sans cela, « une entité qui n'est
     // pas la vôtre » ne pourrait pas être refusée, et la garde passerait pour armée (§118.104).

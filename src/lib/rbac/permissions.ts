@@ -26,9 +26,8 @@ export const PERMISSIONS: Record<UserRole, RoleMatrix> = {
     // Le stock promotionnel (§118.164) : la Direction des opérations a la vue globale ET la gestion
     // du matériel de ses équipes. La règle (`promo/stock-acces.ts`) dit lesquelles.
     PROMO_STOCK: CONTRIBUTE,
-    // Le CENTRE DE PAIEMENT : le PDG y siège avec le Directeur Général et le Super Admin. Depuis le 24/11/2026, siéger,
-    // c'est avoir ce module (`sitsOnPaymentCentre`) : la console l'accorde ou le bloque personne par personne.
-    PAYMENT_CENTRE: MANAGE,
+    // PAS de CENTRE DE PAIEMENT (Super Admin, 24/11/2026) : il est réservé à la Direction générale — le Directeur Général
+    // et le Super Admin. Le PDG demande et approuve en amont ; autoriser au centre revient à un autre (`sitsOnPaymentCentre`).
     // « My Chief of Staff » (le bureau d'Adam, onglets Boîte / Réglages / Bureau) N'EST PLUS dans ses défauts (24/11/2026) :
     // les onglets exigeaient en plus le rôle Super Admin, si bien que la Direction portait une clé qui n'ouvrait rien. La
     // clé seule décide désormais (`ouvreLeBureauAdam`) ; par défaut, le Super Admin seul — l'état d'hier.
@@ -74,8 +73,8 @@ export const PERMISSIONS: Record<UserRole, RoleMatrix> = {
     // Général y arbitre les demandes au-dessus du seuil et RÈGLE ce seuil. Le siège réel est la
     // règle `siegeAuCentreAdPro`, qui lit ce module depuis le 24/11/2026 : la console l'accorde ou le bloque.
     AD_PRO_CENTRE: MANAGE,
-    // LE CENTRE DE PAIEMENT « Direction Générale » (Direction, 27/10) : le DG y siège avec le PDG et le
-    // Super Admin — siéger, c'est avoir ce module (`sitsOnPaymentCentre`, réglé dans la console depuis le 24/11/2026).
+    // LE CENTRE DE PAIEMENT « Direction Générale » : le DG y siège avec le Super Admin, eux seuls (Super Admin,
+    // 24/11/2026). La console peut le lui bloquer, elle ne l'ouvre à personne d'autre (`sitsOnPaymentCentre`).
     PAYMENT_CENTRE: MANAGE,
     NOTIFICATIONS: ["VIEW"],
     // Le SITE PUBLIC (§118.158) — tous les pouvoirs métier, la communication de l'entreprise comprise.

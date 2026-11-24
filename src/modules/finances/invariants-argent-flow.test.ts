@@ -63,7 +63,7 @@ suite("la chaîne réelle émission → centre → règlement tient l'invariant"
   };
 
   beforeAll(async () => {
-    for (const [k, role] of [["dem", "PRODUCT_MANAGER"], ["pdg", "DIRECTION"], ["cpt", "FINANCE_BUDGET_MANAGER"]] as const) {
+    for (const [k, role] of [["dem", "PRODUCT_MANAGER"], ["pdg", "GENERAL_MANAGER"], ["cpt", "FINANCE_BUDGET_MANAGER"]] as const) {
       u[k] = { id: (await prisma.user.create({ data: { name: `${TAG}${k}`, email: `${TAG}${k}@t.dz`, role, passwordHash: "x" } })).id, role };
     }
     envId = (await prisma.budgetEnvelope.create({ data: { name: `${TAG}Env`, modules: ["FINANCES"], periodStart: new Date("2026-01-01"), periodEnd: new Date("2026-12-31"), totalAmount: 10_000_000 } })).id;

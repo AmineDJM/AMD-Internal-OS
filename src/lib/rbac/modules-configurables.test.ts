@@ -23,7 +23,9 @@ import { isRetiredModule } from "@/lib/modules-retired";
  */
 
 const ROLES = Object.keys(PERMISSIONS) as UserRole[];
-const R_PAIEMENT = ["SUPER_ADMIN", "DIRECTION", "GENERAL_MANAGER"];
+// Le seul écart VOULU depuis la console : le centre de paiement est réservé à la Direction générale (Super Admin, 24/11/2026,
+// garde-fous de l'argent) — le PDG (`DIRECTION`) n'y siège plus. « Hier » est donc lu sans lui.
+const R_PAIEMENT = ["SUPER_ADMIN", "GENERAL_MANAGER"];
 const R_CENTRE = ["SUPER_ADMIN", "GENERAL_MANAGER"];
 
 /** Les lignes que la migration pose sans qu'aucune console ne les ait réglées : les « autres rôles » neutralisés. */
@@ -154,13 +156,15 @@ describe("chaque écran a sa clé, réglable dans la console", () => {
     expect(userCan(u, "FINANCES_COMPTABILITE", "VIEW")).toBe(true);
   });
 
-  it("le Centre de paiement : accordé, il fait siéger ; bloqué, il retire le siège — au Super Admin près, qui ne s'exclut pas", () => {
+  it("le Centre de paiement : bloqué, il retire le siège au DG ; accordé à un autre rôle, il ne fait PAS siéger (24/11/2026) — au Super Admin près", () => {
     const ligne = (canView: boolean): LigneAccesAttribue => ({
       module: "PAYMENT_CENTRE", canView, canCreate: false, canUpdate: false, canDelete: false, canValidate: canView,
       canExport: false, canUpload: false, scope: "ALL", sections: [],
     });
-    expect(sitsOnPaymentCentre(personne("COORDINATOR", null, [ligne(true)]))).toBe(true);
-    expect(sitsOnPaymentCentre(personne("DIRECTION", null, [ligne(false)]))).toBe(false);
+    expect(sitsOnPaymentCentre(personne("COORDINATOR", null, [ligne(true)]))).toBe(false);
+    expect(sitsOnPaymentCentre(personne("DIRECTION", null, [ligne(true)]))).toBe(false);
+    expect(sitsOnPaymentCentre(personne("GENERAL_MANAGER", null))).toBe(true);
+    expect(sitsOnPaymentCentre(personne("GENERAL_MANAGER", null, [ligne(false)]))).toBe(false);
     expect(sitsOnPaymentCentre(personne("SUPER_ADMIN", null, [ligne(false)]))).toBe(true);
   });
 

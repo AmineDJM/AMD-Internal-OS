@@ -10,6 +10,10 @@ import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { refusAdministration } from "@/lib/admin/garde-comptes";
 import { annulable } from "@/lib/effets/ecran";
 
+const REFUS_SIEGE_NOMME =
+  "Le centre de paiement est réservé à la Direction générale (le Directeur Général et le Super Admin) : on n'y désigne "
+  + "plus personne par son nom. Pour qu'une personne y siège, il faut lui donner le rôle de Directeur Général.";
+
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * DÉSIGNER QUELQU'UN AU CENTRE DE PAIEMENT — par son NOM, et pas par son rôle.
@@ -53,67 +57,18 @@ function canSeat(user: { role: string; access: Parameters<typeof userCan>[0]["ac
 }
 
 /**
- * DÉSIGNER une personne au centre de paiement.
+ * DÉSIGNER une personne au centre de paiement — FERMÉ (Super Admin, 24/11/2026).
  *
- * Le MOTIF est obligatoire. Ce n'est pas de la paperasse : un siège dont on ne sait ni qui l'a
- * accordé ni pourquoi est un siège que personne n'ose retirer — on ne sait pas ce qu'on déferait.
+ * « Centre de paiement : AUCUN siège par pôle. Il est réservé à la Direction générale. » Un siège nommé ne donnerait plus
+ * rien (`sitsOnPaymentCentre` ne le lit plus) : l'accorder laisserait croire à un pouvoir qui n'existe pas. L'action reste
+ * (le registre des actions et l'écran la connaissent) et dit pourquoi elle refuse. Les sièges déjà accordés restent en
+ * base, sans effet ; « Retirer » les nettoie quand le Super Admin le souhaite.
  */
 export async function grantPaymentCentreSeat(formData: FormData): Promise<ActionResult> { return annulable("payment-centre-seat-actions:grantPaymentCentreSeat", "Accorder un siège au centre de paiement", async () => {
-  try {
-    const admin = await requireUser();
-    if (!canSeat(admin)) return { ok: false, error: "Réservé au Super Admin." };
-
-    const userId = fdStr(formData, "userId");
-    const note = fdStr(formData, "note");
-    if (!userId) return { ok: false, error: "Choisissez la personne à désigner." };
-    if (!note) return { ok: false, error: "Dites POURQUOI cette personne siège — c'est ce qu'on relira le jour où l'on se demandera si ce siège a encore une raison d'être." };
-
-    const cible = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, role: true, isActive: true, isSystem: true } });
-    if (!cible) return { ok: false, error: "Personne introuvable." };
-    // UN ADMINISTRATEUR DÉLÉGUÉ NE SE DÉSIGNE PAS LUI-MÊME (audit 27/10, SA-18). Le module Administration se
-    // délègue ; le siège, lui, est le pouvoir d'autoriser des décaissements. S'en accorder un, c'est
-    // modifier ses propres droits — la même garde que le rôle et les modules (`refusAdministration`).
-    const refus = refusAdministration(admin, { id: userId, role: cible.role }, "DROITS");
-    if (refus) return { ok: false, error: refus };
-    // UN COMPTE DÉSACTIVÉ NE SIÈGE PAS. Le siège serait invisible (il ne peut pas se connecter)
-    // et se réveillerait à la réactivation, sans que personne ne l'ait redécidé.
-    if (!cible.isActive) return { ok: false, error: `${cible.name} est un compte désactivé : réactivez-le d'abord.` };
-    // LE COMPTE SYSTÈME N'EST PAS UNE PERSONNE. Lui donner un siège reviendrait à laisser Adam
-    // autoriser des paiements — exactement l'auto-escalade que `policy/guard.ts` interdit à la
-    // compilation. La refuser ici ferme aussi le chemin qui passe par un humain qui clique.
-    if (cible.isSystem) return { ok: false, error: "Le compte système ne siège pas au centre de paiement : autoriser un décaissement est un geste de personne." };
-    // Le PDG, le DG et le Super Admin y siègent DÉJÀ par leur rôle. Créer un siège en double laisserait
-    // croire, le jour où on le retire, qu'on leur a retiré l'accès — alors que rien ne bougerait.
-    if (cible.role === "SUPER_ADMIN" || cible.role === "DIRECTION" || cible.role === "GENERAL_MANAGER") {
-      const libelle = cible.role === "SUPER_ADMIN" ? "Super Admin" : cible.role === "GENERAL_MANAGER" ? "Directeur Général" : "Direction";
-      return { ok: false, error: `${cible.name} siège déjà au centre de paiement par son rôle (${libelle}) — un siège nommé n'ajouterait rien.` };
-    }
-
-    const deja = await prisma.paymentCentreSeat.findUnique({ where: { userId }, select: { id: true } });
-    if (deja) return { ok: false, error: `${cible.name} siège déjà au centre de paiement.` };
-
-    await prisma.paymentCentreSeat.create({ data: { userId, grantedById: admin.id, note } });
-
-    // LA PERSONNE APPREND QU'ELLE SIÈGE. Un droit qu'on reçoit sans le savoir n'est pas exercé :
-    // la file des autorisations attendrait quelqu'un qui ignore qu'on l'attend.
-    await notifyUser({
-      userId, type: "ASSIGNMENT",
-      title: "Vous siégez au centre de paiement",
-      body: `${admin.name} vous a désigné : ${note}`,
-      link: "/centre-de-paiement",
-    });
-    await recordAudit({
-      actorId: admin.id, action: "CREATE", module: "Administration",
-      field: "paymentCentreSeat", oldValue: "false", newValue: "true",
-      summary: `Siège au centre de paiement accordé à ${cible.name} — ${note}`,
-    });
-    revalidatePath("/admin/access");
-    revalidatePath("/centre-de-paiement");
-    return { ok: true, message: `${cible.name} siège désormais au centre de paiement.` };
-  } catch (err) {
-    console.error("[centre] grantPaymentCentreSeat failed", err);
-    return { ok: false, error: "La désignation n'a pas pu être enregistrée." };
-  }
+  const admin = await requireUser();
+  if (!canSeat(admin)) return { ok: false, error: "Réservé au Super Admin." };
+  if (!fdStr(formData, "userId")) return { ok: false, error: "Choisissez la personne à désigner." };
+  return { ok: false, error: REFUS_SIEGE_NOMME };
 }); }
 
 /**

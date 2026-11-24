@@ -79,37 +79,33 @@ describe("Ce que les Finances reçoivent", () => {
   });
 });
 
-describe("Qui siège au centre", () => {
-  it("le PDG, le Directeur Général et le Super Admin, chacun suffisant (point 24, 27/10)", () => {
-    expect(sitsOnPaymentCentre({ role: "DIRECTION" })).toBe(true);
+describe("Qui siège au centre — la Direction générale, et elle seule (Super Admin, 24/11/2026)", () => {
+  it("le Directeur Général et le Super Admin", () => {
     expect(sitsOnPaymentCentre({ role: "GENERAL_MANAGER" })).toBe(true);
     expect(sitsOnPaymentCentre({ role: "SUPER_ADMIN" })).toBe(true);
   });
 
-  it("aucun autre RÔLE — ni le Directeur des opérations ni les Finances", () => {
-    // Élargir le centre à la direction opérationnelle recréerait le circuit qu'il remplace.
-    for (const role of ["OPERATIONS_DIRECTOR", "FINANCE_BUDGET_MANAGER", "DIRECTION_ASSISTANT", "VIEWER"]) {
+  it("plus le PDG (DIRECTION) — il approuvait, autorisait et réglait le même ordre — ni aucun autre rôle", () => {
+    for (const role of ["DIRECTION", "OPERATIONS_DIRECTOR", "FINANCE_BUDGET_MANAGER", "DIRECTION_ASSISTANT", "VIEWER"]) {
       expect(sitsOnPaymentCentre({ role }), role).toBe(false);
     }
   });
 
-  it("mais une personne NOMMÉMENT désignée y siège, quel que soit son rôle", () => {
-    // Le siège nommé existe parce que le cercle n'avait qu'un seul élargissement possible :
-    // donner le rôle Direction — MANAGE sur tous les pôles, vue globale, Chief of Staff. Autoriser
-    // des paiements ne doit pas coûter de devenir quasi-administrateur.
-    expect(sitsOnPaymentCentre({ role: "FINANCE_BUDGET_MANAGER", access: { paymentCentreSeat: true } })).toBe(true);
-    expect(sitsOnPaymentCentre({ role: "VIEWER", access: { paymentCentreSeat: true } })).toBe(true);
+  it("la console ne fait plus siéger un autre rôle — mais elle peut encore bloquer le Directeur Général", () => {
+    const ouvert = { modules: new Map([["PAYMENT_CENTRE", { actions: new Set(["VIEW", "VALIDATE"]) }]]) } as never;
+    const bloque = { modules: new Map() } as never;
+    expect(sitsOnPaymentCentre({ role: "DIRECTION", access: ouvert })).toBe(false);
+    expect(sitsOnPaymentCentre({ role: "FINANCE_BUDGET_MANAGER", access: ouvert })).toBe(false);
+    expect(sitsOnPaymentCentre({ role: "GENERAL_MANAGER", access: ouvert })).toBe(true);
+    expect(sitsOnPaymentCentre({ role: "GENERAL_MANAGER", access: bloque })).toBe(false);
+    // Le Super Admin siège toujours : se bloquer par mégarde fermerait le centre à qui peut le rouvrir.
+    expect(sitsOnPaymentCentre({ role: "SUPER_ADMIN", access: bloque })).toBe(true);
   });
 
-  it("un accès SANS siège ne siège pas — et un accès absent non plus", () => {
-    expect(sitsOnPaymentCentre({ role: "VIEWER", access: { paymentCentreSeat: false } })).toBe(false);
-    expect(sitsOnPaymentCentre({ role: "VIEWER", access: {} })).toBe(false);
-    expect(sitsOnPaymentCentre({ role: "VIEWER" })).toBe(false);
-  });
-
-  it("le refus DIT comment on entre — un « non autorisé » sec fait ouvrir un ticket", () => {
-    expect(PAYMENT_CENTRE_REFUSAL).toMatch(/désignées/i);
-    expect(PAYMENT_CENTRE_REFUSAL).toMatch(/Administration/);
+  it("le refus dit qui siège et ce qu'il reste à faire", () => {
+    expect(PAYMENT_CENTRE_REFUSAL).toMatch(/Direction générale/);
+    expect(PAYMENT_CENTRE_REFUSAL).toMatch(/Directeur Général et le Super Admin/);
+    expect(PAYMENT_CENTRE_REFUSAL).toMatch(/déposez la demande/);
   });
 });
 

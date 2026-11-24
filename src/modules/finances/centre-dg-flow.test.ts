@@ -15,9 +15,9 @@ import { chargerCentre } from "./infra/requetes/centre-paiement";
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * LE CENTRE DE PAIEMENT « DIRECTION GÉNÉRALE » ACCUEILLE LE DG (Direction, 27/10 — point 24).
  *
- * Le Directeur Général (`GENERAL_MANAGER`) y siège avec le Super Admin ; la Direction (PDG) y reste. Joué par les
- * vrais points d'entrée : le DG ouvre le module, voit l'ordre en attente, l'autorise ; il est prévenu quand un ordre
- * arrive. Le témoin : le Directeur des opérations, lui, n'y siège pas.
+ * Le Directeur Général (`GENERAL_MANAGER`) y siège avec le Super Admin — eux seuls depuis le 24/11/2026 (le PDG en sort).
+ * Joué par les vrais points d'entrée : le DG ouvre le module, voit l'ordre en attente, l'autorise ; il est prévenu quand
+ * un ordre arrive. Les témoins : le PDG et le Directeur des opérations n'y siègent pas.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
@@ -62,9 +62,9 @@ suite("le centre de paiement accueille le Directeur Général", () => {
     const ordre = await createExpenseOrder({ label: `${TAG}Imprimerie`, amount: 120_000, category: "FOURNISSEUR", beneficiary: "Imprimerie Atlas", requestedById: demandeurId, justificatif: { fichier: new File([`facture ${Math.random()}`], "facture.pdf", { type: "application/pdf" }), nature: "INVOICE" } });
     ordres.push(ordre.id);
     expect(ordre.centralStatus).toBe("AWAITING");
-    // Il est prévenu, comme le PDG.
+    // Il est prévenu ; le PDG, qui ne siège plus, ne l'est plus.
     expect(await prisma.notification.count({ where: { userId: dgId, title: "Autorisation de paiement demandée", body: { contains: ordre.reference } } })).toBe(1);
-    expect(await prisma.notification.count({ where: { userId: dirId, title: "Autorisation de paiement demandée", body: { contains: ordre.reference } } })).toBe(1);
+    expect(await prisma.notification.count({ where: { userId: dirId, title: "Autorisation de paiement demandée", body: { contains: ordre.reference } } })).toBe(0);
 
     const dg = await session(dgId, "GENERAL_MANAGER");
     expect(userCan(dg, "PAYMENT_CENTRE", "VIEW"), "le module s'ouvre").toBe(true);
@@ -79,15 +79,19 @@ suite("le centre de paiement accueille le Directeur Général", () => {
     expect(apres).toEqual({ centralStatus: "APPROVED", centralDecidedById: dgId });
   });
 
-  it("la Direction y reste ; le Directeur des opérations n'y siège pas (le témoin)", async () => {
+  it("ni la Direction (PDG) ni le Directeur des opérations n'y siègent (les témoins)", async () => {
     const ordre = await createExpenseOrder({ label: `${TAG}Traiteur`, amount: 80_000, category: "FOURNISSEUR", beneficiary: "Traiteur", requestedById: demandeurId, justificatif: { fichier: new File([`facture ${Math.random()}`], "facture.pdf", { type: "application/pdf" }), nature: "INVOICE" } });
     ordres.push(ordre.id);
     ACTEUR = await session(opsId, "OPERATIONS_DIRECTOR");
     const refus = await decidePayment(fd({ id: ordre.id, decision: "APPROVE" }));
     expect(refus.ok).toBe(false);
     expect(refus.error).toMatch(/Directeur Général/);
-    ACTEUR = await session(dirId, "DIRECTION");
+    const pdg = await session(dirId, "DIRECTION");
+    expect(userCan(pdg, "PAYMENT_CENTRE", "VIEW"), "le module ne s'ouvre plus au PDG").toBe(false);
+    expect((await chargerCentre(pdg, {})).canDecide).toBe(false);
+    ACTEUR = pdg;
     const r = await decidePayment(fd({ id: ordre.id, decision: "APPROVE" }));
-    expect(r.ok, r.error).toBe(true);
+    expect(r.ok).toBe(false);
+    expect(r.error).toMatch(/réservé à la Direction générale/);
   });
 });
