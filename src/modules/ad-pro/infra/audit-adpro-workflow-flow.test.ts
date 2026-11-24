@@ -190,12 +190,10 @@ suite("Audit Ad & Pro — les règles du circuit tenues hors de l'écran du post
     await comme("kam");
     const a = await addAdProItem(undefined, fd({ parent: "CONGRESS_NATIONAL", parentId: parent, kind: "PRINTING", label: `${TAG}Kakémonos`, amountEstimated: "1500000", supplier: "Imprimerie Alpha" }));
     expect(a.ok, a.error).toBe(true);
-    // Le poste SOUMIS d'abord : depuis le 23/11/2026, un poste en brouillon ne se soumet plus à une demande déclarée
-    // (et il retient l'ouverture de la déclaration) — l'ordre réel est « soumis, puis déclaré ».
+    // Le poste SOUMIS d'abord (un brouillon retient l'ouverture de la déclaration) — l'ordre réel est « soumis, puis déclaré ».
     const s = await submitAdProItem(undefined, fd({ id: a.id! }));
     expect(s.ok, s.error).toBe(true);
-    // La déclaration, ouverte APRÈS le poste (depuis le 19/11/2026, aucun poste ne s'ajoute à une demande déclarée),
-    // sur son estimation.
+    // La déclaration, posée APRÈS le poste (DÉCOR : une déclaration de l'ancienne règle, ouverte sur son estimation).
     const decl = await prisma.medicalInfoDeclaration.create({
       data: { reference: `${RUN}DIM`, sourceType: "CONGRESS_NATIONAL", sourceId: parent, label: `${TAG}Congrès de Batna`, requesterId: u.kam, status: "AWAITING_DIRECTION", amount: 1_500_000 },
     });

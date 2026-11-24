@@ -26,7 +26,8 @@ import { declarationsAVenir, ouvrirDeclarationSiPostesValides, postesPourDeclara
  *     lui est ouvert ; la file garde tous les BAT et le motif du « non conforme » ;
  *   • ses déclarations se rangent par TOUR, et « Mon espace » comme la carte Ad & Pro ne disent « à vous » que quand
  *     c'est à lui (pas pendant que sa lecture attend le Directeur des Opérations) ;
- *   • un poste resté en brouillon ne retient plus la déclaration, et « À venir » dit ce qui la retient ;
+ *   • un poste resté en brouillon retient la déclaration, et « À venir » dit ce qui la retient ; un sponsoring direct à
+ *     l'association (sans devis) est prêt dès son accord (recette 24/11/2026) ;
  *   • l'accord du Directeur des Opérations sur sa lecture le prévient avec le lien du dossier et le geste suivant.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
@@ -86,11 +87,12 @@ suite("Information médicale — l'écran « À faire » d'Alaa", () => {
     await dossier("valider", { declareGrantedAt: new Date(), declareIntent: "DECLARE", authorityRef: "ANPP-2026-77" });
     await dossier("finale", { declareGrantedAt: new Date(), declareIntent: "DECLARE", authorityRef: "ANPP-2026-78", status: "AWAITING_DIRECTION", pharmacistValidatedAt: new Date() });
 
-    // UNE DEMANDE ACCORDÉE dont un poste est en attente et un autre resté en brouillon.
+    // UNE DEMANDE ACCORDÉE dont un poste est en attente et un autre resté en brouillon. Le poste en attente est le VERSEMENT
+    // d'un sponsoring direct à l'association : sans devis, il est prêt dès qu'il est accordé (recette 24/11/2026).
     defId = (await prisma.workflowDefinition.create({ data: { category: `${TAG}WF`, name: `${TAG}circuit` } })).id;
     spoId = (await prisma.sponsoringRequest.create({ data: { reference: `${TAG}SPO`, institution: `${TAG}Hôpital`, type: "Congrès", status: "APPROVED", requesterId: dmId } })).id;
     await prisma.workflowInstance.create({ data: { definitionId: defId, entityType: "SPONSORING", entityId: spoId, category: `${TAG}WF`, status: "APPROVED" } });
-    await prisma.adProItem.create({ data: { sponsoringId: spoId, kind: "OTHER", label: `${TAG}Location`, status: "PENDING", amountEstimated: 50000 } });
+    await prisma.adProItem.create({ data: { sponsoringId: spoId, kind: "ASSOCIATION_SUPPORT", label: `${TAG}Versement association`, status: "PENDING", amountEstimated: 50000 } });
     await prisma.adProItem.create({ data: { sponsoringId: spoId, kind: "OTHER", label: `${TAG}Brouillon`, status: "DRAFT", amountEstimated: 9000 } });
   }, 120_000);
 
@@ -170,7 +172,7 @@ suite("Information médicale — l'écran « À faire » d'Alaa", () => {
     expect((await etapeDeclaration(prim, "EVENT", `${TAG}src-depot`, true))?.aVous).toBe(true);
   });
 
-  it("UN BROUILLON RETIENT LA DÉCLARATION — « À venir » dit ce qui la retient ; supprimé, elle s'ouvre", async () => {
+  it("UN BROUILLON RETIENT LA DÉCLARATION — « À venir » dit ce qui la retient ; supprimé, elle s'ouvre (le versement direct à l'association, sans devis, est prêt dès son accord)", async () => {
     const avant = (await declarationsAVenir()).find((v) => v.id === spoId);
     expect(avant).toMatchObject({ ouvrable: false, postes: { total: 2, valides: 0, brouillons: 1, blocages: ["1 poste en brouillon — à soumettre ou à supprimer", "1 poste en attente de la Direction Marketing"] } });
     expect(await ouvrirDeclarationSiPostesValides("SPONSORING", spoId)).toBeNull();

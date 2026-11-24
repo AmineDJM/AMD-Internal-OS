@@ -6,8 +6,64 @@ import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { ComposerPieceSheet } from "@/components/pieces/composer-piece";
 import { ETIQUETTE_BROUILLON } from "@/lib/bons-de-commande/brouillon";
-import { apercuBcPoste, previsualiserApercuBcPoste, imprimerApercuBcPoste, modifierApercuBcPoste, annulerApercuBcPoste, validerEtEnvoyerBcPoste, type ApercuBcPoste } from "../actions-postes-lignes";
+import { apercuBcPoste, previsualiserApercuBcPoste, imprimerApercuBcPoste, modifierApercuBcPoste, annulerApercuBcPoste, validerEtEnvoyerBcPoste, choisirSocieteDuBcPoste, type ApercuBcPoste } from "../actions-postes-lignes";
 import { actionFailureMessage } from "@/lib/action-outcome";
+
+/**
+ * LA SOCIÉTÉ QUI COMMANDE, À CHOISIR (recette 24/11/2026) — la demande n'en nomme aucune et son demandeur n'est pas dans
+ * l'annuaire RH. Plutôt qu'une impasse (« renseignez la fiche salarié »), la personne qui prépare le BC la choisit ici : elle
+ * s'inscrit sur la demande, puis l'aperçu se recharge et le BC se compose.
+ */
+function ChoixSociete({ message, societes, peutChoisir, choisir, onChoisie }: {
+  message: string;
+  societes: { id: string; label: string }[];
+  peutChoisir: boolean;
+  choisir: (companyId: string) => Promise<Retour>;
+  onChoisie: () => void;
+}) {
+  const [companyId, setCompanyId] = React.useState(societes.length === 1 ? societes[0].id : "");
+  const [erreur, setErreur] = React.useState<string | null>(null);
+  const [enCours, start] = React.useTransition();
+  return (
+    <div className="space-y-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2">
+      <p className="font-medium">Société qui commande</p>
+      <p className="text-muted-foreground">{peutChoisir ? message : message.replace("Choisissez-la ci-dessous", "La personne qui a ajouté le devis (ou le Super Admin) la choisit ici")}</p>
+      {peutChoisir && (
+        <form
+          className="flex flex-wrap items-center gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!companyId) { setErreur("Choisissez la société qui commande."); return; }
+            setErreur(null);
+            start(async () => {
+              let r: Retour;
+              try {
+                r = await choisir(companyId);
+              } catch {
+                setErreur(actionFailureMessage("THROWN"));
+                return;
+              }
+              if (r.ok) onChoisie(); else setErreur(r.error ?? "La société n'a pas été enregistrée.");
+            });
+          }}
+        >
+          <label className="sr-only" htmlFor="societe-qui-commande">Société qui commande</label>
+          <select
+            id="societe-qui-commande" name="companyId" value={companyId} onChange={(e) => setCompanyId(e.target.value)}
+            className="h-9 min-w-0 flex-1 basis-48 rounded-md border border-input bg-background px-2 text-sm"
+          >
+            <option value="">— Choisir la société —</option>
+            {societes.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+          </select>
+          <Button type="submit" size="sm" disabled={enCours || !companyId}>
+            {enCours && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Utiliser cette société
+          </Button>
+        </form>
+      )}
+      {erreur && <p className="text-destructive" role="alert">{erreur}</p>}
+    </div>
+  );
+}
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -39,13 +95,14 @@ export function ApercuBonDeCommande({ itemId, pieceId, nomDevis, peutEditer, peu
 }) {
   const [etat, setEtat] = React.useState<ApercuBcPoste | null>(null);
   const [retrait, setRetrait] = React.useState<string | null>(null);
+  const [chargement, setChargement] = React.useState(0);
   const [, start] = React.useTransition();
   const avec = React.useCallback((fd: FormData) => { fd.set("id", itemId); fd.set("pieceId", pieceId); return fd; }, [itemId, pieceId]);
 
   React.useEffect(() => {
     setEtat(null);
     start(async () => setEtat(await apercuBcPoste(avec(new FormData()))));
-  }, [avec]);
+  }, [avec, chargement]);
 
   const titre = `Bon de commande — ${nomDevis}`;
   if (!etat || !etat.ok) {
@@ -55,7 +112,15 @@ export function ApercuBonDeCommande({ itemId, pieceId, nomDevis, peutEditer, peu
           <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Préparation de l&apos;aperçu…</p>
         ) : (
           <div className="space-y-3 text-sm">
-            <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-destructive" role="alert">{etat.error}</p>
+            {etat.societes && etat.societes.length > 0 ? (
+              <ChoixSociete
+                message={etat.error} societes={etat.societes} peutChoisir={peutEditer}
+                choisir={(companyId) => { const fd = avec(new FormData()); fd.set("companyId", companyId); return choisirSocieteDuBcPoste(fd); }}
+                onChoisie={() => setChargement((n) => n + 1)}
+              />
+            ) : (
+              <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-destructive" role="alert">{etat.error}</p>
+            )}
             {peutEditer && (
               <Button
                 type="button" variant="outline" size="sm"

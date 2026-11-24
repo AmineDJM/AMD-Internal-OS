@@ -4,8 +4,8 @@ import type { AdProItemKind, AdProItemStatus, UserRole } from "@prisma/client";
 import { userCan, hasGlobalView, rolesWithModule, anyRoleFilter, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity, canModerateEntity } from "@/lib/entity-access";
 import { prisma } from "@/lib/prisma";
-import { reporterLesPostesSurLaDeclaration, ouvrirDeclarationSiPostesValides, refusPosteApresDeclaration } from "@/lib/workflow/engine";
-export { ouvrirDeclarationSiPostesValides, refusPosteApresDeclaration };
+import { reporterLesPostesDeclares, ouvrirDeclarationSiPostesValides, posteCompteDansLaDeclaration, signalerPostesALaDeclaration } from "@/lib/workflow/engine";
+export { reporterLesPostesDeclares, ouvrirDeclarationSiPostesValides, posteCompteDansLaDeclaration, signalerPostesALaDeclaration };
 import { toNumber } from "@/lib/utils";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
@@ -431,11 +431,12 @@ export async function reprojeterMontantDemande(parent: AdProParent, parentId: st
   } catch (err) {
     console.error("[ad-pro] montant de la demande non reprojeté (non bloquant)", err);
   }
-  // LA DÉCLARATION D'INFORMATION MÉDICALE SUIT LES POSTES (§118.191) — son montant est l'estimation
-  // de ce qu'ils portent, tant qu'elle n'est pas validée et qu'aucun ordre n'en est né.
-  await reporterLesPostesSurLaDeclaration(parent, parentId)
+  // LA DÉCLARATION D'INFORMATION MÉDICALE SUIT LES POSTES (§118.191) — son montant est ce que portent les postes PRÊTS
+  // (accordés, devis validé : recette 24/11/2026), tant qu'elle n'est pas validée et qu'aucun ordre n'en est né.
+  await reporterLesPostesDeclares(parent, parentId)
     .catch((err) => console.error("[ad-pro] montant de la déclaration non reporté (non bloquant)", err));
-  // LE DERNIER POSTE VALIDÉ OUVRE LA DÉCLARATION (Direction, 19/11/2026) — tous les postes, déclarés ensemble.
+  // LE DERNIER POSTE PRÊT OUVRE LA DÉCLARATION (Direction, 19/11/2026) — d'ordinaire, depuis le 24/11/2026, c'est la
+  // validation du dernier devis (`validerLignesDuDevis`) ; une décision seule ne l'ouvre plus que pour un poste sans devis.
   await ouvrirDeclarationSiPostesValides(parent, parentId)
     .catch((err) => console.error("[ad-pro] déclaration d'information médicale non ouverte (non bloquant)", err));
   // LE TOTAL A PU FRANCHIR LE SEUIL (27/10/2026) : le DG est prévenu, une fois par nouveau total.

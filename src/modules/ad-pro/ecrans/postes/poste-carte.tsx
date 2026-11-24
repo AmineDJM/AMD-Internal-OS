@@ -42,6 +42,7 @@ import { voieParDefaut } from "../../domaine/parcours-agence";
 import { SIGNATURE_RIEN_DE_PRET, type SignaturePrete } from "@/lib/signature-en-ligne/partage";
 import { SectionRepliable } from "@/components/shared/section-repliable";
 import { DiscussionDuPoste } from "./discussion-poste";
+import { DepotDevis } from "./depot-devis";
 
 // La carte d'un poste, montée par `AdProItemsPanel` (`../items-panel.tsx`) — une par poste de la demande.
 
@@ -589,22 +590,14 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
           </div>
         </form>
       )}
+      {/* LES DEVIS, UNE CARTE PAR FICHIER (recette 24/11/2026) : chacun lu, relu et déposé à part (`ajouterDevisPoste`). */}
       {panneau === "DEVIS" && peutDeposerDevis && (
-        <FormulairePiece
+        <DepotDevis
           titre={direct ? `Joindre la ${LIBELLE_JUSTIFICATIF_DIRECT.toLocaleLowerCase("fr")}` : "Joindre un devis ou une facture pro forma"}
           aide="Le fichier est obligatoire. Un même devis peut couvrir d'autres postes de cette demande."
-          montantInitial={null} fournisseurInitial={item.supplier ?? ""} proforma={direct ? "imposee" : "choix"} freres={freres}
-          plusieursDevis lirePoste={item.id}
-          bouton="Joindre" busy={busy === `dev:${item.id}`} onCancel={fermer}
-          onSubmit={(fd) => {
-            fd.set("id", item.id);
-            const avant = item.pieces.devis.map((d) => d.id);
-            void run(`dev:${item.id}`, async () => {
-              const r = await ajouterDevisPoste(undefined, fd);
-              if (r.ok) setDepose({ case: "DEVIS", id: r.id ?? null, avant });
-              return r;
-            }, "Pièce jointe au poste.").then(fermer);
-          }}
+          itemId={item.id} fournisseurInitial={item.supplier ?? ""} proforma={direct ? "imposee" : "choix"} freres={freres}
+          busy={busy} run={run} onClose={fermer} deposer={(fd) => ajouterDevisPoste(undefined, fd)}
+          onDepose={(id) => setDepose({ case: "DEVIS", id, avant: item.pieces.devis.map((d) => d.id) })}
         />
       )}
       {typeof panneau === "string" && panneau.startsWith("LIGNES:") && (() => {
@@ -822,14 +815,24 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
                     <p className="text-muted-foreground">Aucun pour l&apos;instant.</p>
                   ) : item.pieces.devis.map((d) => {
                     const lu = item.devisLignes.find((v) => v.pieceId === d.id);
+                    // SUPPRIMER UN DEVIS (recette 24/11/2026) — la porte même de `retirerDevisDuPoste` : qui modifie la demande, la
+                    // Direction qui arbitre (elle n'avait pas de bouton, quand le serveur lui renvoyait l'assistante), la personne qui a
+                    // ajouté le devis ou l'assistante qui prospecte (tant que les devis ne sont pas transmis). Le devis RETENU, lui, porte
+                    // le montant accordé et le BC : il ne se supprime pas, et la ligne le dit.
+                    const sienOuAssistante = (assistanteAgence || (lu?.depose != null && lu.depose.id === regard.moiId)) && !agence?.faits.devisTransmis;
+                    const retenu = d.id === agence?.agenceDevisId;
+                    const peutSupprimer = (editer || arbitrer || (sienOuAssistante && !regard.fige)) && !d.annulee;
                     return (
                       <div key={d.id} className="space-y-0.5">
                         <LignePiece
                           piece={d}
-                          retirer={(editer || (assistanteAgence && !agence?.faits.devisTransmis)) && !d.annulee && d.id !== agence?.agenceDevisId ? () => {
-                            void run(`rdev:${item.id}`, () => retirerDevisDuPoste(undefined, fdOf({ pieceId: d.id })), "Pièce retirée du poste.");
+                          retirer={peutSupprimer && !retenu ? () => {
+                            void run(`rdev:${item.id}`, () => retirerDevisDuPoste(undefined, fdOf({ pieceId: d.id })), "Devis supprimé du poste.");
                           } : undefined}
                         />
+                        {peutSupprimer && retenu && (
+                          <p className="ml-4 text-[0.6875rem] text-muted-foreground">Devis retenu de l&apos;agence : il porte le montant accordé et le bon de commande — il ne se supprime pas.</p>
+                        )}
                         {lu && !d.annulee && (
                           <button type="button" onClick={() => basculer(`LIGNES:${d.id}`)} className="ml-4 py-1 text-primary hover:underline" aria-label={`Lignes du devis ${d.reference ?? d.titre}`}>
                             {!lu.structure ? "Lignes à lire" : agence && !agence.faits.agenceRetenue ? `Voir les lignes (${lu.lignes.length})` : `Lignes (${lu.nbValidees}/${lu.lignes.length} validées)`}

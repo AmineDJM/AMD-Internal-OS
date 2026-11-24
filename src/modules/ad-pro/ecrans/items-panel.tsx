@@ -31,6 +31,7 @@ import { CartePorteDg } from "./porte-dg-carte";
 import { PosteCarte } from "./postes/poste-carte";
 import { estPosteStock, RAFRAICHISSEMENT } from "./postes/elements";
 import { AddItemForm, Figure } from "./postes/formulaires";
+import { PostesDepuisFichier } from "./postes-depuis-fichier";
 
 export type { LigneStockVue } from "./materiel-stock";
 
@@ -463,25 +464,41 @@ export function AdProItemsPanel({
         <p className="rounded-xl bg-muted/50 px-3 py-2 text-xs text-muted-foreground">{contexte.ajoutFerme}</p>
       )}
       {canEdit && !contexte.ajoutFerme && (
-        adding ? (
-          <AddItemForm
-            parent={parent}
-            parentId={parentId}
-            decided={tardif}
-            assistantes={contexte.assistantes}
-            marketing={contexte.validation.marketing}
-            busy={busy === "add"}
-            onCancel={() => setAdding(false)}
-            onSubmit={(fd) => void run("add", () => addAdProItem(undefined, fd).then((r) => {
-              if (r.ok) setAdding(false);
-              return r;
-            }), "Poste ajouté.")}
-          />
-        ) : (
-          <Button size="sm" variant="outline" className="h-10 w-full sm:h-8 sm:w-auto" onClick={() => setAdding(true)}>
-            <Plus className="h-4 w-4" /> Ajouter un poste
-          </Button>
-        )
+        <div className="space-y-2">
+          {adding && (
+            <AddItemForm
+              parent={parent}
+              parentId={parentId}
+              decided={tardif}
+              assistantes={contexte.assistantes}
+              marketing={contexte.validation.marketing}
+              busy={busy === "add"}
+              onCancel={() => setAdding(false)}
+              onSubmit={(fd) => void run("add", () => addAdProItem(undefined, fd).then((r) => {
+                if (r.ok) setAdding(false);
+                return r;
+              }), "Poste ajouté.")}
+            />
+          )}
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            {!adding && (
+              <Button size="sm" variant="outline" className="h-10 w-full sm:h-8 sm:w-auto" onClick={() => setAdding(true)}>
+                <Plus className="h-4 w-4" /> Ajouter un poste
+              </Button>
+            )}
+            {/* LES POSTES DEPUIS UN FICHIER (recette 24/11/2026) : la même porte que « Ajouter un poste » ; chaque ligne
+                relue se crée par `addAdProItem`, et le panneau se rafraîchit dès qu'un poste est créé. Toujours monté :
+                une proposition en attente survit à l'ouverture du formulaire manuel ; seul son bouton se retire. */}
+            <PostesDepuisFichier
+              parent={parent}
+              parentId={parentId}
+              tardif={tardif}
+              verrouille={Boolean(busy)}
+              masquerLeBouton={adding}
+              onFait={(r) => { setMsg({ ok: r.ok, text: r.text }); if (r.crees > 0) rafraichir(); }}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

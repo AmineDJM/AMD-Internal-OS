@@ -18,8 +18,8 @@ export function tientLaDeclarationAdPro(user: SessionUser): boolean {
 /**
  * OUVRIR LA DÉCLARATION D'UNE DEMANDE AD & PRO QUI N'EN A PAS (Direction, 08/11/2026).
  *
- * La déclaration s'ouvre d'ordinaire d'elle-même quand le DERNIER poste soumis est validé (`ouvrirDeclarationSiPostesValides`,
- * 19/11/2026 ; un brouillon jamais soumis ne la retient pas, 23/11/2026). Une demande accordée sous l'ancienne règle du
+ * La déclaration s'ouvre d'ordinaire d'elle-même quand le DERNIER poste est prêt — accordé, son devis validé par la Direction
+ * Marketing (`ouvrirDeclarationSiPostesValides`, 19/11/2026, recette 24/11/2026). Une demande accordée sous l'ancienne règle du
  * montant global n'en a aucune, et l'étape de la frise resterait vide pour toujours : le pharmacien l'ouvre d'ici (depuis
  * la fiche, ou « À venir » de son écran « À faire »).
  *
@@ -48,15 +48,15 @@ export async function ouvrirDeclarationAdPro(
   if (circuit && circuit.status !== "APPROVED") {
     return { ok: false, error: "La déclaration s'ouvre une fois la demande pré-validée : son circuit n'est pas encore conclu." };
   }
-  // LES POSTES D'ABORD (Direction, 19/11/2026) : la déclaration ne s'ouvre qu'une fois TOUS les postes validés (seule une
-  // demande de l'ancienne règle, sans poste et déjà payée par son ordre global, s'ouvre sans eux).
+  // LES POSTES ET LEURS DEVIS D'ABORD (Direction, 19/11/2026 — recette 24/11/2026) : la déclaration ne s'ouvre qu'une fois
+  // TOUS les postes prêts (seule une demande de l'ancienne règle, sans poste et déjà payée par son ordre global, s'ouvre sans eux).
   const { ouvrable, postes } = await declarationOuvrable(type, sourceId);
   if (!ouvrable) {
     return {
       ok: false,
       error: postes.total > 0
-        ? `La déclaration s'ouvre quand tous les postes soumis sont validés : ${postes.valides} sur ${postes.total} le sont${postes.blocages.length ? ` (${postes.blocages.join(", ")})` : ""}.`
-        : "La déclaration s'ouvre quand les postes de la demande sont validés : elle n'en a encore aucun.",
+        ? `La déclaration s'ouvre quand chaque poste est accordé et son devis validé par la Direction Marketing : ${postes.valides} sur ${postes.total} le sont${postes.blocages.length ? ` (${postes.blocages.join(", ")})` : ""}.`
+        : "La déclaration s'ouvre quand les postes de la demande sont accordés et leurs devis validés : elle n'en a encore aucun.",
     };
   }
   const resume = await loadEntity(type, sourceId);

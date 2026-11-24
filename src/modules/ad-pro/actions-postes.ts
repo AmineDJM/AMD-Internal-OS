@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import type { AdProItemKind } from "@prisma/client";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { reporterLesPostesSurLaDeclaration, refusPosteApresDeclaration } from "@/lib/workflow/engine";
+import { reporterLesPostesDeclares, signalerPostesALaDeclaration } from "@/lib/workflow/engine";
 import { toNumber } from "@/lib/utils";
 import { moneyEntityOf } from "@/lib/company";
 import { notifyUser, notifyRoles } from "@/lib/notify";
@@ -65,10 +65,9 @@ export async function addAdProItem(_prev: ActionResult | undefined, formData: Fo
   // prévalidation de la Direction Marketing, aucun budget ne peut être ouvert, rien ».
   const avant = refusAvantPrevalidation(info);
   if (avant) return { ok: false, error: avant };
-  // LES POSTES SONT DÉCLARÉS ENSEMBLE (Direction, 19/11/2026) : une fois le dossier d'information médicale ouvert — quand
-  // tous les postes ont été validés —, aucun poste ne s'ajoute plus ; il ne serait jamais déclaré.
-  const declare = await refusPosteApresDeclaration(parentRaw, parentId);
-  if (declare) return { ok: false, error: declare };
+  // UN POSTE TARDIF EST TOUJOURS PERMIS (recette 24/11/2026) : le dossier d'information médicale ouvert, la demande prend
+  // encore des postes. Ils passent l'accord et le devis comme les autres, puis rejoignent la déclaration — le pharmacien est
+  // prévenu de l'ajout (`signalerPostesALaDeclaration`, plus bas).
   // LES POSTES SE PUBLIENT PAR LA DIRECTION MARKETING (Direction, 15/11/2026) : un poste ajouté par une autre partie prenante
   // n'est qu'une PROPOSITION — un brouillon qui ne coûte rien tant que la Direction Marketing ne l'a pas accepté (montant et
   // budget, `decideAdProItem`) ; sur la voie « agence », c'est elle seule qui lance la prospection (`demanderProspection`).
@@ -104,6 +103,9 @@ export async function addAdProItem(_prev: ActionResult | undefined, formData: Fo
       }));
       await audit(user, parentRaw, parentId, "CREATE",
         `Sponsoring indirect « ${label} » réparti en ${lue.lignes.length} poste(s) — ${resumeRepartition(lue.lignes)} — total ${lue.total.toLocaleString("fr-FR")} DZD${info.tardif ? " — APRÈS la décision définitive" : ""}.`);
+      // LA DEMANDE DÉJÀ DÉCLARÉE : le pharmacien est prévenu des postes ajoutés (recette 24/11/2026).
+      await signalerPostesALaDeclaration(parentRaw, parentId, { moment: "AJOUT", ref: info.ref, postes: [{ id: ids[0], label: `${label} (réparti en ${lue.lignes.length} poste${lue.lignes.length > 1 ? "s" : ""})` }] })
+        .catch(sansBloquer("ad-pro-item-actions.addAdProItem.repartition.declaration"));
       await signalerPorteDgSiBesoin(parentRaw, parentId);
       revalidate(parentRaw, parentId);
       return { ok: true, id: ids[0], message: `Sponsoring indirect réparti en ${lue.lignes.length} poste(s) : ${resumeRepartition(lue.lignes)} — total ${lue.total.toLocaleString("fr-FR")} DZD.` };
@@ -167,9 +169,13 @@ export async function addAdProItem(_prev: ActionResult | undefined, formData: Fo
         link: lienPosteAdPro(parentRaw, parentId, created.id),
       }).catch(sansBloquer("ad-pro-item-actions.addAdProItem.notifyRoles"));
     }
-    // Le poste ajouté change l'estimation que porte la déclaration d'information médicale (§118.191).
-    await reporterLesPostesSurLaDeclaration(parentRaw, parentId)
+    // Le poste ajouté peut changer ce que porte la déclaration d'information médicale (§118.191) — les postes prêts.
+    await reporterLesPostesDeclares(parentRaw, parentId)
       .catch((err) => console.error("[ad-pro] montant de la déclaration non reporté (non bloquant)", err));
+    // LA DEMANDE DÉJÀ DÉCLARÉE (recette 24/11/2026) : le pharmacien est prévenu du poste ajouté — il rejoindra la
+    // déclaration une fois accordé et son devis validé.
+    await signalerPostesALaDeclaration(parentRaw, parentId, { moment: "AJOUT", ref: info.ref, postes: [{ id: created.id, label }] })
+      .catch(sansBloquer("ad-pro-item-actions.addAdProItem.declaration"));
     // UN POSTE AJOUTÉ CHANGE LE TOTAL (27/10/2026) : s'il franchit le seuil — ou dépasse ce que le DG a
     // validé —, la porte se ferme ; le DG est prévenu de ce nouveau total, comme pour tout changement de montant.
     await signalerPorteDgSiBesoin(parentRaw, parentId);
@@ -513,8 +519,8 @@ export async function submitAdProItem(_prev: ActionResult | undefined, formData:
   if (clos) return { ok: false, error: clos };
 
   const info = await PARENTS[owner.parent].load(owner.id);
-  // Un brouillon ne bloque pas la déclaration (23/11/2026) : la déclaration ouverte, il ne s'y glisse plus.
-  const avant = (info ? refusAvantPrevalidation(info) : null) ?? (item.status === "DRAFT" ? await refusPosteApresDeclaration(owner.parent, owner.id) : null);
+  // Un brouillon se soumet même la déclaration ouverte (recette 24/11/2026) : poste tardif, il la rejoindra une fois prêt.
+  const avant = info ? refusAvantPrevalidation(info) : null;
   if (avant) return { ok: false, error: avant };
   const check = canSubmitItem({
     status: item.status,

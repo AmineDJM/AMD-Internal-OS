@@ -18,6 +18,21 @@ vi.mock("@/lib/settings", async (importOriginal) => {
   const vrai = await importOriginal<typeof import("@/lib/settings")>();
   return { ...vrai, getAppSettings: async () => ({ ...(await vrai.getAppSettings()), bcValidationThreshold: SEUIL, adProDgThreshold: SEUIL_DG }) };
 });
+/**
+ * LES NOTIFICATIONS AUX RÔLES, TÉMOINS (recette 24/11/2026) : qui porte le rôle de pharmacien est un fait GLOBAL de la base —
+ * le banc RELÈVE l'appel (rôles, titre, corps, lien) et le laisse passer, sans dépendre des comptes d'un autre banc.
+ */
+const NOTIFS_ROLES: { roles: string[]; title: string; body: string; link: string | null }[] = [];
+vi.mock("@/lib/notify", async (importOriginal) => {
+  const vrai = await importOriginal<typeof import("@/lib/notify")>();
+  return {
+    ...vrai,
+    notifyRoles: async (...args: Parameters<typeof vrai.notifyRoles>) => {
+      NOTIFS_ROLES.push({ roles: [...args[0]], title: args[1].title, body: args[1].body ?? "", link: args[1].link ?? null });
+      return vrai.notifyRoles(...args);
+    },
+  };
+});
 /** Les assistantes actives sont un fait GLOBAL : le banc restreint la vraie lecture à SES comptes (voisinage fermé). */
 let ASSISTANTES: string[] | null = null;
 vi.mock("./pieces-poste", async (importOriginal) => {
@@ -71,7 +86,8 @@ import { bcDePosteAvantSignature } from "@/lib/lecteurs/legal";
 import { perimetreLegal } from "@/lib/queries/visibilite-listes";
 import { etatDuBC } from "@/lib/bons-de-commande/etat";
 import { devisDesPostes } from "./requetes/devis-poste";
-import { loadAdProItems } from "./requetes/postes";
+import { loadAdProItems, contextePostes } from "./requetes/postes";
+import { postesPourDeclaration } from "@/lib/medical-info/declaration-postes";
 import { piecesDesPostes } from "./pieces-poste";
 import { effacerNonRetenusDuBC, nonRetenusDesPieces } from "@/lib/bons-de-commande/retenue-bc";
 import { prochainPas, faitsDuPoste, type RegardPoste } from "../domaine/poste-etapes";
@@ -505,7 +521,12 @@ suite("Ad & Pro — lignes de devis validées → un BC par devis, régénérabl
     ok(await retirerDevisDuPoste(undefined, fd({ id: pa, pieceId: garde })));
   });
 
-  it("LA DÉCLARATION À L'INFORMATION MÉDICALE attend TOUS les postes validés, puis les déclare ensemble : plus aucun poste ne s'ajoute (Direction, 19/11/2026)", async () => {
+  /**
+   * LA DÉCLARATION À L'INFORMATION MÉDICALE (Direction, 19/11/2026 — recette 24/11/2026) : elle s'ouvre quand chaque poste est
+   * accordé ET son devis validé par la Direction Marketing — par le VRAI geste `validerLignesDuDevis` ; un poste tardif est
+   * toujours permis, et il rejoint la déclaration (montant, pharmacien prévenu) quand son devis est validé.
+   */
+  it("LA DÉCLARATION attend les devis validés : postes accordés sans devis validé → rien ; le dernier devis validé l'ouvre (recette 24/11/2026)", async () => {
     const c = await prisma.congressNational.create({ data: { name: `${RUN} Congrès d'Oran`, requesterId: u.kam, requestStatus: "APPROVED" }, select: { id: true } });
     autresCongres.push(c.id);
     const def = await prisma.workflowDefinition.findFirstOrThrow({ where: { category: "CONGRESS_NATIONAL" }, select: { id: true } });
@@ -515,29 +536,116 @@ suite("Ad & Pro — lignes de devis validées → un BC par devis, régénérabl
       await comme("kam"); ok(await submitAdProItem(undefined, fd({ id })));
       await comme("dm"); ok(await decideAdProItem(undefined, fd({ id, decision: "APPROVED", amountGranted: String(montant), budgetCategoryId: catId })));
     };
+    /** Le devis du poste déposé et saisi, puis ses lignes VALIDÉES par la Direction Marketing (Assia) — le vrai geste. */
+    const devisValide = async (id: string, reference: string, prix: string) => {
+      const piece = await deposerDevis(id, reference, "Imprimerie Alpha");
+      const lignes = await saisir(id, piece, [{ ref: `Impression ${reference}`, qte: "1", prix }]);
+      await comme("dm");
+      ok(await validerLignesDuDevis(formValider(id, piece, lignes)));
+    };
     try {
       const p1 = await nouveauPoste("Poste déclaration 1", 100_000, "Imprimerie Alpha", c.id);
       const p2 = await nouveauPoste("Poste déclaration 2", 50_000, "Imprimerie Alpha", c.id);
       const p3 = await nouveauPoste("Poste déclaration refusé", 20_000, "Imprimerie Alpha", c.id);
 
-      // Le premier poste accordé : il en reste — rien ne part à l'information médicale.
+      // Un poste refusé ne compte pas ; les deux autres ACCORDÉS — mais aucun devis validé : la déclaration attend Assia.
       await accorder(p1, 100_000);
-      expect(await declaration(), "un poste validé sur trois : la déclaration attend").toBeNull();
-
-      // Un poste refusé ne compte pas ; le dernier accordé ouvre le dossier, avec ce que portent les postes validés.
       await comme("kam"); ok(await submitAdProItem(undefined, fd({ id: p3 })));
       await comme("dm"); ok(await decideAdProItem(undefined, fd({ id: p3, decision: "REJECTED", note: "Hors besoin" })));
-      expect(await declaration(), "le refus ne valide rien").toBeNull();
       await accorder(p2, 50_000);
-      const d = await declaration();
-      expect(d, "le dernier poste validé ouvre la déclaration").not.toBeNull();
-      expect(Number(d!.amount)).toBe(150_000);
+      expect(await declaration(), "tous les postes accordés, aucun devis validé : la déclaration attend").toBeNull();
+      expect((await postesPourDeclaration("CONGRESS_NATIONAL", c.id)).blocages).toEqual(["2 postes accordés dont le devis n'est pas encore validé"]);
 
-      // Les postes sont déclarés ensemble : la demande n'en prend plus.
-      await comme("kam");
-      const r = await addAdProItem(undefined, fd({ parent: "CONGRESS_NATIONAL", parentId: c.id, kind: "PRINTING", label: `${TAG}Poste tardif`, amountEstimated: "10000" }));
-      expect(refus(r)).toMatch(/déclarés à l'information médicale/);
+      // Le devis du premier validé : il en reste un.
+      await devisValide(p1, "DV-DECL-1", "80000");
+      expect(await declaration(), "un devis validé sur deux : la déclaration attend encore").toBeNull();
+
+      // Le DERNIER devis validé ouvre le dossier, avec ce que portent les postes accordés.
+      await devisValide(p2, "DV-DECL-2", "40000");
+      const d = await declaration();
+      expect(d, "le dernier devis validé ouvre la déclaration").not.toBeNull();
+      expect(Number(d!.amount)).toBe(150_000);
     } finally {
+      const ids = (await prisma.medicalInfoDeclaration.findMany({ where: { sourceId: c.id }, select: { id: true } })).map((x) => x.id);
+      await prisma.notification.deleteMany({ where: { link: { in: ids.map((id) => `/information-medicale/${id}`) } } });
+      await prisma.medicalInfoDeclaration.deleteMany({ where: { sourceId: c.id } });
+      await prisma.workflowInstance.deleteMany({ where: { entityId: c.id } });
+    }
+  });
+
+  it("UN POSTE TARDIF EST PERMIS : ajouté après la déclaration, il passe l'accord et le devis ; son devis validé, le montant déclaré le prend et le pharmacien est prévenu (recette 24/11/2026)", async () => {
+    const c = await prisma.congressNational.create({ data: { name: `${RUN} Congrès de Béjaïa`, requesterId: u.kam, requestStatus: "APPROVED" }, select: { id: true } });
+    autresCongres.push(c.id);
+    const def = await prisma.workflowDefinition.findFirstOrThrow({ where: { category: "CONGRESS_NATIONAL" }, select: { id: true } });
+    await prisma.workflowInstance.create({ data: { definitionId: def.id, entityType: "CONGRESS_NATIONAL", entityId: c.id, category: "CONGRESS_NATIONAL", status: "APPROVED" } });
+    const declaration = () => prisma.medicalInfoDeclaration.findUnique({ where: { sourceType_sourceId: { sourceType: "CONGRESS_NATIONAL", sourceId: c.id } } });
+    const accorder = async (id: string, montant: number) => {
+      await comme("kam"); ok(await submitAdProItem(undefined, fd({ id })));
+      await comme("dm"); ok(await decideAdProItem(undefined, fd({ id, decision: "APPROVED", amountGranted: String(montant), budgetCategoryId: catId })));
+    };
+    const devisValide = async (id: string, reference: string, prix: string) => {
+      const piece = await deposerDevis(id, reference, "Imprimerie Alpha");
+      const lignes = await saisir(id, piece, [{ ref: `Impression ${reference}`, qte: "1", prix }]);
+      await comme("dm");
+      ok(await validerLignesDuDevis(formValider(id, piece, lignes)));
+    };
+    const auPharmacien = (declId: string) => NOTIFS_ROLES.filter((n) =>
+      n.roles.includes("MEDICAL_INFO_PHARMACIST") && n.title === "Poste ajouté à une déclaration" && n.link === `/information-medicale/${declId}`);
+    try {
+      // La déclaration ouverte : un poste accordé, son devis validé.
+      const p1 = await nouveauPoste("Poste initial", 100_000, "Imprimerie Alpha", c.id);
+      await accorder(p1, 100_000);
+      await devisValide(p1, "DV-INI", "80000");
+      const d = await declaration();
+      expect(d, "le devis validé du seul poste ouvre la déclaration").not.toBeNull();
+      expect(Number(d!.amount)).toBe(100_000);
+      expect(auPharmacien(d!.id), "rien d'ajouté encore").toHaveLength(0);
+
+      // LE POSTE TARDIF : accepté — l'écran l'offre, l'action le crée ; le pharmacien est prévenu de l'ajout.
+      expect((await contextePostes(await comme("kam"), "CONGRESS_NATIONAL", c.id)).ajoutFerme, "l'écran offre encore « Ajouter un poste »").toBeNull();
+      const tardif = await nouveauPoste("Poste tardif", 10_000, "Imprimerie Alpha", c.id);
+      expect((await poste(tardif)).status).toBe("DRAFT");
+      const ajout = auPharmacien(d!.id);
+      expect(ajout, "le pharmacien est prévenu de l'ajout").toHaveLength(1);
+      expect(ajout[0].body).toContain(d!.reference);
+      expect(ajout[0].body).toContain(`${RUN} Congrès de Béjaïa`);
+      expect(ajout[0].body).toContain(`${TAG}Poste tardif`);
+      expect(ajout[0].body).toMatch(/rejoindra la déclaration une fois accordé et son devis validé/);
+      expect(Number((await declaration())!.amount), "pas encore prêt : le montant déclaré ne le compte pas").toBe(100_000);
+
+      // Accordé, mais son devis pas encore validé : toujours pas déclaré.
+      await accorder(tardif, 10_000);
+      expect(Number((await declaration())!.amount), "accordé sans devis validé : pas encore déclaré").toBe(100_000);
+      expect(auPharmacien(d!.id)).toHaveLength(1);
+
+      // SON DEVIS VALIDÉ : le montant déclaré le prend, et le pharmacien est prévenu, avec le lien du dossier.
+      await devisValide(tardif, "DV-TARD", "8000");
+      expect(Number((await declaration())!.amount), "le devis validé : le poste tardif est déclaré").toBe(110_000);
+      const apres = auPharmacien(d!.id);
+      expect(apres, "prévenu une seconde fois : le poste est désormais déclaré").toHaveLength(2);
+      expect(apres[1].body).toMatch(/devis validé pour « .*Poste tardif » .*il est désormais déclaré \(montant déclaré : 110\s000 DZD\)/);
+      expect(await prisma.medicalInfoDeclaration.count({ where: { sourceId: c.id } }), "une seule déclaration : le poste la rejoint").toBe(1);
+
+      // Revalider les mêmes lignes ne prévient pas une troisième fois (le poste était déjà déclaré).
+      await comme("dm");
+      const pieceTardif = (await prisma.adProItemPiece.findFirstOrThrow({ where: { itemId: tardif, nature: "DEVIS" } })).legalDocumentId;
+      const lignesTardif = (await prisma.adProDevisLigne.findMany({ where: { validatedItemId: tardif }, select: { id: true } })).map((l) => l.id);
+      ok(await validerLignesDuDevis(formValider(tardif, pieceTardif, lignesTardif)));
+      expect(auPharmacien(d!.id)).toHaveLength(2);
+
+      // UNE DÉCLARATION VALIDÉE n'est pas réécrite : le pharmacien est prévenu, son montant reste celui validé.
+      await prisma.medicalInfoDeclaration.update({ where: { id: d!.id }, data: { status: "VALIDATED", validatedAt: new Date() } });
+      const encore = await nouveauPoste("Poste après validation", 5_000, "Imprimerie Alpha", c.id);
+      await accorder(encore, 5_000);
+      await devisValide(encore, "DV-APRES", "4000");
+      expect(Number((await declaration())!.amount), "validée : son montant ne bouge plus").toBe(110_000);
+      const figee = auPharmacien(d!.id);
+      expect(figee).toHaveLength(4);
+      expect(figee[2].body).toMatch(/déjà validée : son montant n'est pas modifié/);
+      expect(figee[3].body).toMatch(/Poste après validation.*déjà validée : son montant n'est pas modifié/);
+    } finally {
+      const ids = (await prisma.medicalInfoDeclaration.findMany({ where: { sourceId: c.id }, select: { id: true } })).map((x) => x.id);
+      await prisma.notification.deleteMany({ where: { link: { in: ids.map((id) => `/information-medicale/${id}`) } } });
       await prisma.medicalInfoDeclaration.deleteMany({ where: { sourceId: c.id } });
       await prisma.workflowInstance.deleteMany({ where: { entityId: c.id } });
     }

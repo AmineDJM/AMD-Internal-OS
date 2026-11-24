@@ -54,6 +54,7 @@ export const ACTIONS_DES_MODULES: Readonly<Record<string, string | readonly stri
   "ad-pro-medecins-actions": "src/modules/ad-pro/actions-medecins.ts",
   "ad-pro-other-actions": "src/modules/ad-pro/actions-autres.ts",
   "ad-pro-pieces-actions": "src/modules/ad-pro/actions-pieces.ts",
+  "ad-pro-postes-fichier-actions": "src/modules/ad-pro/actions-postes-fichier.ts",
   "ad-pro-postes-luna-actions": "src/modules/ad-pro/actions-postes-luna.ts",
   "ad-pro-rattacher-legal": "src/modules/ad-pro/actions-rattacher-legal.ts",
   "ad-pro-transfer-actions": "src/modules/ad-pro/actions-transfert.ts",

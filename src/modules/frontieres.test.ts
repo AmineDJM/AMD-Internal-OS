@@ -319,6 +319,16 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/ad-pro/infra/postes-luna-ia.ts → src/lib/ai-settings",
     "src/modules/ad-pro/infra/postes-luna-ia.ts → src/lib/models/contract",
     "src/modules/ad-pro/infra/postes-luna-ia.ts → src/lib/models/gateway",
+    // Les postes proposés depuis un fichier (le cahier des charges, recette 24/11/2026) : le même modèle et la lecture des pièces.
+    "src/modules/ad-pro/actions-postes-fichier.ts → src/lib/documents",
+    "src/modules/ad-pro/infra/postes-fichier-ia.ts → src/lib/ai",
+    "src/modules/ad-pro/infra/postes-fichier-ia.ts → src/lib/ai-settings",
+    "src/modules/ad-pro/infra/postes-fichier-ia.ts → src/lib/comms/untrusted",
+    "src/modules/ad-pro/infra/postes-fichier-ia.ts → src/lib/models/gateway",
+    "src/modules/ad-pro/infra/postes-fichier-ia.ts → src/lib/pieces-lues/formats",
+    "src/modules/ad-pro/infra/postes-fichier-ia.ts → src/lib/pieces-lues/lecture-fichier",
+    "src/modules/ad-pro/infra/postes-fichier-ia.ts → src/lib/pieces-lues/moteur-luna",
+    "src/modules/ad-pro/infra/postes-fichier-ia.ts → src/lib/regulatory/intelligence/extract/texte-ou-ocr",
     // Le seuil de la porte du DG (`seuils/`) : au socle des domaines, à verser au socle des modules.
     "src/modules/ad-pro/actions-centre.ts → src/lib/seuils/ad-pro",
     "src/modules/ad-pro/domaine/poste-etapes.ts → src/lib/seuils/porte-dg-total",

@@ -43,8 +43,9 @@ import type { ResultatRevision } from "./engine/cycle";
 export { stepCreate, getDefinition, orderedSteps, stepBySlug, lectureDeLApprobation, canActOnStep, type LoadedInstance } from "./engine/definitions";
 export type { AdvanceInput } from "./engine/gestes";
 export { postesPortantLaDepense, montantADeclarer, reporterLesPostesSurLaDeclaration } from "./engine/montants";
-// LA DÉCLARATION QUI ATTEND TOUS LES POSTES (Direction, 19/11/2026) — la porte des modules métier, comme le report ci-dessus.
-export { ouvrirDeclarationSiPostesValides, refusPosteApresDeclaration } from "@/lib/medical-info/declaration-postes";
+// LA DÉCLARATION QUI ATTEND LES POSTES ET LEURS DEVIS VALIDÉS (Direction, 19/11/2026 — recette 24/11/2026) — la porte des
+// modules métier, comme le report ci-dessus. Un poste tardif la rejoint (`signalerPostesALaDeclaration`).
+export { ouvrirDeclarationSiPostesValides, reporterLesPostesDeclares, posteCompteDansLaDeclaration, signalerPostesALaDeclaration } from "@/lib/medical-info/declaration-postes";
 export { apresModificationDeLaDemande, fermerInstance, reopenInstance } from "./engine/cycle";
 
 /**
@@ -581,7 +582,7 @@ async function emitFinancials(
   const requestedById = summary.requesterId ?? viewer.id;
 
   // LA PRÉ-VALIDATION D'UNE DEMANDE AD & PRO N'OUVRE PLUS LA DÉCLARATION (Direction, 19/11/2026) : elle s'ouvre quand TOUS
-  // ses postes sont validés, et les déclare ensemble (`ouvrirDeclarationSiPostesValides`). Rien ne part donc ici : une tenue
+  // ses postes sont accordés et leurs devis validés (`ouvrirDeclarationSiPostesValides`, recette 24/11/2026). Rien ne part donc ici : une tenue
   // pré-validée n'engage aucun argent (pas d'ordre), et l'information médicale attend les postes.
   if (step.argentDecideApres && EVENT_SOURCES.includes(entityType)) return null;
   // Le pharmacien désigné — le plus ancien actif, déterministe (`pharmacienAssigne`).

@@ -26,12 +26,18 @@ import { CHEMIN_DEMANDE, estTypeMedecinsConcernes } from "@/modules/ad-pro/parta
 const NATURES: readonly string[] = ["SPONSORING", "EVENT", "CONGRESS_NATIONAL", "CONGRESS_INTERNATIONAL", "PROMO_MATERIAL", "AD_PRO_OTHER"];
 const ROLES: readonly string[] = ["BENEFICIAIRE", "ORATEUR", "INVITE", "AUTRE"];
 
-function rafraichir(nature: string, entityId: string, doctorId: string) {
+/**
+ * LE PLAFOND DE LA LISTE DÉROULANTE (recette 24/11/2026) — l'annuaire s'ouvre en entier sous ce seuil ; au-delà, la liste
+ * le dit et la recherche affine. C'est aussi le plus grand lot qu'un seul geste relie.
+ */
+const PLAFOND_ANNUAIRE = 200;
+
+function rafraichir(nature: string, entityId: string, ...doctorIds: string[]) {
   if (estTypeMedecinsConcernes(nature)) {
     revalidatePath(CHEMIN_DEMANDE[nature]);
     revalidatePath(`${CHEMIN_DEMANDE[nature]}/${entityId}`);
   }
-  revalidatePath(`/praticiens/${doctorId}`);
+  for (const doctorId of doctorIds) revalidatePath(`/praticiens/${doctorId}`);
   revalidatePath("/marketing-cockpit");
 }
 
@@ -74,6 +80,51 @@ export async function ajouterMedecinConcerne(formData: FormData): Promise<Action
   return { ok: true, message: `${medecin.name} est relié·e à la demande.` };
 }
 
+/**
+ * RELIER PLUSIEURS MÉDECINS D'UN GESTE (recette 24/11/2026) — la liste déroulante de la carte coche plusieurs praticiens de
+ * l'annuaire ; un bouton les relie tous, avec le même rôle.
+ *
+ * LA MÊME PORTE que `ajouterMedecinConcerne`, contrôle pour contrôle et dans le même ordre — écrite ICI et non dans une aide :
+ * le contrat de l'action lit ses gardes dans son corps, une garde déplacée disparaîtrait de sa fiche. Un praticien DÉJÀ relié
+ * est laissé tel quel (son rôle et son montant ne bougent pas : les changer reste le geste unitaire). Un seul journal pour le lot.
+ */
+export async function ajouterMedecinsConcernes(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  const nature = fdStr(formData, "entityType");
+  const entityId = fdStr(formData, "entityId");
+  const role = fdStr(formData, "role") || "BENEFICIAIRE";
+  const doctorIds = [...new Set(formData.getAll("doctorIds").map((v) => (typeof v === "string" ? v.trim() : "")).filter(Boolean))];
+  if (!nature || !entityId || doctorIds.length === 0) return { ok: false, error: "Cochez au moins un médecin dans l'annuaire." };
+  if (!NATURES.includes(nature) || !estTypeMedecinsConcernes(nature)) return { ok: false, error: "Cette nature de demande ne porte pas de médecins concernés." };
+  if (!ROLES.includes(role)) return { ok: false, error: "Rôle inconnu." };
+  if (doctorIds.length > PLAFOND_ANNUAIRE) return { ok: false, error: `Au plus ${PLAFOND_ANNUAIRE} médecins d'un coup.` };
+
+  if (!(await canAccessEntity(user, nature, entityId, "UPDATE"))) return { ok: false, error: "Vous ne pouvez pas modifier cette demande." };
+  const medecins = await prisma.medicalDoctor.findMany({ where: { id: { in: doctorIds } }, select: { id: true, name: true }, orderBy: { name: "asc" } });
+  if (medecins.length < doctorIds.length) return { ok: false, error: "Un praticien coché n'existe plus dans l'annuaire — rechargez l'écran." };
+
+  const dejaLies = new Set((await prisma.adProMedecin.findMany({
+    where: { entityType: nature, entityId, doctorId: { in: doctorIds } }, select: { doctorId: true },
+  })).map((l) => l.doctorId));
+  const nouveaux = medecins.filter((m) => !dejaLies.has(m.id));
+  if (nouveaux.length === 0) return { ok: true, message: "Ces médecins étaient déjà reliés à la demande." };
+
+  // `skipDuplicates` : un second onglet qui relie le même praticien entre-temps ne fait pas échouer le lot.
+  await prisma.adProMedecin.createMany({
+    data: nouveaux.map((m) => ({ entityType: nature, entityId, doctorId: m.id, role, createdById: user.id })),
+    skipDuplicates: true,
+  });
+  const noms = nouveaux.slice(0, 20).map((m) => m.name).join(", ") + (nouveaux.length > 20 ? ` et ${nouveaux.length - 20} autre(s)` : "");
+  await recordAudit({
+    actorId: user.id, action: "CREATE", module: "Ad & Pro", entityType: nature, entityId,
+    summary: `Médecins concernés (${role.toLowerCase()}) : ${noms}`,
+  });
+  rafraichir(nature, entityId, ...nouveaux.map((m) => m.id));
+  const n = nouveaux.length;
+  const sauf = dejaLies.size > 0 ? ` (${dejaLies.size} l'étai${dejaLies.size > 1 ? "en" : ""}t déjà)` : "";
+  return { ok: true, message: `${n} médecin${n > 1 ? "s" : ""} relié${n > 1 ? "s" : ""} à la demande${sauf}.` };
+}
+
 export async function retirerMedecinConcerne(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   const nature = fdStr(formData, "entityType");
@@ -98,26 +149,40 @@ export async function retirerMedecinConcerne(formData: FormData): Promise<Action
 }
 
 /**
- * CHERCHER DANS L'ANNUAIRE — le sélecteur de la carte « Médecins concernés ». Une lecture : nom, spécialité, établissement
- * (rien de la fiche). Deux lettres au moins ; 15 résultats, les plus proches du début du nom d'abord.
+ * CHERCHER DANS L'ANNUAIRE — la liste déroulante de la carte « Médecins concernés ». Une lecture : nom, spécialité,
+ * établissement (rien de la fiche).
+ *
+ * LA LISTE S'OUVRE SANS RIEN TAPER (recette 24/11/2026) : sans `q`, l'annuaire entier par ordre alphabétique ; avec `q`, ce qui
+ * le contient (nom, spécialité, établissement). Au plus `PLAFOND_ANNUAIRE` lignes — `tronque` dit qu'il y en a d'autres, et
+ * l'écran l'écrit au lieu de laisser croire que la liste est complète.
  */
-export async function chercherMedecinsAnnuaire(formData: FormData): Promise<{ id: string; nom: string; specialite: string | null; etablissement: string | null }[]> {
+export async function chercherMedecinsAnnuaire(formData: FormData): Promise<{
+  medecins: { id: string; nom: string; specialite: string | null; etablissement: string | null }[];
+  tronque: boolean;
+}> {
   await enLecture(requireUser);
   const q = (fdStr(formData, "q") ?? "").trim();
-  if (q.length < 2) return [];
   const rows = await prisma.medicalDoctor.findMany({
     where: {
       archivedAt: null,
-      OR: [
-        { name: { contains: q, mode: "insensitive" } },
-        { specialty: { contains: q, mode: "insensitive" } },
-        { specialtyRef: { name: { contains: q, mode: "insensitive" } } },
-        { institution: { contains: q, mode: "insensitive" } },
-        { institutionRef: { name: { contains: q, mode: "insensitive" } } },
-      ],
+      ...(q ? {
+        OR: [
+          { name: { contains: q, mode: "insensitive" as const } },
+          { specialty: { contains: q, mode: "insensitive" as const } },
+          { specialtyRef: { name: { contains: q, mode: "insensitive" as const } } },
+          { institution: { contains: q, mode: "insensitive" as const } },
+          { institutionRef: { name: { contains: q, mode: "insensitive" as const } } },
+        ],
+      } : {}),
     },
-    orderBy: { name: "asc" }, take: 15,
+    // Un de plus que le plafond : c'est lui qui dit que la liste est tronquée, sans compter tout l'annuaire.
+    orderBy: { name: "asc" }, take: PLAFOND_ANNUAIRE + 1,
     select: { id: true, name: true, specialty: true, institution: true, specialtyRef: { select: { name: true } }, institutionRef: { select: { name: true } } },
   });
-  return rows.map((d) => ({ id: d.id, nom: d.name, specialite: d.specialtyRef?.name ?? d.specialty ?? null, etablissement: d.institutionRef?.name ?? d.institution ?? null }));
+  return {
+    medecins: rows.slice(0, PLAFOND_ANNUAIRE).map((d) => ({
+      id: d.id, nom: d.name, specialite: d.specialtyRef?.name ?? d.specialty ?? null, etablissement: d.institutionRef?.name ?? d.institution ?? null,
+    })),
+    tronque: rows.length > PLAFOND_ANNUAIRE,
+  };
 }

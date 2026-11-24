@@ -404,6 +404,16 @@
   "annulation": "retour",
   "appelable": true
  },
+ "ad-pro-item-actions:choisirSocieteDuBcPoste": {
+  "risque": "R1",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
  "ad-pro-item-actions:confirmerMaterielStock": {
   "risque": "R2",
   "familles": [
@@ -808,6 +818,16 @@
   "annulation": "compensation",
   "appelable": true
  },
+ "ad-pro-medecins-actions:ajouterMedecinsConcernes": {
+  "risque": "R1",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "compensation",
+  "appelable": true
+ },
  "ad-pro-medecins-actions:chercherMedecinsAnnuaire": {
   "risque": "R0",
   "familles": [
@@ -895,6 +915,16 @@
   "simulable": "oui",
   "annulation": "compensation",
   "appelable": true
+ },
+ "ad-pro-postes-fichier-actions:proposerPostesDepuisFichier": {
+  "risque": "R1",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": false
  },
  "ad-pro-postes-luna-actions:proposerPostesDepuisDescription": {
   "risque": "R0",

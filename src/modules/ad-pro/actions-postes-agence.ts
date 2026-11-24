@@ -16,7 +16,7 @@ import { CHEMIN_BC_A_SIGNER } from "@/lib/bons-de-commande/aiguillage";
 import { etatDuBC } from "@/lib/bons-de-commande/etat";
 import { controleRenforce, REFUS_VUE_EXACTE } from "@/lib/signature-en-ligne/second-facteur";
 import { apposerSignatureEnLigne, enSuppleance, titreSignataire } from "@/lib/signature-en-ligne/signer-bc";
-import { PARENTS, revalidate, audit, loadItem, REFUS_HISTORIQUE, peutTrancherSur, refusAvantPrevalidation, refusDemandeFermee, devisDuPoste, estAssistanteDuPoste, ouvrirDeclarationSiPostesValides, refusPosteApresDeclaration, refusSiClos, reprojeterMontantDemande } from "./infra/postes/commun";
+import { PARENTS, revalidate, audit, loadItem, REFUS_HISTORIQUE, peutTrancherSur, refusAvantPrevalidation, refusDemandeFermee, devisDuPoste, estAssistanteDuPoste, ouvrirDeclarationSiPostesValides, signalerPostesALaDeclaration, refusSiClos, reprojeterMontantDemande } from "./infra/postes/commun";
 import { ecrireChoixDesAgences, defaireLesLignesRetenues, RefusChoixAgences } from "./infra/postes/scission-agence";
 import { devisDesPostes, refusCategoriePourLaDemande } from "@/modules/ad-pro/api";
 import { libellePosteScinde, lireLignesCochees, nomAgence, planDuChoix } from "./domaine/choix-agences";
@@ -63,9 +63,7 @@ export async function demanderProspection(formData: FormData): Promise<ActionRes
   if (avant) return { ok: false, error: avant };
   if (exec?.prospectionDemandeeAt) return { ok: false, error: "La prospection est déjà demandée pour ce poste." };
   if (!["DRAFT", "REVISION", "PENDING"].includes(item.status)) return { ok: false, error: "Ce poste est déjà décidé : la prospection n'a plus lieu d'être." };
-  // UN BROUILLON NE BLOQUE PAS LA DÉCLARATION (23/11/2026) — et ne s'y glisse donc plus une fois qu'elle est ouverte.
-  const declare = item.status === "DRAFT" ? await refusPosteApresDeclaration(owner.parent, owner.id) : null;
-  if (declare) return { ok: false, error: declare };
+  // UN POSTE TARDIF SE PROSPECTE AUSSI (recette 24/11/2026) : la déclaration ouverte, il la rejoindra une fois son agence choisie.
   const assistanteId = fdStr(formData, "assistanteId");
   const cahier = fdStr(formData, "cahierDesCharges");
   if (!assistanteId) return { ok: false, error: "Choisissez l'assistante de direction qui prospecte les agences." };
@@ -183,11 +181,8 @@ async function retenirLesAgences(formData: FormData, lire: LectureDuChoix): Prom
   // CE QUE LA DÉCISION REFUSERAIT se lit AVANT d'écrire : une scission ne doit pas naître pour un accord impossible.
   const avant = (await refusSiClos(owner.parent, owner.id, { partir: true })) ?? (await refusCategoriePourLaDemande(budgetCategoryId, owner.parent, owner.id));
   if (avant) return { ok: false, error: avant };
+  // UNE SCISSION SUR UNE DEMANDE DÉCLARÉE EST PERMISE (recette 24/11/2026) : les postes nés rejoignent la déclaration.
   const scission = plan.retenues.length > 1;
-  if (scission) {
-    const declare = await refusPosteApresDeclaration(owner.parent, owner.id);
-    if (declare) return { ok: false, error: `${declare} Retenez les lignes d'un seul devis.` };
-  }
 
   // a. Tout ou rien : les postes de la scission, les devis déplacés, les lignes cochées validées pour le poste de leur agence.
   let posteDe: Map<string, string>;
@@ -207,6 +202,7 @@ async function retenirLesAgences(formData: FormData, lire: LectureDuChoix): Prom
   // b. Chaque poste est accordé à son agence — l'origine d'abord (elle garde l'agence au plus gros total).
   const faits: string[] = [];
   const echecs: string[] = [];
+  const accordes: { id: string; label: string }[] = [];
   for (const [i, r] of plan.retenues.entries()) {
     const poste = i === 0
       ? { id: item.id, label: item.label, supplier: item.supplier }
@@ -230,13 +226,20 @@ async function retenirLesAgences(formData: FormData, lire: LectureDuChoix): Prom
     const brouillon = await preparerBrouillonPoste(fdBc);
     const bc = brouillon.ok ? "Le BC est chez l'assistante pour finalisation." : brouillon.error ?? "";
     await audit(user, owner.parent, owner.id, "UPDATE", `Agence retenue pour le poste « ${poste.label} » : ${r.agence} — ${accord.montant.toLocaleString("fr-FR")} DZD.`);
+    accordes.push({ id: poste.id, label: poste.label });
     faits.push(scission
       ? `« ${poste.label} » : ${r.agence} (${accord.montant.toLocaleString("fr-FR")} DZD)${brouillon.ok ? "" : ` — ${bc}`}.`
       : `Agence retenue : ${r.agence} (${accord.montant.toLocaleString("fr-FR")} DZD). ${bc}`.trim());
   }
-  // L'AGENCE CHOISIE VALIDE LE POSTE « AGENCE » : s'il était le dernier, la déclaration s'ouvre (Direction, 19/11/2026).
-  await ouvrirDeclarationSiPostesValides(owner.parent, owner.id)
-    .catch(sansBloquer("ad-pro.choisirAgencePoste.ouvrirDeclaration"));
+  // L'AGENCE CHOISIE VALIDE LE POSTE « AGENCE » — ses lignes retenues sont son devis validé : s'il était le dernier, la
+  // déclaration s'ouvre (Direction, 19/11/2026). Déjà ouverte, ce poste tardif la rejoint : son montant, et le pharmacien
+  // prévenu (recette 24/11/2026).
+  const ouverte = await ouvrirDeclarationSiPostesValides(owner.parent, owner.id)
+    .catch(sansBloquer("ad-pro.choisirAgencePoste.ouvrirDeclaration", null));
+  if (!ouverte && accordes.length > 0) {
+    await signalerPostesALaDeclaration(owner.parent, owner.id, { moment: "DEVIS", ref: c.info.ref, postes: accordes })
+      .catch(sansBloquer("ad-pro.choisirAgencePoste.signalerDeclaration"));
+  }
   revalidate(owner.parent, owner.id);
   revalidatePath("/agences");
   const tete = scission ? `Poste scindé en ${plan.retenues.length} postes, un BC par agence.` : "";

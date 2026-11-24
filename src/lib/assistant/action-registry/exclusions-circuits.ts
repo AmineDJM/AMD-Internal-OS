@@ -241,6 +241,9 @@ export function classerExclusionsCircuits(): void {
     // attribue le numéro NNN/DG/AAAA et envoie aux Finances (`validerEtEnvoyerBcPoste`). Des gestes d'écran, jamais des appels d'Adam.
     "ad-pro-item-actions:apercuBcPoste", "ad-pro-item-actions:modifierApercuBcPoste", "ad-pro-item-actions:annulerApercuBcPoste",
     "ad-pro-item-actions:validerEtEnvoyerBcPoste",
+    // LA SOCIÉTÉ QUI COMMANDE, choisie dans l'aperçu quand ni la demande ni la fiche salarié du demandeur ne la disent (recette
+    // 24/11/2026) — un geste d'écran devant l'aperçu, pas un appel d'Adam.
+    "ad-pro-item-actions:choisirSocieteDuBcPoste",
     // L'APERÇU OBLIGATOIRE ET ULTRA COMPLET (Direction, 14/10/2026) : l'aperçu se corrige dans le composeur de pièces, qui en lit les
     // totaux (`previsualiserApercuBcPoste`) et le PDF (`imprimerApercuBcPoste`) à blanc — des lectures d'écran, pas des gestes d'Adam.
     // Le geste « en un clic » qui émettait sans aperçu est retiré : un seul chemin, Générer → aperçu → Valider et envoyer.

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Plus, Loader2, CheckCircle2, AlertTriangle, ExternalLink, Send, ThumbsUp, ThumbsDown, RotateCcw, X, Split, FileCheck2, Sparkles } from "lucide-react";
+import { Plus, Loader2, CheckCircle2, AlertTriangle, ExternalLink, Send, ThumbsUp, ThumbsDown, RotateCcw, X, Split, FileCheck2 } from "lucide-react";
 import type { AdProItemKind, AdProItemStatus } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils";
@@ -22,6 +22,7 @@ import type { ItemRow, Run } from "../items-panel";
 import type { PosteFrere } from "./poste-carte";
 import { estPosteStock, RANGEE_ACTIONS } from "./elements";
 import { PieceDeLAccordDirect } from "./accord-direct";
+import { BandeauLecture, MarqueIa } from "./depot-devis";
 import { sansBonDeCommande } from "../../domaine/poste-etapes";
 
 // Les petits formulaires de la carte d'un poste : décision, demande et visa du BC, pièces, secrétariat,
@@ -232,24 +233,20 @@ export function VerifierBC({ demandeId, busy, onDecide, onCancel }: {
 }
 
 /**
- * DÉPOSER UNE PIÈCE SUR LE POSTE — un devis / une pro forma (`ajouterDevisPoste`), ou la facture qui
- * demande le paiement (`demanderPaiementPoste`). Le fichier est toujours exigé (l'action le refuse aussi).
+ * DÉPOSER UNE PIÈCE SUR LE POSTE — la facture qui demande le paiement (`demanderPaiementPoste`), ou une pièce unique
+ * (`ajouterDevisPoste`). Le fichier est toujours exigé (l'action le refuse aussi). LES DEVIS D'UN POSTE, UNE CARTE PAR
+ * FICHIER (recette 24/11/2026), ont leur propre formulaire : `DepotDevis` (`depot-devis.tsx`).
  */
 export function FormulairePiece({
   titre, aide, bouton, busy, onSubmit, onCancel, montantInitial, montantMax = null, montantObligatoire = false,
   fournisseurInitial, proforma, freres = [], libelleFichier = "Fichier", fichierObligatoire = true, factureFacultative = false,
-  plusieursDevis = false, lirePoste,
+  lirePoste,
 }: {
   /**
    * LE DEVIS SE LIT DÈS QU'IL EST CHOISI (Direction, 16/11/2026) : l'IA remplit fournisseur, montant et référence, chaque
    * champ marqué « Lu par l'IA » — l'id du poste (les portes du dépôt). Absent : pas de lecture avant le dépôt.
    */
   lirePoste?: string;
-  /**
-   * DÉPÔT DE DEVIS : plusieurs fichiers joints d'un coup sont, d'office, PLUSIEURS devis — chacun lu et transformé en lignes
-   * (`ajouterDevisPoste`, `unDevisParFichier`). La case se décoche quand les fichiers sont les pages d'un même devis.
-   */
-  plusieursDevis?: boolean;
   titre: string; aide: string; bouton: string; busy: boolean; onSubmit: (fd: FormData) => void; onCancel: () => void;
   montantInitial: number | null; montantMax?: number | null; montantObligatoire?: boolean;
   /** Ce que le fichier principal EST (« Proforma / lettre de demande de sponsoring » pour un versement à l'association). */
@@ -266,9 +263,6 @@ export function FormulairePiece({
   freres?: PosteFrere[];
 }) {
   const champ = "mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-2 text-base outline-none focus:border-primary/60 sm:py-1.5 sm:text-sm";
-  const [nbFichiers, setNbFichiers] = React.useState(0);
-  const [unParFichier, setUnParFichier] = React.useState(true);
-  const separes = plusieursDevis && nbFichiers > 1 && unParFichier;
   const montantRef = React.useRef<HTMLInputElement>(null);
   const referenceRef = React.useRef<HTMLInputElement>(null);
   const touches = React.useRef(new Set<string>());
@@ -297,9 +291,7 @@ export function FormulairePiece({
     setLuParIa(lus);
     setLecture({ etat: "lu", phrase: r.phrase });
   };
-  const marque = (cle: string) => luParIa.has(cle) && (
-    <span className="ml-1 inline-flex items-center gap-0.5 text-[11px] text-luna"><Sparkles className="h-3 w-3" /> Lu par l&apos;IA</span>
-  );
+  const marque = (cle: string) => luParIa.has(cle) && <MarqueIa />;
   const toucher = (cle: string) => () => { touches.current.add(cle); setLuParIa((s) => { const n = new Set(s); n.delete(cle); return n; }); };
   return (
     <form
@@ -314,27 +306,13 @@ export function FormulairePiece({
           type="file" name="attachment" multiple required={fichierObligatoire} className="mt-1 block w-full text-xs"
           onChange={(e) => {
             const n = e.target.files?.length ?? 0;
-            setNbFichiers(n);
-            // UN devis à la fois se lit dans le formulaire ; plusieurs devis séparés se lisent chacun au dépôt.
+            // UNE pièce se lit dans le formulaire ; plusieurs fichiers sont les pages d'une même pièce (le dépôt lit la première).
             if (n === 1 && e.target.files?.[0]) void lire(e.target.files[0]);
             else setLecture(null);
           }}
         />
       </label>
-      {lecture && (
-        <p className={`flex items-start gap-1.5 rounded-md px-2 py-1.5 ${lecture.etat === "echec" ? "bg-warning/10 text-foreground" : "bg-luna/10 text-foreground"}`}>
-          {lecture.etat === "lecture" ? <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-luna" /> : <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-luna" />}
-          <span>{lecture.phrase}</span>
-        </p>
-      )}
-      {plusieursDevis && nbFichiers > 1 && (
-        <label className="inline-flex min-h-9 items-start gap-1.5 sm:min-h-0">
-          <input type="checkbox" name="unDevisParFichier" checked={unParFichier} onChange={(e) => setUnParFichier(e.target.checked)} className="mt-0.5" />
-          <span>
-            Un devis par fichier ({nbFichiers} devis) — chacun est lu et transformé en lignes. Décochez si ces fichiers sont les pages d&apos;un même devis.
-          </span>
-        </label>
-      )}
+      {lecture && <BandeauLecture etat={lecture.etat} phrase={lecture.phrase} />}
       {factureFacultative && (
         <label className="block">
           Facture — facultative
@@ -342,23 +320,18 @@ export function FormulairePiece({
         </label>
       )}
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        {/* Plusieurs devis d'un coup : le montant et la référence se lisent sur CHACUN — un champ unique serait faux pour tous. */}
-        {!separes && (
-          <>
-            <label>
-              Montant (DZD){montantObligatoire ? "" : " — facultatif"}{marque("montant")}
-              <input
-                ref={montantRef} onInput={toucher("montant")}
-                type="number" inputMode="decimal" name="montant" min="0" step="0.01" required={montantObligatoire}
-                max={montantMax ?? undefined} defaultValue={montantInitial ?? ""} className={`${champ} tabular-nums`}
-              />
-            </label>
-            <label>
-              Référence — facultatif{marque("reference")}
-              <input ref={referenceRef} onInput={toucher("reference")} name="reference" placeholder="N° de la pièce" className={champ} />
-            </label>
-          </>
-        )}
+        <label>
+          Montant (DZD){montantObligatoire ? "" : " — facultatif"}{marque("montant")}
+          <input
+            ref={montantRef} onInput={toucher("montant")}
+            type="number" inputMode="decimal" name="montant" min="0" step="0.01" required={montantObligatoire}
+            max={montantMax ?? undefined} defaultValue={montantInitial ?? ""} className={`${champ} tabular-nums`}
+          />
+        </label>
+        <label>
+          Référence — facultatif{marque("reference")}
+          <input ref={referenceRef} onInput={toucher("reference")} name="reference" placeholder="N° de la pièce" className={champ} />
+        </label>
         {fournisseurInitial !== undefined && (
           <label className="sm:col-span-2">
             Fournisseur — facultatif

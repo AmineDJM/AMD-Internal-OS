@@ -5,7 +5,7 @@ import { requireUser } from "@/lib/session";
 import type { SessionUser } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/utils";
-import { moneyEntityOf } from "@/lib/company";
+import { getCompanies, moneyEntityOf } from "@/lib/company";
 import { notifyRoles } from "@/lib/notify";
 import { type AdProParent, sansBonDeCommande, noteApresCorrection, refusChangementDeValidation, refusEditionDesLignes, refusGenerationBC, refusTauxDuDevis, type LigneDevisPoste } from "@/modules/ad-pro/partage";
 import { enSerie } from "@/lib/refs";
@@ -24,7 +24,7 @@ import { papeterieDeLaSociete } from "@/lib/queries/letterheads";
 import { saisieEffective } from "@/lib/references/registre";
 import { apercuPourEcran, type ApercuPiece } from "@/platform/ia/artifact/factory";
 import { sansBloquer } from "@/lib/journal";
-import { PARENTS, revalidate, canEditItems, canAllocate, audit, refusDemandeFermee, loadItem, REFUS_HISTORIQUE, lireModificationsDuBc, filePoste, devisDuPoste, peutTrancherSur, estAssistanteDuPoste } from "./infra/postes/commun";
+import { PARENTS, revalidate, canEditItems, canAllocate, audit, refusDemandeFermee, loadItem, REFUS_HISTORIQUE, lireModificationsDuBc, filePoste, devisDuPoste, peutTrancherSur, estAssistanteDuPoste, ouvrirDeclarationSiPostesValides, posteCompteDansLaDeclaration, reporterLesPostesDeclares, signalerPostesALaDeclaration } from "./infra/postes/commun";
 import type { AdProItemKind } from "@prisma/client";
 import { notifyUser } from "@/lib/notify";
 import { lienPosteAdPro, lienPosteAssistante } from "@/lib/chemins/ad-pro";
@@ -81,6 +81,8 @@ export async function validerLignesDuDevis(formData: FormData): Promise<ActionRe
   const { id, pieceId, item, owner, info } = cadre;
   const demandees = new Set(formData.getAll("ligneId").map((x) => String(x).trim()).filter(Boolean));
   const compare = fdCase(formData, "compare") === true;
+  // DÉCLARÉ AVANT LE GESTE ? (recette 24/11/2026) — un poste qui ne l'était pas et le devient rejoint la déclaration ouverte.
+  const declareAvant = await posteCompteDansLaDeclaration(id).catch(sansBloquer("ad-pro.validerLignesDuDevis.declareAvant", true));
   const r = await chez(id, pieceId, async (): Promise<ActionResult> => {
     const devis = await devisDuPoste(id, pieceId);
     if (!devis) return { ok: false, error: "Ce devis n'est plus rattaché à ce poste : rechargez la fiche." };
@@ -131,8 +133,20 @@ export async function validerLignesDuDevis(formData: FormData): Promise<ActionRe
       message: `${apres?.nbValidees ?? 0} ligne${(apres?.nbValidees ?? 0) > 1 ? "s" : ""} validée${(apres?.nbValidees ?? 0) > 1 ? "s" : ""} pour ce poste (${(apres?.entete.tvaRate === null ? (apres?.totalValideHt ?? 0) : (apres?.totalValideTtc ?? 0)).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD ${apres?.entete.tvaRate === null ? "HT, TVA non indiquée" : "TTC"}).${suite}`,
     };
   });
-  // LE BROUILLON EXCEL NAÎT DE LA VALIDATION (Direction, 11/2026) — ou se refait, ou disparaît avec la dernière ligne décochée.
   if (!r.ok) return r;
+  // LE DEVIS VALIDÉ PAR LA DIRECTION MARKETING OUVRE LA DÉCLARATION (recette 24/11/2026) : l'information médicale attend
+  // que chaque poste soit accordé ET son devis validé — c'est d'ordinaire ce geste-ci, sur le dernier poste, qui l'ouvre.
+  // Déjà ouverte, un poste tardif qui devient prêt la rejoint : son montant, et le pharmacien prévenu. Rien de bloquant.
+  const ouverte = await ouvrirDeclarationSiPostesValides(owner.parent, owner.id)
+    .catch(sansBloquer("ad-pro.validerLignesDuDevis.ouvrirDeclaration", null));
+  if (!ouverte && !declareAvant) {
+    await signalerPostesALaDeclaration(owner.parent, owner.id, { moment: "DEVIS", ref: info.ref, postes: [{ id, label: item.label }] })
+      .catch(sansBloquer("ad-pro.validerLignesDuDevis.signalerDeclaration"));
+  } else if (!ouverte) {
+    // Déjà déclaré : décocher toutes ses lignes le sort de ce qui est déclaré — le montant suit les postes prêts.
+    await reporterLesPostesDeclares(owner.parent, owner.id).catch(sansBloquer("ad-pro.validerLignesDuDevis.reporterDeclaration"));
+  }
+  // LE BROUILLON EXCEL NAÎT DE LA VALIDATION (Direction, 11/2026) — ou se refait, ou disparaît avec la dernière ligne décochée.
   const brouillon = await preparerLesBrouillons(user, { item, owner }, info).catch((e) => {
     console.error("[ad-pro] BC à vérifier du devis", e);
     return "Le brouillon du bon de commande n'a pas pu être préparé : « Préparer le brouillon » le relance.";
@@ -458,12 +472,9 @@ async function traiterLeBCDuPoste(formData: FormData, mode: "APERCU" | "VALIDER"
       const t = await tiersDuDevis(d, poste.supplier);
       if (!t.ok && !corrections.tiers?.nom) return { ok: false, error: `${d.reference ?? d.titre} : ${t.error}` };
     }
-    const societe = info.companyId ?? (await moneyEntityOf(info.requesterId ?? user.id));
-    if (!societe) {
-      return { ok: false, error: "La société qui commande est introuvable : la demande n'en nomme aucune, et la fiche salarié de son demandeur non plus. Renseignez la société du demandeur (RH › fiche salarié), puis relancez." };
-    }
-
     // ── L'APERÇU : un BROUILLON sur chaque devis, et RIEN d'autre — ni numéro, ni pièce, ni marche, ni Finances. ──
+    // Il ne compose rien : une société qui commande inconnue se CHOISIT dans l'aperçu (`choisirSocieteDuBcPoste`), elle ne
+    // l'empêche pas de naître (recette 24/11/2026). C'est l'ÉMISSION, plus bas, qui l'exige.
     if (mode === "APERCU") {
       const maintenant = new Date();
       for (const d of aFaire) {
@@ -478,6 +489,9 @@ async function traiterLeBCDuPoste(formData: FormData, mode: "APERCU" | "VALIDER"
         message: `${ETIQUETTE_BROUILLON} — ${aFaire.length} aperçu${aFaire.length > 1 ? "s" : ""} prêt${aFaire.length > 1 ? "s" : ""} : relisez, corrigez au besoin, puis « Valider et envoyer aux Finances ». Le numéro n'est attribué qu'à la validation.${qui}`,
       };
     }
+
+    const societe = await societeDeLaDemande(info, user);
+    if (!societe) return { ok: false, error: SOCIETE_A_CHOISIR.replace("ci-dessous", "dans l'aperçu du BC (« Vérifier, modifier et valider »)") };
 
     // LA MARCHE DU POSTE, comme une demande de BC — puis la composition. Prise avant : les BC lisent cette porte en naissant.
     let marche: { sousLeSeuil: boolean; seuilBC: number } | null = null;
@@ -693,8 +707,22 @@ export async function historiqueBrouillonBcPoste(formData: FormData): Promise<{ 
 
 // ═══════════════ L'APERÇU DU BC — relu, corrigé, régénéré par le demandeur avant d'être validé ═══════════════
 
-/** Le devis, son brouillon et le poste, lus sous la file du devis — ce que l'aperçu, sa correction et son retrait partagent. */
-async function brouillonDuDevis(user: SessionUser, formData: FormData, ecriture: boolean) {
+/**
+ * LA SOCIÉTÉ QUI COMMANDE N'EST PAS CONNUE — la demande n'en nomme aucune, et son demandeur n'a pas de fiche salarié qui la dise
+ * (un compte hors de l'annuaire RH : le Super Admin, un prestataire). Ce n'est plus une impasse (recette 24/11/2026) : la personne
+ * qui prépare le BC la choisit dans l'aperçu (`choisirSocieteDuBcPoste`).
+ */
+const SOCIETE_A_CHOISIR = "La société qui commande n'est pas connue : la demande n'en nomme aucune, et son demandeur n'a pas de fiche salarié dans l'annuaire RH. Choisissez-la ci-dessous — elle sera inscrite sur la demande et portée par tous ses bons de commande.";
+
+/** La société qui commande pour cette demande — `null` : à choisir (`SOCIETE_A_CHOISIR`). */
+const societeDeLaDemande = async (info: { companyId?: string | null; requesterId?: string | null }, user: SessionUser) =>
+  info.companyId ?? (await moneyEntityOf(info.requesterId ?? user.id));
+
+/**
+ * Le devis, son brouillon et le poste, lus sous la file du devis — ce que l'aperçu, sa correction et son retrait partagent.
+ * `exigerSociete` à `false` : le RETRAIT de l'aperçu ne compose rien, il ne bute pas sur une société inconnue.
+ */
+async function brouillonDuDevis(user: SessionUser, formData: FormData, ecriture: boolean, exigerSociete = true) {
   const cadre = await cadreDesLignes(user, formData);
   if ("error" in cadre) return { error: cadre.error } as const;
   const { id, pieceId, item, owner, info } = cadre;
@@ -705,9 +733,9 @@ async function brouillonDuDevis(user: SessionUser, formData: FormData, ecriture:
   const devis = await devisDuPoste(id, pieceId);
   if (!devis) return { error: "Ce devis n'est plus rattaché à ce poste : rechargez la fiche." } as const;
   if (!devis.brouillon) return { error: "Il n'y a pas d'aperçu de bon de commande pour ce devis : générez-le d'abord (« Générer le bon de commande »)." } as const;
-  const societe = info.companyId ?? (await moneyEntityOf(info.requesterId ?? user.id));
-  if (!societe) return { error: "La société qui commande est introuvable : renseignez la société du demandeur (RH › fiche salarié)." } as const;
-  const poste = { item: { id, label: item.label, kind: item.kind, supplier: item.supplier, amountGranted: item.amountGranted != null ? toNumber(item.amountGranted) : null }, ref: info.ref, societe };
+  const societe = await societeDeLaDemande(info, user);
+  if (!societe && exigerSociete) return { error: SOCIETE_A_CHOISIR, societeAChoisir: true } as const;
+  const poste = { item: { id, label: item.label, kind: item.kind, supplier: item.supplier, amountGranted: item.amountGranted != null ? toNumber(item.amountGranted) : null }, ref: info.ref, societe: societe ?? "" };
   return { id, pieceId, item, owner, info, devis, brouillon: devis.brouillon as BrouillonBc, poste } as const;
 }
 
@@ -718,7 +746,44 @@ export type ApercuBcPoste =
     /** Le nom de la société qui commande, telle que le composeur l'affiche. */
     societeNom: string;
   })
-  | { ok: false; error: string };
+  /** `societes` : la société qui commande est à choisir — les sociétés actives du groupe, à proposer. */
+  | { ok: false; error: string; societes?: { id: string; label: string }[] };
+
+/**
+ * CHOISIR LA SOCIÉTÉ QUI COMMANDE (recette 24/11/2026) — quand ni la demande ni la fiche salarié de son demandeur ne la disent.
+ * Elle s'inscrit UNE fois sur la DEMANDE (tous ses bons de commande la portent, et ses vues cloisonnées la rangent), et seulement
+ * si la demande n'en a pas : une société déjà posée ne se change pas d'ici. Même porte que la correction de l'aperçu : la
+ * personne qui a ajouté le devis (ou le Super Admin).
+ */
+export async function choisirSocieteDuBcPoste(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  const cadre = await cadreDesLignes(user, formData);
+  if ("error" in cadre) return { ok: false, error: cadre.error ?? "Le devis du poste n'a pas pu être lu : rien n'a été modifié." };
+  const { id, pieceId, item, owner, info } = cadre;
+  const deposant = await deposantDuDevis(id, pieceId);
+  if (!peutModifierLeBcDuPoste({ userId: user.id, role: user.role, secondaryRole: user.secondaryRole, deposeParId: deposant?.id })) return { ok: false, error: REFUS_MODIFICATION_BC_POSTE };
+  const companyId = fdStr(formData, "companyId");
+  if (!companyId) return { ok: false, error: "Choisissez la société qui commande." };
+  const societe = (await getCompanies()).find((c) => c.id === companyId);
+  if (!societe) return { ok: false, error: "Cette société n'existe pas ou n'est plus active : choisissez-en une autre." };
+  if (info.companyId) {
+    return info.companyId === companyId
+      ? { ok: true, id, message: "Cette société est déjà celle de la demande." }
+      : { ok: false, error: "La demande nomme déjà sa société : elle ne se change pas depuis le bon de commande. Rechargez la fiche." };
+  }
+  const where = { id: owner.id, companyId: null };
+  const data = { companyId };
+  const posee = owner.parent === "SPONSORING" ? await prisma.sponsoringRequest.updateMany({ where, data })
+    : owner.parent === "CONGRESS_NATIONAL" ? await prisma.congressNational.updateMany({ where, data })
+    : owner.parent === "CONGRESS_INTERNATIONAL" ? await prisma.congressInternational.updateMany({ where, data })
+    : owner.parent === "EVENT" ? await prisma.event.updateMany({ where, data })
+    : await prisma.adProOtherRequest.updateMany({ where, data });
+  if (posee.count === 0) return { ok: false, error: "La demande a reçu une société entre-temps : rechargez la fiche." };
+  const nom = societe.shortName ?? societe.name;
+  await audit(user, owner.parent, owner.id, "UPDATE", `Société qui commande choisie depuis le bon de commande du poste « ${item.label} » : ${nom} (la demande n'en nommait aucune, et son demandeur n'a pas de fiche salarié).`);
+  revalidate(owner.parent, owner.id);
+  return { ok: true, id, message: `${nom} est la société qui commande : elle est inscrite sur la demande et portée par ses bons de commande.` };
+}
 
 /**
  * L'APERÇU DU BC — le PDF tel qu'il sera imprimé, rendu à blanc, avec le numéro « À attribuer à la validation » : aucun numéro
@@ -729,7 +794,12 @@ export async function apercuBcPoste(formData: FormData): Promise<ApercuBcPoste> 
   if (!fdStr(formData, "id") || !fdStr(formData, "pieceId")) return { ok: false, error: "Poste ou devis non précisé." };
   const user = await requireUser();
   const lu = await brouillonDuDevis(user, formData, false);
-  if ("error" in lu) return { ok: false, error: lu.error ?? "Le devis du poste n'a pas pu être lu : rien n'a été modifié." };
+  if ("error" in lu) {
+    if ("societeAChoisir" in lu) {
+      return { ok: false, error: lu.error ?? SOCIETE_A_CHOISIR, societes: (await getCompanies()).map((c) => ({ id: c.id, label: c.shortName ?? c.name })) };
+    }
+    return { ok: false, error: lu.error ?? "Le devis du poste n'a pas pu être lu : rien n'a été modifié." };
+  }
   const r = await apercuDuBC(user, lu.poste, lu.devis, lu.brouillon);
   if (!r.ok) return r;
   return { ...r, papeterie: await papeterieDeLaSociete(r.societeId), societeNom: r.ecran.societe.nom };
@@ -818,7 +888,7 @@ async function ecrireApercuBcPoste(formData: FormData): Promise<ActionResult> {
 export async function annulerApercuBcPoste(formData: FormData): Promise<ActionResult> {
   if (!fdStr(formData, "id") || !fdStr(formData, "pieceId")) return { ok: false, error: "Poste ou devis non précisé." };
   const user = await requireUser();
-  const lu = await brouillonDuDevis(user, formData, true);
+  const lu = await brouillonDuDevis(user, formData, true, false);
   if ("error" in lu) return { ok: false, error: lu.error ?? "Le devis du poste n'a pas pu être lu : rien n'a été modifié." };
   const { id, pieceId, item, owner, devis } = lu;
   return chez(id, pieceId, async () => {

@@ -27,7 +27,7 @@ import { devisDesPostes } from "./devis-poste";
 import { agencesDesPostes } from "./agence";
 import { hasRole } from "@/lib/rbac/roles";
 import { etatSignatureEnLigne } from "@/lib/signature-en-ligne/etat";
-import { PARENTS, modereLaDemande, refusAvantPrevalidation, refusPosteApresDeclaration } from "../postes/commun";
+import { PARENTS, modereLaDemande, refusAvantPrevalidation } from "../postes/commun";
 import { suitSansDetails } from "../../domaine/suivi-delegue";
 import type { SignaturePrete } from "@/lib/signature-en-ligne/partage";
 import { droitsValidation, type DroitsValidation } from "../../domaine/validation-poste";
@@ -533,9 +533,9 @@ export interface ContextePostes {
   /** Le délégué médical suit ses postes sans les détails. */
   suiviSimple: boolean;
   /**
-   * LA DEMANDE NE PREND PAS DE POSTE (recette, 21/11/2026) : avant la prévalidation de la Direction Marketing, ou une fois
-   * ses postes déclarés à l'information médicale. La phrase de l'action (`refusAjoutDePoste`), pour que l'écran n'offre pas
-   * un bouton refusé.
+   * LA DEMANDE NE PREND PAS DE POSTE (recette, 21/11/2026) : avant la prévalidation de la Direction Marketing. Une demande
+   * déclarée à l'information médicale en prend encore (recette 24/11/2026 : un poste tardif rejoint la déclaration). La
+   * phrase de l'action (`refusAjoutDePoste`), pour que l'écran n'offre pas un bouton refusé.
    */
   ajoutFerme: string | null;
   /** Modère la discussion des postes (le message d'un autre) — `canModerateEntity`, la porte des actions canoniques. */
@@ -553,15 +553,12 @@ const DEMANDEUR_DE: Record<AdProParent, (id: string) => Promise<string | null>> 
 /**
  * POURQUOI LA DEMANDE NE PREND PAS DE POSTE MAINTENANT — les mêmes refus que `addAdProItem`, dans le même ordre, pour que
  * l'écran n'offre pas « Ajouter un poste » que l'action refuserait : avant la prévalidation de la Direction Marketing (recette
- * du 21/11/2026 : le N+1 le voyait sur une demande renvoyée au délégué), puis une fois les postes déclarés.
+ * du 21/11/2026 : le N+1 le voyait sur une demande renvoyée au délégué). Plus aucun refus une fois les postes déclarés
+ * (recette 24/11/2026) : un poste tardif passe l'accord et le devis, puis rejoint la déclaration.
  */
 async function refusAjoutDePoste(parent: AdProParent, parentId: string): Promise<string | null> {
   const info = await PARENTS[parent].load(parentId);
-  if (info && !info.clos) {
-    const avant = refusAvantPrevalidation(info);
-    if (avant) return avant;
-  }
-  return refusPosteApresDeclaration(parent, parentId);
+  return info && !info.clos ? refusAvantPrevalidation(info) : null;
 }
 
 export async function contextePostes(user: SessionUser, parent: AdProParent, parentId: string): Promise<ContextePostes> {

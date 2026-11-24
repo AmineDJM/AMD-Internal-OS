@@ -398,12 +398,14 @@ suite("Sponsoring — pré-validation de la tenue, postes, validation finale et 
     expect(spo.status).toBe("PRE_VALIDATED");
     expect(spo.amountGranted).toBeNull();
     expect(spo.closedAt).toBeNull();
-    // LES POSTES SONT DÉCLARÉS ENSEMBLE (Direction, 19/11/2026) : une fois la déclaration d'information médicale ouverte —
-    // tous les postes validés —, même rouverte, la demande ne prend plus de poste. Sans déclaration, elle en reprend.
-    const declaree = await prisma.medicalInfoDeclaration.findUnique({ where: { sourceType_sourceId: { sourceType: "SPONSORING", sourceId: spoId } }, select: { id: true } });
+    // UN POSTE TARDIF EST TOUJOURS PERMIS (recette 24/11/2026) : rouverte, la demande reprend des postes — même déclarée à
+    // l'information médicale (ici, sa déclaration est déjà VALIDÉE : son montant ne bouge pas, le pharmacien est prévenu).
+    const declaree = await prisma.medicalInfoDeclaration.findUnique({ where: { sourceType_sourceId: { sourceType: "SPONSORING", sourceId: spoId } }, select: { amount: true, status: true } });
+    expect(declaree?.status, "PRÉMISSE : la déclaration est validée (cas précédent)").toBe("VALIDATED");
     const ajout = await addAdProItem(undefined, fd({ parent: "SPONSORING", parentId: spoId, label: `${TAG}Traiteur`, kind: "CATERING", amountEstimated: "10000" }));
-    if (declaree) expect(ajout.ok === false ? ajout.error : "", "déclarée : plus de poste").toMatch(/déclarés à l'information médicale/);
-    else expect(ajout.ok, ajout.ok === false ? ajout.error : "").toBe(true);
+    expect(ajout.ok, ajout.ok === false ? ajout.error : "").toBe(true);
+    const apres = await prisma.medicalInfoDeclaration.findUniqueOrThrow({ where: { sourceType_sourceId: { sourceType: "SPONSORING", sourceId: spoId } }, select: { amount: true } });
+    expect(Number(apres.amount), "une déclaration validée n'est pas réécrite").toBe(Number(declaree?.amount));
   });
 
   it("DEUX CLICS SIMULTANÉS ne clôturent qu'une fois — l'écriture est conditionnelle au statut qu'elle lit", async () => {
@@ -413,15 +415,13 @@ suite("Sponsoring — pré-validation de la tenue, postes, validation finale et 
     // deux notifications et deux lignes d'audit. Correcte, la garde ne peut pas rendre ce cas
     // rouge quel que soit l'entrelacement ; sabotée, elle le rend rouge dès que les deux lectures
     // précèdent la première écriture, ce qui est le cas ordinaire.
-    // Le traiteur (s'il a pu s'ajouter : sans déclaration ouverte) se SOUMET puis la Direction Marketing le refuse (un seul
-    // temps, 27/10/2026) — la vraie voie, pas un refus posé sur un brouillon.
-    const traiteur = await prisma.adProItem.findFirst({ where: { sponsoringId: spoId, label: `${TAG}Traiteur` } });
-    if (traiteur) {
-      ACTOR = await actorFor(demandeurId, "DIRECTION_ASSISTANT");
-      expect((await submitAdProItem(undefined, fd({ id: traiteur.id }))).ok).toBe(true);
-      ACTOR = await actorFor(dm2Id, "PRODUCT_MANAGER");
-      expect((await decideAdProItem(undefined, fd({ id: traiteur.id, decision: "REJECTED", note: "Hors budget" }))).ok).toBe(true);
-    }
+    // Le traiteur (poste tardif, ajouté à la demande déclarée — recette 24/11/2026) se SOUMET puis la Direction Marketing le
+    // refuse (un seul temps, 27/10/2026) — la vraie voie, pas un refus posé sur un brouillon.
+    const traiteur = await prisma.adProItem.findFirstOrThrow({ where: { sponsoringId: spoId, label: `${TAG}Traiteur` } });
+    ACTOR = await actorFor(demandeurId, "DIRECTION_ASSISTANT");
+    expect((await submitAdProItem(undefined, fd({ id: traiteur.id }))).ok).toBe(true);
+    ACTOR = await actorFor(dm2Id, "PRODUCT_MANAGER");
+    expect((await decideAdProItem(undefined, fd({ id: traiteur.id, decision: "REJECTED", note: "Hors budget" }))).ok).toBe(true);
     ACTOR = await actorFor(dmId, "PRODUCT_MANAGER");
     const avant = await prisma.auditLog.count({ where: { entityId: spoId, action: "VALIDATE" } });
     const [a, b] = await Promise.all([cloturerSponsoring(fd({ id: spoId })), cloturerSponsoring(fd({ id: spoId }))]);

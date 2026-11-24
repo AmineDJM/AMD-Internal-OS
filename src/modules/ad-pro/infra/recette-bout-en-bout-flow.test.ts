@@ -72,7 +72,8 @@ import { lirePorteDg } from "./porte-dg";
  *   8. centre de paiement : le DG autorise, les Finances règlent ; branche du refus ;
  *   9. Legal : dossier « Événements › <année> › <nom> », recherche « BC <mot> » ;
  *  10. un poste DIRECT (association) : pro forma, paiement ;
- *  11. la déclaration d'information médicale s'ouvre quand tous les postes sont validés (un brouillon la retient : il est retiré).
+ *  11. la déclaration d'information médicale s'ouvre quand tous les postes sont prêts — accordés, devis validé (le choix de
+ *      l'agence valide les lignes retenues ; le versement direct n'a pas de devis) ; un brouillon la retient : il est retiré.
  *
  * Le seuil des BC (`AppSetting.bcValidationThreshold`) est posé à 1 000 000 DZD pour la durée du banc, puis rendu.
  * ═══════════════════════════════════════════════════════════════════════════════════════════

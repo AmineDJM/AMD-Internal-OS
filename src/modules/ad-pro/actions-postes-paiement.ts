@@ -231,13 +231,16 @@ export async function retirerDevisDuPoste(_prev: ActionResult | undefined, formD
   // L'ASSISTANTE CHARGÉE DE LA PROSPECTION retire un devis qu'elle a déposé par erreur (en double, mal lu) — tant qu'elle
   // n'a pas transmis les devis à la Direction Marketing : après, c'est la liste que la Direction compare (recette, 18/11/2026).
   const execution = await prisma.adProExecutionPoste.findUnique({ where: { itemId: id }, select: { assistanteId: true, devisTransmisAt: true, agenceDevisId: true } });
+  const lien = await prisma.adProItemPiece.findFirst({ where: { itemId: id, legalDocumentId: pieceId, nature: "DEVIS" }, select: { id: true, createdById: true } });
   if (!canEditItems(user, owner.parent) && !canAllocate(user, owner.parent)) {
-    if (!execution?.assistanteId || execution.assistanteId !== user.id) return { ok: false, error: "Non autorisé." };
-    if (execution.devisTransmisAt) return { ok: false, error: "Les devis sont transmis à la Direction Marketing : demandez-lui de retirer celui-ci." };
+    // LA PERSONNE QUI A AJOUTÉ LE DEVIS le supprime aussi (recette 24/11/2026) — un devis déposé par le secrétariat, en double
+    // ou mal lu, ne reste plus faute de bouton. Même borne que l'assistante : pas après la transmission à la Direction.
+    const sien = Boolean(lien?.createdById && lien.createdById === user.id);
+    if (!sien && (!execution?.assistanteId || execution.assistanteId !== user.id)) return { ok: false, error: "Non autorisé." };
+    if (execution?.devisTransmisAt) return { ok: false, error: "Les devis sont transmis à la Direction Marketing : demandez-lui de retirer celui-ci." };
   }
   // LE DEVIS RETENU ne se retire pas : il porte le montant accordé et le bon de commande à venir.
   if (execution?.agenceDevisId === pieceId) return { ok: false, error: "C'est le devis retenu pour ce poste : il ne se retire pas." };
-  const lien = await prisma.adProItemPiece.findFirst({ where: { itemId: id, legalDocumentId: pieceId, nature: "DEVIS" }, select: { id: true } });
   if (!lien) return { ok: false, error: "Ce devis n'est pas rattaché à ce poste." };
   const aval = await prisma.legalDocument.count({ where: { chainFromId: pieceId, status: { not: "CANCELLED" } } });
   if (aval > 0) return { ok: false, error: "Un bon de commande ou une facture découle de ce devis : il ne se retire plus du poste." };
