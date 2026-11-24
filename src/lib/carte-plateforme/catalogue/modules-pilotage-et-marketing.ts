@@ -112,7 +112,7 @@ export const MODULES_PILOTAGE_ET_MARKETING: readonly ModulePlateforme[] = [
       { label: "Carte « Ma rémunération »", qui: "L'employé", effet: "Base, retenues, net — jamais le brut, la Ret SS 35 % ni la TFP." },
     ],
     regles: ["Pas de module RBAC : c'est l'espace personnel de chacun.", "« Salaire versé » n'est notifié qu'une fois le virement réglé, au plus tôt 24 h après la saisie."],
-    liens: [{ vers: "rh", pourquoi: "Les RH traitent les demandes" }, { vers: "secretariat", pourquoi: "Originaux des notes de frais" }],
+    liens: [{ vers: "rh", pourquoi: "Les RH traitent les demandes et reçoivent les originaux des notes de frais" }],
   },
   {
     id: "kpi", nom: "KPI & bilans", route: "/mon-espace/bilan", domaine: "pilotage", rbac: ["KPI"],

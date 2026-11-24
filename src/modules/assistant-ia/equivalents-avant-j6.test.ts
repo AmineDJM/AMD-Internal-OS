@@ -36,8 +36,10 @@ const personne = (role: string, access: CurrentUser["access"]): CurrentUser =>
 describe("aucune régression de capacité — avant J6 → après", () => {
   const reg = registreDesCapacites();
 
-  it("l'instantané couvre les 123 gestes empruntés", () => {
-    expect(LIGNES.length).toBe(123);
+  // 121 : les deux gestes des courses (cocher un point, avancer une course) sont retirés avec les courses (24/11/2026).
+  // « Accuser réception des originaux » passe aux RH le même jour : l'assistante et le directeur des opérations n'y ont plus la main.
+  it("l'instantané couvre les 121 gestes empruntés", () => {
+    expect(LIGNES.length).toBe(121);
     expect(LIGNES.map(([k]) => k)).toEqual(expect.arrayContaining(["update_task", "task_operation.refuse", "hr_operation.update_employee", "task_operation.upload_document"]));
   });
 

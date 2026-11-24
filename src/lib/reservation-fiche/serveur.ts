@@ -23,8 +23,8 @@ import { sansBloquer } from "@/lib/journal";
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-/** Le lien qui ouvre la fiche chez l'assistante — l'onglet « Ad & Pro » du Bureau du secrétariat. */
-export const lienBureau = (demandeId?: string) => `/demandes?onglet=adpro${demandeId ? `&fiche=${demandeId}` : ""}`;
+/** Le lien qui ouvre la fiche chez l'assistante — sa page au Bureau du secrétariat (24/11/2026 : une page par ligne). */
+export const lienBureau = (demandeId?: string) => (demandeId ? `/demandes/fiches/${demandeId}` : "/demandes");
 
 /** Les assistantes de direction ACTIVES — rôle principal OU secondaire. */
 export async function assistantesActives(): Promise<{ id: string; name: string }[]> {

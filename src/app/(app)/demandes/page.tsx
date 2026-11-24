@@ -1,119 +1,76 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { AlertTriangle, Trash2 } from "lucide-react";
 import { requireModule } from "@/lib/session";
 import { userCan, hasGlobalView } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
-import { getRequestList } from "@/lib/queries/admin-requests";
-import { faitsDesDemandes } from "@/lib/queries/demandes-tableau";
-import { PageHeader } from "@/components/shared/page-header";
-import { EmptyState } from "@/components/shared/empty-state";
+import { lignesDuBureau } from "@/lib/queries/bureau";
+import { MenuDossier } from "@/components/shared/menu-dossier";
 import { toNumber } from "@/lib/utils";
 import { NewRequestButton } from "./new-request";
-import { statutAffiche } from "@/lib/secretariat/traitement";
-import { chezQuiDeLaDemande, montantDeLaDemande } from "@/lib/secretariat/bureau";
 import { SuppliesManager } from "./supplies-manager";
-import { type ExpenseAckItem } from "./expense-ack";
-import { RequestsTable, type RequestRow } from "./requests-table";
-import { OngletsBureau } from "@/components/reservation-fiche/onglets-bureau";
-import { BureauAdPro } from "@/components/reservation-fiche/bureau-adpro";
-import { compteurBureauAdPro, voitBureauAdPro } from "@/lib/queries/reservations-fiches";
-import { RaccourcisBureau } from "./raccourcis";
+import { TableauBureau } from "./tableau-bureau";
+import { AncrePosteVersSaPage } from "../agences/ancre-poste";
 
 /**
- * LE BUREAU DU SECRÉTARIAT — le tableau général (maquette validée, 10/2026).
+ * LE BUREAU DU SECRÉTARIAT — UN SEUL TABLEAU (maquette validée le 24/11/2026).
  *
- * « Une ligne = une demande, avec où elle en est et chez qui. » En tête, « Catalogue fournitures » et
- * « + Nouvelle demande » ; puis des TUILES qui comptent ET filtrent (à traiter, en cours, en
- * validation, en paiement, en retard, terminées sur 30 jours) ; les raccourcis vers les écrans
- * annexes qui attendent quelque chose (notes de frais à réceptionner, courses en cours, corbeille) ;
- * enfin le tableau : référence, demande, demandeur, créée, échéance, chez qui, UN montant
- * (`montantDeLaDemande`, sa précédence documentée), pièces, statut. La ligne entière ouvre la fiche.
+ * Toutes les familles de demandes en une liste (`lignesDuBureau`) : demandes du secrétariat, fiches billet et hôtel,
+ * prospection d'agences, bons de commande de poste, matériel promotionnel, devis de prise en charge. En tête : le titre,
+ * « + Nouvelle demande », et « ⋯ » (catalogue fournitures, corbeille — pour qui gère le bureau). Plus d'onglets, de
+ * tuiles, de filtres ni de phrase d'explication : chaque ligne ouvre SA fiche.
+ *
+ * Les anciens liens de l'onglet « Ad & Pro » (`?onglet=adpro&fiche=<id>`, écrits en base par les notifications)
+ * mènent à la page de la fiche.
  */
-export default async function DemandesPage(
-  props: { searchParams: Promise<{ status?: string; type?: string; onglet?: string; fiche?: string }> }
-) {
+export default async function DemandesPage(props: { searchParams: Promise<{ onglet?: string; fiche?: string }> }) {
   const searchParams = await props.searchParams;
   const user = await requireModule("ADMIN_REQUESTS");
+  if (searchParams.fiche) redirect(`/demandes/fiches/${encodeURIComponent(searchParams.fiche)}`);
   const isManager = hasGlobalView(user.role) || userCan(user, "ADMIN_REQUESTS", "UPDATE");
-  // LES ONGLETS « Général » / « Ad & Pro » (14/10) — l'onglet Ad & Pro est celui de l'assistante de direction.
-  const compteurAdPro = voitBureauAdPro(user) ? await compteurBureauAdPro(user) : null;
-  const onglet = compteurAdPro !== null && searchParams.onglet === "adpro" ? "adpro" : "general";
 
-  const [list, users, departments, activeArticles, supplyCatalog, expensePendingAck, coursesEnCours] = await Promise.all([
-    getRequestList(user, { status: searchParams.status, type: searchParams.type }),
+  const [bureau, users, departments, activeArticles, supplyCatalog] = await Promise.all([
+    lignesDuBureau(user),
     prisma.user.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.department.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.officeSupplyArticle.findMany({ where: { active: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     isManager
       ? prisma.officeSupplyArticle.findMany({ select: { id: true, name: true, category: true, unit: true, reference: true, estimatedPrice: true, supplierHint: true, active: true, notes: true }, orderBy: [{ active: "desc" }, { name: "asc" }] })
       : Promise.resolve([] as { id: string; name: string; category: string | null; unit: string | null; reference: string | null; estimatedPrice: unknown; supplierHint: string | null; active: boolean; notes: string | null }[]),
-    // Notes de frais dont les originaux n'ont pas encore été réceptionnés par le secrétariat.
-    isManager
-      ? prisma.hrDocumentRequest.findMany({
-          where: { type: "EXPENSE_REPORT", originalsAckAt: null, status: { not: "REJECTED" } },
-          include: { employee: { select: { fullName: true } } },
-          orderBy: { createdAt: "asc" },
-          take: 50,
-        })
-      : Promise.resolve([]),
-    isManager ? prisma.driverMission.count({ where: { status: { notIn: ["DONE", "CANCELLED"] } } }) : Promise.resolve(0),
   ]);
-
-  const ackItems: ExpenseAckItem[] = expensePendingAck.map((r) => ({
-    id: r.id, employeeName: r.employee.fullName, expenseMonth: r.expenseMonth, createdAt: r.createdAt.toISOString(),
-  }));
+  // Les postes agence du bureau : un ancien lien « …#poste-<id> » (redirigé ici) ouvre leur page.
+  const postes = bureau.lignes.filter((l) => l.famille === "agence").map((l) => l.cle.slice("agence:".length));
   const catalogRows = supplyCatalog.map((a) => ({ ...a, estimatedPrice: a.estimatedPrice != null ? toNumber(a.estimatedPrice) : null }));
-  const faits = await faitsDesDemandes(list.rows.map((r) => ({ id: r.id, fields: r.fields })));
-
-  const rows: RequestRow[] = list.rows.map((r) => {
-    // Une étape retirée (en attente d'un tiers, d'un document, bloquée à la main) se lit « En cours ».
-    const status = statutAffiche(r.status, r.blockedReason);
-    const f = faits.get(r.id);
-    const chez = chezQuiDeLaDemande({
-      statut: status, responsable: r.assignedTo?.name ?? null, demandeur: r.requester?.name ?? null,
-      validateurEnAttente: r.approvals[0]?.validator?.name ?? r.validator?.name ?? null,
-      bc: f?.bc ?? null, devisARetenir: f?.devisARetenir ?? false,
-    });
-    const montant = f ? montantDeLaDemande(f.faits) : null;
-    return {
-      id: r.id,
-      reference: r.reference,
-      title: r.title,
-      type: r.type,
-      priority: r.priority,
-      status,
-      createdAt: r.createdAt.toISOString(),
-      deadline: r.deadline ? r.deadline.toISOString() : null,
-      completedAt: r.completedAt ? r.completedAt.toISOString() : null,
-      requester: r.requester?.name ?? null,
-      department: r.department?.name ?? null,
-      chez,
-      montant: montant?.montant ?? null,
-      montantEtape: montant?.etape ?? null,
-      pieces: f?.nbPieces ?? 0,
-      batch: Boolean(r.batchId),
-    };
-  });
 
   return (
     <div className="space-y-4">
-      <PageHeader
-        title="Bureau du secrétariat"
-        description="Les demandes transverses : déplacements, courriers, signatures, achats, devis, paiements, invités. Une ligne = une demande, avec où elle en est et chez qui."
-      >
-        {isManager && <SuppliesManager articles={catalogRows} />}
-        <NewRequestButton users={users} departments={departments} articles={activeArticles} />
-      </PageHeader>
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Bureau du secrétariat</h1>
+        <div className="flex items-center gap-2">
+          <NewRequestButton users={users} departments={departments} articles={activeArticles} />
+          {isManager && (
+            <MenuDossier>
+              <SuppliesManager articles={catalogRows} />
+              <Link href="/demandes/corbeille" className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-secondary">
+                <Trash2 className="h-4 w-4" /> Corbeille des demandes
+              </Link>
+            </MenuDossier>
+          )}
+        </div>
+      </header>
 
-      {compteurAdPro !== null && <OngletsBureau actif={onglet} general={list.ouvertes} adpro={compteurAdPro} />}
-
-      {onglet === "adpro" ? <BureauAdPro user={user} fiche={searchParams.fiche ?? null} /> : (<>
-      {isManager && <RaccourcisBureau notesDeFrais={ackItems} coursesEnCours={coursesEnCours} />}
-
-      {rows.length === 0 ? (
-        <EmptyState icon="ClipboardList" title="Aucune demande" description="Créez une nouvelle demande administrative." />
-      ) : (
-        <RequestsTable maintenant={Date.now()} rows={rows} totaux={{ ouvertes: list.ouvertes, terminees: list.terminees, terminesMontrees: list.terminesMontrees, coupe: list.coupe }} />
+      {bureau.pannes.length > 0 && (
+        <p role="status" className="flex items-start gap-2 rounded-xl bg-warning/10 px-3 py-2 text-sm text-warning-foreground">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            Une partie du bureau n&apos;a pas pu être lue : {bureau.pannes.join(", ")}. Le reste est à jour ; rechargez la page dans un
+            instant, et prévenez le Super Admin si cela persiste.
+          </span>
+        </p>
       )}
-      </>)}
+
+      <TableauBureau lignes={bureau.lignes} maintenant={Date.now()} />
+      {postes.length > 0 && <AncrePosteVersSaPage postes={postes} />}
     </div>
   );
 }

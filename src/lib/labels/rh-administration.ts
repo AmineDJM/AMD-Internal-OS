@@ -114,15 +114,6 @@ export const ADMIN_APPROVAL_STATUS: Record<string, Display> = {
   CHANGES_REQUESTED: { label: "Modif. demandée", tone: "info" },
 };
 
-export const DRIVER_MISSION_STATUS: Record<string, Display> = {
-  NEW: { label: "Nouvelle", tone: "neutral" },
-  ACCEPTED: { label: "Acceptée", tone: "info" },
-  EN_ROUTE: { label: "En route", tone: "info" },
-  DONE: { label: "Terminée", tone: "success" },
-  PROBLEM: { label: "Problème", tone: "danger" },
-  CANCELLED: { label: "Annulée", tone: "neutral" },
-};
-
 /** Accompagnant ou délégué de référence assigné à une mission. */
 export const MISSION_ROLE: Record<string, Display> = {
   ACCOMPAGNANT: { label: "Accompagnant", tone: "info" },

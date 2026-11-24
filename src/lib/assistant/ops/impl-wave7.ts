@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import {
-  requestApproval, decideApproval, toggleMissionStop, updateMission,
+  requestApproval, decideApproval,
   editOwnRequest, deleteOwnRequest, deleteRequests, restoreRequest,
   startRequestProcessing, requestFinanceValidation, requestInternalValidation, finishRequest,
   submitAttachmentValidation, cancelAttachmentValidation,
@@ -13,8 +13,7 @@ import { matchLabel, fold } from "./impl-regulatory";
 
 /**
  * OPS VAGUE 7 — DEMANDES ADMINISTRATIVES de bout en bout : validation hiérarchique (demande +
- * décision qui émet l'ordre de dépense au montant accordé), missions chauffeur DÉJÀ posées (points de
- * passage, statuts, preuve — on n'en crée plus, ni de lot de demandes : Direction, 10/2026), fenêtre demandeur 30 min (édition
+ * décision qui émet l'ordre de dépense au montant accordé), fenêtre demandeur 30 min (édition
  * FUSION, retrait), suppression TRAÇABLE à motif + restauration, flux assistante (traitement,
  * validation Finances / interne, FIN de demande avec facture exigée et imputation moyens
  * généraux), pièces jointes soumises à validation UNE PAR UNE (retirables), et l'ACHAT depuis
@@ -25,11 +24,6 @@ import { matchLabel, fold } from "./impl-regulatory";
 const APPROVAL_DECISION_FR: [string, string][] = [
   ["APPROVED", "Approuver"], ["REJECTED", "Refuser"], ["CHANGES_REQUESTED", "Demander une modification"],
 ];
-const MISSION_STATUS_FR: [string, string][] = [
-  ["NEW", "Nouvelle"], ["ACCEPTED", "Acceptée"], ["EN_ROUTE", "En route"],
-  ["DONE", "Terminée"], ["PROBLEM", "Problème"], ["CANCELLED", "Annulée"],
-];
-
 async function wave7User(raw: string): Promise<{ id: string; name: string } | { error: string }> {
   const q = raw.trim();
   if (!q) return { error: "Précisez la personne (nom)." };
@@ -64,23 +58,6 @@ async function resolveAdminRequest(raw: string, opts?: { deleted?: boolean }): P
   if (rows.length === 1) return rows[0];
   if (rows.length === 0) return { error: `Aucune demande${opts?.deleted ? " supprimée" : ""} « ${q} ».` };
   return { error: `Plusieurs demandes correspondent : ${rows.map((r) => `${r.reference} — ${r.title}`).join(" ; ")} — donner la référence.` };
-}
-
-interface MissionHit { id: string; title: string }
-
-async function resolveMission(raw: string): Promise<MissionHit | { error: string }> {
-  const q = raw.trim();
-  if (!q) return { error: "Précisez la course (champ « target » — son titre)." };
-  const rows = await prisma.driverMission.findMany({
-    where: { title: { contains: q, mode: "insensitive" } },
-    select: { id: true, title: true, status: true },
-    orderBy: { createdAt: "desc" }, take: 6,
-  });
-  const open = rows.filter((m) => m.status !== "DONE" && m.status !== "CANCELLED");
-  const pick = open.length === 1 ? open[0] : rows.length === 1 ? rows[0] : null;
-  if (pick) return { id: pick.id, title: pick.title };
-  if (rows.length === 0) return { error: `Aucune course « ${q} ».` };
-  return { error: `Plusieurs courses correspondent : ${rows.map((m) => m.title).join(" ; ")} — préciser.` };
 }
 
 export const ADMIN_REQUEST_OPS_IMPL: Record<string, OpImpl> = {
@@ -143,55 +120,6 @@ export const ADMIN_REQUEST_OPS_IMPL: Record<string, OpImpl> = {
       };
     },
     execute: (args) => runFd(decideApproval, args, "La décision a été refusée.", { revalidate: ["/demandes"] }),
-  },
-
-  toggle_mission_stop: {
-    async propose(input): Promise<OpProposalDraft | { error: string }> {
-      const mission = await resolveMission(opStr(input, "target") || opStr(input, "label"));
-      if ("error" in mission) return mission;
-      const q = fold(opStr(input, "location") || opStr(input, "name"));
-      const stops = await prisma.driverMissionStop.findMany({
-        where: { missionId: mission.id },
-        select: { id: true, location: true, done: true },
-        orderBy: { position: "asc" },
-      });
-      if (stops.length === 0) return { error: `« ${mission.title} » n'a aucun point de passage.` };
-      const hits = q ? stops.filter((s) => fold(s.location).includes(q)) : stops;
-      if (hits.length === 0) return { error: `Aucun point « ${opStr(input, "location")} » — points : ${stops.map((s) => s.location).join(" → ")}.` };
-      if (hits.length > 1) return { error: `Plusieurs points correspondent : ${hits.map((s) => s.location).join(", ")} — préciser (champ « location »).` };
-      return {
-        title: `${hits[0].done ? "Décocher" : "Cocher"} le point « ${hits[0].location} » (${mission.title})`,
-        fields: [{ label: "Point", value: `${hits[0].location} — ${hits[0].done ? "fait → à faire" : "à faire → fait"}` }],
-        args: { id: hits[0].id },
-        successMessage: `Point « ${hits[0].location} » ${hits[0].done ? "décoché" : "coché"}.`,
-        revalidate: ["/demandes/driver", "/demandes/courses"],
-      };
-    },
-    execute: (args) => runFd(toggleMissionStop, args, "Le point n'a pas pu être basculé.", { revalidate: ["/demandes/driver"] }),
-  },
-
-  update_mission: {
-    async propose(input): Promise<OpProposalDraft | { error: string }> {
-      const mission = await resolveMission(opStr(input, "target") || opStr(input, "label"));
-      if ("error" in mission) return mission;
-      const m = matchLabel(opStr(input, "status"), MISSION_STATUS_FR);
-      if (typeof m === "object") return m;
-      return {
-        title: `Course « ${mission.title} » → ${MISSION_STATUS_FR.find(([c]) => c === m)?.[1]}`,
-        fields: fieldsOf([
-          ["Course", mission.title],
-          ["Statut", MISSION_STATUS_FR.find(([c]) => c === m)?.[1] ?? m],
-          ["Commentaire / preuve", opStr(input, "note") || null],
-        ]),
-        warnings: m === "DONE" || m === "PROBLEM"
-          ? ["Le traitant de la demande liée est prévenu — la preuve (commentaire) reste sur la course."]
-          : ["Geste du chauffeur assigné ou d'un gestionnaire (revérifié par l'action)."],
-        args: { id: mission.id, status: m, proofComment: opStr(input, "note") || null },
-        successMessage: `Course « ${mission.title} » : ${MISSION_STATUS_FR.find(([c]) => c === m)?.[1]}.`,
-        revalidate: ["/demandes/driver", "/demandes/courses"],
-      };
-    },
-    execute: (args) => runFd(updateMission, args, "Le changement de statut a été refusé.", { revalidate: ["/demandes/driver"] }),
   },
 
   edit_own_request: {
@@ -267,7 +195,7 @@ export const ADMIN_REQUEST_OPS_IMPL: Record<string, OpImpl> = {
         confirmText: `${ids.length} demandes`,
         args: { ids: ids.join(","), reason },
         successMessage: `${ids.length} demande(s) supprimée(s) (motif tracé).`,
-        revalidate: ["/demandes", "/demandes/assistant"],
+        revalidate: ["/demandes"],
       };
     },
     execute: (args) => runFd(deleteRequests, args, "La suppression a été refusée.", { revalidate: ["/demandes"] }),
@@ -283,7 +211,7 @@ export const ADMIN_REQUEST_OPS_IMPL: Record<string, OpImpl> = {
         warnings: ["La demande revient « nouvelle » (motif de suppression effacé) — assistante / vue globale."],
         args: { id: req.id },
         successMessage: `${req.reference} restaurée.`,
-        revalidate: ["/demandes", "/demandes/assistant"],
+        revalidate: ["/demandes"],
       };
     },
     execute: (args) => runFd(restoreRequest, args, "La restauration a été refusée.", { revalidate: ["/demandes"] }),
@@ -299,7 +227,7 @@ export const ADMIN_REQUEST_OPS_IMPL: Record<string, OpImpl> = {
         warnings: ["Passe la demande « en cours » et FIGE la fenêtre de modification du demandeur."],
         args: { id: req.id },
         successMessage: `Traitement de ${req.reference} démarré.`,
-        revalidate: ["/demandes", "/demandes/assistant"],
+        revalidate: ["/demandes"],
       };
     },
     execute: (args) => runFd(startRequestProcessing, args, "Le démarrage a été refusé.", { revalidate: ["/demandes"] }),

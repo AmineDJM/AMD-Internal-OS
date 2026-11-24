@@ -159,29 +159,27 @@ export const OUTILS_TERRAIN_LOGISTIQUE: Record<string, DomainToolSpec> = {
     def: {
       name: "request_operation",
       description:
-        "DEMANDES ADMINISTRATIVES (bureau du secrétariat) de bout en bout — validation hiérarchique (demande + décision : l'approbation avec montant ÉMET l'ordre de dépense), courses chauffeur DÉJÀ posées (points de passage, statuts, preuve — on n'en crée plus, ni de lot de demandes), fenêtre demandeur 30 min (modifier en FUSION / retirer), suppression TRAÇABLE à motif + restauration, flux assistante (traitement, validation Finances / interne, FIN avec facture exigée et imputation moyens généraux), pièces soumises à validation UNE PAR UNE (retirables) — et l'ACHAT depuis les Moyens généraux (validateur = N+1 d'organigramme, retrait avant décision). Par les actions canoniques. "
+        "DEMANDES ADMINISTRATIVES (bureau du secrétariat) de bout en bout — validation hiérarchique (demande + décision : l'approbation avec montant ÉMET l'ordre de dépense), fenêtre demandeur 30 min (modifier en FUSION / retirer), suppression TRAÇABLE à motif + restauration, flux assistante (traitement, validation Finances / interne, FIN avec facture exigée et imputation moyens généraux), pièces soumises à validation UNE PAR UNE (retirables) — et l'ACHAT depuis les Moyens généraux (validateur = N+1 d'organigramme, retrait avant décision). Par les actions canoniques. "
         + `Champ « op » : ${opsSummary("request_operation")}. `
-        + "La demande se donne par référence REQ-… ou objet (« target ») ; la course par son titre ; la pièce par son nom (« label »).",
+        + "La demande se donne par référence REQ-… ou objet (« target ») ; la pièce par son nom (« label »).",
       input_schema: {
         type: "object",
         properties: {
           op: { type: "string", enum: opEnum("request_operation"), description: "Le geste à faire." },
-          target: { type: "string", description: "La demande visée (REQ-… ou objet) — delete_requests : plusieurs références (virgules) ; missions : la course (titre)." },
-          person: { type: "string", description: "Validateur / chauffeur / traitant (nom)." },
+          target: { type: "string", description: "La demande visée (REQ-… ou objet) — delete_requests : plusieurs références (virgules)." },
+          person: { type: "string", description: "Validateur / traitant (nom)." },
           person2: { type: "string", description: "Second validateur (nom)." },
           people: { type: "string", description: "submit_attachment_validation : les validateurs (noms, virgules)." },
           decision: { type: "string", description: "decide_approval : approuver / refuser / demander une modification." },
           label: { type: "string", description: "Pièces : la pièce visée (nom)." },
-          name: { type: "string", description: "create_purchase_request : l'objet de la demande d'achat ; toggle_mission_stop : le point visé." },
+          name: { type: "string", description: "create_purchase_request : l'objet de la demande d'achat." },
           newName: { type: "string", description: "edit_own_request : nouveau titre." },
-          status: { type: "string", description: "update_mission : nouvelle, acceptée, en route, terminée, problème, annulée." },
           cells: { type: "string", description: "Achat : les lignes (« une par ligne » ou points-virgules, « article xN ») ; suppression : les références." },
           amount: { type: "string", description: "Montant (DZD) — validation hiérarchique, pièce, estimation Finances, imputation de clôture." },
           department: { type: "string", description: "finish_request : département dont les moyens généraux sont débités." },
-          location: { type: "string", description: "toggle_mission_stop : le point visé." },
           date: { type: "string", description: "Échéance (AAAA-MM-JJ)." },
-          note: { type: "string", description: "Commentaire / motif (suppression : OBLIGATOIRE) / preuve de course / note d'imputation." },
-          notes: { type: "string", description: "Description (édition de demande, consignes de course)." },
+          note: { type: "string", description: "Commentaire / motif (suppression : OBLIGATOIRE) / note d'imputation." },
+          notes: { type: "string", description: "Description (édition de demande)." },
           message: { type: "string", description: "create_purchase_request : description du besoin." },
         },
         required: ["op"],

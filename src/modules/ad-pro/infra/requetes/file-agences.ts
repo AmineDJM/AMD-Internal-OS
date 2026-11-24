@@ -3,7 +3,7 @@ import { userCan, type SessionUser } from "@/lib/rbac";
 import { hasRole } from "@/lib/rbac/roles";
 import { ITEM_KIND_LABELS } from "../../domaine/postes";
 import { PARENTS, parentOf, loadItem } from "../postes/commun";
-import { LIBELLE_AGENCES, lienBatInfoMed, lienPosteAdPro, lienPosteAssistante } from "@/lib/chemins/ad-pro";
+import { LIBELLE_AGENCES, LIBELLE_BUREAU, lienBatInfoMed, lienPosteAdPro, lienPosteAssistante } from "@/lib/chemins/ad-pro";
 import { sitsOnPaymentCentre } from "@/modules/finances/partage";
 import { etapeAgence, pasAgence, type AgenceVue, type EtapeAgence, type FaitsPosteAgence } from "../../domaine/parcours-agence";
 import { toutEstFacture } from "../../domaine/poste-etapes";
@@ -117,6 +117,28 @@ export interface LigneFileAgence {
 
 const estMarketing = (u: SessionUser) => hasRole(u, "PRODUCT_MANAGER") || hasRole(u, "SUPER_ADMIN");
 
+type Demandeur = { id: string; role: string; secondaryRole: string | null };
+
+/**
+ * LES DEMANDES PORTEUSES ET LEURS DEMANDEURS, EN LOT — la file et « Aujourd'hui » lisaient chaque demande, puis son
+ * demandeur, l'un après l'autre dans la boucle (une requête par demande, deux fois). Le bureau du secrétariat lit
+ * désormais cette file à chaque ouverture : on lance les lectures ENSEMBLE (Prisma regroupe les `findUnique` d'un
+ * même tour en une requête par table) et les demandeurs en UNE requête.
+ */
+async function parentsEtDemandeurs(owners: readonly ({ parent: keyof typeof PARENTS; id: string } | null)[]): Promise<{
+  infos: Map<string, ParentInfo | null>; demandeurs: Map<string, Demandeur | null>;
+}> {
+  const uniques = new Map<string, { parent: keyof typeof PARENTS; id: string }>();
+  for (const o of owners) if (o) uniques.set(`${o.parent}:${o.id}`, o);
+  const lus = await Promise.all([...uniques.entries()].map(async ([cle, o]) => [cle, await PARENTS[o.parent].load(o.id)] as const));
+  const infos = new Map<string, ParentInfo | null>(lus);
+  const ids = [...new Set(lus.map(([, i]) => i?.requesterId).filter((x): x is string => Boolean(x)))];
+  const users = ids.length ? await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, role: true, secondaryRole: true } }) : [];
+  const parId = new Map(users.map((u) => [u.id, u]));
+  const demandeurs = new Map<string, Demandeur | null>(lus.map(([cle, i]) => [cle, i?.requesterId ? parId.get(i.requesterId) ?? null : null]));
+  return { infos, demandeurs };
+}
+
 /**
  * La file « Prospection d'agences » — l'assistante voit SES postes ; la Direction Marketing, le Super Admin et quiconque la
  * console l'ouvre suivent tout le parcours.
@@ -152,8 +174,7 @@ export async function fileAgences(user: SessionUser): Promise<LigneFileAgence[] 
   const agences = await agencesDesPostes(execs.map((e) => e.item), pieces, devis);
   const infoMed = hasRole(user, "MEDICAL_INFO_PHARMACIST") || hasRole(user, "SUPER_ADMIN");
   const centre = siegeAuCentreAdPro(user);
-  const infos = new Map<string, ParentInfo | null>();
-  const demandeurs = new Map<string, { id: string; role: string; secondaryRole: string | null } | null>();
+  const { infos, demandeurs } = await parentsEtDemandeurs(execs.map((e) => parentOf(e.item)));
   const lignes: LigneFileAgence[] = [];
   for (const e of execs) {
     const owner = parentOf(e.item);
@@ -161,15 +182,11 @@ export async function fileAgences(user: SessionUser): Promise<LigneFileAgence[] 
     const agence = agences.get(e.item.id);
     if (!owner || !agence) continue;
     const cle = `${owner.parent}:${owner.id}`;
-    if (!infos.has(cle)) infos.set(cle, await PARENTS[owner.parent].load(owner.id));
     const info = infos.get(cle) ?? null;
     const faits = faitsDuPoste(e.item, pieces.get(e.item.id), agence, null);
     const etape = etapeDeLaFile(etapeAgence(faits));
     const miennes = e.assistanteId === user.id;
     // « À VOUS » : la règle de la carte (`pasAgence`) — qui a la main, et non qui l'aurait eue d'après les dates.
-    if (info && !demandeurs.has(cle)) {
-      demandeurs.set(cle, info.requesterId ? await prisma.user.findUnique({ where: { id: info.requesterId }, select: { id: true, role: true, secondaryRole: true } }) : null);
-    }
     const pas = pasAgence(faits, {
       marketing: marketing && droitsValidation(user, demandeurs.get(cle) ?? null).marketing,
       assistante: miennes, infoMed, centre, fige: Boolean(info?.clos || info?.refusee),
@@ -198,7 +215,7 @@ export async function posteDeLAssistante(user: SessionUser, itemId: string) {
 /** Une tâche du parcours agence pour « Aujourd'hui » — la même forme que les autres lignes de la file (`ActionItem`). */
 export interface TacheAgence {
   key: string; objet: string; title: string; subtitle: string; href: string; depuis: string; statusLabel: string;
-  /** « Prospection d'agences » pour qui ouvre cette page (assistante, Direction Marketing) : son lot y mène (« tout voir »). */
+  /** La page de qui tient la file — le bureau de l'assistante, le « Suivi des agences » de la Direction Marketing : son lot y mène (« tout voir »). */
   module: string;
 }
 
@@ -225,8 +242,9 @@ export async function tachesAgence(user: SessionUser): Promise<TacheAgence[]> {
   if (!marketingRole && !assistanteRole && !infoMed && !centre && !finances && !paiement) return [];
   // Seule l'assistante ne voit que SES postes ; les autres rôles tiennent une étape de tous les postes « agence » en cours.
   const seulementSiens = assistanteRole && !marketingRole && !infoMed && !centre && !finances && !paiement;
-  // Qui ouvre « Prospection d'agences » (la porte de `fileAgences`) y retrouve tout son parcours : son lot y mène.
-  const module = assistanteRole || marketingRole ? LIBELLE_AGENCES : "Ad & Pro";
+  // Son lot mène à la page où elle retrouve tout son parcours : le Bureau du secrétariat pour l'assistante (24/11/2026),
+  // le « Suivi des agences » pour la Direction Marketing (la porte de `fileAgences`), Ad & Pro sinon.
+  const module = marketingRole ? LIBELLE_AGENCES : assistanteRole ? LIBELLE_BUREAU : "Ad & Pro";
 
   const items = await prisma.adProItem.findMany({
     where: {
@@ -249,8 +267,7 @@ export async function tachesAgence(user: SessionUser): Promise<TacheAgence[]> {
   const ids = enCours.map((i) => i.id);
   const [pieces, devis] = await Promise.all([piecesDesPostes(ids), devisDesPostes(ids)]);
   const agences = await agencesDesPostes(enCours, pieces, devis);
-  const infos = new Map<string, ParentInfo | null>();
-  const demandeurs = new Map<string, { id: string; role: string; secondaryRole: string | null } | null>();
+  const { infos, demandeurs } = await parentsEtDemandeurs(enCours.map((i) => parentOf(i)));
 
   const out: TacheAgence[] = [];
   for (const i of enCours) {
@@ -259,16 +276,12 @@ export async function tachesAgence(user: SessionUser): Promise<TacheAgence[]> {
     const ordre = i.expenseOrderId ? ordres.get(i.expenseOrderId) ?? null : null;
     if (!owner || !agence) continue;
     const cle = `${owner.parent}:${owner.id}`;
-    if (!infos.has(cle)) infos.set(cle, await PARENTS[owner.parent].load(owner.id));
     const info = infos.get(cle);
     if (!info) continue;
     const faits = faitsDuPoste(i, pieces.get(i.id), agence, ordre);
     const etape = etapeAgence(faits);
     // On ne demande pas la prospection d'un poste dont la demande n'est pas encore prévalidée, ou est refusée.
     if (etape === "PROSPECTION_A_DEMANDER" && (refusAvantPrevalidation(info) || refusDemandeFermee(info))) continue;
-    if (!demandeurs.has(cle)) {
-      demandeurs.set(cle, info.requesterId ? await prisma.user.findUnique({ where: { id: info.requesterId }, select: { id: true, role: true, secondaryRole: true } }) : null);
-    }
     const marketing = marketingRole && droitsValidation(user, demandeurs.get(cle) ?? null).marketing;
     const pas = pasAgence(faits, {
       marketing, assistante: agence.assistanteId === user.id, infoMed, centre, fige: Boolean(info.clos || info.refusee),

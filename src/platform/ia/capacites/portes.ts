@@ -47,7 +47,7 @@ export const SURFACES_HORS_ASSISTANT: Readonly<Record<string, string>> = {
 
 /**
  * LES GESTES QUE L'ACTION JUGE SUR LA PERSONNE — « le propriétaire, OU le droit du module » : mon congé, mon avance,
- * ma demande RH, mon rappel, mon invitation à une formation, ma demande d'achat, la mission de son chauffeur, le
+ * ma demande RH, mon rappel, mon invitation à une formation, ma demande d'achat, le
  * dossier du Drive dont on est éditeur. Le contrat ne lit que le `userCan` (la moitié « droit du module ») ; la
  * comparaison de propriété, elle, ne se voit pas. Lue seule, la porte cachait le geste à qui l'action l'accorde
  * (inventaire de la décision 0020 : 21 ops qu'Adam offrait, rôle par rôle, et la demande de document RH). Ici la porte est celle de l'ESPACE où
@@ -71,9 +71,7 @@ export const PORTES_DU_GESTE: Readonly<Record<string, { readonly modules: readon
   "training-actions:decideTraining": ESPACE, "training-actions:updateTraining": ESPACE, "training-actions:respondToTrainingInvitation": ESPACE,
   // ma demande d'achat (moyens généraux)
   "purchase-request-actions:createPurchaseRequest": ESPACE, "purchase-request-actions:withdrawPurchaseRequest": ESPACE,
-  // le chauffeur assigné, le demandeur d'une validation de pièce
-  "admin-request-actions:toggleMissionStop": { modules: ["ADMIN_REQUESTS"], verbe: "VIEW" },
-  "admin-request-actions:updateMission": { modules: ["ADMIN_REQUESTS"], verbe: "VIEW" },
+  // le demandeur d'une validation de pièce
   "admin-request-actions:submitAttachmentValidation": { modules: ["ADMIN_REQUESTS"], verbe: "VIEW" },
   "admin-request-actions:cancelAttachmentValidation": { modules: ["ADMIN_REQUESTS"], verbe: "VIEW" },
   // l'éditeur du dossier parent (`canCreateInSpace`), sans le droit « Créer » à la racine

@@ -18,7 +18,7 @@ import { DocumentList, type DocItem } from "@/components/documents/document-list
 import { LignePieceRow } from "@/components/pieces/linked-records";
 import { AttachmentValidationBlock } from "./attachment-validation";
 import { onlyofficeConfigured } from "@/lib/onlyoffice";
-import { ADMIN_REQUEST_TYPE, ADMIN_REQUEST_STATUS, ADMIN_APPROVAL_STATUS, DRIVER_MISSION_STATUS, PRIORITY, AUDIT_ACTION, VALIDATION_STATUS } from "@/lib/labels";
+import { ADMIN_REQUEST_TYPE, ADMIN_REQUEST_STATUS, ADMIN_APPROVAL_STATUS, PRIORITY, AUDIT_ACTION, VALIDATION_STATUS } from "@/lib/labels";
 import { formatDate, formatDateTime, formatCurrency, toNumber, cn } from "@/lib/utils";
 import { GestesEnTete } from "./request-actions";
 import { refusFinApresDecision } from "@/lib/secretariat/traitement";
@@ -43,6 +43,8 @@ import { statutAffiche, lireParticipants } from "@/lib/secretariat/traitement";
 import { chezQuiDeLaDemande, enRetard, friseDeLaDemande, gesteSuivant, lignesDeMontant, FAITS_VIDES, type EtapeFrise } from "@/lib/secretariat/bureau";
 import { grouperLesPieces, VIDE_GROUPE, type NatureAjout } from "@/lib/secretariat/pieces";
 import { separerLeFil } from "@/lib/secretariat/fil-demande";
+import { blocsDeLaDemande, champsRestants } from "@/lib/secretariat/blocs-demande";
+import { piecesParMessage } from "@/lib/fil-pieces";
 import { LIBELLE_BC_DEMANDE, TON_BC_DEMANDE } from "@/lib/secretariat/devis-natif";
 import { devisDeLaDemande } from "@/lib/secretariat/devis-natif-serveur";
 import { gereLaDemande, commandeLaDemande } from "@/lib/secretariat/droits";
@@ -85,7 +87,6 @@ export default async function RequestDetailPage(props: { params: Promise<{ id: s
       validator: { select: { name: true } },
       department: { select: { name: true } },
       approvals: { include: { validator: { select: { name: true } }, decidedBy: { select: { name: true } } }, orderBy: { createdAt: "desc" } },
-      missions: { include: { assignedTo: { select: { name: true } } }, orderBy: { createdAt: "desc" } },
     },
   });
   if (!req) notFound();
@@ -173,7 +174,10 @@ export default async function RequestDetailPage(props: { params: Promise<{ id: s
     : [];
   const labels = fieldLabels(req.type);
   const fields = (req.fields as Record<string, unknown> | null) ?? {};
-  const fieldEntries = Object.entries(labels).filter(([k]) => fields[k] !== undefined && fields[k] !== "");
+  // LES BLOCS DU TYPE EN TÊTE (24/11/2026) ; « La demande » ne liste plus que les champs qu'aucun bloc ne reprend.
+  const blocs = blocsDeLaDemande(req.type, fields);
+  const restants = new Set(champsRestants(req.type, fields));
+  const fieldEntries = Object.entries(labels).filter(([k]) => restants.has(k) && fields[k] !== undefined && fields[k] !== "");
   // Les articles d'une demande d'achat vivent dans `fields.purchaseLines`, hors des champs déclarés du type (I14).
   const lignesAchat = req.type === "PURCHASE" ? lireLignesDAchat(fields) : [];
 
@@ -208,7 +212,12 @@ export default async function RequestDetailPage(props: { params: Promise<{ id: s
     comments.map((c) => ({ id: c.id, body: c.body, authorId: c.authorId, createdAt: c.createdAt.toISOString(), auteur: c.author?.name ?? null, editedAt: c.editedAt?.toISOString() ?? null })),
     journal.map((h) => ({ id: h.id, le: h.createdAt.toISOString(), texte: h.summary ?? `${AUDIT_ACTION[h.action]?.label ?? h.action}${h.field ? ` — ${h.field}` : ""}`, par: h.actor?.name ?? null })),
   );
-  const discussion: CommentItem[] = fil.discussion.map((c) => ({ id: c.id, author: c.auteur ?? "Utilisateur", authorId: c.authorId, body: c.body, createdAt: c.createdAt, editedAt: c.editedAt }));
+  // Les fichiers joints aux messages : des pièces de la demande désignées par leur message (`lib/fil-pieces`).
+  const fichiersDuFil = piecesParMessage(documents);
+  const discussion: CommentItem[] = fil.discussion.map((c) => ({
+    id: c.id, author: c.auteur ?? "Utilisateur", authorId: c.authorId, body: c.body, createdAt: c.createdAt, editedAt: c.editedAt,
+    attachments: (fichiersDuFil.get(c.id) ?? []).map((d) => ({ id: d.id, name: d.name, hasFile: Boolean(d.fileKey) })),
+  }));
 
   const dernierAccord = req.approvals.find((a) => a.status === "APPROVED" && a.amount);
   const lignesMontant = lignesDeMontant(faits?.faits ?? FAITS_VIDES, {
@@ -303,6 +312,18 @@ export default async function RequestDetailPage(props: { params: Promise<{ id: s
             // `parties` porte aussi des `options`, mais ce sont des contacts d'annuaire : les demandes administratives n'en ont pas.
             typeFields={(REQUEST_TYPE_FIELDS[req.type] ?? []).map((f) => ({ type: f.type, name: f.name, label: f.label, full: f.full, options: "options" in f && f.type !== "parties" ? f.options : undefined }))}
           />
+        )}
+
+        {blocs.length > 0 && (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {blocs.map((b) => (
+              <div key={b.titre} className="min-w-0 rounded-lg border border-border p-3">
+                <p className="text-xs text-muted-foreground">{b.titre}</p>
+                <p className="mt-1 text-base font-bold [overflow-wrap:anywhere]">{b.valeur}</p>
+                {b.detail && <p className="mt-0.5 text-xs text-muted-foreground [overflow-wrap:anywhere]">{b.detail}</p>}
+              </div>
+            ))}
+          </div>
         )}
 
         <Frise etapes={frise} />
@@ -422,7 +443,6 @@ export default async function RequestDetailPage(props: { params: Promise<{ id: s
             </div>
           </section>
 
-          <FilDemande requestId={req.id} discussion={discussion} historique={fil.historique} currentUserId={user.id} canModerate={canManage} />
         </div>
 
         <div className="grid min-w-0 gap-4">
@@ -514,20 +534,6 @@ export default async function RequestDetailPage(props: { params: Promise<{ id: s
             </div>
           </section>
 
-          {req.missions.length > 0 && (
-            <section className="surface rounded-xl">
-              <header className="border-b border-border px-4 py-3"><h2 className="text-sm font-semibold">Missions chauffeur</h2></header>
-              <div className="grid gap-2 p-4 text-sm">
-                {req.missions.map((m) => (
-                  <div key={m.id} className="flex items-center justify-between gap-2">
-                    <span className="min-w-0"><span className="block truncate font-medium">{m.title}</span><span className="text-xs text-muted-foreground">{m.assignedTo?.name ?? "Non assignée"}</span></span>
-                    <StatusBadge map={DRIVER_MISSION_STATUS} value={m.status} dot={false} />
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
           {promo && (
             <section className="surface rounded-xl">
               <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
@@ -558,6 +564,9 @@ export default async function RequestDetailPage(props: { params: Promise<{ id: s
           )}
         </div>
       </div>
+
+      {/* LA DISCUSSION, TOUJOURS EN BAS (24/11/2026) — messages et fichiers ; l'historique à côté. */}
+      <FilDemande requestId={req.id} discussion={discussion} historique={fil.historique} currentUserId={user.id} canModerate={canManage} />
     </div>
   );
 }

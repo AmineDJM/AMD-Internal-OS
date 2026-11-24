@@ -557,7 +557,6 @@ export async function decideValidation(formData: FormData): Promise<ActionResult
       // coup ne doit pas la ressusciter « en cours ».
       await prisma.administrativeRequest.updateMany({ where: { id: req.entityId, deletedAt: null, status: { notIn: ["DONE", "CANCELLED"] } }, data: { status: "IN_PROGRESS" } });
       revalidatePath("/demandes");
-      revalidatePath("/demandes/assistant");
     }
     // CHAQUE DÉCISION, pas seulement la dernière (Direction, 06/10) : la fiche d'origine montre ce que
     // chaque validateur a dit — le premier accord d'un circuit à deux doit s'y lire aussi.

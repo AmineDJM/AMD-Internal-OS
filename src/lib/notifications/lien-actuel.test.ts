@@ -81,6 +81,12 @@ const TABLE: [string, string][] = [
   ["/process-intelligence/people", "/process-intelligence?vue=personnes"],
   ["/admin/organigramme", "/organigramme"],
   ["/annuaires/autres", "/annuaires/fournisseurs"],
+  // Bureau du secrétariat : un seul tableau, une page par fiche ; courses, coursier et « Bureau de Donna » supprimés (24/11/2026)
+  ["/demandes?onglet=adpro&fiche=dr42", "/demandes/fiches/dr42"],
+  ["/demandes?onglet=adpro", "/demandes"],
+  ["/demandes/courses", "/demandes"],
+  ["/demandes/driver?mission=m1", "/demandes"],
+  ["/demandes/assistant", "/demandes"],
 ];
 
 /** L'inventaire des pages — le même que le banc des liens morts. */

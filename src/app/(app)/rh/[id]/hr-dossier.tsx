@@ -7,7 +7,7 @@ import { Input, Select, Label } from "@/components/ui/input";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { HR_DOCUMENT_CATEGORY, HR_REQUEST_TYPE, HR_REQUEST_STATUS } from "@/lib/labels";
 import { formatDate, formatMonth, formatCurrency } from "@/lib/utils";
-import { processHrRequest, deleteEmployeeDocument, decideExpenseReport, decideHrLeave, deleteHrRequest, setEmployeeDocumentVisibility } from "@/modules/rh/actions-documents";
+import { ackExpenseOriginals, processHrRequest, deleteEmployeeDocument, decideExpenseReport, decideHrLeave, deleteHrRequest, setEmployeeDocumentVisibility } from "@/modules/rh/actions-documents";
 import {
   defaultVisibleToEmployee, visibilityLabel, hrNature, HR_DOCUMENT_STATUSES, CATEGORIE_DU_DEPOT,
 } from "@/modules/rh/partage";
@@ -194,6 +194,23 @@ function RequestRow({ req, employeeId, employeeName, employeePosition, reference
     if (!r.ok) setDecideErr(r.error ?? "La décision n'a pas été enregistrée."); else rafraichir();
   };
 
+  // « Originaux reçus » (24/11/2026) : l'accusé de réception des originaux d'une note de frais se fait aux RH.
+  const accuserOriginaux = async () => {
+    setDeciding("ORIGINAUX"); setDecideErr(null);
+    const fd = new FormData();
+    fd.set("id", req.id);
+    let r: Awaited<ReturnType<typeof ackExpenseOriginals>>;
+    try {
+      r = await ackExpenseOriginals(fd);
+    } catch {
+      setDecideErr(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setDeciding(null);
+    }
+    if (!r.ok) setDecideErr(r.error ?? "L'accusé de réception n'a pas été enregistré."); else rafraichir();
+  };
+
   // Décision congé / absence / autorisation (nature APPROBATION) : accorder ou refuser.
   const decideLeave = async (decision: "APPROVE" | "REJECT") => {
     setDeciding(decision); setDecideErr(null);
@@ -277,15 +294,18 @@ function RequestRow({ req, employeeId, employeeName, employeePosition, reference
           </p>
           <p className={`text-xs ${req.originalsAckAt ? "text-success" : "text-amber-700"}`}>
             {req.originalsAckAt
-              ? `Originaux réceptionnés par le secrétariat${req.originalsAckByName ? ` (${req.originalsAckByName})` : ""} le ${formatDate(req.originalsAckAt)}.`
-              : "Originaux non réceptionnés par le bureau du secrétariat pour l'instant."}
+              ? `Originaux reçus${req.originalsAckByName ? ` (${req.originalsAckByName})` : ""} le ${formatDate(req.originalsAckAt)}.`
+              : "Originaux pas encore reçus."}
           </p>
           {req.status !== "REJECTED" && !req.approvedMonth && (
             <>
               {!req.originalsAckAt && (
-                <p className="rounded-md bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-800">
-                  Traitement verrouillé : en attente de l&apos;accusé de réception des originaux par le bureau du secrétariat.
-                </p>
+                <div className="flex flex-wrap items-center gap-2 rounded-md bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-800">
+                  <span>Traitement verrouillé tant que les originaux ne sont pas reçus.</span>
+                  <BoutonDecisif size="sm" disabled={deciding !== null} onClick={accuserOriginaux}>
+                    {deciding === "ORIGINAUX" ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Originaux reçus
+                  </BoutonDecisif>
+                </div>
               )}
               <div className="flex flex-wrap gap-1.5">
                 <BoutonDecisif size="sm" disabled={deciding !== null || !req.originalsAckAt} onClick={() => decide("APPROVE")}>

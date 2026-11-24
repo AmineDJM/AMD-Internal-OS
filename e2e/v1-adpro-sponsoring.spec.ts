@@ -460,10 +460,13 @@ test("5 · FICHES HÔTELLERIE : ajout (dates → nuitées), modification, retrai
   await expect.poll(async () => prisma.demandeReservation.count({ where: { hebergement: { itemId: hotel.id } } })).toBeGreaterThan(0);
 
   await login(page, "ast");
-  await aller(page, "/demandes?onglet=adpro");
+  // LE BUREAU, UN SEUL TABLEAU (24/11/2026) : la fiche est une ligne ; elle s'ouvre sur SA page, où l'on « Prend la demande ».
+  await aller(page, "/demandes");
   await expect(page.getByText(/Haddad/).first(), "l'assistante voit la fiche d'Amel Haddad").toBeVisible();
   await capture(page, "v1-07-bureau-assistante");
-  await page.getByRole("button", { name: /Prendre/ }).first().click();
+  const ficheHotel = await prisma.demandeReservation.findFirstOrThrow({ where: { hebergement: { itemId: hotel.id } }, select: { id: true } });
+  await aller(page, `/demandes/fiches/${ficheHotel.id}`);
+  await page.getByRole("button", { name: /Prendre la demande/ }).click();
   await expect(page.getByText(/prise|Prise|En cours/).first()).toBeVisible();
 });
 
@@ -624,7 +627,7 @@ test("9 · BILLETS : un voyageur complet (trajet, date, passeport) envoyé à l'
   await expect.poll(async () => prisma.demandeReservation.count({ where: { voyageur: { itemId: billets.id } } })).toBe(1);
 
   await login(page, "ast");
-  await aller(page, "/demandes?onglet=adpro");
+  await aller(page, "/demandes");
   await expect(page.getByText(/Haddad/).first(), "l'assistante voit la fiche billet").toBeVisible();
   await capture(page, "v1-14-bureau-billets");
 

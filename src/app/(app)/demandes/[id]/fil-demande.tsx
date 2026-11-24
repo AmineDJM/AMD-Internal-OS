@@ -9,7 +9,7 @@ import { cn, formatDateTime } from "@/lib/utils";
 
 /**
  * DISCUSSION / HISTORIQUE — deux onglets, deux natures (maquette validée, 10/2026). La discussion ne
- * garde que ce que les personnes se sont écrit ; l'historique, ce que le système a noté (les traces
+ * garde que ce que les personnes se sont écrit — messages ET fichiers (24/11/2026) ; l'historique, ce que le système a noté (les traces
  * déposées au fil, et le journal de la demande et de ses pièces), dans l'ordre du temps. La règle
  * de partage est `separerLeFil` (`secretariat/fil-demande.ts`).
  */
@@ -37,7 +37,7 @@ export function FilDemande({ requestId, discussion, historique, currentUserId, c
       </div>
       <div className="p-4">
         {onglet === "disc" ? (
-          <CommentThread comments={discussion} action={addRequestComment} hiddenFields={{ requestId }} currentUserId={currentUserId} canModerate={canModerate} updateAction={updateComment} deleteAction={deleteComment} path={`/demandes/${requestId}`} />
+          <CommentThread comments={discussion} action={addRequestComment} hiddenFields={{ requestId }} currentUserId={currentUserId} canModerate={canModerate} updateAction={updateComment} deleteAction={deleteComment} path={`/demandes/${requestId}`} piecesJointes />
         ) : historique.length === 0 ? (
           <p className="text-sm text-muted-foreground">Rien n&apos;est encore noté.</p>
         ) : (

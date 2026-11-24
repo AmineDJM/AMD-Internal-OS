@@ -12,7 +12,7 @@ import { ajouterVoyageur, modifierVoyageur, ajouterHebergement } from "@/modules
 import {
   envoyerFiche, envoyerFichesPretes, relancerFiche, retirerFiche, prendreFiche, signalerManque, deposerBillet, joindreDevisAgence,
 } from "@/lib/actions/reservation-fiche-actions";
-import { envoisDesFiches, bureauAdPro } from "@/lib/queries/reservations-fiches";
+import { envoisDesFiches, ficheDuBureau, fichesDuBureau } from "@/lib/queries/reservations-fiches";
 import { decideDocumentRequest } from "@/lib/actions/document-request-actions";
 import { REFUS_AVANT_ACCORD } from "@/lib/reservation-fiche/etat";
 
@@ -221,10 +221,10 @@ suite("Fiches de voyage — envoi, relance, prise, manque, modification, dépôt
     expect((await relancerFiche(fd({ id: demande }))).error).toMatch(/renvoyez la mise à jour/);
     // Chez l'assistante : la ligne dit « à renvoyer » et montre le champ changé.
     ACTOR = A1;
-    const bureau = await bureauAdPro(A1);
-    const ligne = bureau.groupes.flatMap((g) => g.lignes).find((l) => l.demandeId === demande)!;
+    const ligne = (await ficheDuBureau(A1, demande))!.ligne;
     expect(ligne.etat).toBe("MODIFIEE_APRES_ENVOI");
     expect(ligne.changements.map((c) => c.champ)).toEqual(["Aller"]);
+    expect((await fichesDuBureau(A1)).lignes.find((l) => l.demandeId === demande)?.etat, "la ligne du bureau aussi").toBe("MODIFIEE_APRES_ENVOI");
     expect(await prisma.notification.count({ where: { userId: a1Id, title: "Fiche modifiée après l'envoi" } })).toBe(1);
     // Le poste est accordé entre-temps : le dépôt reste refusé tant que la mise à jour n'est pas renvoyée.
     await prisma.adProItem.update({ where: { id: posteBillet }, data: { status: "APPROVED" } });
@@ -378,10 +378,9 @@ suite("Fiches de voyage — envoi, relance, prise, manque, modification, dépôt
     const apres = await prisma.demandeReservation.findUniqueOrThrow({ where: { id: d.id } });
     expect(cell.issuedDocumentId).toBe(apres.pieceIds[0]);
     expect(cell.bookingRef).toBe("XK42");
-    // L'onglet Ad & Pro groupe par opération : le poste et la prise en charge du même congrès.
-    const bureau = await bureauAdPro(A1);
-    const titres = bureau.groupes.filter((gr) => gr.lignes.some((l) => [demande, d.id].includes(l.demandeId))).map((gr) => gr.titre);
-    expect(titres.some((t) => t.includes("Prise en charge de la billetterie"))).toBe(true);
-    expect(titres.some((t) => t.includes("Billetterie"))).toBe(true);
+    // Au bureau (un seul tableau, 24/11/2026) : le poste et la prise en charge du même congrès, chacun sa ligne et son poste.
+    const lignes = (await fichesDuBureau(A1)).lignes.filter((l) => [demande, d.id].includes(l.demandeId));
+    expect(lignes.some((l) => l.poste.includes("Prise en charge de la billetterie"))).toBe(true);
+    expect(lignes.some((l) => l.poste.includes("Billetterie"))).toBe(true);
   });
 });

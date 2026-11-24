@@ -1,4 +1,4 @@
-import { userCan, hasGlobalView } from "./dependances";
+import { userCan } from "./dependances";
 import type { OpMeta } from "./types";
 
 /**
@@ -171,8 +171,8 @@ export const OPS_RH: OpMeta[] = [
     uiLabel: "Accuser réception des originaux",
     aliases: ["accuse réception des originaux de", "les originaux de la note de frais sont arrivés"],
     risk: "NORMAL",
-    summary: "Atteste que les originaux papier d'une note de frais sont physiquement au bureau du secrétariat — l'employé et la Direction sont notifiés.",
-    gate: (u) => hasGlobalView(u) || userCan(u, "ADMIN_REQUESTS", "UPDATE"),
+    summary: "Atteste que les RH ont reçu les originaux papier d'une note de frais (ce qui débloque la décision) — l'employé et la Direction sont notifiés.",
+    gate: (u) => u.role === "SUPER_ADMIN" || userCan(u, "HR_REQUESTS", "UPDATE"),
     covers: ["hr-document-actions:ackExpenseOriginals"],
   },
   {

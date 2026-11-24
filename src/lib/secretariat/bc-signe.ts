@@ -44,7 +44,7 @@ export async function apresSignatureDuBCDesFiches(bcId: string, acteurId: string
       type: "GENERIC" as const,
       title: siennes.some((f) => f.nature === "BILLET") ? "Billets à faire émettre — BC signé" : "Réservations à confirmer — BC signé",
       body: `${nom} signé par ${signataire} : faites émettre puis déposez sur ${siennes.length > 1 ? "les fiches" : "la fiche"} — ${qui.join(", ")}.`,
-      link: `/demandes?onglet=adpro&fiche=${siennes[0]!.id}`,
+      link: `/demandes/fiches/${siennes[0]!.id}`,
     };
     await prevenirLeSecretariat(assistanteId, avis, acteurId).catch(sansBloquer("bc-signe.apresSignatureDuBCDesFiches.prevenirLeSecretariat", 0));
   }

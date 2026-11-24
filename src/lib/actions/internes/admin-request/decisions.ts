@@ -1,13 +1,13 @@
 /**
  * DEMANDES ADMINISTRATIVES — les APPROBATIONS et les CORRECTIONS : l'approbation à trancher, les refus qui disent à
  * qui elle revient (ou pourquoi la décision n'a pas pu se prendre), l'ordre qu'un accord chiffré émet, les approbations
- * précédentes retirées, ce qui retient une correction et ce qu'elle change, les phrases d'une annulation, et l'état
- * d'une course de chauffeur.
+ * précédentes retirées, ce qui retient une correction et ce qu'elle change, les phrases d'une annulation. (Les courses
+ * de chauffeur sont supprimées, 24/11/2026.)
  *
  * Sorti de `actions/admin-request-actions.ts` (lot V4). Les gardes (`peutTrancherApprobation`, `isTopManagement`),
  * l'émission de l'ordre et le journal restent dans les actions.
  */
-import type { AdminRequestStatus, DriverMissionStatus, Priority } from "@prisma/client";
+import type { AdminRequestStatus, Priority } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { notifyUser, notifyRoles } from "@/lib/notify";
 import { changementsDeLaDemande, refusDeModification, type ContenuDemande } from "@/lib/secretariat/porte-demandeur";
@@ -138,14 +138,6 @@ export function ceQuiAChange(
   const avant: ContenuDemande = { title: req.title, description: req.description, priority: req.priority, deadline: jour(req.deadline), fields: enTexte(existants) };
   const ensuite: ContenuDemande = { title: apres.title, description: apres.description, priority: apres.priority, deadline: jour(apres.deadline), fields: enTexte(apres.fields) };
   return changementsDeLaDemande(avant, ensuite, fieldLabels(req.type));
-}
-
-/** L'état d'une course posé par le chauffeur : son départ et sa fin se datent au moment du geste. */
-export function etatDeLaCourse(status: DriverMissionStatus, proofComment: string | null) {
-  const data: { status: DriverMissionStatus; proofComment?: string | null; startedAt?: Date; completedAt?: Date } = { status, proofComment };
-  if (status === "EN_ROUTE" || status === "ACCEPTED") data.startedAt = new Date();
-  if (status === "DONE") data.completedAt = new Date();
-  return data;
 }
 
 /**

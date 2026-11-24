@@ -226,9 +226,9 @@ export default async function MonDossierPage() {
                             {r.approvedMonth && <> · Validée pour <span className="font-medium text-success">{formatMonth(r.approvedMonth)}</span></>}
                           </p>
                           {r.originalsAckAt ? (
-                            <p className="text-success">Originaux réceptionnés par le secrétariat{r.originalsAckByName ? ` (${r.originalsAckByName})` : ""} le {formatDate(r.originalsAckAt)}.</p>
+                            <p className="text-success">Originaux reçus par les RH{r.originalsAckByName ? ` (${r.originalsAckByName})` : ""} le {formatDate(r.originalsAckAt)}.</p>
                           ) : (
-                            <p className="font-medium text-amber-700">⚠ Déposez les documents originaux au bureau du secrétariat — accusé de réception en attente.</p>
+                            <p className="font-medium text-amber-700">⚠ Remettez les documents originaux aux RH (par votre supérieur hiérarchique) — accusé de réception en attente.</p>
                           )}
                           {/* LES QUINZE MINUTES POUR SE RELIRE. Sans cette porte, celui qui
                               repère son erreur annule et redépose : deux demandes dans

@@ -1262,9 +1262,7 @@
   ],
   "roles": [
    "DIRECTION",
-   "GENERAL_MANAGER",
-   "OPERATIONS_DIRECTOR",
-   "DIRECTION_ASSISTANT"
+   "GENERAL_MANAGER"
   ]
  },
  "hr_operation.propose_hr_meeting": {
@@ -1851,58 +1849,6 @@
   "libelle": "Trancher une validation hiérarchique",
   "apres": [
    "admin-request-actions:decideApproval"
-  ],
-  "roles": [
-   "DIRECTION",
-   "GENERAL_MANAGER",
-   "OPERATIONS_DIRECTOR",
-   "HEAD_OF_REGULATORY",
-   "REGULATORY_ASSISTANT",
-   "HEAD_OF_SALES",
-   "SALES_USER",
-   "LOGISTICS_MANAGER",
-   "MEDICAL_PROMOTION_MANAGER",
-   "MEDICAL_DELEGATE",
-   "NATIONAL_SALES",
-   "PRODUCT_MANAGER",
-   "BUSINESS_DEVELOPMENT_MANAGER",
-   "FINANCE_BUDGET_MANAGER",
-   "MEDICAL_INFO_PHARMACIST",
-   "DIRECTION_ASSISTANT",
-   "COORDINATOR",
-   "VIEWER"
-  ]
- },
- "request_operation.toggle_mission_stop": {
-  "libelle": "Cocher un point de passage",
-  "apres": [
-   "admin-request-actions:toggleMissionStop"
-  ],
-  "roles": [
-   "DIRECTION",
-   "GENERAL_MANAGER",
-   "OPERATIONS_DIRECTOR",
-   "HEAD_OF_REGULATORY",
-   "REGULATORY_ASSISTANT",
-   "HEAD_OF_SALES",
-   "SALES_USER",
-   "LOGISTICS_MANAGER",
-   "MEDICAL_PROMOTION_MANAGER",
-   "MEDICAL_DELEGATE",
-   "NATIONAL_SALES",
-   "PRODUCT_MANAGER",
-   "BUSINESS_DEVELOPMENT_MANAGER",
-   "FINANCE_BUDGET_MANAGER",
-   "MEDICAL_INFO_PHARMACIST",
-   "DIRECTION_ASSISTANT",
-   "COORDINATOR",
-   "VIEWER"
-  ]
- },
- "request_operation.update_mission": {
-  "libelle": "Avancer une course",
-  "apres": [
-   "admin-request-actions:updateMission"
   ],
   "roles": [
    "DIRECTION",
