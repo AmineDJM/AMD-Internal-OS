@@ -76,6 +76,8 @@ export const DECLARATIONS_METIERS: Readonly<Record<string, DeclarationAnnulation
   "process-intelligence-actions:reglerDelaiEtape": retour(`${REGLAGE} ; un délai retiré est recréé à l'identique`),
   "promo-budget-actions:imputerBudgetMaterielPromo": retour("le dossier, ses ordres et leurs écritures retrouvent leur catégorie d'avant"),
   "promo-execution-actions:annulerFacturePromo": retour("la facture et son ordre non réglé reprennent leur statut d'avant"),
+  "care-actions:demanderPaiementBcPec": compensation(`${ORDRE} ; le BC de la prise en charge redevient « paiement à demander », sa facture reste dans les pièces`),
+  "care-actions:repondreRemboursementPec": retour("la réponse « Remboursé ? » est effacée (la ligne attend de nouveau) ; l'ordre non réglé du BC reprend son montant d'avant"),
   "promo-execution-actions:demanderPaiementFacturePromo": compensation(`${ORDRE} ; la déclaration à l'information médicale suit, les lignes abandonnées reviennent`),
   "promo-material-actions:cancelPromoMaterial": retour("le dossier, ses demandes au secrétariat, leurs validations et leurs ordres reprennent leur statut d'avant"),
   "promo-material-actions:initiatePayment": compensation(`le dossier revient au BC envoyé ; ${ORDRE}`),

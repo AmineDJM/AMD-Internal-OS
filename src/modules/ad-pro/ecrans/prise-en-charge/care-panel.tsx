@@ -27,6 +27,8 @@ import { filtrerAnnuaire, PLAFOND_MENU } from "./filtrer-annuaire";
 import { CHAMP, FicheVoyageur, PastilleDecision, TON_BADGE, type Run } from "./fiche-voyageur";
 import { BandeauEnvois } from "@/components/reservation-fiche/envoi-fiche";
 import type { EnvoiVue } from "@/lib/reservation-fiche/etat";
+import type { VueAchatsPec } from "../../infra/requetes/achats-pec";
+import { AchatsPriseEnCharge } from "./achats-tableau";
 
 export type { BeneficiaryRow } from "../../domaine/prise-en-charge/fiches";
 
@@ -59,6 +61,11 @@ interface Props {
    * ce lecteur peut-il la marquer (`peutMarquer`, le demandeur ou la Direction Marketing) ? L'action revérifie tout.
    */
   realisation?: { envoyee: boolean; realisee: boolean; peutMarquer: boolean };
+  /**
+   * LE CIRCUIT D'ACHAT PAR BC NUMÉROTÉS (24/11/2026) — la demande le suit : la liste devient le tableau des professionnels
+   * (chiffrage, validation, BC, retrait), et les devis du circuit d'avant disparaissent de l'écran.
+   */
+  achats?: { vue: VueAchatsPec; peutAjouter: boolean };
 }
 
 const fd = (o: Record<string, string>) => { const f = new FormData(); for (const [k, v] of Object.entries(o)) f.set(k, v); return f; };
@@ -73,7 +80,7 @@ const fd = (o: Record<string, string>) => { const f = new FormData(); for (const
  */
 export function CarePanel({
   scope, requestId, beneficiaries, quotes, groupPostes, reglages, enveloppe, directory, eventApproved, canEdit, canDecide, peutTeleverser, promoOptions = [],
-  envois = {}, budgetOptions = [], realisation,
+  envois = {}, budgetOptions = [], realisation, achats,
 }: Props) {
   const { enCours, rafraichir } = useRafraichir();
   const [action, setAction] = React.useState<string | null>(null);
@@ -144,8 +151,10 @@ export function CarePanel({
           scope={scope} requestId={requestId} mode={mode} b={fiche} quotes={quotes} groupPostes={groupPostes} personnes={personnes}
           taux={reglages.taux} eventCity={reglages.city} parCase={est.parCase} estime={est.parPersonne.get(fiche.id) ?? 0}
           canEdit={canEdit} canDecide={canDecide} peutTeleverser={peutTeleverser} busy={busy} run={run} promoOptions={promoOptions} envois={envois}
-          onRetour={() => setFicheId(null)} onDevis={ouvrirDevis}
+          onRetour={() => setFicheId(null)} onDevis={ouvrirDevis} circuitAchat={Boolean(achats)}
         />
+      ) : achats ? (
+        <AchatsPriseEnCharge scope={scope} requestId={requestId} vue={achats.vue} peutAjouter={achats.peutAjouter} budgetOptions={budgetOptions} onOuvrir={setFicheId} />
       ) : (
         <section className="rounded-xl border border-border bg-card">
           <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
@@ -271,8 +280,8 @@ export function CarePanel({
         />
       )}
 
-      {/* ── Devis ── */}
-      <section ref={devisRef} className="space-y-3 rounded-xl border border-border bg-card p-4">
+      {/* ── Devis (circuit d'avant ; le circuit d'achat chiffre par l'assistante) ── */}
+      {!achats && <section ref={devisRef} className="space-y-3 rounded-xl border border-border bg-card p-4">
         <div className="flex flex-wrap items-center gap-2">
           <Receipt className="h-4 w-4 text-primary" />
           <h3 className="text-sm font-semibold">Devis</h3>
@@ -351,7 +360,7 @@ export function CarePanel({
             ))}
           </ul>
         )}
-      </section>
+      </section>}
 
       {/* ── Les pièces de chaque professionnel ── */}
       <PiecesDesProfessionnels scope={scope} requestId={requestId} beneficiaries={beneficiaries} canEdit={canEdit} busy={busy} run={run} />

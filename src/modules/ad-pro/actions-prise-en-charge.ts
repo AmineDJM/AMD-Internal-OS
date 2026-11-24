@@ -2,7 +2,7 @@
 
 import { gesteReversible } from "@/lib/effets/ecran";
 import { revalidatePath } from "next/cache";
-import { Prisma, type CareCellKind, type CareCellStatus, type CareOpinion, type CareServiceKind } from "@prisma/client";
+import type { CareCellKind, CareCellStatus, CareOpinion, CareServiceKind } from "@prisma/client";
 import { requireUser } from "@/lib/session";
 import { userCan, hasGlobalView, hasRole, type SessionUser } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
@@ -20,6 +20,8 @@ import { deleteFileByKey } from "@/lib/storage";
 import { relierALaPersonne } from "@/modules/referentiels/api";
 import { sansBloquer } from "@/lib/journal";
 import { type Scope, SPEC, isScope, revalidate, canEdit, audit, loadRequest, tauxDe, CELL_FICHE_SELECT, versCellRow, ecrireAAssistante, parentWhere, scopeOfBeneficiary, nameOf, rolesDe } from "./infra/prise-en-charge/actions-commun";
+import { circuitAchat, solliciterChiffrage } from "./infra/prise-en-charge/achats";
+import { addDirectoryDoctor } from "@/lib/actions/medical-directory-actions";
 
 /**
  * PRISE EN CHARGE — actions serveur (nationale et internationale) : les PERSONNES (ajout, avis,
@@ -47,25 +49,6 @@ function canDecide(user: SessionUser, scope: Scope): boolean {
   return hasGlobalView(user) || userCan(user, SPEC[scope].module, "VALIDATE");
 }
 
-/**
- * OUVRIR LA FICHE D'UNE PERSONNE — sa billetterie et son hôtellerie, ouvertes par défaut (Direction, 10/2026).
- * Idempotent : une personne qui a déjà un billet (ou un hôtel) n'en reçoit pas un second. L'hôtel prend la
- * ville de l'événement ; ses dates viendront du billet.
- */
-async function ouvrirFiche(tx: Prisma.TransactionClient, scope: Scope, beneficiaryId: string, city: string | null, userId: string) {
-  const deja = await tx.careCell.findMany({ where: { beneficiaryId, kind: "SERVICE", serviceKind: { in: ["TICKET", "HOTEL"] } }, select: { serviceKind: true } });
-  const last = await tx.careCell.findFirst({ where: { beneficiaryId }, orderBy: { position: "desc" }, select: { position: true } });
-  let pos = last?.position ?? 0;
-  const data: Prisma.CareCellCreateManyInput[] = [];
-  if (!deja.some((c) => c.serviceKind === "TICKET")) {
-    data.push({ beneficiaryId, kind: "SERVICE", serviceKind: "TICKET", label: "Billetterie", currency: deviseDuPoste(scope, "TICKET"), requestedById: userId, position: ++pos });
-  }
-  if (!deja.some((c) => c.serviceKind === "HOTEL")) {
-    data.push({ beneficiaryId, kind: "SERVICE", serviceKind: "HOTEL", label: "Hôtellerie", city, currency: deviseDuPoste(scope, "HOTEL"), requestedById: userId, position: ++pos });
-  }
-  if (data.length) await tx.careCell.createMany({ data });
-}
-
 // ───────────────────────────── Les personnes ─────────────────────────────
 
 /**
@@ -80,6 +63,11 @@ async function ouvrirFiche(tx: Prisma.TransactionClient, scope: Scope, beneficia
  * Chaque personne ajoutée est une PROPOSITION (`PROPOSED`) : la Direction tranche, personne par
  * personne. La porte est celle de la FICHE (`canAccessEntity`), pas le seul droit de module : un
  * délégué n'ajoute pas une personne au congrès d'un collègue (§118.71).
+ *
+ * LE CIRCUIT D'ACHAT (Super Admin, 24/11/2026) : la fiche naît SANS poste (plus de billetterie ni d'hôtellerie ouvertes
+ * d'office — les postes s'ajoutent à la main) ; « Ajouter à l'annuaire » (`ajouterAnnuaire=on`, profil libre) crée la
+ * fiche par l'écrivain de l'annuaire (`addDirectoryDoctor` : sa garde, la Personne, la société, la wilaya) ; « Demander son
+ * devis » (`demanderDevis=on`) ouvre — ou complète — la demande de chiffrage chez l'assistante.
  */
 export async function addCareBeneficiary(_prev: ActionResult | undefined, formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
@@ -94,6 +82,7 @@ export async function addCareBeneficiary(_prev: ActionResult | undefined, formDa
   if (!req) return { ok: false, error: "Demande introuvable." };
 
   const creer = fdStr(formData, "createDoctor") === "on";
+  const versAnnuaire = !creer && !fdStr(formData, "doctorId") && fdStr(formData, "ajouterAnnuaire") === "on";
   const doctorName = fdStr(formData, "doctorName");
   let doctorId = creer ? null : fdStr(formData, "doctorId");
   const lastName = fdStr(formData, "lastName");
@@ -107,6 +96,12 @@ export async function addCareBeneficiary(_prev: ActionResult | undefined, formDa
   }
 
   try {
+    if (versAnnuaire) {
+      // LE MÊME ÉCRIVAIN QUE L'ANNUAIRE : sa garde (`peutAnnuaire`), la Personne, la société et la wilaya de la fiche.
+      const fiche = await addDirectoryDoctor({ lastName: lastName ?? "", firstName: fdStr(formData, "firstName") ?? "", specialty: fdStr(formData, "specialty") ?? "", wilaya: fdStr(formData, "wilaya") ?? "" });
+      if (!fiche.ok || !fiche.id) return { ok: false, error: fiche.error ?? "La fiche n'a pas pu entrer dans l'annuaire." };
+      doctorId = fiche.id;
+    }
     if (creer) {
       const profil = await creerProfilMedecin(user.id, {
         name: doctorName ?? "",
@@ -120,7 +115,7 @@ export async function addCareBeneficiary(_prev: ActionResult | undefined, formDa
     const last = await prisma.careBeneficiary.findFirst({
       where: parentWhere(scopeRaw, requestId), orderBy: { position: "desc" }, select: { position: true },
     });
-    // LA FICHE NAÎT OUVERTE (Direction, 10/2026) : la personne et, avec elle, sa billetterie et son hôtellerie.
+    // LA FICHE NAÎT SANS POSTE (circuit d'achat, 24/11/2026) : billet, hôtel, transport, repas… s'ajoutent à la main.
     const created = await prisma.$transaction(async (tx) => {
       const b = await tx.careBeneficiary.create({
         data: {
@@ -136,15 +131,19 @@ export async function addCareBeneficiary(_prev: ActionResult | undefined, formDa
         },
         select: { id: true, doctorId: true, firstName: true, lastName: true },
       });
-      await ouvrirFiche(tx, scopeRaw, b.id, req.city ?? null, user.id);
       // DOUBLE ÉCRITURE (refonte, lot V2-B) : la Personne (celle du praticien, s'il vient de l'annuaire), derrière son interrupteur.
       await relierALaPersonne(tx, "CareBeneficiary", b.id, user.id);
       return b;
     });
 
-    await audit(user, scopeRaw, requestId, "CREATE", `Professionnel proposé pour la prise en charge : ${await nameOf(created)}.`);
+    await audit(user, scopeRaw, requestId, "CREATE", `Professionnel proposé pour la prise en charge : ${await nameOf(created)}${versAnnuaire ? " (ajouté à l'annuaire)" : ""}.`);
+    let suite = "";
+    if (fdStr(formData, "demanderDevis") === "on") {
+      const ch = await solliciterChiffrage(user, scopeRaw, requestId, { beneficiaryIds: [created.id] });
+      suite = ch.ok ? " Son devis est demandé à l'assistante de direction." : ` Le devis n'a pas pu être demandé : ${ch.error}`;
+    }
     revalidate(scopeRaw, requestId);
-    return { ok: true, id: created.id };
+    return { ok: true, id: created.id, message: `Professionnel ajouté.${suite}` };
   } catch (err) {
     console.error("[care] ajout de personne impossible", err);
     return { ok: false, error: "La personne n'a pas pu être ajoutée." };
@@ -213,6 +212,12 @@ export async function decideCareBeneficiary(_prev: ActionResult | undefined, for
   if (!found) return { ok: false, error: "Personne introuvable." };
   if (!canDecide(user, found.scope)) return { ok: false, error: "Seule la Direction tranche." };
 
+  // ÉCARTER UNE PERSONNE DONT L'ACHAT EST ENGAGÉ (ordre émis, ligne de BC) n'efface pas la dépense : on la RETIRE (la
+  // ligne se barre, ou « Remboursé ? » après l'achat) — jamais un « écartée » qui laisserait l'argent sans trace.
+  if (decision === "REJECTED") {
+    const engagee = await prisma.careCell.count({ where: { beneficiaryId: id, OR: [{ expenseOrderId: { not: null } }, { lignesBc: { some: { statut: { in: ["ACTIVE", "ACHETEE"] } } } }] } });
+    if (engagee > 0) return { ok: false, error: "Un achat est engagé pour cette personne (BC ou ordre de dépense) : retirez-la plutôt — sa ligne de BC sera barrée, ou « Remboursé ? » après l'achat." };
+  }
   const name = await nameOf(found.beneficiary);
   try {
     await prisma.careBeneficiary.update({
@@ -257,9 +262,9 @@ export async function removeCareBeneficiary(_prev: ActionResult | undefined, for
 
   // Une personne dont une prestation est déjà engagée ne se retire pas : la dépense, elle,
   // resterait. On l'écarte (décision tracée) plutôt que de l'effacer.
-  const engaged = await prisma.careCell.count({ where: { beneficiaryId: id, expenseOrderId: { not: null } } });
+  const engaged = await prisma.careCell.count({ where: { beneficiaryId: id, OR: [{ expenseOrderId: { not: null } }, { lignesBc: { some: {} } }] } });
   if (engaged > 0) {
-    return { ok: false, error: "Une dépense a déjà été engagée pour cette personne : écartez-la plutôt que de la retirer." };
+    return { ok: false, error: "Une dépense ou un bon de commande porte déjà cette personne : retirez-la par « Retirer » (la ligne de BC est barrée, rien ne s'efface)." };
   }
 
   const name = await nameOf(found.beneficiary);
@@ -353,6 +358,13 @@ export async function setCareCellStatus(_prev: ActionResult | undefined, formDat
   if (status === "WAIVED" && cell.expenseOrderId) {
     return { ok: false, error: "Une dépense a été engagée sur cet élément : il ne peut plus être déclaré sans objet." };
   }
+  // UN POSTE COUVERT PAR UN BC DE PRISE EN CHARGE (24/11/2026) suit son BC : « réglé » se lit sur l'achat et l'ordre du BC,
+  // jamais à la main ; « sans objet » passe par le retrait du professionnel (la ligne se barre, ou « Remboursé ? »).
+  if ((status === "SETTLED" || status === "WAIVED") && (await prisma.carePecBcLigne.count({ where: { cellId: id } })) > 0) {
+    return { ok: false, error: status === "SETTLED"
+      ? "Ce poste est dans un bon de commande : il se règle par l'achat puis la demande de paiement du BC, pas à la main."
+      : "Ce poste est dans un bon de commande : retirez le professionnel (sa ligne de BC est barrée) plutôt que de le déclarer sans objet." };
+  }
 
   await prisma.careCell.update({ where: { id }, data: { status } });
   await audit(user, found.scope, found.requestId, "UPDATE", `${await nameOf(found.beneficiary)} — « ${cell.label} » : ${status}.`);
@@ -370,6 +382,7 @@ export async function removeCareCell(_prev: ActionResult | undefined, formData: 
   if (!found) return { ok: false, error: "Personne introuvable." };
   if (!canEdit(user, found.scope)) return { ok: false, error: "Non autorisé." };
   if (cell.expenseOrderId) return { ok: false, error: "Une dépense a été engagée sur cet élément : il ne peut plus être retiré." };
+  if ((await prisma.carePecBcLigne.count({ where: { cellId: id } })) > 0) return { ok: false, error: "Ce poste est dans un bon de commande : il ne s'efface pas — retirez le professionnel, sa ligne de BC sera barrée." };
 
   await prisma.careCell.delete({ where: { id } });
   await audit(user, found.scope, found.requestId, "DELETE", `${await nameOf(found.beneficiary)} — élément « ${cell.label} » retiré.`);
@@ -534,6 +547,11 @@ export async function decideCareQuote(_prev: ActionResult | undefined, formData:
     // ACCEPTER ENGAGE LA DÉPENSE (27/10/2026) : la demande prévalidée, chaque personne couverte accordée, et une
     // catégorie budgétaire — l'ordre né du devis la porte, il n'échappe plus aux enveloppes.
     let budgetCategoryId: string | null = null;
+    // LE CIRCUIT D'ACHAT PAR BC (24/11/2026) : sur une demande qui le suit, l'ordre de dépense ne naît plus d'un devis
+    // accepté — il naît du paiement d'un BC signé, facture jointe. Les devis déjà acceptés gardent leur ordre.
+    if (decision === "ACCEPTED" && (await circuitAchat(scope, requestId))) {
+      return { ok: false, error: "Cette prise en charge suit le circuit d'achat par bons de commande : validez les montants des professionnels puis « Lancer les achats » — le paiement se demande sur le BC signé, facture jointe." };
+    }
     if (decision === "ACCEPTED") {
       const refusEngagement = await refusEngagementPriseEnCharge(scope, requestId, cellIds);
       if (refusEngagement) return { ok: false, error: refusEngagement };

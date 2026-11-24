@@ -11,7 +11,7 @@ import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/
 import { getAccess, hasGlobalView, userCan } from "@/lib/rbac";
 import { deleteFileByKey } from "@/lib/storage";
 import { createCongressRequest } from "./actions-congres";
-import { addCareBeneficiary, decideCareBeneficiary, createCareQuote, requestCareQuotes } from "./actions-prise-en-charge";
+import { addCareBeneficiary, addCareCell, decideCareBeneficiary, createCareQuote, requestCareQuotes } from "./actions-prise-en-charge";
 import { peutSaisirLesDevis } from "./infra/prise-en-charge/devis-acces";
 import { peutLirePieceDePriseEnCharge } from "./infra/passeport-acces";
 import { canAccessEntity } from "@/lib/entity-access";
@@ -73,6 +73,11 @@ suite("Prise en charge — les devis demandés à l'assistante de direction se s
     expect(pers.ok, pers.ok ? "" : pers.error).toBe(true);
     const dec = await decideCareBeneficiary(undefined, fdOf({ id: pers.id!, decision: "APPROVED" }));
     expect(dec.ok, dec.ok ? "" : dec.error).toBe(true);
+    // LA FICHE NAÎT SANS POSTE (circuit d'achat, 24/11/2026) : billet et hôtel s'ajoutent à la main.
+    for (const posteType of ["BILLET", "HOTEL"]) {
+      const c = await addCareCell(undefined, fdOf({ beneficiaryId: pers.id!, posteType }));
+      expect(c.ok, c.ok ? "" : c.error).toBe(true);
+    }
     // La Direction a validé l'événement : c'est la condition de la demande de devis.
     await prisma.congressNational.updateMany({ where: { id: { in: [natId, autreId] } }, data: { requestStatus: "APPROVED" } });
     cellIds = (await prisma.careCell.findMany({ where: { beneficiary: { congressNationalId: natId }, kind: "SERVICE", status: "REQUESTED" }, select: { id: true } })).map((c) => c.id);

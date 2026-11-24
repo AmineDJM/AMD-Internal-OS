@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { userCan, hasGlobalView, hasRole } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { prisma } from "@/lib/prisma";
-import { getCongressDetail, peutSupprimerUneDemandeAdPro, loadAdProItems, adProBudgetOptions, contexteMaterielStock, contextePostes, getCareDossier, envoiAuxFinances, adProEditValues, requireModuleOuAgences } from "@/modules/ad-pro/api";
+import { getCongressDetail, peutSupprimerUneDemandeAdPro, loadAdProItems, adProBudgetOptions, contexteMaterielStock, contextePostes, getCareDossier, envoiAuxFinances, adProEditValues, requireModuleOuAgences, vueAchatsPec } from "@/modules/ad-pro/api";
 import { getEntityMissions } from "@/lib/queries/missions";
 import { getWorkflowForEntity } from "@/lib/queries/workflow";
 import { PageHeader } from "@/components/shared/page-header";
@@ -108,6 +108,8 @@ export default async function CongressNatDetailPage(props: { params: Promise<{ i
   // Le dossier de prise en charge : les personnes, ce qu'il faut pour chacune, et les devis.
   const [care, directory, carePromo] = await Promise.all([getCareDossier("NATIONAL", detail.id), careDirectoryOptions(), carePromoOptions()]);
   const canEditCare = userCan(user, "CONGRESS_NATIONAL", "CREATE") || userCan(user, "CONGRESS_NATIONAL", "UPDATE") || canAllocate;
+  // LE CIRCUIT D'ACHAT PAR BC NUMÉROTÉS (24/11/2026) : professionnels, chiffrage, validation, BC — pour les demandes qui le suivent.
+  const achats = await vueAchatsPec(user, "NATIONAL", detail.id);
   // LES FICHES VOYAGEUR : l'estimé et les fiches prêtes, lus une fois pour le bandeau (`resumeDesFiches`).
   const fiches = resumeDesFiches("NATIONAL", care.beneficiaries, care.quotes, care.groupPostes);
   const peutTeleverser = peutTeleverserBillet(
@@ -216,6 +218,7 @@ export default async function CongressNatDetailPage(props: { params: Promise<{ i
             peutTeleverser={peutTeleverser}
             budgetOptions={budgetOptions}
             realisation={realisation}
+            achats={achats.circuit ? { vue: achats, peutAjouter: canEditCare } : undefined}
           />
         }
         couverture={

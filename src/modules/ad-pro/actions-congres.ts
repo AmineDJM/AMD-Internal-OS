@@ -18,7 +18,7 @@ import { retirerDemandeAdPro } from "@/lib/actions/workflow-actions";
 import { referentAInscrire, gammeImposee, refusCategoriePourLaDemande, type NatureDemandeAdPro } from "@/modules/ad-pro/api";
 import { fdStr, fdNum, fdDate, type ActionResult } from "@/lib/actions/types";
 import { attachFiles, validateAttachments } from "@/lib/attach-files";
-import { deviseDuPoste, lireMode, TAUX_USD_DZD_DEFAUT } from "@/modules/ad-pro/partage";
+import { lireMode, TAUX_USD_DZD_DEFAUT } from "@/modules/ad-pro/partage";
 import { relierALaPersonne } from "@/modules/referentiels/api";
 import { actionReversible } from "@/lib/effets/reversible";
 
@@ -171,6 +171,8 @@ export async function createCongressRequest(
     // simplement le nom de son référent.
     ...(init.productManagerId || referentGamme ? { productManagerId: init.productManagerId || referentGamme! } : {}),
     ...(init.preliminaryBySelf ? { preliminaryById: user.id, preliminaryAt: now } : {}),
+    // LE CIRCUIT D'ACHAT PAR BC NUMÉROTÉS (Super Admin, 24/11/2026) : toute demande née désormais le suit.
+    circuitAchatAt: now,
   };
 
   const created =
@@ -205,8 +207,8 @@ export async function createCongressRequest(
         });
 
   if (proposes.length > 0) {
-    // Chaque professionnel proposé reçoit SA fiche, billetterie et hôtellerie ouvertes (Direction, 10/2026).
-    const ville = created.city ?? null;
+    // Chaque professionnel proposé reçoit SA fiche — SANS poste d'office (circuit d'achat, 24/11/2026) : billet, hôtel,
+    // transport, repas… s'ajoutent à la main sur sa fiche.
     await prisma.$transaction(async (tx) => {
       for (const [i, doctorId] of proposes.entries()) {
         const b = await tx.careBeneficiary.create({
@@ -215,12 +217,6 @@ export async function createCongressRequest(
             doctorId, position: i + 1, createdById: user.id, updatedById: user.id,
           },
           select: { id: true },
-        });
-        await tx.careCell.createMany({
-          data: [
-            { beneficiaryId: b.id, kind: "SERVICE", serviceKind: "TICKET", label: "Billetterie", currency: "DZD", requestedById: user.id, position: 1 },
-            { beneficiaryId: b.id, kind: "SERVICE", serviceKind: "HOTEL", label: "Hôtellerie", city: ville, currency: deviseDuPoste(t === "INTL" ? "INTERNATIONAL" : "NATIONAL", "HOTEL"), requestedById: user.id, position: 2 },
-          ],
         });
         // DOUBLE ÉCRITURE (refonte, lot V2-B) : le bénéficiaire rejoint la Personne de son praticien.
         await relierALaPersonne(tx, "CareBeneficiary", b.id, user.id);

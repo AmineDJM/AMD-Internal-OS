@@ -4,6 +4,7 @@ import { notifyUser } from "@/lib/notify";
 import { prevenirLeSecretariat } from "@/lib/secretariat/annulation";
 import { LIBELLE_BC_DEMANDE } from "@/lib/secretariat/devis-natif";
 import { sansBloquer } from "@/lib/journal";
+import { apresSignatureFinancesPec } from "@/modules/ad-pro/api";
 
 /**
  * APRÈS LA SIGNATURE D'UN BC (module Bons de commande) : si le BC vient d'une demande au
@@ -23,6 +24,8 @@ import { sansBloquer } from "@/lib/journal";
 export async function apresSignatureDuBCDesFiches(bcId: string, acteurId: string, signataire: string): Promise<void> {
   const bc = await prisma.legalDocument.findUnique({ where: { id: bcId }, select: { reference: true, title: true, kind: true } });
   if (!bc || bc.kind !== "PURCHASE_ORDER") return;
+  // LE BC n°k D'UNE PRISE EN CHARGE (circuit d'achat, 24/11/2026) : l'assistante achète ce qu'il porte — et seulement cela.
+  if (await apresSignatureFinancesPec(bcId, acteurId, signataire)) return;
   const liens = await prisma.adProItemPiece.findMany({ where: { legalDocumentId: bcId, nature: "BON_DE_COMMANDE" }, select: { itemId: true } });
   if (liens.length === 0) return;
   const fiches = await prisma.demandeReservation.findMany({

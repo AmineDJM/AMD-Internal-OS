@@ -4180,6 +4180,9 @@ model CongressInternational {
   initiativeDoctorIds      String[] @default([])
   /// Le sujet ouvert pour l'assistante de direction (réservations, puis BC) — `Dossier.id`.
   careReservationDossierId String?
+  /// LE CIRCUIT D'ACHAT PAR BC NUMÉROTÉS (24/11/2026) : posé à la création des demandes nées après lui. Nul = circuit d'avant
+  /// (devis acceptés qui émettent leur ordre), gardé tel quel pour les demandes en cours.
+  circuitAchatAt           DateTime?
 
   createdById String?
   updatedById String?
@@ -4189,6 +4192,8 @@ model CongressInternational {
   careBeneficiaries CareBeneficiary[]
   careQuotes        CareQuote[]
   careGroupPostes   CareGroupPoste[]
+  careChiffrages    CareChiffrage[]
+  carePecBcs        CarePecBc[]
 
   /// Postes (consulting, traiteur, salle…) validés un par un — voir AdProItem.
   items AdProItem[]
@@ -4259,6 +4264,8 @@ model CongressNational {
   usdDzdRate               Decimal? @db.Decimal(10, 4)
   initiativeDoctorIds      String[] @default([])
   careReservationDossierId String?
+  /// LE CIRCUIT D'ACHAT PAR BC NUMÉROTÉS (24/11/2026) — voir `CongressInternational.circuitAchatAt`.
+  circuitAchatAt           DateTime?
 
   createdById String?
   updatedById String?
@@ -4269,6 +4276,8 @@ model CongressNational {
   careBeneficiaries CareBeneficiary[]
   careQuotes        CareQuote[]
   careGroupPostes   CareGroupPoste[]
+  careChiffrages    CareChiffrage[]
+  carePecBcs        CarePecBc[]
 
   @@index([status])
   @@index([date])
@@ -4449,6 +4458,18 @@ model CareCell {
   timeStart        String?
   address          String?
 
+  /// LE CHIFFRAGE DE L'ASSISTANTE (circuit d'achat v2, 24/11/2026) : quand et par qui `amount`/`amountDzd` ont été chiffrés,
+  /// et la pièce facultative (devis, capture) jointe au montant (`Document.id`). Chaque changement de prix est historisé
+  /// (`CarePrixHistorique`).
+  chiffreLe        DateTime?
+  chiffreParId     String?
+  chiffragePieceId String?
+  /// LA VALIDATION DE LA DIRECTION MARKETING, poste par poste : le montant qu'elle a validé (DZD). Un prix rechiffré au-delà
+  /// est de nouveau « à valider » ; ce qui est validé et pas encore dans un BC part au prochain « Lancer les achats ».
+  valideLe         DateTime?
+  valideParId      String?
+  montantValideDzd Decimal?  @db.Decimal(14, 2)
+
   /// Qui a demandé cette case — le chef de produit peut en ajouter après coup.
   requestedById String?
   position      Int      @default(0)
@@ -4456,6 +4477,8 @@ model CareCell {
   updatedAt     DateTime @updatedAt
 
   quoteLinks         CareQuoteCell[]
+  prix               CarePrixHistorique[]
+  lignesBc           CarePecBcLigne[]
   /// La demande de réservation de ce billet / cet hôtel chez l'assistante de direction (son état seulement).
   demandeReservation DemandeReservation?
 
@@ -4526,6 +4549,123 @@ model CareQuoteCell {
   cell    CareCell  @relation(fields: [cellId], references: [id], onDelete: Cascade)
 
   @@id([quoteId, cellId])
+  @@index([cellId])
+}
+
+/// État d'une demande de chiffrage chez l'assistante de direction — le vocabulaire du bureau du secrétariat.
+enum CareChiffrageEtat {
+  A_PRENDRE
+  EN_COURS
+  TERMINEE
+  ANNULEE
+}
+
+/// UNE DEMANDE DE CHIFFRAGE d'une prise en charge (circuit d'achat v2, 24/11/2026) — « Demander son devis » (un
+/// professionnel) ou « Actualiser les prix » (tout ce qui n'est pas encore acheté). Une seule ouverte par demande à la fois :
+/// une nouvelle sollicitation s'y ajoute. Elle est une ligne du bureau du secrétariat et ouvre la page « Chiffrer ».
+model CareChiffrage {
+  id                      String                 @id @default(cuid())
+  congressNationalId      String?
+  congressNational        CongressNational?      @relation(fields: [congressNationalId], references: [id], onDelete: Cascade)
+  congressInternationalId String?
+  congressInternational   CongressInternational? @relation(fields: [congressInternationalId], references: [id], onDelete: Cascade)
+  etat                    CareChiffrageEtat      @default(A_PRENDRE)
+  /// « Actualiser les prix » : toute la prise en charge. Sinon, les seuls professionnels listés.
+  tous                    Boolean                @default(false)
+  beneficiaryIds          String[]               @default([])
+  demandeParId            String?
+  demandeLe               DateTime               @default(now())
+  priseParId              String?
+  priseLe                 DateTime?
+  envoyeeParId            String?
+  envoyeeLe               DateTime?
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
+
+  @@index([congressNationalId])
+  @@index([congressInternationalId])
+  @@index([etat])
+}
+
+/// L'HISTORIQUE DES PRIX d'un poste de prise en charge : qui, quand, ancien → nouveau, et pourquoi (chiffrage, correction,
+/// marge, complément). On ne réécrit jamais un prix sans en garder la trace.
+model CarePrixHistorique {
+  id             String       @id @default(cuid())
+  cellId         String
+  cell           CareCell     @relation(fields: [cellId], references: [id], onDelete: Cascade)
+  ancienDzd      Decimal?     @db.Decimal(14, 2)
+  nouveauDzd     Decimal?     @db.Decimal(14, 2)
+  ancienMontant  Decimal?     @db.Decimal(14, 2)
+  nouveauMontant Decimal?     @db.Decimal(14, 2)
+  devise         CareCurrency @default(DZD)
+  motif          String
+  auteurId       String?
+  createdAt      DateTime     @default(now())
+
+  @@index([cellId])
+}
+
+/// Où en est une ligne d'un BC de prise en charge.
+enum CarePecLigneStatut {
+  ACTIVE // dans le BC, pas encore achetée
+  ACHETEE // achetée par l'assistante (billet, confirmation, pièce)
+  RETIREE_AVANT_ACHAT // barrée sur le BC : l'engagement est libéré
+  RETIREE_APRES_ACHAT // retirée après l'achat : « Remboursé ? » attend sa réponse
+}
+
+/// UN BON DE COMMANDE NUMÉROTÉ D'UNE PRISE EN CHARGE (BC n°1, n°2…) — la pièce est un vrai `LegalDocument` PURCHASE_ORDER
+/// (`legalDocumentId`) : signature de la Direction Marketing, visa du centre Ad & Pro, signature des Finances, puis l'achat
+/// et le paiement (UN ordre de dépense, `expenseOrderId`, facture obligatoire). Signé, il ne se réécrit jamais : un ajout
+/// part dans un BC complémentaire.
+model CarePecBc {
+  id                      String                 @id @default(cuid())
+  congressNationalId      String?
+  congressNational        CongressNational?      @relation(fields: [congressNationalId], references: [id], onDelete: Cascade)
+  congressInternationalId String?
+  congressInternational   CongressInternational? @relation(fields: [congressInternationalId], references: [id], onDelete: Cascade)
+  numero                  Int
+  legalDocumentId         String?                @unique
+  fournisseur             String
+  budgetCategoryId        String?
+  creeParId               String?
+  paiementDemandeLe       DateTime?
+  paiementDemandeParId    String?
+  expenseOrderId          String?                @unique
+  factureDocumentId       String?
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
+
+  lignes CarePecBcLigne[]
+
+  @@unique([congressNationalId, numero])
+  @@unique([congressInternationalId, numero])
+}
+
+/// UNE LIGNE D'UN BC DE PRISE EN CHARGE — le lien BC ↔ poste (`CareCell`), avec le montant porté par le BC (figé),
+/// le montant d'achat réel (dans la marge de 10 %), le retrait et le remboursement.
+model CarePecBcLigne {
+  id                   String             @id @default(cuid())
+  bcId                 String
+  bc                   CarePecBc          @relation(fields: [bcId], references: [id], onDelete: Cascade)
+  cellId               String
+  cell                 CareCell           @relation(fields: [cellId], references: [id], onDelete: Cascade)
+  libelle              String
+  montantDzd           Decimal            @db.Decimal(14, 2)
+  montantAchatDzd      Decimal?           @db.Decimal(14, 2)
+  statut               CarePecLigneStatut @default(ACTIVE)
+  acheteLe             DateTime?
+  acheteParId          String?
+  retireLe             DateTime?
+  retireParId          String?
+  retraitMotif         String?
+  rembourse            Boolean?
+  rembourseDzd         Decimal?           @db.Decimal(14, 2)
+  rembourseRepondLe    DateTime?
+  rembourseRepondParId String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  @@unique([bcId, cellId])
   @@index([cellId])
 }
 

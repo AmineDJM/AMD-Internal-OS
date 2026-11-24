@@ -729,23 +729,31 @@ export function etatHotellerie(cells: readonly CellRow[], devis: readonly DevisL
 }
 
 /**
- * LA FICHE EST-ELLE PRÊTE POUR RÉSERVER ? Le billet (s'il n'est pas « sans ») ne manque de rien selon la règle du
- * sponsoring, l'hôtel (s'il n'est pas « sans ») a son hôtel et ses dates — et il y a au moins l'un des deux à réserver.
+ * CE QUI MANQUE À LA FICHE POUR RÉSERVER : le billet (s'il n'est pas « sans ») selon la règle du sponsoring, l'hôtel (s'il
+ * n'est pas « sans ») son hôtel et ses dates. Une fiche SANS billet ni hôtel n'a rien à réserver — et donc rien qui lui
+ * manque (circuit d'achat, 24/11/2026 : les fiches naissent sans poste ; « rien à réserver » n'est pas un manque).
  */
 export function manquesPourReserverFiche(scope: Perimetre, nom: string, cells: readonly CellRow[], passeport: boolean): string[] {
   const b = billetPrincipal(cells);
   const h = hotelPrincipal(cells);
   const bVivant = b && b.status !== "WAIVED" ? b : null;
   const hVivant = h && h.status !== "WAIVED" ? h : null;
-  if (!bVivant && !hVivant) return ["rien à réserver (sans billet ni hôtel)"];
   return [
     ...(bVivant ? manquesBillet(scope, nom, bVivant, passeport) : []),
     ...(hVivant ? manquesHotel(hVivant) : []),
   ];
 }
 
+/** La fiche a-t-elle un billet ou un hôtel à réserver (pas « sans ») ? */
+export function aQuelqueChoseAReserver(cells: readonly CellRow[]): boolean {
+  const b = billetPrincipal(cells);
+  const h = hotelPrincipal(cells);
+  return Boolean((b && b.status !== "WAIVED") || (h && h.status !== "WAIVED"));
+}
+
+/** PRÊTE POUR RÉSERVER : quelque chose à réserver, et rien n'y manque. */
 export function fichePrete(scope: Perimetre, nom: string, cells: readonly CellRow[], passeport: boolean): boolean {
-  return manquesPourReserverFiche(scope, nom, cells, passeport).length === 0;
+  return aQuelqueChoseAReserver(cells) && manquesPourReserverFiche(scope, nom, cells, passeport).length === 0;
 }
 
 export type GesteFiche = "PASSEPORT" | "COMPLETER" | "DEVIS" | "RETENIR" | "BC" | null;

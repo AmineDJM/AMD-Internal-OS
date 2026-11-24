@@ -4,6 +4,7 @@ import { journal } from "@/lib/journal";
 import {
   lignesBcDePoste, lignesDemandesSecretariat, lignesDevisPriseEnCharge, lignesFichesVoyage, lignesMaterielPromo, lignesProspectionAgences,
 } from "@/lib/queries/bureau-familles";
+import { lignesBureauPecAchat, lignesBureauPecChiffrage } from "@/modules/ad-pro/api";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -28,7 +29,10 @@ export interface FamilleBureau {
  * LA PLACE DES PRISES EN CHARGE — « Chiffrage » et « Achat » (circuit d'achat v2, validé le 24/11/2026). Le lot qui les
  * implémente ajoute ici ses deux familles (`pec-chiffrage`, `pec-achat`) ; rien d'autre à brancher.
  */
-export const FAMILLES_PRISE_EN_CHARGE: FamilleBureau[] = [];
+export const FAMILLES_PRISE_EN_CHARGE: FamilleBureau[] = [
+  { cle: "pec-chiffrage", libelle: "les chiffrages de prise en charge", lignes: lignesBureauPecChiffrage },
+  { cle: "pec-achat", libelle: "les achats de prise en charge", lignes: lignesBureauPecAchat },
+];
 
 /** L'ORDRE COMPTE pour les doublons : une demande « BC à établir » ou un poste agence passent avant la demande de pièce du même poste. */
 export const FAMILLES_BUREAU: FamilleBureau[] = [

@@ -3335,6 +3335,16 @@
   "annulation": "retour",
   "appelable": true
  },
+ "care-actions:acheterLignePec": {
+  "risque": "R1",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
  "care-actions:addCareBeneficiary": {
   "risque": "R1",
   "familles": [
@@ -3433,6 +3443,26 @@
   "annulation": "compensation",
   "appelable": true
  },
+ "care-actions:demanderChiffragePec": {
+  "risque": "R1",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "compensation",
+  "appelable": true
+ },
+ "care-actions:demanderPaiementBcPec": {
+  "risque": "R4",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "compensation",
+  "appelable": true
+ },
  "care-actions:demanderPiecesPriseEnCharge": {
   "risque": "R2",
   "familles": [
@@ -3473,6 +3503,36 @@
   "annulation": "compensation",
   "appelable": true
  },
+ "care-actions:enregistrerMontantsPec": {
+  "risque": "R2",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "compensation",
+  "appelable": true
+ },
+ "care-actions:homonymesAnnuairePec": {
+  "risque": "R1",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "care-actions:lancerAchatsPec": {
+  "risque": "R1",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": true
+ },
  "care-actions:linkCareCellPromoMaterial": {
   "risque": "R1",
   "familles": [
@@ -3490,6 +3550,16 @@
    "ECRITURES"
   ],
   "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "care-actions:modifierMontantPec": {
+  "risque": "R1",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
   "annulation": "retour",
   "appelable": true
  },
@@ -3525,6 +3595,16 @@
  },
  "care-actions:removeCareCell": {
   "risque": "R1",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "care-actions:repondreRemboursementPec": {
+  "risque": "R4",
   "familles": [
    "AD_PRO",
    "ECRITURES"
@@ -3573,6 +3653,16 @@
   "annulation": "retour",
   "appelable": true
  },
+ "care-actions:retirerProfessionnelPec": {
+  "risque": "R1",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
  "care-actions:sendCareToFinance": {
   "risque": "R2",
   "familles": [
@@ -3595,6 +3685,26 @@
  },
  "care-actions:setCareOpinion": {
   "risque": "R1",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "care-actions:signerBcPec": {
+  "risque": "R4",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "compensation",
+  "appelable": true
+ },
+ "care-actions:validerProfessionnelsPec": {
+  "risque": "R4",
   "familles": [
    "AD_PRO",
    "ECRITURES"

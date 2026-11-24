@@ -16,11 +16,18 @@ ses pièces, ses cases, ses devis). Lit `referentiels` (double écriture des per
 | `ecrans/` | Composants des fiches (postes, devis / BC, facture, voyageurs, hébergements, pièces, discussion) ; `postes/` (la carte d'un poste et ses formulaires), `prise-en-charge/` |
 
 - **Actions** (clé → fichier) : `ad-pro-item-actions` → `actions-postes.ts` + `actions-postes-{decision,paiement,materiel,voyageurs,lignes}.ts`
-  (une clé, six morceaux : `parc.ts` les déclare ensemble) ; `care-actions` → `actions-prise-en-charge{,-logistique}.ts` ;
+  (une clé, six morceaux : `parc.ts` les déclare ensemble) ; `care-actions` → `actions-prise-en-charge{,-logistique,-chiffrage,-achats}.ts` ;
   `sponsoring-actions`, `congress-request-actions` (`actions-congres`), `congress-beneficiary-actions`, `event-actions`
   (`actions-evenements`), `ad-pro-{centre,conseil,discussion,edit,medecins,other,pieces,postes-luna,transfer}-actions`,
   `ad-pro-rattacher-legal`.
 - **Tables** : voir l'en-tête de `api.ts` (demandes, postes, prise en charge, portes).
+- **Circuit d'achat des prises en charge** (24/11/2026, migration `20270246600000_pec_circuit_achat`) : chiffrage par
+  l'assistante (`CareChiffrage`, prix historisés `CarePrixHistorique`), validation de la Direction Marketing par professionnel,
+  BC numérotés (`CarePecBc` = un `LegalDocument` PURCHASE_ORDER, lignes `CarePecBcLigne`) : signature DM → centre Ad & Pro →
+  Finances → achat des seules lignes du BC → facture → un ordre de dépense. Règles pures : `domaine/prise-en-charge/achats.ts` ;
+  lectures (fiche, « Chiffrer », « Acheter — BC n°k », lignes du bureau du secrétariat `lignesBureauPec{Chiffrage,Achat}`) :
+  `infra/requetes/achats-pec.ts` ; BC : `infra/prise-en-charge/bc-pec.ts` ; immuabilité d'un BC signé :
+  `infra/prise-en-charge/bc-immuable.ts`, par la porte étroite `api-bc-pec.ts` (lue par la fabrique).
 - **Hors du module** (prochains lots) : le stock et le circuit du matériel promotionnel (`lib/promo/`,
   `lib/promo-material/`), le consulting (pôle partagé avec les RH), l'intégration des dépenses 2026
   (budget marketing), le ROI (intelligence terrain), les opérations d'Adam (`lib/agent/operations/adpro-*`).
