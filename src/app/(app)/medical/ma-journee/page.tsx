@@ -1,161 +1,190 @@
-import { CalendarCheck, CalendarRange, Users } from "lucide-react";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { CalendarDays, Users } from "lucide-react";
 import { requireModule } from "@/lib/session";
-import { userCan } from "@/lib/rbac";
 import { signaleDesCasPv } from "@/lib/pharmacovigilance/acces";
-import { lienSignalerPv } from "@/lib/chemins/rapports-terrain";
 import { loadMyFieldDay } from "@/lib/queries/my-field-day";
-import { loadEmploiDuTemps } from "@/lib/queries/tour-schedule";
-import { stockPourVisite, type StockPourVisite } from "@/lib/queries/promo-remises";
-import { estVue, VUE_LABELS, type VueTournee } from "@/lib/sfe/tournee";
-import { EmploiDuTemps } from "./emploi-du-temps";
+import { diagnostiquerPanelVide, loadEmploiDuTemps, loadJourneeDuDelegue } from "@/lib/queries/tour-schedule";
+import { dernieresVisites, planDuJour } from "@/lib/queries/journee-delegue";
+import { aiguillerVisite } from "@/lib/queries/aiguillage-visite";
+import { stockPourVisite } from "@/lib/queries/promo-remises";
+import { estVue, VUES, VUE_LABELS, type VueTournee } from "@/lib/sfe/tournee";
+import { etatDuPlanPourJournee, fusionnerJournee, jourLocal, ligneDeChiffres } from "@/lib/sfe/journee-visite";
+import type { Lettre } from "@/lib/segmentation/regles";
 import { PageHeader } from "@/components/shared/page-header";
 import { ModuleTabs } from "@/components/shared/module-tabs";
 import { visibleTabs } from "@/lib/nav-tabs";
 import { MEDICAL_TABS } from "@/lib/labels";
 import { Card, CardContent } from "@/components/ui/card";
-import { InfoBulle } from "@/components/ui/info-bulle";
-import { formatDate } from "@/lib/utils";
-import { DayClient } from "./day-client";
+import { cn, formatDate } from "@/lib/utils";
+import { EmploiDuTemps } from "./emploi-du-temps";
+import { JourneeDelegue } from "./journee-delegue";
+import { PrevenirSuperviseur } from "./prevenir-superviseur";
+import type { LigneVue } from "./types-visite";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Ma journée — AMD Internal OS" };
+export const metadata = { title: "Ma journée — Visite médicale — AMD Internal OS" };
 
 /**
- * « MA JOURNÉE » — le seul écran dont un délégué a besoin.
+ * « MA JOURNÉE » — l'écran du DÉLÉGUÉ, au téléphone comme à l'ordinateur (refonte 11/2026).
  *
- * ── POURQUOI CET ÉCRAN EXISTE ───────────────────────────────────────────────────────────────
+ * Il répond à UNE question — « qui je vois, et comment je le note ? » :
+ *   • UNE ligne de chiffres (le plan validé du mois, `ligneDeChiffres`) ;
+ *   • UNE liste « Aujourd'hui » (l'emploi du temps du jour, puis « À rattraper »), et UN geste plein sur la prochaine
+ *     visite, « Commencer la visite » ;
+ *   • Demain, la semaine, le mois en onglets secondaires ;
+ *   • un état vide qui dit toujours le remède (panel vide → sa cause et « Prévenir mon superviseur » ; pas de plan →
+ *     « Préparer mon plan » ; plan soumis → chez qui, depuis quand).
  *
- * Le pilotage de la force de vente était complet d'un bout : la Direction prévoit, on affecte
- * les produits, le cockpit compare planifié et réalisé. Mais l'écran de SAISIE du terrain avait
- * été retiré, et un cockpit sans réalisé pilote à l'aveugle — le « réalisé » venait de visites
- * que plus rien ne permettait d'enregistrer simplement.
- *
- * On ne rétablit donc pas l'ancien module : on écrit l'écran qui manquait vraiment. Il répond à
- * UNE question — « qui je vais voir, et comment je le note ? » — et il tient sur un téléphone.
- * Tout le reste (le panel entier, l'annuaire, les rapports) vit ailleurs et reste accessible.
- *
- * ── LA LIGNE DE CHIFFRES ────────────────────────────────────────────────────────────────────
- *
- * Quatre nombres, jamais plus : fait / attendu, la part du panel touchée, et le rythme à tenir
- * sur les jours ouvrés qui restent (semaine algérienne). Un cinquième ne serait plus lu. Ils ne
- * notent personne — ils disent à un homme où il en est de son propre mois.
+ * Ce n'est l'écran que du délégué : un superviseur, un manager ou la Direction qui l'ouvre par son adresse est
+ * renvoyé là où `/medical` l'aurait mené (`aiguillerVisite`) — l'écran d'un autre métier ne lui dirait que « 0 / 0 ».
  */
 export default async function MaJourneePage(props: { searchParams?: Promise<{ vue?: string }> }) {
   const searchParams = await props.searchParams;
   const user = await requireModule("MEDICAL");
-  const canLog = userCan(user, "MEDICAL", "CREATE");
-  // LA VUE PAR DÉFAUT EST « AUJOURD'HUI » : c'est la question qu'un homme de terrain se pose en
-  // montant dans sa voiture. Une vue inconnue dans l'adresse retombe dessus plutôt que de rendre
-  // une page vide.
+  const aiguillage = await aiguillerVisite(user);
+  if (aiguillage.destination !== "JOURNEE") redirect(aiguillage.chemin);
+
+  // LA VUE PAR DÉFAUT EST « AUJOURD'HUI » ; une vue inconnue dans l'adresse y retombe plutôt que de rendre une page vide.
   const vue: VueTournee = searchParams?.vue && estVue(searchParams.vue) ? searchParams.vue : "AUJOURD_HUI";
-  // LE MATÉRIEL EN MAIN n'est chargé que pour qui saisit des visites : c'est le bloc « Matériel
-  // remis » du rapport qui le lit (§118.166), et un compte qui ne saisit rien n'en a pas l'usage.
-  const sansStock: StockPourVisite = { articles: [], numeriques: [] };
-  const [day, edt, stock] = await Promise.all([
-    loadMyFieldDay(user.id),
-    loadEmploiDuTemps(user, vue),
-    canLog ? stockPourVisite(user.id) : Promise.resolve(sansStock),
+  const maintenant = new Date();
+  const [day, edt, stock, plan] = await Promise.all([
+    loadMyFieldDay(user.id, maintenant),
+    vue === "AUJOURD_HUI" ? loadJourneeDuDelegue(user, maintenant) : loadEmploiDuTemps(user, vue, maintenant),
+    stockPourVisite(user.id),
+    planDuJour(user.id, maintenant),
   ]);
-  const p = day.progress;
+  const diagnostic = day.panelVide ? await diagnostiquerPanelVide(user.id) : null;
+  const lignes: LigneVue[] = edt.lignes.map((l) => ({ ...l, date: l.date.toISOString() }));
+  const gamme = { produits: edt.produits, produitsIncomplets: edt.produitsIncomplets, messages: edt.messages, sansBu: edt.sansBu };
+  const lettres = new Map(day.frequences.map((f) => [f.doctorId, f.lettre as Lettre | null]));
+  const panel = day.panel.map((d) => ({ ...d, lettre: lettres.get(d.id) ?? null }));
+
+  // LA LISTE DU JOUR, rangée ICI (heure du serveur, la même que les fenêtres de l'emploi du temps) : le navigateur
+  // ne refait pas le tri, et l'écran rendu ne change pas à l'hydratation.
+  const journee = fusionnerJournee({
+    visites: lignes,
+    rattrapages: day.tournee.map((t) => ({
+      doctorId: t.doctorId, id: t.doctorId, name: t.name, specialty: t.specialty, institution: t.institution, wilaya: t.wilaya,
+      lettre: (t.lettre ?? null) as Lettre | null, reason: t.reason, missing: t.missing,
+    })),
+    aujourdhui: jourLocal(maintenant),
+  });
+  const praticiensVus = vue === "AUJOURD_HUI"
+    ? [...journee.aujourdhui.map((l) => l.doctorId), ...journee.aRattraper.map((r) => r.doctorId)]
+    : lignes.map((l) => l.doctorId);
+  const dernieres = await dernieresVisites(user.id, praticiensVus.filter((x): x is string => Boolean(x)));
+
+  const chiffres = ligneDeChiffres(edt.avancementDuMois, day.progress);
+  const etatPlan = day.panelVide ? null : etatDuPlanPourJournee(
+    plan ? { ...plan } : null, maintenant, journee.aujourdhui.some((l) => !l.jourPasse),
+  );
+  const precoches = day.produits.filter((p) => p.preselected).map((p) => p.productId);
+  const peutSignalerPv = signaleDesCasPv(user);
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5">
+    <div className="mx-auto max-w-4xl space-y-4">
       <PageHeader title={`Bonjour ${user.name.split(" ")[0]}`} />
       <ModuleTabs tabs={await visibleTabs(user, MEDICAL_TABS)} />
 
-      {/* LA LIGNE DE CHIFFRES — grande, lisible d'un coup d'œil, en haut. */}
+      {/* ── LA LIGNE DE CHIFFRES — UN seul compteur « ce mois », celui du plan validé ─────────── */}
       <Card>
         <CardContent className="p-4">
-          <div className="flex flex-wrap items-baseline justify-between gap-3">
-            <p className="text-2xl font-semibold tabular-nums">
-              {p.done} <span className="text-base font-normal text-muted-foreground">/ {p.target} visites ce mois</span>
-            </p>
-            <span className={`text-sm font-medium ${p.donePct >= 90 ? "text-success" : p.donePct >= 60 ? "text-warning" : "text-destructive"}`}>
-              {p.donePct} %
-            </span>
-          </div>
-          <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-secondary">
-            <div className={`h-full rounded-full ${p.donePct >= 90 ? "bg-success" : "bg-primary"} transition-all`} style={{ width: `${Math.min(100, p.donePct)}%` }} />
-          </div>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Panel couvert <strong className="text-foreground">{p.coveragePct} %</strong> ({p.covered}/{p.panelSize})
-            {p.perDay > 0
-              ? <> · <strong className="text-foreground">{p.perDay}/jour</strong> sur {p.workdaysLeft} jours restants</>
-              : p.target > 0 ? " · objectif atteint" : ""}
+          <p className="text-2xl font-semibold tabular-nums">
+            {chiffres.fait}
+            {chiffres.sur !== null && <span className="text-base font-normal text-muted-foreground"> / {chiffres.sur}</span>}
+            <span className="text-base font-normal text-muted-foreground"> {chiffres.libelle}</span>
           </p>
+          {chiffres.sur !== null && (
+            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-secondary" aria-hidden>
+              <div className={cn("h-full rounded-full transition-all", chiffres.pct >= 90 ? "bg-success" : "bg-primary")} style={{ width: `${Math.min(100, chiffres.pct)}%` }} />
+            </div>
+          )}
+          {chiffres.sousTexte.length > 0 && <p className="mt-2 text-xs text-muted-foreground">{chiffres.sousTexte.join(" · ")}</p>}
         </CardContent>
       </Card>
 
-      {/* CE QUI MANQUE SE DIT — une page vide laisse croire à une panne, et l'on n'y revient pas. En une ligne
-          « état — chez qui » ; le comment est derrière le ⓘ (Direction, 07/10). */}
-      {day.panelVide && (
-        <div className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
-          <span className="min-w-0 flex-1">Aucun praticien rattaché — chez votre superviseur</span>
-          <InfoBulle label="Pourquoi">
-            Votre tournée ne peut pas se construire sans panel : votre superviseur vous affecte vos praticiens depuis l&apos;annuaire médical.
-          </InfoBulle>
+      {/* ── LES ONGLETS SECONDAIRES — Aujourd'hui d'abord, le reste se relit ─────────────────── */}
+      <nav aria-label="Période" className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1">
+        {VUES.map((v) => (
+          <Link
+            key={v}
+            href={v === "AUJOURD_HUI" ? "/medical/ma-journee" : `/medical/ma-journee?vue=${v}`}
+            aria-current={v === vue ? "page" : undefined}
+            className={cn(
+              "inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-lg px-3 text-sm sm:h-9",
+              v === vue ? "bg-primary text-primary-foreground" : "border border-input hover:bg-secondary",
+            )}
+          >
+            {VUE_LABELS[v]}
+          </Link>
+        ))}
+      </nav>
+
+      {/* ── CE QUI MANQUE SE DIT, AVEC SON REMÈDE ──────────────────────────────────────────── */}
+      {diagnostic && (
+        <div className="space-y-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
+          <p><strong>Aucun praticien dans votre panel.</strong> {diagnostic.phrase}</p>
+          <PrevenirSuperviseur />
         </div>
       )}
-      {!day.panelVide && day.sansAffectation && (
-        <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm text-muted-foreground">
-          <span className="min-w-0 flex-1">Aucun produit affecté ce cycle — chez votre superviseur</span>
-          <InfoBulle label="Pourquoi">
-            Vos visites s&apos;enregistrent, mais sans les produits présentés. Votre superviseur les affecte depuis Prévisions &amp; Force de vente.
-          </InfoBulle>
+      {etatPlan && (
+        <div className={cn("flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 text-sm", etatPlan.ton === "warning" ? "border-warning/40 bg-warning/10" : "border-border bg-secondary/40")}>
+          <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+          <span className="min-w-0 flex-1">{etatPlan.texte}</span>
+          {etatPlan.geste && (
+            <Link href={etatPlan.geste.href} className="inline-flex min-h-10 items-center font-medium text-primary hover:underline sm:min-h-0">
+              {etatPlan.geste.libelle}
+            </Link>
+          )}
         </div>
       )}
 
-      {/* ── L'EMPLOI DU TEMPS — le plan de tournée VALIDÉ, jour par jour ─────────────────────
-          C'est la surface de travail du KAM : gris tant que le rapport n'est pas fait, vert
-          après. Elle vient AVANT la tournée proposée, parce qu'un engagement validé passe devant
-          une suggestion. Le plan de tournée a son onglet : pas de second lien vers lui ici. */}
-      {!canLog ? (
-        <p className="text-sm text-muted-foreground">Vous n&apos;avez pas le droit de saisir des visites.</p>
+      {vue === "AUJOURD_HUI" ? (
+        <section className="space-y-3" aria-labelledby="titre-jour">
+          <h2 id="titre-jour" className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Aujourd&apos;hui</h2>
+          {journee.aujourdhui.length === 0 && journee.aRattraper.length === 0 && !day.panelVide && (
+            <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+              Rien de prévu aujourd&apos;hui.
+            </p>
+          )}
+          <JourneeDelegue
+            personneId={user.id}
+            aujourdhui={journee.aujourdhui}
+            aRattraper={journee.aRattraper}
+            panel={panel}
+            gamme={gamme}
+            stock={stock}
+            precoches={precoches}
+            frequences={day.frequences}
+            dernieres={dernieres}
+            peutSignalerPv={peutSignalerPv}
+          />
+        </section>
       ) : (
-        <>
-          <section className="space-y-3">
-            <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              <CalendarRange className="h-4 w-4" /> Mon emploi du temps — {VUE_LABELS[vue]}
-            </h2>
-            <EmploiDuTemps
-              vue={vue}
-              lignes={edt.lignes.map((l) => ({ ...l, date: l.date.toISOString() }))}
-              avancement={edt.avancementDuMois}
-              produits={edt.produits}
-              produitsIncomplets={edt.produitsIncomplets}
-              messages={edt.messages}
-              sansBu={edt.sansBu}
-              panel={day.panel.map((d) => ({ id: d.id, name: d.name }))}
-              stock={stock}
-              lienPv={signaleDesCasPv(user) ? lienSignalerPv() : null}
-            />
-          </section>
-
-          {/* L'annuaire n'est plus un onglet du module : pas de lien « Mon panel » ici (Direction, 07/10). */}
-          <section className="space-y-3">
-            <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              <CalendarCheck className="h-4 w-4" /> À voir en priorité
-            </h2>
-            <DayClient tournee={day.tournee} panel={day.panel} produits={day.produits} stock={stock} />
-          </section>
-        </>
+        <EmploiDuTemps
+          vue={vue}
+          lignes={lignes}
+          gamme={gamme}
+          stock={stock}
+          peutSignalerPv={peutSignalerPv}
+          dernieres={dernieres}
+          frequences={day.frequences}
+        />
       )}
 
-      {/* LA PREUVE QUE LA SAISIE EST ARRIVÉE QUELQUE PART. Sans retour visible, on doute d'avoir
-          enregistré, on ressaisit, et le compteur ment. */}
+      {/* LA PREUVE QUE LA SAISIE EST ARRIVÉE QUELQUE PART : sans retour visible, on doute, on ressaisit, et le compteur ment. */}
       {day.recentes.length > 0 && (
-        <section className="space-y-2">
-          <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            <Users className="h-4 w-4" /> Mes dernières visites
+        <section className="space-y-2" aria-labelledby="titre-recentes">
+          <h2 id="titre-recentes" className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            <Users className="h-4 w-4" aria-hidden /> Mes dernières visites
           </h2>
           <ul className="divide-y divide-border rounded-lg border border-border">
             {day.recentes.map((v) => (
               <li key={v.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
                 <span className="min-w-0">
                   <span className="font-medium">{v.doctorName}</span>
-                  {v.produits.length > 0 && (
-                    <span className="block truncate text-xs text-muted-foreground">{v.produits.join(" · ")}</span>
-                  )}
+                  {v.produits.length > 0 && <span className="block truncate text-xs text-muted-foreground">{v.produits.join(" · ")}</span>}
                 </span>
                 <span className="shrink-0 text-xs text-muted-foreground">{formatDate(v.date.toISOString())}</span>
               </li>

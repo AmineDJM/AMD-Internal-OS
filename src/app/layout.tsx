@@ -16,7 +16,7 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "AMD Internal OS — Adventum Pharma",
   description:
-    "Logiciel interne centralisé pour la gestion des pôles Regulatory, Sponsoring, Budgets, Congrès, Ventes, Logistique PCH, Promotion médicale et Business Development d'Adventum Pharma.",
+    "Logiciel interne centralisé pour la gestion des pôles Regulatory, Sponsoring, Budgets, Congrès, Ventes, Logistique PCH, Visite médicale et Business Development d'Adventum Pharma.",
   applicationName: "AMD Internal OS",
   manifest: "/manifest.webmanifest",
   icons: { icon: "/icon.svg", apple: "/icon.svg" },

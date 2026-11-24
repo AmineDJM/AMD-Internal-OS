@@ -148,7 +148,7 @@ async function lireAnnuaire(entree: Record<string, unknown>, u: CurrentUser): Pr
     out.etablissementsTotal = total;
     out.etablissementsCouverts = couverts;
   }
-  if (!("medecins" in out) && !("etablissements" in out)) return refus("L'annuaire médical n'est pas ouvert à cette personne (Promotion médicale, ou l'annuaire ouvert par la console).");
+  if (!("medecins" in out) && !("etablissements" in out)) return refus("L'annuaire médical n'est pas ouvert à cette personne (Visite médicale, ou l'annuaire ouvert par la console).");
   const vide = (out.medecinsTotal ?? 0) === 0 && (out.etablissementsTotal ?? 0) === 0;
   return JSON.stringify({ ...out, ...(vide && nom ? { consigne: "Aucune fiche de ce nom dans le périmètre de la personne (son panel, ou l'annuaire qui lui est ouvert) : dis-le simplement, sans lui demander de vérifier l'orthographe." } : {}), note: "Comptes exacts calculés en base (`…Total`, `etablissementsCouverts` = rattachés à un secteur actif). Les listes sont bornées à `limite`." });
 }

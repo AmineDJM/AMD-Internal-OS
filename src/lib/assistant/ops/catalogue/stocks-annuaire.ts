@@ -108,7 +108,7 @@ export const OPS_STOCKS_ANNUAIRE: OpMeta[] = [
 
   // ───────────────────────────── ANNUAIRE MÉDICAL (praticiens, visites, référentiels, annuaires, plans) ─────────────────────────────
   {
-    tool: "medical_operation", op: "order_visit", module: "Promotion médicale",
+    tool: "medical_operation", op: "order_visit", module: "Visite médicale",
     uiLabel: "Commander une visite à un KAM",
     aliases: ["demain va voir", "envoie le KAM chez", "commande une visite chez"],
     risk: "NORMAL",
@@ -118,7 +118,7 @@ export const OPS_STOCKS_ANNUAIRE: OpMeta[] = [
     covers: ["tour-visit-actions:commanderVisite"],
   },
   {
-    tool: "medical_operation", op: "log_visit", module: "Promotion médicale",
+    tool: "medical_operation", op: "log_visit", module: "Visite médicale",
     uiLabel: "Saisir une visite faite",
     aliases: ["j'ai vu le docteur", "note ma visite", "visite faite chez", "j'ai visité le professeur"],
     risk: "NORMAL",

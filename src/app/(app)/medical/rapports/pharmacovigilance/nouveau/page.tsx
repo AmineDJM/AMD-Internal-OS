@@ -19,12 +19,17 @@ export const dynamic = "force-dynamic";
  * avec le médecin et son établissement — relus ICI, dans le périmètre de la personne : l'adresse ne porte qu'un
  * identifiant, jamais un nom qu'on pourrait forger. Le déclarant est la session (l'action l'écrit).
  */
-export default async function SignalerCasPvPage(props: { searchParams?: Promise<{ praticien?: string }> }) {
+export default async function SignalerCasPvPage(props: { searchParams?: Promise<{ praticien?: string; produit?: string; date?: string }> }) {
   const searchParams = await props.searchParams;
   const user = await requireUser();
   if (!signaleDesCasPv(user)) redirect(CHEMIN_PV_KAM);
   const praticienId = typeof searchParams?.praticien === "string" ? searchParams.praticien : null;
-  const [produits, etablissements, praticien] = await Promise.all([
+  const produitCanonique = typeof searchParams?.produit === "string" ? searchParams.produit : null;
+  const aujourdhui = new Date().toISOString().slice(0, 10);
+  // LE JOUR DE LA VISITE (11/2026) : une date lisible, jamais dans le futur — sinon le formulaire repart d'aujourd'hui.
+  const date = typeof searchParams?.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(searchParams.date) && searchParams.date <= aujourdhui
+    ? searchParams.date : undefined;
+  const [produits, etablissements, praticien, promus] = await Promise.all([
     produitsPourSignalement(user.id),
     etablissementsPourSignalement(),
     praticienId
@@ -33,7 +38,14 @@ export default async function SignalerCasPvPage(props: { searchParams?: Promise<
           select: { name: true, institutionId: true },
         })
       : Promise.resolve(null),
+    // LE PRODUIT COCHÉ DANS LA VISITE est un produit canonique ; le formulaire liste les produits PROMUS qui le portent.
+    produitCanonique
+      ? prisma.promoProduct.findMany({ where: { productId: produitCanonique, isActive: true }, select: { id: true } })
+      : Promise.resolve([] as { id: string }[]),
   ]);
+  // Prérempli seulement s'il figure dans la liste offerte (le premier « des miens » d'abord) : sinon le choix serait invisible.
+  const offerts = new Set(promus.map((p) => p.id));
+  const produitId = produits.find((p) => offerts.has(p.id))?.id;
   // L'établissement n'est prérempli que s'il figure dans la liste offerte : sinon le choix serait invisible.
   const institutionId = praticien?.institutionId && etablissements.some((e) => e.id === praticien.institutionId) ? praticien.institutionId : "";
   return (
@@ -48,8 +60,8 @@ export default async function SignalerCasPvPage(props: { searchParams?: Promise<
       <SignalerCasForm
         produits={produits}
         etablissements={etablissements}
-        aujourdhui={new Date().toISOString().slice(0, 10)}
-        initial={{ doctorName: praticien?.name ?? "", institutionId }}
+        aujourdhui={aujourdhui}
+        initial={{ doctorName: praticien?.name ?? "", institutionId, ...(produitId ? { produitId } : {}), ...(date ? { date } : {}) }}
       />
     </div>
   );

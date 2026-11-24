@@ -202,8 +202,8 @@ export function ModuleAccessGrid({
             <strong>Accès par annuaire</strong> — en « Personnalisé », cochez les annuaires à ouvrir :
             chacun s&apos;ouvre <em>en entier</em> avec les gestes cochés (Créer, Modifier, Supprimer),
             sans donner le module de son référentiel. Ouvrir les établissements à quelqu&apos;un ne lui
-            ouvre pas toute la Promotion médicale. L&apos;ouverture <strong>s&apos;ajoute</strong> à ce que le
-            rôle donne déjà : décocher ne retire pas un annuaire tenu par la Promotion médicale ou les
+            ouvre pas toute la Visite médicale. L&apos;ouverture <strong>s&apos;ajoute</strong> à ce que le
+            rôle donne déjà : décocher ne retire pas un annuaire tenu par la Visite médicale ou les
             Moyens généraux.
           </p>
         </div>

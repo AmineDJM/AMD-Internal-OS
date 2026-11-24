@@ -8,6 +8,7 @@ import { construireClasseurFiche, construireClasseurSuivi, nomDeFichier, type Li
 import { formaterJour } from "@/lib/coaching/dates";
 import { estIdentifiant } from "@/lib/exports/filtres";
 import { exporte, MIME_XLSX, refusExport, type ResultatExport } from "@/lib/exports/types";
+import { MODULE_AUDIT_VISITE } from "@/lib/medical/module-visite";
 
 /**
  * LES EXPORTS DU COACHING (§118.157) — le suivi (toutes les fiches VISIBLES + la synthèse) et une fiche au format du
@@ -46,7 +47,7 @@ export async function exporterSuiviCoaching(user: CurrentUser, o: { collaborateu
     }]
     : []));
   const octets = await construireClasseurSuivi(lignes, courante.grille);
-  await recordAudit({ actorId: user.id, action: "EXPORT", module: "Promotion médicale", summary: `Export du suivi du coaching — ${lignes.length} fiche(s)` });
+  await recordAudit({ actorId: user.id, action: "EXPORT", module: MODULE_AUDIT_VISITE, summary: `Export du suivi du coaching — ${lignes.length} fiche(s)` });
   return exporte(octets, `Suivi_coaching_${new Date().toISOString().slice(0, 10)}.xlsx`, MIME_XLSX, `le suivi du coaching — ${lignes.length} fiche(s)`);
 }
 
@@ -69,6 +70,6 @@ export async function exporterFicheCoaching(user: CurrentUser, designation: stri
     improvements: fiche.improvements, status: fiche.status, finalizedAt: fiche.finalizedAt, finalisePar: fiche.finalisePar,
   });
   const quoi = `la fiche de coaching — ${fiche.collaborateur}, tournée du ${formaterJour(fiche.visitDate)}`;
-  await recordAudit({ actorId: user.id, action: "EXPORT", module: "Promotion médicale", entityId: fiche.id, summary: `Export de ${quoi}` });
+  await recordAudit({ actorId: user.id, action: "EXPORT", module: MODULE_AUDIT_VISITE, entityId: fiche.id, summary: `Export de ${quoi}` });
   return exporte(octets, nomDeFichier(fiche.collaborateur, fiche.visitDate), MIME_XLSX, quoi);
 }

@@ -122,8 +122,12 @@ export async function loadEmploiDuTemps(
   repId: string = user.id,
 ): Promise<EmploiDuTemps> {
   const { debut, fin } = fenetreDeVue(vue, maintenant);
-  const mois = periodeDe("MONTH", maintenant);
+  return emploiDuTempsEntre(repId, vue, debut, fin, maintenant);
+}
 
+/** Les lignes d'une fenêtre de jours, et l'avancement du MOIS — quelle que soit la fenêtre. */
+async function emploiDuTempsEntre(repId: string, vue: VueTournee, debut: Date, fin: Date, maintenant: Date): Promise<EmploiDuTemps> {
+  const mois = periodeDe("MONTH", maintenant);
   const [coeur, visitesDuMois] = await Promise.all([
     lignesEtGamme(repId, { delegateId: repId, date: { gte: debut, lte: fin } }, maintenant),
     // L'AVANCEMENT SE LIT SUR LE MOIS, quelle que soit la vue : « Aujourd'hui » ne dit rien d'un
@@ -141,6 +145,18 @@ export async function loadEmploiDuTemps(
       imprevue: v.tourPlanId === null,
     }))),
   };
+}
+
+/**
+ * LA LISTE « AUJOURD'HUI » DU DÉLÉGUÉ (11/2026) — l'emploi du temps du jour, ÉLARGI aux deux jours d'avant : une visite
+ * d'hier encore dans sa fenêtre de 48 h est un rapport qu'on peut sauver, et la vue « Aujourd'hui » seule le cachait.
+ * Le tri (ce qui s'affiche, dans quel ordre) est au module pur `sfe/journee-visite.ts` ; ici, la même lecture que
+ * l'emploi du temps (`lignesEtGamme`) et le même avancement du mois.
+ */
+export async function loadJourneeDuDelegue(user: SessionUser, maintenant: Date = new Date()): Promise<EmploiDuTemps> {
+  const aujourdhui = fenetreDeVue("AUJOURD_HUI", maintenant);
+  const debut = new Date(aujourdhui.debut.getFullYear(), aujourdhui.debut.getMonth(), aujourdhui.debut.getDate() - 2);
+  return emploiDuTempsEntre(user.id, "AUJOURD_HUI", debut, aujourdhui.fin, maintenant);
 }
 
 /**

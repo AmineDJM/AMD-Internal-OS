@@ -1,9 +1,8 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import {
-  ArrowRight, ArrowUpRight, CalendarRange, Check, Clock, FilePlus2, Loader2, MapPin, RotateCcw, Send, ShieldAlert, Users, X,
+  ArrowUpRight, CalendarRange, Check, Clock, Loader2, MapPin, RotateCcw, Send, Users, X,
 } from "lucide-react";
 import { lienSignalerPv } from "@/lib/chemins/rapports-terrain";
 import {
@@ -11,11 +10,9 @@ import {
 } from "@/lib/actions/tour-plan-actions";
 import { useAction } from "@/components/shared/use-action";
 import { STATUT_PLAN_LABELS, aResoumettre, gestesPossibles, type StatutPlan } from "@/lib/sfe/tournee";
-import { deplacerCellule, etatCellule, gesteCellule, grilleModifiable, retirerCellule } from "@/lib/sfe/grille-tournee";
+import { deplacerCellule, grilleModifiable, retirerCellule } from "@/lib/sfe/grille-tournee";
 import type { StockPourVisite } from "@/lib/queries/promo-remises";
-import {
-  FeuilleNonTenue, FeuilleRapportVisite, FeuilleVisiteImprevue, type GammeVue,
-} from "../ma-journee/emploi-du-temps";
+import { FeuilleNonTenue, FeuilleRapportVisite, type GammeVue } from "../ma-journee/emploi-du-temps";
 import { GrilleTournee, jourLisible as jourDeLaGrille, type InfoPraticien, type LigneDuPlan } from "./grille";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -62,8 +59,8 @@ export interface PraticienVue {
  *
  * Toucher un praticien « à faire » ouvre le rapport de SA visite — la même feuille, la même action (`rapporterVisite`)
  * que « Ma journée » : une seule porte vers le compte rendu d'une visite planifiée, et la cellule passe au vert sur le
- * même fait que la ligne de l'emploi du temps. Le bouton « Faire un rapport », au-dessus de la grille, ouvre une
- * visite du plan à rapporter, ou la visite IMPRÉVUE de « Ma journée » pour une rencontre hors plan.
+ * même fait que la ligne de l'emploi du temps. La grille SERT À PLANIFIER (11/2026) : plus de « Faire un rapport » ni de
+ * « Pharmacovigilance » au-dessus — la visite hors plan et le signalement partent de « Ma journée », dans la visite.
  *
  * ── POURQUOI LE CHOIX SE FAIT TOUJOURS PAR JOUR ─────────────────────────────────────────────
  *
@@ -90,7 +87,7 @@ export function Planificateur({
   revisionNote, revisionPar, revisionLe, jePeuxDemanderRevision, jeSuisLeKam,
   aujourdhui, dejaValide, lignes, gamme, stock, peutRapporter, peutSignalerPv = false,
 }: {
-  /** Le KAM peut signaler un cas de pharmacovigilance (`signaleDesCasPv`) : le bouton au-dessus de la grille, et la feuille d'une visite. */
+  /** Le KAM peut signaler un cas de pharmacovigilance (`signaleDesCasPv`) : depuis la cellule d'un praticien, et la feuille de sa visite. */
   peutSignalerPv?: boolean;
   /** `AAAA-MM-JJ` du jour, calculé par le serveur. */
   aujourdhui: string;
@@ -159,11 +156,9 @@ export function Planificateur({
   const [motifRevision, setMotifRevision] = React.useState("");
   /** Le choix des praticiens d'un jour (le « + » d'une colonne) est-il ouvert ? */
   const [choixOuvert, setChoixOuvert] = React.useState(false);
-  /** La visite dont on rédige (ou corrige) le rapport, celle qu'on dit non tenue, le choix « Nouveau rapport ». */
+  /** La visite dont on rédige (ou corrige) le rapport, et celle qu'on dit non tenue. */
   const [aRapporter, setARapporter] = React.useState<LigneDuPlan | null>(null);
   const [nonTenue, setNonTenue] = React.useState<LigneDuPlan | null>(null);
-  const [nouveauRapport, setNouveauRapport] = React.useState(false);
-  const [imprevue, setImprevue] = React.useState(false);
   // QUI MODIFIE LA GRILLE : la MÊME règle que l'action — plan ouvert, et le KAM, le superviseur de sa BU ou la Direction.
   const modifiable = grilleModifiable(status, jePeuxDemanderRevision);
   const verrouillees = React.useMemo(() => new Set([...acquises, ...passees]), [acquises, passees]);
@@ -249,18 +244,6 @@ export function Planificateur({
     setPaires(r.paires); setSale(true);
     return null;
   };
-
-  // LES VISITES À RAPPORTER MAINTENANT — pour le choix « Faire un rapport » : celles que la grille ouvrirait
-  // (la même règle, `etatCellule` + `gesteCellule`), la plus récente d'abord.
-  const aRapporterMaintenant = React.useMemo(
-    () => lignes
-      .filter((l) => gesteCellule({
-        etat: etatCellule({ etatEnregistre: l.etat, planValide: dejaValide, jour: l.cle.slice(0, 10), aujourdhui }),
-        heuresRestantes: l.heuresRestantes, planValide: dejaValide, jeSuisLeKam: peutRapporter,
-      }) === "RAPPORTER")
-      .sort((a, b) => b.date.localeCompare(a.date)),
-    [lignes, aujourdhui, dejaValide, peutRapporter],
-  );
 
   // ── L'ÉTAT DU PLAN EN UNE PHRASE « état — chez qui » (Direction, 07/10) ──────────────────────
   const chezLeKam = jeSuisLeKam ? "chez vous" : `chez ${repName}`;
@@ -411,24 +394,6 @@ export function Planificateur({
               </InfoBulle>
             )}
           </h2>
-          {/* LE RAPPORT TERRAIN, AU-DESSUS DE L'EMPLOI DU TEMPS (Direction, 06-07/10) : une visite du plan à rapporter, ou
-              une rencontre hors plan — les deux portes de « Ma journée », jamais une troisième. Sans visite à rapporter
-              maintenant, le bouton ouvre directement la rencontre hors plan. La pharmacovigilance, en geste secondaire. */}
-          {peutRapporter && (
-            <div className="grid w-full grid-cols-[1fr_auto] gap-2 sm:flex sm:w-auto">
-              <Button
-                size="sm" className="h-12 text-sm sm:h-8 sm:text-xs" disabled={occupe}
-                onClick={() => { setErr(null); if (dejaValide && aRapporterMaintenant.length > 0) setNouveauRapport(true); else setImprevue(true); }}
-              >
-                <FilePlus2 className="h-4 w-4" /> Faire un rapport
-              </Button>
-              {peutSignalerPv && (
-                <Link href={lienSignalerPv()} className="inline-flex h-12 items-center justify-center gap-1.5 rounded-lg border border-warning/50 px-3 text-sm font-medium hover:bg-warning/10 sm:h-8 sm:text-xs">
-                  <ShieldAlert className="h-4 w-4" /> Pharmacovigilance
-                </Link>
-              )}
-            </div>
-          )}
         </div>
         {praticiens.length === 0 && modifiable && (
           <p className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
@@ -604,69 +569,15 @@ export function Planificateur({
         </div>
       </Sheet>
 
-      {/* ── NOUVEAU RAPPORT TERRAIN — une visite du plan, ou une rencontre hors plan ─────────────────────── */}
-      <Sheet
-        open={nouveauRapport}
-        onClose={() => setNouveauRapport(false)}
-        title="Faire un rapport"
-        width="md"
-      >
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Une visite de mon plan</p>
-            {!dejaValide ? (
-              <p className="rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
-                Plan pas encore validé — chez votre N+1
-              </p>
-            ) : aRapporterMaintenant.length === 0 ? (
-              <p className="flex items-center gap-1 rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
-                <span className="min-w-0 flex-1">Aucune visite à rapporter maintenant.</span>
-                <InfoBulle label="Quand">Les rapports s&apos;ouvrent le jour de la visite, pour 48 h.</InfoBulle>
-              </p>
-            ) : (
-              <ul className="divide-y divide-border rounded-xl border border-border">
-                {aRapporterMaintenant.map((l) => (
-                  <li key={l.id}>
-                    <button
-                      type="button" disabled={occupe}
-                      onClick={() => { setNouveauRapport(false); setARapporter(l); }}
-                      className="flex w-full items-center gap-2 px-3 py-3 text-left text-sm hover:bg-secondary active:bg-secondary focus-ring sm:py-2.5"
-                    >
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate font-medium">{l.doctorName}</span>
-                        <span className="block truncate text-xs text-muted-foreground">
-                          {jourLisible(l.cle.slice(0, 10))} · {[l.specialty, l.institution].filter(Boolean).join(" · ") || "—"}
-                        </span>
-                      </span>
-                      <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
-                        <Clock className="h-3 w-3" aria-hidden /> {l.heuresRestantes} h
-                      </span>
-                      <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-          <div className="space-y-1.5 border-t border-border pt-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Une rencontre hors plan</p>
-            <Button type="button" variant="outline" className="h-12 w-full sm:h-10 sm:w-auto" disabled={occupe} onClick={() => { setNouveauRapport(false); setImprevue(true); }}>
-              <FilePlus2 className="h-4 w-4" /> Visite imprévue
-            </Button>
-          </div>
-        </div>
-      </Sheet>
-
-      {/* ── LE RAPPORT, LA NON-TENUE, L'IMPRÉVUE — les feuilles de « Ma journée », jamais une copie ─────────── */}
+      {/* ── LE RAPPORT ET LA NON-TENUE — les feuilles de « Ma journée », jamais une copie ─────────── */}
       {peutRapporter && (
         <>
-          <FeuilleRapportVisite ouverte={aRapporter} onClose={() => setARapporter(null)} gamme={gamme} stock={stock} executer={run} occupe={occupe} err={err} />
-          <FeuilleNonTenue visite={nonTenue} onClose={() => setNonTenue(null)} executer={run} occupe={occupe} err={err} />
-          <FeuilleVisiteImprevue
-            open={imprevue} onClose={() => setImprevue(false)}
-            panel={praticiens.map((p) => ({ id: p.id, name: p.name }))}
-            gamme={gamme} stock={stock} executer={run} occupe={occupe} err={err}
+          <FeuilleRapportVisite
+            ouverte={aRapporter} onClose={() => setARapporter(null)} gamme={gamme} stock={stock} executer={run} occupe={occupe} err={err}
+            peutSignalerPv={peutSignalerPv}
+            onNonTenue={(l) => { setErr(null); setARapporter(null); setNonTenue(l as LigneDuPlan); }}
           />
+          <FeuilleNonTenue visite={nonTenue} onClose={() => setNonTenue(null)} executer={run} occupe={occupe} err={err} />
         </>
       )}
 

@@ -13,10 +13,10 @@ const accessible = (modules: string[]): NavItem[] =>
 describe("pôles — projection du RBAC, jamais une source de droit", () => {
   it("un pôle n'apparaît QUE s'il a au moins un sous-module accessible", () => {
     // Les Rapports terrain sont un ONGLET de la Promotion médicale (Direction, 07/10) : le seul droit FIELD_REPORTS
-    // ouvre l'entrée « Promotion médicale », qui mène à cet onglet — et à rien d'autre (les autres onglets restent fermés).
+    // ouvre l'entrée « Visite médicale », qui mène à cet onglet — et à rien d'autre (les autres onglets restent fermés).
     const poles = groupIntoPoles(accessible(["FIELD_REPORTS"]));
     expect(poles.map((p) => p.key)).toEqual(["OPERATIONS_SALES"]);
-    expect(poles[0].children.map((c) => c.label)).toEqual(["Promotion médicale"]);
+    expect(poles[0].children.map((c) => c.label)).toEqual(["Visite médicale"]);
   });
 
   it("un sous-module interdit est ABSENT, pas masqué", () => {
@@ -88,7 +88,7 @@ describe("pôles — projection du RBAC, jamais une source de droit", () => {
     const de = (cle: string) => tout.find((p) => p.key === cle)?.children.map((c) => c.label) ?? [];
     expect(de("MARKETING")).toEqual(expect.arrayContaining(["Marketing cockpit", "Segmentation", "Produits 360", "Ad & Pro", "Stock promotionnel", "Site web"]));
     // Le Cockpit Opérations ouvre le pôle (Direction, 08/10), puis le terrain.
-    expect(de("OPERATIONS_SALES").slice(0, 5)).toEqual(["Cockpit Opérations", "Promotion médicale", "Force de vente", "Business Units", "Marchés PCH"]);
+    expect(de("OPERATIONS_SALES").slice(0, 5)).toEqual(["Cockpit Opérations", "Visite médicale", "Force de vente", "Business Units", "Marchés PCH"]);
     // Les ventes restent avec le terrain (leur libellé peut évoluer : « Ventes », « Ventes PCH »).
     expect(de("OPERATIONS_SALES").some((l) => l.startsWith("Ventes"))).toBe(true);
     // « Consommation » n'a plus d'entrée (Direction, 08/10 : « masque-le de ma vue ») — le module reste, l'entrée part.
@@ -130,7 +130,7 @@ describe("pôles — projection du RBAC, jamais une source de droit", () => {
     // « Promotion médicale » — qui porte ses deux onglets : Ma journée et l'Annuaire.)
     // (Les Rapports terrain sont un onglet de la Promotion médicale depuis le 07/10 : FIELD_REPORTS n'ajoute pas d'entrée.)
     const sm = groupIntoPoles(accessible(["FIELD_REPORTS", "MEDICAL", "PCH"])).find((p) => p.key === "OPERATIONS_SALES");
-    expect(sm?.children.map((c) => c.label)).toEqual(["Promotion médicale", "Marchés PCH"]);
+    expect(sm?.children.map((c) => c.label)).toEqual(["Visite médicale", "Marchés PCH"]);
     expect(sm?.defaultOpen).toBe(true);
   });
 

@@ -30,7 +30,7 @@ export function ListeRapports({ lignes, avecDelegue }: { lignes: LigneRapport[];
             <tr>
               <th scope="col" className="sticky left-0 z-10 border-b border-r border-border bg-card px-3 py-2 font-medium">Date</th>
               {avecDelegue && <th scope="col" className="border-b border-border bg-card px-3 py-2 font-medium">Délégué</th>}
-              <th scope="col" className="border-b border-border bg-card px-3 py-2 font-medium">Professionnel</th>
+              <th scope="col" className="border-b border-border bg-card px-3 py-2 font-medium">Praticien</th>
               <th scope="col" className="border-b border-border bg-card px-3 py-2 font-medium">Produits</th>
               <th scope="col" className="border-b border-border bg-card px-3 py-2 font-medium">Messages</th>
               <th scope="col" className="border-b border-border bg-card px-3 py-2 font-medium">Type</th>

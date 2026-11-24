@@ -106,7 +106,7 @@ export const TOUR_PLAN_OPS_IMPL: Record<string, OpImpl> = {
           granularity: granularite,
           date: p.debut.toISOString(),
         },
-        successMessage: `Plan de tournée ouvert pour ${p.dite}. Les visites se posent à l'écran (Promotion médicale › Plan de tournée) : une phrase ne peut pas envoyer une grille de quarante jours × praticiens.`,
+        successMessage: `Plan de tournée ouvert pour ${p.dite}. Les visites se posent à l'écran (Visite médicale › Plan de tournée) : une phrase ne peut pas envoyer une grille de quarante jours × praticiens.`,
         revalidate: ["/medical/plan-de-tournee"],
       };
     },

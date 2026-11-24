@@ -143,7 +143,7 @@ suite("Fiche de coaching — grille, fiches, droits, export", () => {
     const jour = "2026-09-10";
     expect((await creer("kam1", { collaboratorId: ids.kam3!, visitDate: jour })).error).toMatch(/pas dans votre périmètre/);
     expect((await creer("ns", { collaboratorId: ids.kam2!, visitDate: jour })).error).toMatch(/pas dans votre périmètre/);
-    expect((await creer("fin", { collaboratorId: ids.kam1!, visitDate: jour })).error).toMatch(/Promotion médicale ne vous est pas ouverte/);
+    expect((await creer("fin", { collaboratorId: ids.kam1!, visitDate: jour })).error).toMatch(/Visite médicale ne vous est pas ouverte/);
     expect((await creer("ns", { collaboratorId: ids.ns!, visitDate: jour })).error).toMatch(/propre fiche/);
     expect((await creer("do", { collaboratorId: ids.fin!, visitDate: jour })).error, "hors force de vente terrain").toMatch(/pas dans votre périmètre/);
   });

@@ -93,12 +93,10 @@ export const MODULE_LABELS: Record<Module, string> = {
   EVENTS: "Événements",
   SALES: "Ventes",
   LOGISTICS: "Logistique",
-  // « Annuaire » était le nom de l'écran d'ORIGINE de ce module ; le menu dit « Promotion
-  // médicale » depuis le chantier force de vente, et la console d'accès continuait à le
-  // présenter sous son ancien nom. On cherchait « Promotion médicale » dans la liste des
-  // modules et on ne le trouvait pas — un droit qu'on n'arrive pas à nommer est un droit qu'on
-  // ne donne pas. Le libellé du module suit celui du menu.
-  MEDICAL: "Promotion médicale",
+  // « Annuaire » était le nom de l'écran d'ORIGINE de ce module, puis « Promotion médicale » ; le
+  // Super Admin l'a renommé « Visite médicale » (11/2026). Le libellé du module suit TOUJOURS celui
+  // du menu : un droit qu'on n'arrive pas à nommer dans la console est un droit qu'on ne donne pas.
+  MEDICAL: "Visite médicale",
   FIELD_REPORTS: "Rapports terrain",
   SALES_PLANNING: "Prévisions & Force de vente",
   BUSINESS_UNITS: "Business Units",
@@ -403,7 +401,7 @@ export const NAVIGATION: NavItem[] = [
   // PRODUITS — chaque produit canonique et sa vue 360° (réglementaire, AO, ventes, segmentation, consommation, coûts).
   // Un MODULE À PART (Direction, 06/10) : ses accès se règlent dans la console, comme les autres.
   { module: "PRODUCTS", label: "Produits 360", href: "/produits", icon: "Pill", group: "Pôles", pole: "MARKETING", match: ["/produits"] },
-  // « RAPPORTS TERRAIN » N'EST PLUS UNE ENTRÉE (Direction, 07/10) : c'est l'onglet « Rapports » de la Promotion médicale
+  // « RAPPORTS TERRAIN » N'EST PLUS UNE ENTRÉE (Direction, 07/10) : c'est l'onglet « Rapports » de la Visite médicale
   // (`MEDICAL_TABS`, module `FIELD_REPORTS`). `/field-reports` redirige ; l'entrée médicale le couvre par `match`.
   { module: "SPONSORING", label: "Ad & Pro", href: "/ad-pro", icon: "PartyPopper", group: "Pôles", pole: "MARKETING", tabs: EVENTS_TABS, match: ["/sponsoring", "/promo-material", "/consulting"] },
   // BUDGET MARKETING (Direction, 08/10) — les enveloppes Ad & Pro et celles de la Direction Marketing. Les mêmes lignes
@@ -417,15 +415,18 @@ export const NAVIGATION: NavItem[] = [
 
   // OPERATIONS & SALES — le terrain et le business réalisé (Direction, 08/10) : la promotion médicale, le montage des
   // BU, la force de vente, les marchés PCH — puis les ventes et la consommation, qui étaient dans le même pôle. L'annuaire
-  // des praticiens vit DANS Promotion médicale : on ne consulte pas un annuaire pour lui-même, on le consulte en
+  // des praticiens vit DANS Visite médicale : on ne consulte pas un annuaire pour lui-même, on le consulte en
   // préparant une visite.
-  // PROMOTION MÉDICALE — deux onglets, et l'ordre compte : « Ma journée » d'abord, parce que
+  // VISITE MÉDICALE (ex-« Promotion médicale ») — deux onglets, et l'ordre compte : « Ma journée » d'abord, parce que
   // c'est l'écran quotidien du terrain (sa tournée, sa saisie de visite en trois gestes) ;
   // l'annuaire ensuite, qui est le référentiel. L'ancien « Visites & segmentation » retiré est
   // remplacé par cette journée — les visites en base n'ont jamais bougé, et elle les relit.
   // COCKPIT OPÉRATIONS — la PREMIÈRE entrée du pôle (Direction, 08/10) : l'écran de tête du directeur des opérations.
   { module: "COCKPIT_OPERATIONS", label: "Cockpit Opérations", href: "/operations", icon: "Gauge", group: "Pôles", pole: "OPERATIONS_SALES", match: ["/operations"] },
-  { module: "MEDICAL", label: "Promotion médicale", href: "/medical/ma-journee", icon: "Stethoscope", group: "Pôles", pole: "OPERATIONS_SALES", tabs: MEDICAL_TABS, match: ["/medical", "/field-reports"] },
+  // L'ENTRÉE POINTE SUR `/medical`, L'AIGUILLAGE (11/2026) : le délégué y trouve « Ma journée », son superviseur
+  // l'écran de son équipe, la Direction le Cockpit Opérations. Pointer en dur sur « Ma journée » faisait arriver tout le
+  // monde sur l'écran du délégué — « 0 / 0 visites » pour un directeur qui n'en fait aucune.
+  { module: "MEDICAL", label: "Visite médicale", href: "/medical", icon: "Stethoscope", group: "Pôles", pole: "OPERATIONS_SALES", tabs: MEDICAL_TABS, match: ["/medical", "/field-reports"] },
   { module: "SALES_PLANNING", label: "Force de vente", href: "/planning", icon: "Target", group: "Pôles", pole: "OPERATIONS_SALES", tabs: SALES_PLANNING_TABS, match: ["/planning"] },
   // BUSINESS UNITS — le montage de la force de vente, sorti du « ⋯ Réglages » de la Force de vente (Direction, 08/10) :
   // les BU et leurs quatre étapes, les secteurs, les paramètres. Son propre module (`BUSINESS_UNITS`).
@@ -528,6 +529,8 @@ export const NAV_LEGACY_LABELS: Record<string, Module> = {
   "Business Development": "BUSINESS_DEVELOPMENT",
   "Explorateur produits": "PRODUCT_EXPLORER",
   "Administration": "ADMIN",
+  // Ex-« Promotion médicale », renommé « Visite médicale » (11/2026) : les demandes et le journal d'avant gardent ce nom.
+  "Promotion médicale": "MEDICAL",
 };
 
 export function moduleForPath(path: string): Module | null {

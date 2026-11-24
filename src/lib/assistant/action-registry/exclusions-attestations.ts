@@ -429,6 +429,12 @@ export function classerExclusionsAttestations(): void {
     "tour-plan-actions:demanderRevisionPlanTournee",
     "tour-visit-actions:direVisiteNonTenue",
   ]);
+  X("PRÉVENIR SON SUPERVISEUR D'UN PANEL VIDE (Visite médicale, 11/2026) est le remède offert par l'état vide de « Ma "
+    + "journée », devant la cause que l'écran vient d'afficher : le diagnostic est relu au serveur, le destinataire est la "
+    + "cascade du plan de tournée (superviseur de la BU, sinon N+1), et la même personne n'est prévenue qu'une fois par jour. "
+    + "Adam est en pause de développement : aucun geste neuf ne lui est ouvert.", [
+    "visite-medicale-actions:prevenirSuperviseurPanelVide",
+  ]);
 
   X("SUPPRIMER UN PLAN DE TOURNÉE EN BROUILLON (Direction, 10/2026) — retire le plan et ses visites planifiées sans rapport ; "
     + "refusé dès qu'une visite a été rapportée. Un geste destructif, en deux clics sur « Mes plans de tournée » (confirmation "

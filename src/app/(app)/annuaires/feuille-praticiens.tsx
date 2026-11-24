@@ -11,7 +11,7 @@ import { SANS_SPECIALITE } from "@/lib/annuaires/par-specialite";
 /**
  * LA FEUILLE DES PRATICIENS, VUE DU MODULE « ANNUAIRES » — médecins ou pharmaciens.
  *
- * Même chargeur, mêmes composants, même portée que l'onglet Annuaire de la Promotion médicale :
+ * Même chargeur, mêmes composants, même portée que l'onglet Annuaire de la Visite médicale :
  * c'est une autre PORTE sur la même feuille, filtrée par grade. Un délégué y voit ses praticiens,
  * la direction tout ; un annuaire nommé fermé y reste fermé. La seule chose qui change est le
  * chemin des liens (`basePath`), pour que l'on reste dans le module d'où l'on vient.
@@ -35,7 +35,7 @@ export async function FeuillePraticiensHub({
   const canImport = peutAnnuaire(user, cle, "CREATE");
   const canEdit = peutAnnuaire(user, cle, "UPDATE");
   const canDelete = peutAnnuaire(user, cle, "DELETE");
-  // LA STRUCTURE — annuaires nommés, leurs accès, leurs colonnes — reste la Promotion médicale :
+  // LA STRUCTURE — annuaires nommés, leurs accès, leurs colonnes — reste la Visite médicale :
   // ouvrir la modification des FICHES n'ouvre pas le droit de réorganiser le référentiel.
   const canManageStructure = userCan(user, "MEDICAL", "UPDATE");
 
@@ -65,7 +65,7 @@ export async function FeuillePraticiensHub({
     ? feuille.annuairesSpecialite.find((s) => s.id === feuille.specialiteOuverte)?.name ?? null
     : null;
   const description = grade === "pharmaciens"
-    ? "Les pharmaciens de l'annuaire — officines et pharmacies hospitalières — en feuille modifiable, avec les mêmes annuaires nommés que la Promotion médicale."
+    ? "Les pharmaciens de l'annuaire — officines et pharmacies hospitalières — en feuille modifiable, avec les mêmes annuaires nommés que la Visite médicale."
     : "Les médecins de l'annuaire — hospitaliers et libéraux — en feuille modifiable, exportable, avec vue par spécialité.";
 
   return (

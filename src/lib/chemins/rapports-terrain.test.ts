@@ -65,6 +65,9 @@ describe("les anciennes adresses mènent au même écran", () => {
     expect(lienCasPvKam("x")).toBe(`${CHEMIN_PV_KAM}/x`);
     expect(lienSignalerPv()).toBe(`${CHEMIN_PV_KAM}/nouveau`);
     expect(lienSignalerPv("doc 1")).toBe(`${CHEMIN_PV_KAM}/nouveau?praticien=doc%201`);
+    // Depuis la feuille d'une visite (11/2026) : le produit coché et le jour de la visite suivent.
+    expect(lienSignalerPv("d1", { produitId: "p 2", date: "2026-11-20" })).toBe(`${CHEMIN_PV_KAM}/nouveau?praticien=d1&produit=p%202&date=2026-11-20`);
+    expect(lienSignalerPv("d1", { produitId: null, date: null })).toBe(`${CHEMIN_PV_KAM}/nouveau?praticien=d1`);
   });
 });
 

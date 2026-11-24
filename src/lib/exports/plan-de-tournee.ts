@@ -14,6 +14,7 @@ import { lettresDesPraticiens } from "@/lib/segmentation/lettres-service";
 import { choisirEntree } from "@/lib/segmentation/lettre-requise";
 import { estIdentifiant } from "@/lib/exports/filtres";
 import { exporte, MIME_PDF, refusExport, type ResultatExport } from "@/lib/exports/types";
+import { MODULE_AUDIT_VISITE } from "@/lib/medical/module-visite";
 
 /**
  * LE PDF DU PLAN DE TOURNÉE (Direction, 07/10 : « exportable une fois confirmé, en PDF très clean ») — partagé par
@@ -106,6 +107,6 @@ export async function exporterPlanTourneePdf(user: CurrentUser, designation: Des
     valideur: decision?.decidedBy?.name ?? plan.reviewerName,
     genereLe: new Date(),
   });
-  await recordAudit({ actorId: user.id, action: "EXPORT", module: "Promotion médicale", entityId: plan.id, summary: `PDF du plan de tournée — ${plan.repName}, ${periode}` });
+  await recordAudit({ actorId: user.id, action: "EXPORT", module: MODULE_AUDIT_VISITE, entityId: plan.id, summary: `PDF du plan de tournée — ${plan.repName}, ${periode}` });
   return exporte(pdf, nomDuPdf(plan.repName, periode), MIME_PDF, `le plan de tournée de ${plan.repName} — ${periode} (${lignes.length} visite(s))`);
 }

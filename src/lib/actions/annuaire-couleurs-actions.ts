@@ -67,7 +67,7 @@ export async function colorerCellulesAnnuaire(input: {
   const porte = feuille === "etablissements"
     ? peutAnnuaire(user, "ETABLISSEMENTS", "UPDATE")
     : peutAnnuaire(user, "MEDECINS", "UPDATE") || peutAnnuaire(user, "PHARMACIENS", "UPDATE");
-  if (!porte) return refus("Colorer la feuille demande le droit de modification sur cet annuaire (Promotion médicale, ou accès ouvert depuis Administration › Comptes).");
+  if (!porte) return refus("Colorer la feuille demande le droit de modification sur cet annuaire (Visite médicale, ou accès ouvert depuis Administration › Comptes).");
 
   const couleur = input.couleur === null || input.couleur === "" ? null : input.couleur;
   if (couleur !== null && !estCouleurCellule(couleur)) return refus("Couleur hors de la palette.");

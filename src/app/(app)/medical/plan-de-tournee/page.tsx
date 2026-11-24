@@ -225,12 +225,12 @@ export default async function PlanDeTourneePage(props: { searchParams?: Promise<
                 {/* CE QUE LE SUPER ADMIN A RÉGLÉ, derrière le ⓘ : sans cela, un KAM qui voit une période
                     trimestrielle croit à un bug — mais ce n'est pas un paragraphe permanent (Direction, 07/10). */}
                 <InfoBulle label="Maille et échéance" align="left" className="normal-case tracking-normal">
-                  Maille : <strong>{GRANULARITE_LABELS[granularite]}</strong>, réglée par le Super Admin (Force de vente ›
+                  Maille : <strong>{GRANULARITE_LABELS[granularite]}</strong>, réglée par le Super Admin (Business Units ›
                   Paramètres). L&apos;échéance de soumission tombe {reglage.joursAvant} jour(s) avant la fin du mois qui
                   précède la période, ramenée au dernier jour ouvré.
                 </InfoBulle>
               </h2>
-              {canPlan && (
+              {canPlan && mesPlans.length > 0 && (
                 <OuvrirPlan
                   granularite={granularite}
                   labelPeriodeSuivante={`${suivante.debut.toLocaleDateString("fr-FR")} → ${suivante.fin.toLocaleDateString("fr-FR")}`}
@@ -239,9 +239,22 @@ export default async function PlanDeTourneePage(props: { searchParams?: Promise<
               )}
             </div>
             {mesPlans.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-                Aucun plan de tournée.
-              </p>
+              // L'ÉTAT VIDE PORTE SON REMÈDE (11/2026) : le geste qui prépare le mois est là, sous la phrase — pas seulement
+              // en haut à droite, où l'œil d'un délégué qui arrive pour la première fois ne va pas.
+              <div className="space-y-3 rounded-xl border border-dashed border-border p-6 text-center text-sm">
+                <p className="font-medium">Aucun plan de tournée</p>
+                {canPlan ? (
+                  <div className="flex justify-center">
+                    <OuvrirPlan
+                      granularite={granularite}
+                      labelPeriodeSuivante={`${suivante.debut.toLocaleDateString("fr-FR")} → ${suivante.fin.toLocaleDateString("fr-FR")}`}
+                      dateSuivante={suivante.debut.toISOString().slice(0, 10)}
+                    />
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground">Les plans de tournée sont préparés par les délégués.</p>
+                )}
+              </div>
             ) : (
               <ul className="divide-y divide-border rounded-xl border border-border">
                 {mesPlans.map((p) => (

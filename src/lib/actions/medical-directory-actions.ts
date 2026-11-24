@@ -28,6 +28,7 @@ import {
 } from "@/lib/medical/directory-mapping";
 import type { ActionResult } from "@/lib/actions/types";
 import { relierALaPersonne } from "@/modules/referentiels/api";
+import { MODULE_AUDIT_VISITE } from "@/lib/medical/module-visite";
 
 /**
  * IMPORT D'UN ANNUAIRE — n'importe quel fichier, restructuré à notre format.
@@ -365,7 +366,7 @@ export async function importDirectorySheet(formData: FormData): Promise<ActionRe
   // avertissement qui inquiète pour une décision qu'on vient de prendre soi-même.
   const unknownCols = mappingRaw ? [] : parsed.unknown.map((u) => u.header);
   await recordAudit({
-    actorId: user.id, action: "CREATE", module: "Promotion médicale",
+    actorId: user.id, action: "CREATE", module: MODULE_AUDIT_VISITE,
     summary: `Import dans ${directoryName} — ${created} créé(s), ${updated} mis à jour, ${parsed.skipped} ignoré(s)${horsPortee + ambiguesNom > 0 ? `, ${horsPortee + ambiguesNom} écartée(s)` : ""}${rattachees > 0 ? ` · ${rattachees} rattachée(s) à un établissement` : ""}${aiFilled > 0 ? ` · ${aiFilled} wilaya(s) déduite(s) par l'assistant` : ""}${unknownCols.length ? ` · colonnes non reconnues : ${unknownCols.join(", ")}` : ""}`,
   });
 
@@ -826,7 +827,7 @@ export async function addDirectoryDoctor(input: {
   if (title && !title.ok) return { ok: false, error: title.error };
   const annuaire = annuaireDuPraticien(title && title.ok ? title.value : null);
   if (!peutAnnuaire(user, annuaire, "CREATE")) {
-    return { ok: false, error: `Non autorisé à alimenter l'annuaire des ${annuaire === "PHARMACIENS" ? "pharmaciens" : "médecins"} (Promotion médicale, ou accès ouvert depuis Administration › Comptes).` };
+    return { ok: false, error: `Non autorisé à alimenter l'annuaire des ${annuaire === "PHARMACIENS" ? "pharmaciens" : "médecins"} (Visite médicale, ou accès ouvert depuis Administration › Comptes).` };
   }
   const directoryId = input.directoryId ? String(input.directoryId) : null;
   if (directoryId) {
@@ -889,7 +890,7 @@ export async function addDirectoryDoctor(input: {
   await completerRattachement([created.id], user.id);
   await reposerWilayaCode("MedicalDoctor", created.id); // double écriture des lieux (V2-D)
   await recordAudit({
-    actorId: user.id, action: "CREATE", module: "Promotion médicale",
+    actorId: user.id, action: "CREATE", module: MODULE_AUDIT_VISITE,
     entityType: "DOCTOR", entityId: created.id, summary: `Annuaire — fiche « ${name} »`,
   });
   revalidatePath("/medical/annuaire");
@@ -933,7 +934,7 @@ export async function deleteDirectoryDoctors(ids: string[]): Promise<ActionResul
     data: { archivedAt: new Date(), archivedById: user.id },
   });
   await recordAudit({
-    actorId: user.id, action: "DELETE", module: "Promotion médicale",
+    actorId: user.id, action: "DELETE", module: MODULE_AUDIT_VISITE,
     summary: `Annuaire — ${count} fiche(s) archivée(s) (restaurables)`,
   });
   revalidatePath("/medical/annuaire");
@@ -974,7 +975,7 @@ export async function restaurerDirectoryDoctors(ids: string[]): Promise<ActionRe
     data: { archivedAt: null, archivedById: null },
   });
   await recordAudit({
-    actorId: user.id, action: "UPDATE", module: "Promotion médicale",
+    actorId: user.id, action: "UPDATE", module: MODULE_AUDIT_VISITE,
     summary: `Annuaire — ${count} fiche(s) restaurée(s)`,
   });
   revalidatePath("/medical/annuaire");

@@ -123,7 +123,9 @@ test("NON TENUE — dans « Ma journée », le KAM dit qu'une visite de demain e
   test.setTimeout(90_000);
   await login(page, EMAIL.kam);
   await aller(page, "/medical/ma-journee?vue=DEMAIN");
-  await page.getByRole("button", { name: "N'a pas eu lieu" }).click();
+  // 11/2026 : la ligne porte « Commencer » ; « La visite n'a pas eu lieu ? » est dans la feuille de la visite.
+  await page.getByRole("button", { name: "Commencer", exact: true }).click();
+  await page.getByRole("button", { name: "La visite n'a pas eu lieu ?" }).click();
   const enregistrer = page.getByRole("button", { name: "Enregistrer", exact: true });
   await expect(enregistrer).toBeDisabled();
   await page.getByLabel("Annulée").check();

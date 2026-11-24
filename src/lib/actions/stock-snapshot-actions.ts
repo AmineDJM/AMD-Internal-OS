@@ -66,7 +66,7 @@ export async function createStockHospital(formData: FormData): Promise<ActionRes
     else {
       return {
         ok: false,
-        error: `« ${name} » n'est pas dans l'annuaire des établissements. Les hôpitaux du module Stocks sont ceux de l'annuaire : créez-le d'abord dans Annuaires › Établissements (ou Promotion médicale › Établissements), puis ajoutez-le ici.`,
+        error: `« ${name} » n'est pas dans l'annuaire des établissements. Les hôpitaux du module Stocks sont ceux de l'annuaire : créez-le d'abord dans Annuaires › Établissements (ou Visite médicale › Établissements), puis ajoutez-le ici.`,
       };
     }
   }

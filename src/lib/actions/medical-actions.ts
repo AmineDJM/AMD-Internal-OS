@@ -21,6 +21,7 @@ import { sousVerrous } from "@/lib/promo/stock-ecriture";
 import { dejaDansLaVisite, ecrireRemises, lireMaterielRemis, motifDeRemise, phraseMateriel, RefusRemise, toucheLeStock, verrousDuRapport } from "@/lib/promo/remises-visite";
 import { fenetreRapport, gestesPossibles, refusVisiteHorsDelai, retraitInterditApresRevision, type StatutPlan } from "@/lib/sfe/tournee";
 import { produitsDeLaBu, refusProduitsHorsBu } from "@/lib/sfe/produits-bu";
+import { MODULE_AUDIT_VISITE } from "@/lib/medical/module-visite";
 
 const SECTORS: MedicalSector[] = ["HOSPITAL", "LIBERAL", "BOTH"];
 const TITLES: DoctorTitle[] = [
@@ -568,7 +569,7 @@ export async function deleteVisit(formData: FormData): Promise<ActionResult> {
   // Tout ou rien : un rapport saisi entre la lecture et la suppression l'emporte.
   const retiree = await prisma.medicalVisit.deleteMany({ where: { id, status: visit.status } });
   if (retiree.count === 0) return { ok: false, error: "Cette visite vient de changer — rouvrez-la pour voir où elle en est." };
-  await recordAudit({ actorId: user.id, action: "DELETE", module: "Promotion médicale", entityType: "VISIT", entityId: id, summary: `Visite supprimée — ${visit.doctor?.name ?? ""}` });
+  await recordAudit({ actorId: user.id, action: "DELETE", module: MODULE_AUDIT_VISITE, entityType: "VISIT", entityId: id, summary: `Visite supprimée — ${visit.doctor?.name ?? ""}` });
   revalidatePath("/medical");
   return { ok: true };
 }
@@ -626,7 +627,7 @@ export async function createDoctor(
   });
   await reposerWilayaCode("MedicalDoctor", created.id); // double écriture des lieux (V2-D)
   await recordAudit({
-    actorId: user.id, action: "CREATE", module: "Promotion médicale",
+    actorId: user.id, action: "CREATE", module: MODULE_AUDIT_VISITE,
     entityType: "DOCTOR", entityId: created.id, summary: `Médecin « ${name} »`,
   });
   revalidatePath("/medical");
@@ -715,7 +716,7 @@ export async function updateDoctor(formData: FormData): Promise<ActionResult> {
   // l'annulation de toute correction d'un téléphone ou d'une spécialité).
   if (formData.has("wilaya") || formData.has("region")) await reposerWilayaCode("MedicalDoctor", id);
   await recordAudit({
-    actorId: user.id, action: "UPDATE", module: "Promotion médicale",
+    actorId: user.id, action: "UPDATE", module: MODULE_AUDIT_VISITE,
     entityType: "DOCTOR", entityId: id, summary: `Médecin « ${name} » mis à jour`,
   });
   revalidatePath("/medical");
@@ -837,7 +838,7 @@ export async function logVisit(
   }
 
   await recordAudit({
-    actorId: user.id, action: "CREATE", module: "Promotion médicale",
+    actorId: user.id, action: "CREATE", module: MODULE_AUDIT_VISITE,
     entityType: "VISIT", entityId: created.id,
     summary: `Visite saisie — ${doctor.name}${products.length ? ` (${products.length} produit${products.length > 1 ? "s" : ""})` : ""}${phraseMateriel(lu.materiel)}`,
   });
@@ -886,7 +887,7 @@ export async function createVisit(
     },
   });
   await recordAudit({
-    actorId: user.id, action: "CREATE", module: "Promotion médicale",
+    actorId: user.id, action: "CREATE", module: MODULE_AUDIT_VISITE,
     entityType: "VISIT", entityId: created.id, summary: `Visite planifiée`,
   });
   revalidatePath("/medical");
@@ -967,7 +968,7 @@ export async function updateVisit(formData: FormData): Promise<ActionResult> {
   });
   if (changee) return { ok: false, error: "Cette visite vient de changer — rouvrez-la pour voir où elle en est." };
   await recordAudit({
-    actorId: user.id, action: "UPDATE", module: "Promotion médicale",
+    actorId: user.id, action: "UPDATE", module: MODULE_AUDIT_VISITE,
     entityType: "VISIT", entityId: id, summary: "Visite modifiée",
   });
   revalidatePath("/medical");

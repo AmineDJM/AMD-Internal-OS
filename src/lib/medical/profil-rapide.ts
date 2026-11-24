@@ -2,6 +2,7 @@ import type { MedicalSector } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { sansBloquer } from "@/lib/journal";
+import { MODULE_AUDIT_VISITE } from "@/lib/medical/module-visite";
 
 /**
  * CRÉER UN PROFIL DE MÉDECIN DEPUIS UNE PRISE EN CHARGE — l'écrivain unique.
@@ -50,7 +51,7 @@ export async function creerProfilMedecin(
     select: { id: true, name: true },
   });
   await recordAudit({
-    actorId, action: "CREATE", module: "Promotion médicale", entityType: "DOCTOR", entityId: doctor.id,
+    actorId, action: "CREATE", module: MODULE_AUDIT_VISITE, entityType: "DOCTOR", entityId: doctor.id,
     summary: `Médecin « ${doctor.name} » créé depuis ${origine}`,
   }).catch(sansBloquer("profil-rapide.creerProfilMedecin.recordAudit"));
   return { ok: true, id: doctor.id, name: doctor.name };

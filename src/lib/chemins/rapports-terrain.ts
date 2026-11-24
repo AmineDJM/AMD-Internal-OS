@@ -45,9 +45,16 @@ export function lienCasPvKam(id: string): string {
 }
 
 /**
- * Le formulaire de signalement — prérempli avec le praticien quand on vient de SA cellule du planning
- * (le serveur relit la fiche dans le périmètre de la personne : l'adresse ne porte qu'un identifiant).
+ * Le formulaire de signalement — prérempli avec le praticien quand on vient de SA cellule du planning ou de SA visite
+ * (le serveur relit la fiche dans le périmètre de la personne : l'adresse ne porte qu'un identifiant). Depuis la
+ * feuille d'une visite (11/2026), aussi le produit coché (`produit`, identifiant du produit canonique) et le jour de la
+ * visite (`date`, `AAAA-MM-JJ`) — relus et bornés par la page, jamais crus sur parole.
  */
-export function lienSignalerPv(praticienId?: string | null): string {
-  return praticienId ? `${CHEMIN_PV_KAM}/nouveau?praticien=${encodeURIComponent(praticienId)}` : `${CHEMIN_PV_KAM}/nouveau`;
+export function lienSignalerPv(praticienId?: string | null, visite?: { produitId?: string | null; date?: string | null }): string {
+  const q = [
+    praticienId ? `praticien=${encodeURIComponent(praticienId)}` : null,
+    visite?.produitId ? `produit=${encodeURIComponent(visite.produitId)}` : null,
+    visite?.date ? `date=${encodeURIComponent(visite.date)}` : null,
+  ].filter(Boolean).join("&");
+  return q ? `${CHEMIN_PV_KAM}/nouveau?${q}` : `${CHEMIN_PV_KAM}/nouveau`;
 }

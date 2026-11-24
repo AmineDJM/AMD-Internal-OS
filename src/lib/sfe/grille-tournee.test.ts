@@ -147,19 +147,40 @@ describe("l'écran — une seule porte vers le rapport d'une visite planifiée",
   const planif = sansCommentaires(readFileSync("src/app/(app)/medical/plan-de-tournee/planificateur.tsx", "utf8"));
   const grille = sansCommentaires(readFileSync("src/app/(app)/medical/plan-de-tournee/grille.tsx", "utf8"));
   const journee = sansCommentaires(readFileSync("src/app/(app)/medical/ma-journee/emploi-du-temps.tsx", "utf8"));
+  const feuille = sansCommentaires(readFileSync("src/app/(app)/medical/ma-journee/feuille-visite.tsx", "utf8"));
+  const liste = sansCommentaires(readFileSync("src/app/(app)/medical/ma-journee/journee-delegue.tsx", "utf8"));
+  const envoi = sansCommentaires(readFileSync("src/app/(app)/medical/ma-journee/envoi-visite.ts", "utf8"));
+  const page = sansCommentaires(readFileSync("src/app/(app)/medical/ma-journee/page.tsx", "utf8"));
 
   it("la grille du plan ouvre les feuilles de « Ma journée », et aucune action de rapport en direct", () => {
-    expect(planif).toMatch(/<FeuilleRapportVisite /);
+    expect(planif).toMatch(/<FeuilleRapportVisite\b/);
     expect(planif).toMatch(/<FeuilleNonTenue /);
-    expect(planif).toMatch(/<FeuilleVisiteImprevue/);
     for (const t of [planif, grille]) {
       expect(t).not.toMatch(/rapporterVisite|ajouterVisiteImprevue|direVisiteNonTenue|createFieldReport/);
     }
-    // « Ma journée » passe par les MÊMES feuilles — pas une copie à côté.
-    expect(journee).toMatch(/<FeuilleRapportVisite /);
-    expect(journee).toMatch(/<FeuilleNonTenue /);
-    expect(journee).toMatch(/<FeuilleVisiteImprevue /);
-    expect((journee.match(/rapporterVisite\(|executer\(rapporterVisite/g) ?? []).length).toBe(1);
+    // « Ma journée » et la grille passent par la MÊME feuille « Visite » — pas une copie à côté.
+    expect(journee).toMatch(/<FeuilleVisite\b/);
+    expect(liste).toMatch(/<FeuilleVisite\b/);
+    expect(liste).toMatch(/<FeuilleNonTenue /);
+    // UNE porte par action : l'emploi du temps (grille, onglets) rapporte par le geste suivi ; la liste du jour et la
+    // file hors ligne, par le module d'envoi — le seul qui crée une visite hors plan.
+    expect((journee.match(/executer\(rapporterVisite, fd\)/g) ?? []).length).toBe(1);
+    expect((envoi.match(/rapporterVisite\(fd\)/g) ?? []).length).toBe(1);
+    expect((envoi.match(/ajouterVisiteImprevue\(fd\)/g) ?? []).length).toBe(1);
+    for (const t of [feuille, liste, page]) expect(t).not.toMatch(/rapporterVisite\(|ajouterVisiteImprevue\(/);
+  });
+
+  it("« Ma journée » n'appelle plus `logVisit` : un médecin planifié ouvre le rapport de SA visite (11/2026)", () => {
+    for (const t of [journee, feuille, liste, envoi, page]) expect(t).not.toMatch(/logVisit/);
+    // Les portes en double ont disparu de l'écran.
+    for (const t of [journee, liste, page]) {
+      expect(t).not.toContain("Faire un rapport terrain");
+      expect(t).not.toContain("Visite chez un autre praticien");
+      expect(t).not.toContain("Visite faite");
+    }
+    expect(liste).toContain("Voir un médecin hors plan");
+    expect(liste).toMatch(/cibleDuPraticien\(/);
+    expect(liste).toMatch(/Commencer la visite/);
   });
 
   it("la structure de la grille passe par l'action unique `planifierVisites` et les règles pures", () => {
@@ -169,9 +190,11 @@ describe("l'écran — une seule porte vers le rapport d'une visite planifiée",
     expect(planif).toMatch(/retirerCellule\(/);
     expect(grille).toMatch(/etatCellule\(/);
     expect(grille).toMatch(/gesteCellule\(/);
-    // « Faire un rapport » au-dessus de la grille (Direction, 07/10), et la pharmacovigilance à côté — un lien, pas une action.
-    expect(planif).toContain("Faire un rapport");
-    expect(planif).toMatch(/lienSignalerPv\(\)/);
+    // LA GRILLE SERT À PLANIFIER (11/2026) : plus de « Faire un rapport » ni de « Pharmacovigilance » au-dessus ; le
+    // signalement part de la cellule d'un praticien, prérempli (`lienSignalerPv`), et de la feuille de sa visite.
+    expect(planif).not.toContain("Faire un rapport");
+    expect(planif).not.toMatch(/lienSignalerPv\(\)/);
+    expect(planif).toMatch(/lienPv=\{peutRapporter && peutSignalerPv \? lienSignalerPv : null\}/);
     expect(grille).toContain("Voir le rapport");
   });
 

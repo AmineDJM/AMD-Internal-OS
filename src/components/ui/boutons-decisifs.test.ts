@@ -81,6 +81,8 @@ const POINTS: Point[] = [
   ["src/app/(app)/medical/plan-de-tournee/planificateur.tsx", "Rejeter", 1],
   ["src/app/(app)/medical/plan-de-tournee/planificateur.tsx", "Rouvrir pour révision", 1],
   ["src/app/(app)/medical/ma-journee/emploi-du-temps.tsx", "la visite n’a pas eu lieu", 1],
+  // Un rapport gardé dans le téléphone ne se jette pas d'un seul clic (11/2026).
+  ["src/app/(app)/medical/ma-journee/journee-delegue.tsx", "retirer ce brouillon du téléphone", 1],
   // Bons de commande, Legal, avoir, règlement
   ["src/app/(app)/bons-de-commande/file-bc.tsx", "signerBonDeCommande", 1],
   ["src/app/(app)/bons-de-commande/file-bc.tsx", "renvoyerBonDeCommande", 1],

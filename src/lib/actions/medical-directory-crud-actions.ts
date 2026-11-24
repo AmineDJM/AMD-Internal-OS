@@ -13,6 +13,7 @@ import { actionReversible } from "@/lib/effets/reversible";
 import { updateDoctor } from "@/lib/actions/medical-actions";
 import { CHAMPS_FUSION, COLONNE_FORMULAIRE_FUSION } from "@/modules/referentiels/partage";
 import { peutDeciderFusionMedecins, propositionDeLaPaire } from "@/modules/referentiels/api";
+import { MODULE_AUDIT_VISITE } from "@/lib/medical/module-visite";
 
 /**
  * LES ANNUAIRES DE PRATICIENS — plusieurs listes nommées, pas une seule.
@@ -384,7 +385,7 @@ export async function fusionnerMedecinsEnDouble(formData: FormData): Promise<Act
     // 4. La décision : la paire ne sera plus proposée.
     const decision = { medecinAId: p.cle.split("|")[0]!, medecinBId: p.cle.split("|")[1]!, decision: "FUSIONNEE", empreinte: p.empreinte, gardeId: garde.id, decideParId: user.id, decideLe: new Date() };
     await prisma.decisionFusionMedecin.upsert({ where: { cle: p.cle }, create: { cle: p.cle, ...decision }, update: decision });
-    await recordAudit({ actorId: user.id, action: "UPDATE", module: "Promotion médicale", entityType: "DOCTOR", entityId: garde.id, summary: `Fiches médecins fusionnées : « ${absorbee.name} » dans « ${garde.name} »` });
+    await recordAudit({ actorId: user.id, action: "UPDATE", module: MODULE_AUDIT_VISITE, entityType: "DOCTOR", entityId: garde.id, summary: `Fiches médecins fusionnées : « ${absorbee.name} » dans « ${garde.name} »` });
     revalidatePath("/medical/doublons");
     revalidatePath("/medical/annuaire");
     return { ok: true, message: `« ${absorbee.name} » fusionnée dans « ${garde.name} » (fiche archivée, restaurable).` };
@@ -402,7 +403,7 @@ export async function ecarterFusionMedecin(formData: FormData): Promise<ActionRe
     if (!p) return { ok: false, error: REFUS_PAIRE };
     const decision = { medecinAId: p.cle.split("|")[0]!, medecinBId: p.cle.split("|")[1]!, decision: "ECARTEE", empreinte: p.empreinte, gardeId: null, decideParId: user.id, decideLe: new Date() };
     await prisma.decisionFusionMedecin.upsert({ where: { cle: p.cle }, create: { cle: p.cle, ...decision }, update: decision });
-    await recordAudit({ actorId: user.id, action: "UPDATE", module: "Promotion médicale", entityType: "DOCTOR", entityId: p.garde.id, summary: `Proposition de fusion écartée : « ${p.garde.name} » / « ${p.absorbee.name} »` });
+    await recordAudit({ actorId: user.id, action: "UPDATE", module: MODULE_AUDIT_VISITE, entityType: "DOCTOR", entityId: p.garde.id, summary: `Proposition de fusion écartée : « ${p.garde.name} » / « ${p.absorbee.name} »` });
     revalidatePath("/medical/doublons");
     return { ok: true, message: "Proposition écartée : elle ne reviendra que si l'une des deux fiches change." };
   });

@@ -6,7 +6,7 @@ describe("Adventum Brain limité au périmètre des opérations (Direction, 08/1
   it("les risques des opérations y sont : PCH, stocks, logistique, force de vente, terrain", () => {
     for (const r of [
       { category: "PCH", module: "PCH — Marchés" }, { category: "PCH", module: "Stocks PCH" }, { category: "PCH", module: "Logistique" },
-      { category: "PCH", module: "PCH · Stock" }, { category: "FIELD", module: "Force de vente" }, { category: "MEDICAL", module: "Promotion médicale" },
+      { category: "PCH", module: "PCH · Stock" }, { category: "FIELD", module: "Force de vente" }, { category: "MEDICAL", module: "Visite médicale" }, { category: "MEDICAL", module: "Promotion médicale" },
       { category: "QUALITY", module: "Rapports terrain" },
     ]) expect(dansLePerimetreOperations(r), r.module).toBe(true);
   });

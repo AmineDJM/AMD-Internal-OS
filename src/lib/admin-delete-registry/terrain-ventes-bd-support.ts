@@ -10,11 +10,12 @@ import { prisma } from "@/lib/prisma";
 import { refusSuppressionRapport } from "@/lib/promo/remises-visite";
 import { refusSuppressionPraticien } from "@/lib/queries/suppression-refus";
 import type { DeletableKind, KindSpec } from "./types";
+import { MODULE_AUDIT_VISITE } from "@/lib/medical/module-visite";
 
 export const REGISTRE_TERRAIN_VENTES_BD_SUPPORT = {
   FIELD_REPORT: {
     label: "rapport terrain",
-    module: "Promotion médicale",
+    module: MODULE_AUDIT_VISITE,
     redirect: CHEMIN_RAPPORTS_TERRAIN,
     model: "fieldReport",
     searchFields: ["doctorName", "institution"],
