@@ -54,7 +54,12 @@ export const TON_STATUT_PROPOSITION: Record<StatutProposition, "neutral" | "info
 export const STATUTS_ACCEPTES: readonly StatutProposition[] = ["ACCEPTE", "ACCEPTE_AVEC_AJUSTEMENTS"];
 export const STATUTS_FINAUX: readonly StatutProposition[] = ["ACCEPTE", "ACCEPTE_AVEC_AJUSTEMENTS", "REFUSE"];
 
-export const SOURCES_LIGNE = ["AUTO_PAIE", "AUTO_RECRUTEMENT", "AUTO_BV", "AUTO_ADPRO", "REALISE_2026", "SAISIE"] as const;
+/**
+ * `STRUCTURE` : une ligne que la structure du budget prévoit d'office (Administration : dons et mécénat, réserve pour
+ * imprévus, remboursement d'emprunt), montant à saisir. `AUTO_CHARGES_FIXES` : les charges fixes des locaux, pré-remplies
+ * depuis « Informations de la société » par un autre lot (`prefillChargesFixes`, point d'entrée).
+ */
+export const SOURCES_LIGNE = ["AUTO_PAIE", "AUTO_RECRUTEMENT", "AUTO_BV", "AUTO_ADPRO", "AUTO_CHARGES_FIXES", "STRUCTURE", "REALISE_2026", "SAISIE"] as const;
 export type SourceLigne = (typeof SOURCES_LIGNE)[number];
 
 export const LIBELLE_SOURCE: Record<SourceLigne, string> = {
@@ -62,6 +67,8 @@ export const LIBELLE_SOURCE: Record<SourceLigne, string> = {
   AUTO_RECRUTEMENT: "Recrutements",
   AUTO_BV: "Dossiers (BV)",
   AUTO_ADPRO: "Ad & Pro",
+  AUTO_CHARGES_FIXES: "charges fixes",
+  STRUCTURE: "à saisir",
   REALISE_2026: "réalisé projeté",
   SAISIE: "saisie",
 };
@@ -90,8 +97,19 @@ export const LIBELLE_DOMAINE: Record<DomaineCampagne, string> = {
   GENERAL: "Budgets",
 };
 
-/** Les clés de catégorie que le code des pôles reconnaît — reprises telles quelles sur la catégorie créée. */
-export const CLES_RECONNUES = ["BV_25", "BV_75", "MASSE_SALARIALE_FDV"] as const;
+/**
+ * Les clés de catégorie que le code des pôles reconnaît — reprises telles quelles sur la catégorie créée.
+ * « MASSE_SALARIALE » (hors force de vente, toutes les autres directions) : proposée par le pré-remplissage, elle n'était
+ * pas reconnue et la catégorie naissait sans clé (audit des dépenses, 24/11/2026).
+ */
+export const CLES_RECONNUES = [
+  "BV_25", "BV_75", "MASSE_SALARIALE_FDV", "MASSE_SALARIALE",
+  // La masse salariale INCLUT l'IRG et la CNAS, affichés à part (Super Admin, 24/11/2026). À remplacer par la constante
+  // finances à la fusion (lot impots, module Budgets).
+  "MS_IRG", "MS_CNAS",
+  // Le budget de l'Administration (Super Admin, 24/11/2026).
+  "DONS_MECENAT", "RESERVE_IMPREVUS", "REMBOURSEMENT_EMPRUNT",
+] as const;
 
 /** Le seuil de justification par défaut (Direction : « au-delà de ±5 % »). */
 export const SEUIL_JUSTIFICATION_DEFAUT = 5;
@@ -427,6 +445,22 @@ export function domaineParDefaut(nom: string, code?: string | null): DomaineCamp
   return "GENERAL";
 }
 
+/** Le pôle de l'Administration (son budget, une enveloppe par société, est tenu par les Finances). */
+export function estPoleAdministration(nom: string, code?: string | null): boolean {
+  return plier(`${nom} ${code ?? ""}`).includes("administ");
+}
+
+/**
+ * LES LIGNES QUE LE BUDGET DE L'ADMINISTRATION PRÉVOIT D'OFFICE (Super Admin, 24/11/2026) — montant à saisir : les dons
+ * et le mécénat (séparés du sponsoring), la réserve pour imprévus (une par société, budgétée ; sa libération est au DG
+ * ou au Super Admin), le remboursement d'emprunt (aucun aujourd'hui : la ligne existe, vide).
+ */
+export const LIGNES_ADMINISTRATION: readonly LignePrefill[] = [
+  { key: "DONS_MECENAT", label: "Dons et mécénat", categoryKey: "DONS_MECENAT", source: "STRUCTURE", realise2026: 0, propose: 0 },
+  { key: "RESERVE_IMPREVUS", label: "Réserve pour imprévus", categoryKey: "RESERVE_IMPREVUS", source: "STRUCTURE", realise2026: 0, propose: 0, justification: "Libérée par le DG ou le Super Admin seulement." },
+  { key: "REMBOURSEMENT_EMPRUNT", label: "Remboursement d'emprunt", categoryKey: "REMBOURSEMENT_EMPRUNT", source: "STRUCTURE", realise2026: 0, propose: 0 },
+];
+
 /** « Où — chez qui » d'une proposition. */
 export function ouChezQui(statut: StatutProposition, pole: string, valideursRestants: readonly string[] = []): string {
   switch (statut) {
@@ -442,6 +476,8 @@ export function ouChezQui(statut: StatutProposition, pole: string, valideursRest
 export interface LignePrefill {
   key: string; label: string; categoryKey: string | null; source: SourceLigne;
   realise2026: number; propose: number; justification?: string | null;
+  /** Les poids des douze mois (ex. la masse salariale : net + primes au mois de leur versement) ; absent = douzièmes. */
+  profilMensuel?: number[] | null;
 }
 
 export interface LigneExistante { key: string; source: string; propose: number; justification: string | null }
@@ -453,11 +489,11 @@ export interface LigneExistante { key: string; source: string; propose: number; 
  */
 export function fusionnerPrefill(existantes: readonly LigneExistante[], proposees: readonly LignePrefill[]): {
   creer: LignePrefill[];
-  maj: { key: string; realise2026: number; propose?: number; source: SourceLigne; justification?: string | null }[];
+  maj: { key: string; realise2026: number; propose?: number; source: SourceLigne; justification?: string | null; profilMensuel?: number[] | null }[];
 } {
   const par = new Map(existantes.map((l) => [l.key, l]));
   const creer: LignePrefill[] = [];
-  const maj: { key: string; realise2026: number; propose?: number; source: SourceLigne; justification?: string | null }[] = [];
+  const maj: { key: string; realise2026: number; propose?: number; source: SourceLigne; justification?: string | null; profilMensuel?: number[] | null }[] = [];
   for (const p of proposees) {
     const e = par.get(p.key);
     if (!e) { creer.push(p); continue; }
@@ -466,6 +502,8 @@ export function fusionnerPrefill(existantes: readonly LigneExistante[], proposee
       key: p.key, realise2026: p.realise2026, source: p.source,
       ...(e.propose === 0 ? { propose: p.propose } : {}),
       ...(!(e.justification ?? "").trim() && p.justification ? { justification: p.justification } : {}),
+      // Le profil suit la source (il ne fixe aucun montant : le pôle garde le sien, réparti selon ces poids).
+      ...(p.profilMensuel !== undefined ? { profilMensuel: p.profilMensuel } : {}),
     });
   }
   return { creer, maj };

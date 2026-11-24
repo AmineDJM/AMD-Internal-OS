@@ -2,7 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/utils";
 import { getDepartmentSubtreeIds } from "@/lib/departments";
 import { CATEGORIES_BV, lignesBv, natureDuLibelle, type DossierBv, type OrdreBv } from "@/lib/budget-regulatory/bv";
-import { projeter12Mois, type DomaineCampagne, type LignePrefill } from "./regles";
+import { LIGNES_ADMINISTRATION, estPoleAdministration, projeter12Mois, type DomaineCampagne, type LignePrefill } from "./regles";
+import { CLE_MS_CNAS, CLE_MS_IRG, prevoirMasseNette, retenuesDesFiches } from "./masse-salariale";
 import { categoriesGouvernees, consommationIntegree, contextesDesCategories } from "@/lib/queries/budget-integration";
 import { lireBvAcceptes } from "@/lib/queries/budget-bv-acceptes";
 import { LIBELLE_NATURE_BV } from "@/lib/regulatory/bv-circuit";
@@ -11,7 +12,7 @@ import { LIBELLE_NATURE_BV } from "@/lib/regulatory/bv-circuit";
  * « PRÉ-REMPLIR DEPUIS L'ANNÉE EN COURS » — jamais une page blanche (maquette validée).
  *
  * Chaque ligne part du RÉALISÉ de l'année en cours projeté sur 12 mois ; les lignes AUTOMATIQUES se calculent :
- *   • masse salariale depuis la Paie — en TOTAL seulement (la règle de `hr/confidentialite.ts` : le détail par personne ne
+ *   • masse salariale depuis la Paie — net + primes, IRG, CNAS (depuis les retenues des fiches) — en TOTAL seulement (la règle de `hr/confidentialite.ts` : le détail par personne ne
  *     sort pas ; un groupe de moins de trois salariés ne se chiffre pas pour qui ne voit pas les salaires, son total
  *     dirait le salaire de chacun) ;
  *   • recrutements prévus (module Recrutement : demandes validées en cours × fourchette de salaire) ;
@@ -105,35 +106,46 @@ export async function calculerPrefill(e: EntreePrefill): Promise<LignePrefill[]>
     if (r > 0) lignes.push({ key: `DEPT:${d.kind}`, label: LIBELLE_NATURE_DEPT[d.kind] ?? d.kind, categoryKey: null, source: "REALISE_2026", realise2026: r, propose: r });
   }
 
-  // ── C. La masse salariale, depuis la Paie — en total.
+  // ── C. La masse salariale, depuis la Paie — en total. Elle INCLUT l'IRG et la CNAS, en trois lignes (Super Admin,
+  // 24/11/2026) : « net + primes » (12 × le net des fiches, les primes de l'an passé au mois de leur versement — un 13e
+  // mois n'est pas une paie × 12), puis l'IRG (`MS_IRG`) et la CNAS (`MS_CNAS`) depuis les RETENUES des fiches, jamais
+  // un pourcentage posé sur le coût employeur (`masse-salariale.ts`).
   const employes = await prisma.employee.findMany({
     where: { departmentId: { in: sousArbre }, isActive: true },
-    select: { id: true, employerCost: true, grossSalary: true, baseSalary: true },
+    select: { id: true, netToPay: true, retIrg: true, retSS9: true, retSS35: true, employerCost: true },
   });
   if (employes.length > 0) {
     const cleMs = e.domaine === "OPERATIONS" ? "MASSE_SALARIALE_FDV" : "MASSE_SALARIALE";
+    const ligne = (key: string, label: string, categoryKey: string, montant: number, extra: Partial<LignePrefill> = {}): LignePrefill =>
+      ({ key, label, categoryKey, source: "AUTO_PAIE", realise2026: 0, propose: Math.round(montant), ...extra });
     if (employes.length < 3 && !e.voitLesSalaires) {
-      lignes.push({
-        key: "PAIE", label: "Masse salariale", categoryKey: cleMs, source: "AUTO_PAIE", realise2026: 0, propose: 0,
-        justification: "Moins de trois salariés : le total dirait le salaire de chacun — montant à saisir par les RH.",
-      });
+      const secret = "Moins de trois salariés : le total dirait le salaire de chacun — montant à saisir par les RH.";
+      lignes.push(
+        ligne("PAIE", "Masse salariale — net + primes", cleMs, 0, { justification: secret }),
+        ligne("PAIE_IRG", "Masse salariale — IRG", CLE_MS_IRG, 0),
+        ligne("PAIE_CNAS", "Masse salariale — CNAS", CLE_MS_CNAS, 0),
+      );
     } else {
       const paies = await prisma.payrollEntry.findMany({
         where: { employeeId: { in: employes.map((x) => x.id) }, year: ref },
-        select: { month: true, employerCost: true, gross: true },
+        select: { month: true, net: true, bonuses: true },
       });
-      const parMois = new Map<number, number>();
-      for (const p of paies) parMois.set(p.month, (parMois.get(p.month) ?? 0) + toNumber(p.employerCost ?? p.gross));
-      const totalAnnee = [...parMois.values()].reduce((a, m) => a + m, 0);
-      const dernierMois = [...parMois.keys()].sort((a, b) => b - a)[0];
-      const mensuelFiche = employes.reduce((a, x) => a + toNumber(x.employerCost ?? x.grossSalary ?? x.baseSalary), 0);
-      const mensuel = dernierMois ? parMois.get(dernierMois) ?? 0 : mensuelFiche;
-      const realise = parMois.size > 0 ? Math.round((totalAnnee * 12) / Math.max(1, parMois.size)) : 0;
-      lignes.push({
-        key: "PAIE", label: "Masse salariale", categoryKey: cleMs, source: "AUTO_PAIE",
-        realise2026: realise, propose: Math.round(mensuel * 12),
-        justification: `${employes.length} salarié(s) — ${dernierMois ? "dernière paie connue" : "coût des fiches"} × 12.`,
-      });
+      const n = (v: unknown) => (v === null || v === undefined ? null : toNumber(v));
+      const prev = prevoirMasseNette(employes.map((x) => n(x.netToPay)), paies.map((p) => ({ mois: p.month, net: toNumber(p.net), primes: toNumber(p.bonuses) })));
+      const ret = retenuesDesFiches(employes.map((x) => ({ net: n(x.netToPay), retIrg: n(x.retIrg), retSS9: n(x.retSS9), retSS35: n(x.retSS35), coutEmployeur: n(x.employerCost) })));
+      const moisPayes = new Set(paies.map((p) => p.month)).size;
+      const verseRef = paies.reduce((a, p) => a + toNumber(p.net), 0);
+      const primes = prev.primesParMois.reduce((a, x) => a + x, 0);
+      lignes.push(
+        ligne("PAIE", "Masse salariale — net + primes", cleMs, prev.total, {
+          realise2026: moisPayes > 0 ? Math.round((verseRef * 12) / moisPayes) : 0,
+          profilMensuel: prev.total > 0 ? prev.parMois : null,
+          justification: `${employes.length} salarié(s) — net ${prev.base === "FICHES" ? "des fiches" : prev.base === "PAIE" ? "de la dernière paie" : "inconnu"} × 12`
+            + (primes > 0 ? ` + primes ${ref} au mois de leur versement` : "") + ".",
+        }),
+        ligne("PAIE_IRG", "Masse salariale — IRG", CLE_MS_IRG, ret.irg * 12, { justification: "Retenues IRG des fiches × 12." }),
+        ligne("PAIE_CNAS", "Masse salariale — CNAS", CLE_MS_CNAS, ret.cnas * 12, { justification: "Cotisations CNAS des fiches × 12." }),
+      );
     }
   }
 
@@ -167,7 +179,24 @@ export async function calculerPrefill(e: EntreePrefill): Promise<LignePrefill[]>
   // ── F. Ad & Pro par BU, d'après la tendance.
   if (e.domaine === "MARKETING") lignes.push(...(await prefillAdPro(debut, fin, maintenant, projete)));
 
+  // ── G. Le budget de l'Administration (une enveloppe par société, tenue par les Finances) : ses lignes d'office, et les
+  // charges fixes des locaux.
+  const dept = await prisma.department.findUnique({ where: { id: e.departmentId }, select: { name: true, code: true } });
+  if (dept && estPoleAdministration(dept.name, dept.code)) {
+    lignes.push(...LIGNES_ADMINISTRATION.map((l) => ({ ...l })));
+    lignes.push(...(await prefillChargesFixes(e)));
+  }
+
   return lignes;
+}
+
+/**
+ * LE POINT D'ENTRÉE DES CHARGES FIXES (loyer, charges locatives…) — pré-remplies depuis « Informations de la société »
+ * (section « Locaux & charges fixes ») par le lot qui la tient, en lignes de source `AUTO_CHARGES_FIXES`. Rien ici tant
+ * que ce lot n'est pas fusionné : une source vide ne fait pas de ligne.
+ */
+export async function prefillChargesFixes(_e: EntreePrefill): Promise<LignePrefill[]> {
+  return [];
 }
 
 async function prefillBv(e: EntreePrefill, debut: Date, fin: Date, projete: (m: number) => number): Promise<LignePrefill[]> {

@@ -3592,13 +3592,77 @@ model BudgetCampaign {
   allowRectificatif     Boolean          @default(false)
   /// Au-delà de cet écart (en %) avec le réalisé de l'année en cours, une justification est exigée.
   seuilJustificationPct Decimal          @default(5) @db.Decimal(6, 2)
+  /// Le jour où les recettes prévues sont devenues la RÉFÉRENCE de l'exercice (clôture) : figées, elles ne se
+  /// modifient plus et servent de base au rapprochement avec le réalisé (`budget-campagne/recettes.ts`).
+  recettesFigeesLe      DateTime?
+  /// LES PARAMÈTRES DU VOLET « IMPÔTS & TAXES » (TVA par nature, taux d'IBS par société, calendrier des acomptes, taux
+  /// IRG/CNAS) — lus par `lireParametresImpots`, préréglés et marqués « à confirmer par le cabinet » tant que vides.
+  taxSettings           Json             @default("{}")
   createdById           String?
   createdAt             DateTime         @default(now())
   updatedAt             DateTime         @updatedAt
   proposals             BudgetProposal[]
+  revenues              BudgetCampaignRevenue[]
+  taxLines              BudgetCampaignTaxLine[]
 
   @@index([year])
   @@index([status])
+}
+
+/// UNE RECETTE PRÉVUE de la campagne (Super Admin, 24/11/2026 : « la campagne prévoit les recettes et les dépenses ; les
+/// recettes, c'est le Super Admin et la Direction générale qui les mettent »). Par société, par mois, par produit et/ou
+/// BU, pour un client (« PCH » : on ne vend qu'à elle aujourd'hui). Montant = quantité × prix unitaire quand le prix
+/// existe, montant direct sinon. `matchKey` = la clé de rapprochement (société, mois, produit/BU, client) : une ligne par
+/// clé, et la même clé rapprochera le prévu du réalisé quand les ventes seront ouvertes. Ids sans contrainte (société,
+/// produit, BU), comme `BudgetCampaign.companyId` : retirer un produit n'efface pas la prévision.
+model BudgetCampaignRevenue {
+  id             String         @id @default(cuid())
+  campaignId     String
+  campaign       BudgetCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  companyId      String
+  /// 1 à 12.
+  month          Int
+  productId      String?
+  businessUnitId String?
+  client         String         @default("PCH")
+  label          String
+  quantity       Decimal?       @db.Decimal(16, 2)
+  unitPrice      Decimal?       @db.Decimal(16, 2)
+  amount         Decimal        @default(0) @db.Decimal(16, 2)
+  /// Taux de TVA en % (0, 9, 19) ; nul = le défaut de la nature « recettes » réglé dans la campagne.
+  vatRate        Decimal?       @db.Decimal(5, 2)
+  /// PRIX_HOPITAL (le prix saisi du produit, repris) | SAISIE (prix tapé) | null (montant direct).
+  priceSource    String?
+  matchKey       String
+  createdById    String?
+  updatedById    String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([campaignId, matchKey])
+  @@index([campaignId, companyId])
+}
+
+/// UN MONTANT DU VOLET « IMPÔTS & TAXES » posé à la main par le Super Admin ou la DG, pour une société et un mois :
+/// l'ajustement d'un calcul (TVA_NETTE, IBS, IRG_SALAIRES, CNAS — `computedAmount` garde le calcul remplacé, l'écart se
+/// lit et l'audit le trace) ou une saisie directe (AUTRES_TAXES, ou IRG/CNAS sans masse salariale : `computedAmount` nul).
+/// Sans ligne ici, le volet montre le calcul.
+model BudgetCampaignTaxLine {
+  id             String         @id @default(cuid())
+  campaignId     String
+  campaign       BudgetCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  companyId      String
+  month          Int
+  /// TVA_NETTE | IBS | IRG_SALAIRES | CNAS | AUTRES_TAXES.
+  key            String
+  computedAmount Decimal?       @db.Decimal(16, 2)
+  amount         Decimal        @default(0) @db.Decimal(16, 2)
+  reason         String?
+  setById        String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([campaignId, companyId, month, key])
 }
 
 /// LA PROPOSITION D'UN PÔLE pour une campagne. Statuts : EN_PREPARATION | SOUMIS | A_REVOIR | ACCEPTE |
@@ -3672,6 +3736,10 @@ model BudgetProposalLine {
   ajuste         Decimal?       @db.Decimal(16, 2)
   decision       String?
   justification  String?
+  /// Taux de TVA en % (0, 9, 19) CONTENU dans le montant TTC, réglé par le Super Admin / la DG ; nul = le défaut de sa nature.
+  vatRate        Decimal?       @db.Decimal(5, 2)
+  /// Les poids des douze mois (la masse salariale : net + primes au mois de leur versement) ; nul = douzièmes.
+  monthlyProfile Json?
   /// Pièces jointes : [{ id, name }] (documents `entityType = BUDGET`, `stepKey = campagne:<ligne>`).
   attachments    Json           @default("[]")
   /// La catégorie d'enveloppe créée pour cette ligne — la clé de l'idempotence et du rectificatif.

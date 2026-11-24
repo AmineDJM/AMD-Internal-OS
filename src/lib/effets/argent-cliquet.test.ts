@@ -14,7 +14,7 @@ import { DECLARATIONS_ARGENT } from "./declarations/argent";
  * fait échouer ce test, avec son nom. Une lecture (R0) n'a rien à défaire : hors périmètre.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
-const PERIMETRE_ARGENT = /^(actualisation-soldes|budget-campagne|budget-depense-poste|budget-envelope|department-budget|expense|finance|invoice|payment-centre|payment-centre-seat|payment-request|payroll-hr|petty-cash|supplier|ventes-pch)-actions$/;
+const PERIMETRE_ARGENT = /^(actualisation-soldes|budget-campagne|budget-campagne-recettes|budget-depense-poste|budget-envelope|department-budget|expense|finance|invoice|payment-centre|payment-centre-seat|payment-request|payroll-hr|petty-cash|supplier|ventes-pch)-actions$/;
 
 /** Les fichiers d'actions migrés dans un module (les autres vivent dans `src/lib/actions/`). */
 const CHEMINS: Record<string, string> = {

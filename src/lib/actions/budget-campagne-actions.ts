@@ -198,7 +198,8 @@ export async function changerStatutCampagne(formData: FormData): Promise<ActionR
     const v = verifierCloture(c.proposals.map((p) => p.status));
     if (!v.ok) return { ok: false, error: v.raison };
   }
-  await prisma.budgetCampaign.update({ where: { id }, data: { status: vers } });
+  // CLORE = LANCER L'EXERCICE : les recettes et impôts prévus se figent et deviennent la référence face au réalisé.
+  await prisma.budgetCampaign.update({ where: { id }, data: { status: vers, ...(vers === "CLOSED" ? { recettesFigeesLe: new Date() } : {}) } });
   await recordAudit({ actorId: user.id, action: "UPDATE", module: MODULE_AUDIT, entityType: "BUDGET", entityId: id, field: "status", oldValue: c.status, newValue: vers, summary: `Campagne « ${c.title} » : ${LIBELLE_STATUT_CAMPAGNE[vers]}` });
 
   if (vers === "OPEN") {
@@ -299,11 +300,17 @@ export async function preremplirProposition(formData: FormData): Promise<ActionR
   const ordre = existantes.reduce((a, l) => Math.max(a, l.sortOrder), 0);
   await prisma.$transaction([
     ...creer.map((l, i) => prisma.budgetProposalLine.create({
-      data: { proposalId, key: l.key, label: l.label, categoryKey: l.categoryKey, source: l.source, realise2026: l.realise2026, propose: l.propose, justification: l.justification ?? null, sortOrder: ordre + i + 1 },
+      data: {
+        proposalId, key: l.key, label: l.label, categoryKey: l.categoryKey, source: l.source, realise2026: l.realise2026, propose: l.propose, justification: l.justification ?? null, sortOrder: ordre + i + 1,
+        ...(l.profilMensuel ? { monthlyProfile: l.profilMensuel } : {}),
+      },
     })),
     ...maj.map((m) => prisma.budgetProposalLine.update({
       where: { proposalId_key: { proposalId, key: m.key } },
-      data: { realise2026: m.realise2026, source: m.source, ...(m.propose !== undefined ? { propose: m.propose } : {}), ...(m.justification !== undefined ? { justification: m.justification } : {}) },
+      data: {
+        realise2026: m.realise2026, source: m.source, ...(m.propose !== undefined ? { propose: m.propose } : {}), ...(m.justification !== undefined ? { justification: m.justification } : {}),
+        ...(m.profilMensuel ? { monthlyProfile: m.profilMensuel } : {}),
+      },
     })),
   ]);
   await recordAudit({ actorId: user.id, action: "UPDATE", module: MODULE_AUDIT, entityType: "BUDGET", entityId: proposalId, summary: `Pré-remplissage — ${creer.length} ligne(s) ajoutée(s), ${maj.length} mise(s) à jour` });
