@@ -64,6 +64,9 @@ export function formulaireDeLaQuittance(
   fd.set("entityType", "MEDICAL_INFO_DECLARATION");
   fd.set("entityId", decl.id);
   fd.set("link", `${PATH}/${decl.id}`);
+  // LA NATURE OBLIGATOIRE (24/11/2026) : le bon de versement d'une manifestation, la seule nature de circuit qu'accepte la
+  // demande de paiement — sous CE rattachement (`refusNatureDemande`).
+  fd.set("natureDepense", "CIRCUITS.INFO_MEDICALE");
   for (const f of saisi.files) if (f instanceof File && f.size > 0) fd.append("files", f);
   return fd;
 }

@@ -342,7 +342,7 @@ export const OPS_FINANCES: OpMeta[] = [
     uiLabel: "Nouvelle demande de paiement (brouillon)",
     aliases: ["crée une demande de paiement", "demande de paiement pour", "il faut payer le fournisseur"],
     risk: "SENSITIVE",
-    summary: "Ouvre un dossier de paiement en BROUILLON (objet, bénéficiaire, montant DZD, échéance et sa nature, urgence, contact facultatif). La transmission n'est PAS faite ici : elle exige un bon de commande ou une facture, et la déclaration que le moyen de paiement y figure — deux gestes qui engagent celui qui a la pièce sous les yeux et se posent depuis le dossier.",
+    summary: "Ouvre un dossier de paiement en BROUILLON (objet, bénéficiaire, montant DZD, NATURE de la dépense — obligatoire, proposée d'après l'objet et confirmée —, échéance et ce qu'elle pèse, urgence, contact facultatif). La transmission n'est PAS faite ici : elle exige un bon de commande ou une facture, et la déclaration que le moyen de paiement y figure — deux gestes qui engagent celui qui a la pièce sous les yeux et se posent depuis le dossier.",
     gate: (u) => userCan(u, "VALIDATIONS", "CREATE"),
     covers: ["payment-request-actions:createPaymentRequest"],
   },

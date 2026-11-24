@@ -14,7 +14,7 @@
  * le scanner du contrat des actions la suit (un niveau) pour décrire ce qu'une action écrit.
  *
  * Tables possédées : `ExpenseOrder`, `PaymentCentreSeat`, `PaymentCentreMessage`, `PaymentRequest`,
- * `PaymentPiece`, `PaymentRequestEvent`, `FinanceTransaction`, `TreasuryAccount`.
+ * `PaymentPiece`, `PaymentRequestEvent`, `FinanceTransaction`, `TreasuryAccount`, `RetenueSource`, `TauxRetenueSource`.
  * Les écrivains de `PAID` et de l'autorisation forment une liste FERMÉE (`centre-ecrivains.test.ts`).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
@@ -27,6 +27,12 @@ export * from "./api-tva";
 export { createExpenseOrder, dossierHrefByOrder, SERIE_DEMANDES_PAIEMENT } from "./infra/expense-orders";
 export { apresRevisionOrdre, type ResultatRevision, reviserOrdreNonRegle } from "./infra/revision-ordre";
 export { annulerOrdreNonRegle } from "./infra/annulation";
+// La nature de la dépense et la retenue à la source (24/11/2026) : l'ordre d'une demande selon sa nature, et la vie des retenues.
+export { ligneBudgetaireDeLaNature, type OrdrePrepare, preparerOrdreDeLaDemande, prevoirLaRetenue } from "./infra/ordre-de-demande";
+export {
+  constaterRetenueAuReglement, lireTauxRetenue, marquerRetenuesReversees, netApresCorrection, retenueDeLOrdre,
+  type RetenueAReverser, retenuesDuMoisAReverser,
+} from "./infra/retenues";
 export { prevenirQuiALaMain } from "./infra/relance-destinataires";
 // Le justificatif obligatoire (24/11/2026) : l'entrée au centre à la pièce jointe, et l'état des pièces pour le centre.
 export {

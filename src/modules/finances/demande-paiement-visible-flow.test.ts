@@ -30,6 +30,8 @@ async function actorFor(id: string, role: SessionUser["role"]): Promise<CurrentU
 function fd(values: Record<string, string>): FormData {
   const f = new FormData();
   for (const [k, v] of Object.entries(values)) f.set(k, v);
+  // La nature est obligatoire sur une demande de paiement (24/11/2026) : le banc en pose une, neutre.
+  if (!f.has("natureDepense")) f.set("natureDepense", "ACHATS.FOURNISSEUR");
   return f;
 }
 

@@ -99,6 +99,8 @@ async function acteur(id: string, role: SessionUser["role"]): Promise<CurrentUse
 function demande(fields: Record<string, string>, pieces: { file: File; kind: string }[]): FormData {
   const fd = new FormData();
   for (const [k, v] of Object.entries(fields)) fd.set(k, v);
+  // La nature est obligatoire sur une demande de paiement (24/11/2026) : le banc en pose une, neutre.
+  if (!fd.has("natureDepense")) fd.set("natureDepense", "ACHATS.FOURNISSEUR");
   pieces.forEach((p, i) => { fd.append("files", p.file); fd.set(`kind_${i}`, p.kind); });
   return fd;
 }

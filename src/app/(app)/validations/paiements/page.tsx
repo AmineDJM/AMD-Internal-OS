@@ -16,7 +16,7 @@ import {
 import { ListeMesDemandes } from "./liste-mes-demandes";
 import { NewPaymentButton } from "./new-payment-button";
 import { getMyCompanies } from "@/lib/company";
-import { fileAInstruire, instruitLesDemandes, myPaymentRequests } from "@/modules/finances/api";
+import { fileAInstruire, instruitLesDemandes, lireTauxRetenue, myPaymentRequests } from "@/modules/finances/api";
 
 export const dynamic = "force-dynamic";
 
@@ -135,7 +135,7 @@ export default async function PaymentRequestsPage() {
         {/* L'EXPORT DE CE QUE L'ÉCRAN MONTRE (Direction, 01/11 : « l'export de tout ») — mes demandes et, pour les
             Finances, la file à instruire ; la même fonction que l'Assistant IA (`exporter_demandes_paiement`). */}
         <a href="/api/finances/demandes-paiement/export" className="inline-flex h-9 items-center rounded-[var(--radius)] border border-border bg-card px-3 text-[13px] font-medium hover:bg-secondary sm:h-8">Exporter</a>
-        <NewPaymentButton />
+        <NewPaymentButton tauxRetenue={await lireTauxRetenue()} />
       </PageHeader>
 
       {finance && (

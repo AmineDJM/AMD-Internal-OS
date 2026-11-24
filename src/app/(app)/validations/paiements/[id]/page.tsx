@@ -15,7 +15,10 @@ import {
   canApprove, canResubmit, isOverdue, deadlineLabel, isWithFinance, piecesEnVigueur, isCompanionDossier,
   CENTRAL_STATUS_LABEL, CENTRAL_DECISION_LABEL, sitsOnPaymentCentre, type CentralStatus, type CentralDecision,
   deadlineNatureLabel, deadlineNatureOf, refusDeCorrection, refusDeRetrait, refusDeSuppression, etatQuestion, EVT_QUESTION,
+  isClosed, LIBELLE_REGIME_RETENUE, LIBELLE_STATUT_RETENUE, libelleNatureDepense, type StatutRetenue,
 } from "@/modules/finances/partage";
+import { lireTauxRetenue, retenueDeLOrdre } from "@/modules/finances/api";
+import { NatureAChoisir } from "./nature-a-choisir";
 import { entityHref } from "@/lib/entity-href";
 import { existingEntityIds } from "@/lib/entity-exists";
 import { PaymentDossier, type PieceView, type EventView } from "./dossier";
@@ -139,6 +142,10 @@ export default async function PaymentRequestPage(props: { params: Promise<{ id: 
       })
     : null;
   const derniereDecision = order?.centralMessages[0] ?? null;
+  // LA RETENUE À LA SOURCE que porte l'ordre (24/11/2026) : l'ordre paie le net, la retenue est due au fisc.
+  const retenue = req.expenseOrderId ? await retenueDeLOrdre(req.expenseOrderId) : null;
+  // La nature se choisit (ou se change) tant que la demande n'a pas d'ordre — par son demandeur.
+  const natureModifiable = !companion && !req.expenseOrderId && !isClosed(req.status) && req.requesterId === user.id;
   const decideur = order?.centralDecidedById
     ? (await prisma.user.findUnique({ where: { id: order.centralDecidedById }, select: { name: true } }))?.name ?? null
     : null;
@@ -188,6 +195,17 @@ export default async function PaymentRequestPage(props: { params: Promise<{ id: 
         <CardContent className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-4 sm:gap-x-6">
           <Info label="Montant" value={<span className="text-base tabular-nums sm:text-sm">{formatCurrency(amount)}</span>} />
           <Info label="Bénéficiaire" value={req.payee} />
+          {/* LA NATURE (obligatoire depuis le 24/11/2026) — « non précisée » sur une demande d'avant la règle. */}
+          {!companion && <Info label="Nature de la dépense" value={libelleNatureDepense(req.natureDepense)} />}
+          {retenue && (
+            <Info
+              label={`Retenue à la source — ${LIBELLE_REGIME_RETENUE[retenue.regime].toLowerCase()}`}
+              value={<span className="tabular-nums">
+                {formatCurrency(retenue.montant)} ({retenue.taux.toLocaleString("fr-FR")} %) · net versé {formatCurrency(retenue.net)}
+                <span className="block text-xs text-muted-foreground">{LIBELLE_STATUT_RETENUE[retenue.statut as StatutRetenue] ?? retenue.statut}{retenue.mois ? ` — déclaration de ${retenue.mois}` : ""}</span>
+              </span>}
+            />
+          )}
           <Info
             label="Échéance"
             value={
@@ -285,6 +303,8 @@ export default async function PaymentRequestPage(props: { params: Promise<{ id: 
           )}
         </CardContent>
       </Card>
+
+      {natureModifiable && <NatureAChoisir id={req.id} actuelle={req.natureDepense} montant={amount} taux={await lireTauxRetenue()} />}
 
       {/* LA QUESTION DES FINANCES (Banque & paiements, 24/11/2026) : en tête, là où le demandeur arrive par la notification. */}
       {question && derniereQuestion && order?.status === "PENDING" && (req.requesterId === user.id || hasGlobalView(user.role)) && (

@@ -7,6 +7,8 @@ import { ROLE_LABELS } from "@/lib/labels";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AdminLimitsForm, AdProDgThresholdForm, BroadcastComposer, MailDiagnosticPanel, RegEnrollmentToggle, RegIntelligenceToggles, RegulatorySupervisorForm, RegulatoryTherapeuticSegmentsForm, RegulatoryHiddenColumnsForm, DriveSpaceCreatorForm, FieldReportsOverviewForm, PromoMessageAuthorsForm, OrgChartViewersForm, HiddenModulesForm, PipelineAccessForm, DirectiveAccessForm } from "./admin-settings-forms";
 import { SeparationTachesToggle } from "./separation-taches-toggle";
+import { TauxRetenueForm } from "./taux-retenue-form";
+import { lireTauxRetenue } from "@/modules/finances/api";
 import { ServiceMoyensGenerauxForm } from "./service-moyens-generaux";
 import { ANCRE_SERVICE_MOYENS_GENERAUX } from "@/lib/chemins/moyens-generaux";
 import { MODULES } from "@/lib/rbac";
@@ -76,6 +78,16 @@ export default async function AdminSettingsPage() {
         </CardHeader>
         <CardContent>
           <SeparationTachesToggle active={settings.separationTachesPaiement} />
+        </CardContent>
+      </Card>
+
+      {/* LES RETENUES À LA SOURCE (24/11/2026) — taux réglables, « à confirmer par le cabinet » tant que non confirmés. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Landmark className="h-4 w-4" /> Retenues à la source</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <TauxRetenueForm taux={await lireTauxRetenue()} />
         </CardContent>
       </Card>
 

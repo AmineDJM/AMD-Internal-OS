@@ -31,6 +31,8 @@ async function actorFor(id: string, role: SessionUser["role"]): Promise<CurrentU
 const withPiece = (fields: Record<string, string>): FormData => {
   const fd = new FormData();
   for (const [k, v] of Object.entries(fields)) fd.set(k, v);
+  // La nature est obligatoire sur une demande de paiement (24/11/2026) : le banc en pose une, neutre.
+  if (!fd.has("natureDepense")) fd.set("natureDepense", "ACHATS.FOURNISSEUR");
   fd.set("kind_0", "INVOICE");
   fd.set("paymentMethodStated", "1");
   // UNE FACTURE DISTINCTE PAR DEMANDE (Direction, 14/10) : le même fichier deux fois serait la même facture, refusée.

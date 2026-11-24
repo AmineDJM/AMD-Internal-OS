@@ -41,6 +41,8 @@ const created: string[] = [];
 function form(fields: Record<string, string>, pieces: { kind: string }[] = []): FormData {
   const fd = new FormData();
   for (const [k, v] of Object.entries(fields)) fd.set(k, v);
+  // La nature est obligatoire sur une demande de paiement (24/11/2026) : le banc en pose une, neutre.
+  if (!fd.has("natureDepense")) fd.set("natureDepense", "ACHATS.FOURNISSEUR");
   pieces.forEach((p, i) => {
     fd.append("files", new File(["x"], `piece-${i}.pdf`, { type: "application/pdf" }));
     fd.set(`kind_${i}`, p.kind);

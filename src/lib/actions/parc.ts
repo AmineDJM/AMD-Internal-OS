@@ -86,6 +86,7 @@ export const ACTIONS_DES_MODULES: Readonly<Record<string, string | readonly stri
   "expense-actions": "src/modules/finances/actions-depenses.ts",
   "finance-actions": "src/modules/finances/actions-tresorerie.ts",
   "finances-questions": "src/modules/finances/actions-questions.ts",
+  "finances-natures": "src/modules/finances/actions-natures.ts",
   "event-actions": "src/modules/ad-pro/actions-evenements.ts",
   "hr-actions": "src/modules/rh/actions.ts",
   // Finances › Impôts & cotisations (24/11/2026) : G50, CNAS, acomptes demandés au centre de paiement.

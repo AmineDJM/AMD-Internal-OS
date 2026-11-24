@@ -88,6 +88,8 @@ export const DECLARATIONS_ARGENT: Readonly<Record<string, DeclarationAnnulation>
   "charges-fixes-actions:enregistrerChargeFixe": RETOUR,
   "charges-fixes-actions:libererReserveImprevus": RETOUR,
   "charges-fixes-actions:retirerChargeFixe": RETOUR,
+  "finances-natures:choisirNatureDemande": RETOUR,
+  "finances-natures:reglerTauxRetenue": RETOUR,
   "finances-questions:marquerReponseLue": RETOUR,
   "finances-questions:poserQuestionAuDemandeur": RETOUR,
   "finances-questions:relancerQuestionDemandeur": RETOUR,

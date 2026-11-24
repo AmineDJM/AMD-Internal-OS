@@ -14650,6 +14650,12 @@ model PaymentRequest {
   /// qu'il ne l'a pas rangée. Son ordre à LUI : la file des Finances ne le lit pas.
   rangDemandeur Int?
 
+  /// LA NATURE DE LA DÉPENSE (Super Admin, 24/11/2026 — champ obligatoire) : un code du référentiel `NATURES_DEPENSE`
+  /// (`modules/finances/domaine/natures-depense.ts`) — la rubrique, la ligne budgétaire pré-choisie et une éventuelle
+  /// retenue à la source en découlent. Nulle sur les demandes d'avant la règle (« nature non précisée ») et les dossiers
+  /// compagnons, qui ne sont pas réécrits.
+  natureDepense String?
+
   submittedAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -14663,6 +14669,54 @@ model PaymentRequest {
   /// La file du décaissement lit le dossier DEPUIS l'ordre, en lot : sans cet index, chaque
   /// écran de trois cents ordres balayait la table entière.
   @@index([expenseOrderId])
+}
+
+/// LA RETENUE À LA SOURCE d'un paiement (Super Admin, 24/11/2026) — honoraires de médecins, prestataires étrangers.
+/// L'ordre paie le NET au bénéficiaire ; la retenue est due à l'administration fiscale, sur la déclaration du mois du
+/// paiement. Elle naît PRÉVUE avec l'ordre (taux figé ce jour-là), devient À REVERSER au règlement — avec son mois et une
+/// ligne budgétaire purement budgétaire (`BudgetExpenseLine`) sur la MÊME ligne que la dépense : le coût total reste le
+/// brut —, puis REVERSÉE quand la déclaration qui la porte est payée. Règles : `modules/finances/domaine/retenues.ts`.
+model RetenueSource {
+  id                  String    @id @default(cuid())
+  companyId           String?
+  /// L'ordre qui paie le net — un seul ordre, une seule retenue.
+  expenseOrderId      String    @unique
+  paymentRequestId    String?
+  /// Le code de la nature (`NATURES_DEPENSE`) et le régime de retenue qu'elle porte.
+  natureDepense       String
+  regime              String
+  beneficiaire        String
+  brut                Decimal   @db.Decimal(14, 2)
+  /// Le taux en pourcentage, figé à la naissance de l'ordre (réglé par le Super Admin, à confirmer par le cabinet).
+  taux                Decimal   @db.Decimal(5, 2)
+  montant             Decimal   @db.Decimal(14, 2)
+  net                 Decimal   @db.Decimal(14, 2)
+  /// PREVUE | A_REVERSER | REVERSEE | ANNULEE
+  statut              String    @default("PREVUE")
+  /// AAAA-MM, le mois du paiement — celui de la déclaration qui la reverse.
+  mois                String?
+  payeeLe             DateTime?
+  budgetCategoryId    String?
+  budgetExpenseLineId String?
+  reverseeLe          DateTime?
+  /// L'ordre (la déclaration) qui l'a reversée — id sans contrainte.
+  reverseeParOrdreId  String?
+  createdById         String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([companyId, mois, statut])
+  @@index([paymentRequestId])
+}
+
+/// LES TAUX DE RETENUE À LA SOURCE, réglés par le Super Admin — « à confirmer par le cabinet » tant que
+/// `confirmeParCabinet` est faux. Sans ligne, le taux par défaut du domaine s'applique (lui aussi à confirmer).
+model TauxRetenueSource {
+  regime             String   @id
+  taux               Decimal  @db.Decimal(5, 2)
+  confirmeParCabinet Boolean  @default(false)
+  updatedById        String?
+  updatedAt          DateTime @updatedAt
 }
 
 /// UNE PIÈCE DU DOSSIER, avec sa conversation propre.

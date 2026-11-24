@@ -1,4 +1,4 @@
-import type { PaymentRequestStatus } from "@prisma/client";
+import type { EntityType, PaymentRequestStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { userCan, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
@@ -6,6 +6,7 @@ import { notifyUser, notifyRoles } from "@/lib/notify";
 import { referenceDeSerie } from "@/lib/refs";
 import { ttcDesFacturesStockees } from "@/lib/factures/connues";
 import type { ActionResult } from "@/lib/actions/types";
+import { ENTITY_MODULE } from "@/lib/entity-access";
 import { ROLES_CENTRE_DE_PAIEMENT } from "../domaine/authorization";
 import { statusFromPieces } from "../domaine/payment-request";
 import type { LectureMontant } from "../domaine/montant-facture";
@@ -20,6 +21,16 @@ import type { LectureMontant } from "../domaine/montant-facture";
  * suit que les portes `@/`, si bien que chaque action est décrite exactement comme quand ces aides
  * étaient locales (`npm run actions:contrat` identique).
  */
+
+/**
+ * LE RATTACHEMENT, validé contre la liste réelle des types d'entité.
+ *
+ * C'est lui qui décide de l'EXEMPTION du bon de versement (`isBonDeVersement`) : il ne peut donc
+ * pas être un texte libre. `ENTITY_MODULE` couvre exactement l'énumération Prisma — une valeur
+ * absente retombe sur « aucun rattachement », et la demande passe par la règle commune.
+ */
+export const entityTypeOf = (raw: string | null): EntityType | null =>
+  raw && raw in ENTITY_MODULE ? (raw as EntityType) : null;
 
 /** La page des demandes de paiement — la même que `PATH` dans `actions-demandes.ts`. */
 const PATH = "/validations/paiements";

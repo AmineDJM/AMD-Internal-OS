@@ -1,7 +1,7 @@
 "use server";
 
 import type {
-  EntityType, PaymentDeadlineNature, PaymentPieceStatus,
+  PaymentDeadlineNature, PaymentPieceStatus,
   PaymentRequestStatus, PaymentUrgency,
 } from "@prisma/client";
 import { revalidatePath } from "next/cache";
@@ -22,21 +22,21 @@ import {
   canDecideFromDossier, deadlineNatureOf, etatDuPaiement, prevenirQuiALaMain,
   confronterMontantAuxFactures, refusEcartMontant, noteEcartAssume, phraseEcartMontant, PHRASE_MONTANT_NON_LU,
   peutSupprimerUneDemandePaiement, ROLES_CENTRE_DE_PAIEMENT, lireQuestion, prevenirFinancesDeLaReponse,
+  preparerOrdreDeLaDemande, prevoirLaRetenue, netApresCorrection, refusNatureDemande,
 } from "@/modules/finances/api";
 import { persistUploadedDocument } from "@/lib/documents";
 import { toNumber } from "@/lib/utils";
 import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
-import { ENTITY_MODULE } from "@/lib/entity-access";
 import { verifierFacturesAvantDepot, marquerDoublonPossible, type FichierDepose } from "@/lib/factures/connues";
 import { supprimerReversible } from "@/lib/suppression/coeur";
 import { libellesDeCorrection, valeursDeLaDemande } from "./domaine/correction-demande";
 import { estRegularisation, refusDeDepotDePiece } from "./domaine/justificatif";
 import { libererLesOrdresJustifies } from "./infra/justificatif";
 import {
-  dateOf, kindOf, messageDeCorrection, messageDeDepot, ordreDeLaDemande, TITRE_DECISION_DEMANDE, urgencyOf,
+  dateOf, kindOf, messageDeCorrection, messageDeDepot, TITRE_DECISION_DEMANDE, urgencyOf,
 } from "./domaine/payment-request";
 import {
-  alertFinance, CorrectionRefusee, isFinance, isRequester, nextRef, refusDuMontant, revalidate, syncStatus, trace,
+  alertFinance, CorrectionRefusee, entityTypeOf, isFinance, isRequester, nextRef, refusDuMontant, revalidate, syncStatus, trace,
   ttcDesFacturesEnVigueur,
 } from "./infra/demandes";
 import { annulable } from "@/lib/effets/ecran";
@@ -56,16 +56,6 @@ const PATH = "/validations/paiements";
  * L'état du dossier n'est jamais saisi à la main : il se DÉDUIT des verdicts (`statusFromPieces`).
  * Personne ne pense à changer un statut en même temps qu'il refuse une facture.
  */
-
-/**
- * LE RATTACHEMENT, validé contre la liste réelle des types d'entité.
- *
- * C'est lui qui décide de l'EXEMPTION du bon de versement (`isBonDeVersement`) : il ne peut donc
- * pas être un texte libre. `ENTITY_MODULE` couvre exactement l'énumération Prisma — une valeur
- * absente retombe sur « aucun rattachement », et la demande passe par la règle commune.
- */
-const entityTypeOf = (raw: string | null): EntityType | null =>
-  raw && raw in ENTITY_MODULE ? (raw as EntityType) : null;
 
 /** Une case cochée arrive « on » ; tout le reste vaut non coché. */
 const checked = (formData: FormData, name: string): boolean => {
@@ -127,6 +117,10 @@ export async function createPaymentRequest(_prev: ActionResult | undefined, form
       const refus = await bonDeVersementRattache(user, fdStr(formData, "entityId"), fdStr(formData, "medicalInfoSlipClaim"));
       if (refus) return { ok: false, error: refus };
     }
+    // LA NATURE EST OBLIGATOIRE (24/11/2026), brouillon compris : rubrique, ligne et retenue en découlent (`domaine/natures-depense.ts`).
+    const natureDepense = fdStr(formData, "natureDepense");
+    const refusNature = refusNatureDemande(natureDepense, entityType);
+    if (refusNature) return { ok: false, error: refusNature };
     const paymentMethodStated = checked(formData, "paymentMethodStated");
     const deadlineNature = deadlineNatureOf(fdStr(formData, "deadlineNature")) as PaymentDeadlineNature;
 
@@ -209,6 +203,7 @@ export async function createPaymentRequest(_prev: ActionResult | undefined, form
           entityType,
           entityId: entityType ? fdStr(formData, "entityId") : null,
           link: fdStr(formData, "link"),
+          natureDepense,
         },
       }),
     ));
@@ -226,19 +221,14 @@ export async function createPaymentRequest(_prev: ActionResult | undefined, form
     // TRANSMETTRE, C'EST ENTRER AU CENTRE. La demande déposée directement (sans passer par le
     // brouillon) suit le même chemin que celle transmise depuis la fiche : l'ordre de dépense naît
     // ici, en attente du centre. Un brouillon, lui, n'engage rien et n'y entre pas.
+    // L'écart assumé est écrit DANS l'ordre ; la nature y pose rubrique, ligne et net après retenue (`infra/ordre-de-demande.ts`).
     let ordreId: string | null = null;
     if (submit) {
-      const order = await createExpenseOrder({
-        label: `${req.reference} — ${req.title}`,
-        amount, category: "FOURNISSEUR", beneficiary: payee,
-        sourceType: "PAYMENT_REQUEST", sourceId: req.id,
-        requestedById: user.id, dueDate: dateOf(fdStr(formData, "dueDate")),
-        deadlineNature,
-        // L'écart assumé est écrit DANS l'ordre : c'est l'ordre que le centre lit avant d'autoriser.
-        notes: [fdStr(formData, "description"), ecartAssume].filter(Boolean).join(" — ") || null,
-      });
+      const prep = await preparerOrdreDeLaDemande({ ...req, amount: toNumber(req.amount) }, [fdStr(formData, "description"), ecartAssume].filter(Boolean).join(" — ") || null);
+      const order = await createExpenseOrder(prep.ordre);
       ordreId = order.id;
       await prisma.paymentRequest.update({ where: { id: req.id }, data: { expenseOrderId: order.id } });
+      await prevoirLaRetenue(prep, order);
     }
     await trace(req.id, user.id, submit ? "SUBMIT" : "COMMENT", submit ? "Demande transmise au centre de paiement." : "Brouillon créé.");
     if (ecartAssume) await trace(req.id, user.id, "ECART_ASSUME", ecartAssume);
@@ -530,7 +520,8 @@ export async function corrigerDemandePaiement(formData: FormData): Promise<Actio
         let r: ResultatRevision | null = null;
         if (req.expenseOrderId) {
           r = await reviserOrdreNonRegle(tx, req.expenseOrderId, {
-            montant: apres.amount,
+            // Un brut corrigé : l'ordre prend le nouveau NET quand une retenue à la source est prévue (taux figé).
+            montant: apres.amount !== undefined ? await netApresCorrection(tx, req.expenseOrderId, apres.amount) : undefined,
             beneficiaire: apres.payee,
             libelle: apres.title !== undefined ? `${req.reference} — ${apres.title}` : undefined,
             echeance: apres.dueDate !== undefined ? (apres.dueDate ? new Date(apres.dueDate) : null) : undefined,
@@ -705,6 +696,9 @@ export async function submitPaymentRequest(formData: FormData): Promise<ActionRe
 
     const check = canResubmit(req, req.pieces);
     if (!check.ok) return { ok: false, error: check.reason ?? "Transmission impossible." };
+    // Le brouillon d'avant la règle se transmet avec sa nature (`choisirNatureDemande`) ; l'ordre déjà né, lui, est intact.
+    const refusNature = req.expenseOrderId ? null : refusNatureDemande(req.natureDepense, req.entityType);
+    if (refusNature) return { ok: false, error: refusNature };
     const next = nextPaymentStatus(req.status, "SUBMIT");
     if (!next) return { ok: false, error: "Ce dossier n'est pas en attente d'envoi." };
 
@@ -740,8 +734,10 @@ export async function submitPaymentRequest(formData: FormData): Promise<ActionRe
     // mais `expenseOrderId` est déjà posé, et le centre retrouve le même dossier dans son fil.
     if (!req.expenseOrderId) {
       const notes = [fdStr(formData, "note"), ecartAssume].filter(Boolean).join(" — ") || null;
-      const order = await createExpenseOrder(ordreDeLaDemande({ ...req, amount: toNumber(req.amount) }, notes));
+      const prep = await preparerOrdreDeLaDemande({ ...req, amount: toNumber(req.amount) }, notes);
+      const order = await createExpenseOrder(prep.ordre);
       await prisma.paymentRequest.update({ where: { id }, data: { expenseOrderId: order.id } });
+      await prevoirLaRetenue(prep, order);
     }
 
     await trace(id, user.id, "SUBMIT", fdStr(formData, "note") ?? "Dossier transmis au centre de paiement.");
@@ -838,8 +834,10 @@ export async function decidePaymentRequest(formData: FormData): Promise<ActionRe
     // Filet pour les dossiers ANTÉRIEURS à cette règle, soumis quand l'ordre naissait ici :
     // sans lui, ils n'auraient jamais de règlement.
     if (move === "APPROVE" && !req.expenseOrderId) {
-      const order = await createExpenseOrder(ordreDeLaDemande({ ...req, amount: toNumber(req.amount) }, note ?? null));
+      const prep = await preparerOrdreDeLaDemande({ ...req, amount: toNumber(req.amount) }, note ?? null);
+      const order = await createExpenseOrder(prep.ordre);
       await prisma.paymentRequest.update({ where: { id }, data: { expenseOrderId: order.id } });
+      await prevoirLaRetenue(prep, order);
     }
 
     if (move !== "REVIEW") {
