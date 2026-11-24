@@ -34,6 +34,8 @@ const METIERS: Readonly<Record<string, () => Promise<NonNullable<PolitiqueAnnula
   "reservation-fiche-actions:envoyerFichesPretes": async () => (await import("./annulation-bibliotheque")).indexBibliotheque,
   "reservation-fiche-actions:joindreDevisAgence": async () => (await import("./annulation-bibliotheque")).indexBibliotheque,
   "reservation-fiche-actions:deposerBillet": async () => (await import("./annulation-bibliotheque")).indexBibliotheque,
+  // Prise en charge v2 : l'ordre est compensé, la facture jointe reste dans les pièces de la demande.
+  "care-actions:demanderPaiementBcPec": async () => (await import("./annulation-facture-gardee")).factureGardee,
   // C1 (décision 0042) : la carte d'un chantier — retirée si rien n'a agi ; une fusion faite est compensée par une PR de revert.
   "assistant-ia-travaux-actions:validerMonChantier": async () => (await import("@/platform/in-process/chantiers/compensation")).compenserValidationChantier,
 };
