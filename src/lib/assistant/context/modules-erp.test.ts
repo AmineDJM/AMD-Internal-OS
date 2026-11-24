@@ -48,7 +48,12 @@ describe("les modules de l'ERP sont atteignables", () => {
     // ops de stock d'Adam ont été retirées avec l'ancien registre, et Adam est en pause.
     // Les KPI & bilans non plus (Direction, 08/10) : noter, valider, signer sont des attestations d'un manager (§118.15).
     // La CORBEILLE non plus (24/11/2026) : restaurer une pièce supprimée est un geste d'écran, jamais confié à un modèle.
-    expect(sansOutil.sort()).toEqual(["CORBEILLE", "FEEDBACK", "GENERAL_MEANS", "KPI", "PROMO_CATALOG", "PROMO_STOCK", "SITE_WEB"]);
+    // Le département Informatique non plus (24/11/2026) : ses registres se saisissent sur pièce, et une IA n'impute jamais
+    // son propre coût au budget.
+    expect(sansOutil.sort()).toEqual([
+      "CORBEILLE", "FEEDBACK", "GENERAL_MEANS", "INFORMATIQUE_ABONNEMENTS", "INFORMATIQUE_CONSOMMATION_IA", "INFORMATIQUE_PARC",
+      "KPI", "PROMO_CATALOG", "PROMO_STOCK", "SITE_WEB",
+    ]);
   });
 
   /**

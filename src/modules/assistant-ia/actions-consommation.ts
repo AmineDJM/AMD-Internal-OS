@@ -49,7 +49,7 @@ export async function enregistrerReglagesAssistantIa(formData: FormData): Promis
     summary: `Bornes de l'Assistant IA : ${r.plafondJetonsJour > 0 ? `${r.plafondJetonsJour} jetons/jour/personne` : "sans plafond par jour"}, ${r.plafondJetonsTour} par tour, ${r.etapesMaxTour} étapes`
       + `${r.modeleVoix ? ` — voix temps réel : ${r.modeleVoix}` : ""}${r.censurerSaisie ? "" : " — filtre de la saisie COUPÉ"}${r.retirerCartesCaduques ? "" : " — retrait des cartes caduques COUPÉ"}`,
   });
-  revalidatePath("/admin/ai/consommation");
+  revalidatePath("/informatique/consommation-ia");
   return { ok: true };
 }
 

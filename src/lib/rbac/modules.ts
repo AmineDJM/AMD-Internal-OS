@@ -190,8 +190,24 @@ export const MODULES = [
   //   PAIE                 — « Paie » (/rh/paie) : hier qui MODIFIAIT les RH ;
   //   CORBEILLE            — « Corbeille » (/corbeille) : hier le directeur des opérations (le Super Admin a la sienne).
   "PROSPECTION_AGENCES", "CONTROLES_CONFORMITE", "PAIE", "CORBEILLE",
+  // LE DÉPARTEMENT INFORMATIQUE (Super Admin, 24/11/2026 : « tu vas créer un département informatique, avec ses propres
+  // modules, bases de données, etc. »). Trois écrans du pôle « Informatique », chacun sa clé réglée dans la console. Par
+  // défaut : le Super Admin, et le RESPONSABLE du département Informatique de l'organigramme (un fait, pas un rôle — accordé
+  // dans `getAccess`, comme le Recrutement). Aucun rôle ne les reçoit par sa matrice.
+  //   INFORMATIQUE_CONSOMMATION_IA — « Consommation IA » : le coût de l'IA, son imputation au budget Informatique ;
+  //   INFORMATIQUE_ABONNEMENTS     — « Abonnements & licences » : le registre, les échéances et leurs rappels ;
+  //   INFORMATIQUE_PARC            — « Parc informatique » : le matériel, son affectation, sa garantie.
+  "INFORMATIQUE_CONSOMMATION_IA", "INFORMATIQUE_ABONNEMENTS", "INFORMATIQUE_PARC",
 ] as const;
 export type Module = (typeof MODULES)[number];
+
+/**
+ * LE DÉPARTEMENT INFORMATIQUE (24/11/2026) — la CLÉ STABLE qui le reconnaît dans l'organigramme (`Department.cle`, une ligne
+ * par société) et les trois écrans que son RESPONSABLE reçoit par ce fait (`getAccess`), sans rôle ni réglage. Le blocage de la
+ * console prime, comme partout ; l'adjoint n'en hérite pas (« pas de sous-délégation à un adjoint », Super Admin, 24/11/2026).
+ */
+export const CLE_DEPARTEMENT_INFORMATIQUE = "INFORMATIQUE";
+export const MODULES_INFORMATIQUE = ["INFORMATIQUE_CONSOMMATION_IA", "INFORMATIQUE_ABONNEMENTS", "INFORMATIQUE_PARC"] as const satisfies readonly Module[];
 
 export const ACTIONS = [
   "VIEW", "CREATE", "UPDATE", "DELETE", "VALIDATE", "EXPORT", "UPLOAD",

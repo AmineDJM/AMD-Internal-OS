@@ -20,7 +20,7 @@ export { accueilPour, adresseDe, NOM_ASSISTANT, prenomDe, presentationAdam, type
 // ── L'essai de l'agent d'une personne par le Super Admin : ses bornes, ce qu'il rend
 export { echangeDe, ESSAI_ECHANGES_MAX, ESSAI_MESSAGE_MAX, type EchangeEssai, type IssueEssai, type TourEssai } from "./domaine/essai";
 
-// ── Consommation : les plafonds par tour, par personne, par jour (console `/admin/ai/consommation`)
+// ── Consommation : les plafonds par tour, par personne, par jour (écran `/informatique/consommation-ia`, pôle Informatique)
 export {
   BORNES, LIBELLE_VALEURS_SENSIBLES, MODES_VALEURS_SENSIBLES, modeValeursSensibles, normaliserReglages, REGLAGES_PAR_DEFAUT,
   type ModeValeursSensibles, type ReglagesAssistantIa,

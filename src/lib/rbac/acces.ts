@@ -16,7 +16,7 @@ import { NAVIGATION, NAV_LEGACY_LABELS } from "../labels"; // labels n'importe d
 import { lireSections } from "../annuaires/acces"; // module PUR, zéro import → aucun cycle
 import { sansBloquer } from "@/lib/journal"; // module PUR, zéro import → aucun cycle
 import { modulesParBase } from "@/platform/donnees/contexte"; // D5 : le port de l'accès par base (aucun import de module)
-import { MODULES, type Action, type Module } from "./modules";
+import { CLE_DEPARTEMENT_INFORMATIQUE, MODULES, MODULES_INFORMATIQUE, type Action, type Module } from "./modules";
 import { PERMISSIONS } from "./permissions";
 import { defaultScope, hasGlobalView, recruitmentAccessFor, seesWholeSecretariat } from "./roles";
 
@@ -273,7 +273,7 @@ const SIEGES: ReadonlySet<Module> = new Set<Module>(["PAYMENT_CENTRE", "VALIDATI
  */
 export const getAccess = perRequest(
   async (userId: string, roleHint: UserRole): Promise<EffectiveAccess> => {
-    const [overrides, grants, userRow, pendingValidations, departmentsLed, standIns, appSettings, centreSeat] = await Promise.all([
+    const [overrides, grants, userRow, pendingValidations, departmentsLed, standIns, appSettings, centreSeat, informatiqueDirigee] = await Promise.all([
       prisma.userAccess.findMany({ where: { userId } }),
       prisma.rowGrant.findMany({ where: { userId }, select: { entityType: true, entityId: true } }),
       prisma.user.findUnique({ where: { id: userId }, select: { role: true, secondaryRole: true } }),
@@ -298,6 +298,9 @@ export const getAccess = perRequest(
       // que `sitsOnPaymentCentre` est synchrone et appelée depuis l'écran, l'action, l'assistant
       // et la recherche — lui donner une lecture de base rendrait toute la chaîne asynchrone.
       prisma.paymentCentreSeat.count({ where: { userId } }).catch(sansBloquer("rbac.paymentCentreSeat", 0)),
+      // Dirige-t-il le département INFORMATIQUE d'une société ? Ce fait ouvre ses trois écrans (24/11/2026). Le responsable
+      // seul : l'adjoint ne le tient pas (pas de sous-délégation, Super Admin, 24/11/2026).
+      prisma.department.count({ where: { cle: CLE_DEPARTEMENT_INFORMATIQUE, head: { userId } } }).catch(sansBloquer("rbac.departementInformatique", 0)),
     ]);
 
     // Rôle principal résolu EN DIRECT depuis la base : le JWT fige le rôle au login, donc
@@ -458,6 +461,11 @@ export const getAccess = perRequest(
     // Un FAIT de l'organigramme (responsable ou adjoint), pas un rôle. En LECTURE et portée bornée (ASSIGNED) : l'écran
     // ne lui montre que SES pôles, jamais la vue de la Direction ni le cadrage (`lib/budget-campagne/regles.ts`).
     if (departmentsLed > 0) grantImplicit("BUDGET_CAMPAIGN", ["VIEW"], null);
+
+    // ── LE DÉPARTEMENT INFORMATIQUE : SON RESPONSABLE TIENT SES TROIS ÉCRANS (Super Admin, 24/11/2026) ──
+    // « Par défaut, Super Admin + responsable du département Informatique » : un FAIT de l'organigramme, comme le Recrutement.
+    // Tout sauf valider ; un blocage de la console prime (`grantImplicit`). Les écrans bornent ensuite à SES sociétés.
+    if (informatiqueDirigee > 0) for (const m of MODULES_INFORMATIQUE) grantImplicit(m, ["VIEW", "CREATE", "UPDATE", "DELETE", "EXPORT", "UPLOAD"], null);
 
     // ── « MON ÉQUIPE » SUIT L'ORGANIGRAMME, PAS LE RÔLE ──
     //

@@ -21,6 +21,8 @@ export const NAV_POLES = [
   { key: "MARKETING", label: "Marketing", icon: "Megaphone" },
   { key: "OPERATIONS_SALES", label: "Operations & Sales", icon: "TrendingUp" },
   { key: "BUSINESS_DEV", label: "Business Development", icon: "Lightbulb" },
+  // Le département Informatique du groupe (Super Admin, 24/11/2026) : le coût de l'IA, les abonnements, le parc.
+  { key: "INFORMATIQUE", label: "Informatique", icon: "Cpu" },
   // « Supply Chain & Logistics » n'est plus un pôle (Direction, 08/10 : « Stocks et Logistique rejoignent Operations &
   // Sales ») : la chaîne physique se lit avec le reste du business, par BU.
 ] as const;

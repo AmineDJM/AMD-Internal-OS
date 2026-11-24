@@ -1,5 +1,5 @@
 {
- "schemaModeles": 520,
+ "schemaModeles": 534,
  "bases": [
   {
    "cle": "personnel",
@@ -375,7 +375,8 @@
      "ecritePar": [
       "expense-actions",
       "medical-info-actions",
-      "payment-request-actions"
+      "payment-request-actions",
+      "payment-request-pieces-actions"
      ]
     },
     {
@@ -383,7 +384,6 @@
      "libelle": "Pièce d'une demande de paiement",
      "sensibilite": "confidentiel",
      "ecritePar": [
-      "medical-info-actions",
       "payment-request-actions"
      ]
     },
@@ -426,7 +426,6 @@
       "promo-budget-actions",
       "promo-execution-actions",
       "promo-material-actions",
-      "regulatory-actions",
       "validation-actions"
      ]
     },
@@ -443,7 +442,6 @@
       "finance-actions",
       "invoice-actions",
       "legal-actions",
-      "payment-centre-actions",
       "payroll-hr-actions",
       "promo-budget-actions"
      ]
@@ -488,6 +486,7 @@
      "libelle": "Message du centre de paiement",
      "sensibilite": "confidentiel",
      "ecritePar": [
+      "care-actions",
       "congress-request-actions",
       "payment-centre-actions",
       "payment-request-actions",
@@ -611,6 +610,7 @@
      "ecritePar": [
       "budget-envelope-actions",
       "budget-pole-actions",
+      "informatique-cout-ia-actions",
       "mission-actions"
      ]
     },
@@ -729,7 +729,6 @@
      "sensibilite": "confidentiel",
      "ecritePar": [
       "expense-actions",
-      "payment-centre-actions",
       "petty-cash-actions"
      ]
     },
@@ -808,6 +807,7 @@
       "legal-folder-actions",
       "payment-request-actions",
       "pch-market-actions",
+      "promo-devis-actions",
       "promo-execution-actions",
       "secretariat-devis-actions",
       "validation-actions"
@@ -999,6 +999,70 @@
      "libelle": "Journal des lectures d'une donnée sensible",
      "sensibilite": "secret",
      "ecritePar": []
+    }
+   ]
+  },
+  {
+   "cle": "informatique",
+   "nom": "Département Informatique",
+   "nature": "metier",
+   "raison": "Les abonnements et licences du groupe, son parc informatique, et le coût de l'IA imputé chaque mois au budget Informatique.",
+   "sensibilite": "restreint",
+   "sensibiliteMax": "restreint",
+   "ecritPar": "Département Informatique (`src/modules/informatique/`, écrans Consommation IA, Abonnements & licences, Parc informatique)",
+   "acces": {
+    "modules": [
+     {
+      "cle": "INFORMATIQUE_CONSOMMATION_IA",
+      "libelle": "Consommation IA"
+     },
+     {
+      "cle": "INFORMATIQUE_ABONNEMENTS",
+      "libelle": "Abonnements & licences"
+     },
+     {
+      "cle": "INFORMATIQUE_PARC",
+      "libelle": "Parc informatique"
+     }
+    ],
+    "rolesLectureParDefaut": [
+     "SUPER_ADMIN"
+    ],
+    "rolesEcritureParDefaut": [
+     "SUPER_ADMIN"
+    ],
+    "famillesIa": [],
+    "mecanismes": [
+     "Les trois écrans : Super Admin et responsable du département Informatique de l'organigramme (accordé par ce fait, `getAccess`)",
+     "Périmètre d'entité : chaque écran et chaque geste bornés aux sociétés de la personne (`getMyCompanies`)",
+     "Imputation du coût IA : une ligne par société et par mois, rejouable ; consommation par ligne de dépense budgétaire, sans ordre de paiement"
+    ]
+   },
+   "nombreTables": 3,
+   "tables": [
+    {
+     "modele": "AbonnementInformatique",
+     "libelle": "Abonnement ou licence (fournisseur, coût, échéance, rappel)",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "informatique-abonnements-actions"
+     ]
+    },
+    {
+     "modele": "MaterielInformatique",
+     "libelle": "Matériel du parc informatique (affectation, garantie, état)",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "informatique-parc-actions"
+     ]
+    },
+    {
+     "modele": "ImputationCoutIa",
+     "libelle": "Coût de l'IA d'un mois imputé au budget Informatique d'une société (détail par fonction et département)",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "informatique-cout-ia-actions"
+     ]
     }
    ]
   },
@@ -1267,6 +1331,8 @@
      "libelle": "Demande Ad & Pro",
      "sensibilite": "confidentiel",
      "ecritePar": [
+      "ad-pro-agence-actions",
+      "ad-pro-execution-actions",
       "ad-pro-item-actions",
       "budget-depense-poste-actions",
       "document-request-actions",
@@ -1278,6 +1344,7 @@
      "libelle": "Pièce d'une demande Ad & Pro",
      "sensibilite": "confidentiel",
      "ecritePar": [
+      "ad-pro-agence-actions",
       "ad-pro-item-actions",
       "budget-depense-poste-actions"
      ]
@@ -1410,6 +1477,7 @@
      "sensibilite": "confidentiel",
      "ecritePar": [
       "ad-pro-centre-actions",
+      "ad-pro-item-actions",
       "ad-pro-other-actions",
       "workflow-actions"
      ]
@@ -1443,6 +1511,7 @@
      "libelle": "Demande de sponsoring",
      "sensibilite": "confidentiel",
      "ecritePar": [
+      "ad-pro-item-actions",
       "custom-field-actions",
       "expense-actions",
       "medical-info-actions",
@@ -1454,6 +1523,7 @@
      "libelle": "Congrès international",
      "sensibilite": "confidentiel",
      "ecritePar": [
+      "ad-pro-item-actions",
       "care-actions",
       "congress-request-actions",
       "custom-field-actions",
@@ -1466,6 +1536,7 @@
      "libelle": "Congrès national",
      "sensibilite": "confidentiel",
      "ecritePar": [
+      "ad-pro-item-actions",
       "care-actions",
       "congress-request-actions",
       "custom-field-actions",
@@ -1490,7 +1561,6 @@
      "ecritePar": [
       "care-actions",
       "congress-beneficiary-actions",
-      "congress-request-actions",
       "reservation-fiche-actions"
      ]
     },
@@ -1547,6 +1617,7 @@
      "libelle": "Événement",
      "sensibilite": "confidentiel",
      "ecritePar": [
+      "ad-pro-item-actions",
       "event-actions",
       "workflow-actions"
      ]
@@ -1862,7 +1933,8 @@
       "produit-canonique-actions",
       "regulatory-actions",
       "sales-planning-actions",
-      "supplier-actions"
+      "supplier-actions",
+      "validation-actions"
      ]
     },
     {
@@ -2714,7 +2786,7 @@
     "modules": [
      {
       "cle": "MEDICAL",
-      "libelle": "Promotion médicale"
+      "libelle": "Visite médicale"
      },
      {
       "cle": "FIELD_REPORTS",
@@ -2824,6 +2896,7 @@
       "custom-field-actions",
       "medical-actions",
       "medical-directory-crud-actions",
+      "relecture-visite-actions",
       "tour-plan-actions",
       "tour-visit-actions"
      ]
@@ -3211,7 +3284,6 @@
      "libelle": "Déclaration d'information médicale",
      "sensibilite": "confidentiel",
      "ecritePar": [
-      "ad-pro-item-actions",
       "congress-request-actions",
       "medical-info-actions",
       "promo-execution-actions"
@@ -3338,6 +3410,7 @@
       "ad-pro-item-actions",
       "custom-field-actions",
       "database-admin-actions",
+      "document-actions",
       "drive-actions",
       "fabrique-actions",
       "medical-info-actions",
@@ -3401,7 +3474,6 @@
       "database-admin-actions",
       "department-budget-actions",
       "document-actions",
-      "mail-register-actions",
       "medical-info-actions",
       "petty-cash-actions",
       "regulatory-actions"
@@ -3419,9 +3491,11 @@
      "sensibilite": "restreint",
      "ecritePar": [
       "ad-pro-discussion-actions",
+      "ad-pro-execution-actions",
       "ad-pro-item-actions",
       "ad-pro-other-actions",
       "ad-pro-pieces-actions",
+      "ad-pro-postes-fichier-actions",
       "ad-pro-transfer-actions",
       "admin-delete-actions",
       "admin-request-actions",
@@ -3446,7 +3520,6 @@
       "integration-adpro-actions",
       "invoice-actions",
       "legal-actions",
-      "mail-register-actions",
       "medical-actions",
       "medical-info-actions",
       "payment-request-actions",
@@ -3506,6 +3579,7 @@
      "libelle": "Confirmation d'une lecture de pièce",
      "sensibilite": "restreint",
      "ecritePar": [
+      "department-budget-actions",
       "promo-devis-actions",
       "promo-execution-actions"
      ]
@@ -3841,8 +3915,10 @@
      "sensibilite": "confidentiel",
      "ecritePar": [
       "actualisation-soldes-actions",
+      "ad-pro-agence-actions",
       "ad-pro-centre-actions",
       "ad-pro-edit-actions",
+      "ad-pro-execution-actions",
       "ad-pro-item-actions",
       "ad-pro-transfer-actions",
       "admin-request-actions",
@@ -3889,6 +3965,7 @@
       "regulatory-actions",
       "regulatory-reminder-actions",
       "relance-paiement-actions",
+      "relecture-visite-actions",
       "secretariat-devis-actions",
       "sponsoring-actions",
       "stand-in-actions",
@@ -3897,7 +3974,8 @@
       "tour-plan-actions",
       "tour-visit-actions",
       "training-actions",
-      "validation-actions"
+      "validation-actions",
+      "visite-medicale-actions"
      ]
     }
    ]
@@ -4091,6 +4169,7 @@
       "promo-execution-actions",
       "promo-material-actions",
       "purchase-request-actions",
+      "regulatory-actions",
       "secretariat-devis-actions",
       "validation-actions"
      ]
@@ -4151,6 +4230,7 @@
       "ad-pro-edit-actions",
       "ad-pro-other-actions",
       "ad-pro-transfer-actions",
+      "congress-request-actions",
       "event-actions",
       "sponsoring-actions",
       "workflow-actions"
@@ -4271,6 +4351,7 @@
      "libelle": "Article de fourniture de bureau",
      "sensibilite": "restreint",
      "ecritePar": [
+      "department-budget-actions",
       "office-supply-actions"
      ]
     },
@@ -4295,17 +4376,13 @@
      "modele": "DriverMission",
      "libelle": "Mission de chauffeur",
      "sensibilite": "restreint",
-     "ecritePar": [
-      "admin-request-actions"
-     ]
+     "ecritePar": []
     },
     {
      "modele": "DriverMissionStop",
      "libelle": "Étape d'une mission de chauffeur",
      "sensibilite": "restreint",
-     "ecritePar": [
-      "admin-request-actions"
-     ]
+     "ecritePar": []
     },
     {
      "modele": "MoyenGeneral",
@@ -4846,12 +4923,10 @@
      }
     ],
     "rolesLectureParDefaut": [
-     "SUPER_ADMIN",
-     "DIRECTION"
+     "SUPER_ADMIN"
     ],
     "rolesEcritureParDefaut": [
-     "SUPER_ADMIN",
-     "DIRECTION"
+     "SUPER_ADMIN"
     ],
     "famillesIa": [],
     "mecanismes": [
@@ -4916,7 +4991,9 @@
      "modele": "AssistantReminder",
      "libelle": "Rappel posé par l'assistant",
      "sensibilite": "confidentiel",
-     "ecritePar": []
+     "ecritePar": [
+      "reminder-actions"
+     ]
     },
     {
      "modele": "AssistantIaFil",
@@ -5143,7 +5220,8 @@
      "libelle": "Action proposée par l'assistant (à confirmer)",
      "sensibilite": "restreint",
      "ecritePar": [
-      "assistant-actions"
+      "assistant-actions",
+      "assistant-ia-actions"
      ]
     },
     {
@@ -5621,6 +5699,8 @@
       "hr-actions",
       "hr-document-actions",
       "impersonation-actions",
+      "informatique-abonnements-actions",
+      "informatique-parc-actions",
       "integration-adpro-actions",
       "intelligence-terrain-actions",
       "invoice-actions",
@@ -5635,7 +5715,6 @@
       "mail-folder-actions",
       "mail-partner-actions",
       "mail-piece-actions",
-      "mail-register-actions",
       "market-presentation-actions",
       "market-research-actions",
       "medical-actions",
@@ -5686,6 +5765,7 @@
       "regulatory-reminder-actions",
       "regulatory-timeline-actions",
       "relance-paiement-actions",
+      "relecture-visite-actions",
       "reminder-actions",
       "repartition-couts-actions",
       "sales-actions",
@@ -5708,6 +5788,7 @@
       "training-actions",
       "validation-actions",
       "ventes-pch-actions",
+      "visite-medicale-actions",
       "workflow-actions"
      ]
     },

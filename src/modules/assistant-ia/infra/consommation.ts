@@ -223,7 +223,7 @@ export async function signalerPlafondJour(userId: string, jetons: number, plafon
         title: `Adam : ${nom} a atteint son plafond du jour`,
         body: `${Math.round(jetons).toLocaleString("fr-FR")} jetons consommés pour un plafond de ${plafond.toLocaleString("fr-FR")}. `
           + "Ses demandes sont refusées jusqu'à minuit (heure d'Alger). Le plafond se règle dans Consommation IA.",
-        link: "/admin/ai/consommation",
+        link: "/informatique/consommation-ia",
       }).catch(sansBloquer("agent-consommation.plafondAtteint.notifyUser"));
     }
     return true;

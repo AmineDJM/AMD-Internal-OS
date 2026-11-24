@@ -73,6 +73,10 @@ export const ACTIONS_DES_MODULES: Readonly<Record<string, string | readonly stri
   // T3 (décision 0051) : les salles et leurs réservations (clé historique du premier registre des moyens généraux).
   "moyens-generaux-registre-actions": "src/modules/salles/actions.ts",
   "recettes-actions": "src/modules/recettes/actions.ts",
+  // Le département Informatique (24/11/2026) : abonnements & licences, parc, imputation du coût de l'IA au budget.
+  "informatique-abonnements-actions": "src/modules/informatique/actions-abonnements.ts",
+  "informatique-parc-actions": "src/modules/informatique/actions-parc.ts",
+  "informatique-cout-ia-actions": "src/modules/informatique/actions-cout-ia.ts",
   "coffre-actions": "src/modules/coffre/actions.ts",
   "congress-beneficiary-actions": "src/modules/ad-pro/actions-congres-beneficiaires.ts",
   "congress-request-actions": "src/modules/ad-pro/actions-congres.ts",

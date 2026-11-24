@@ -303,6 +303,11 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
   // LES RECETTES (J10, décision 0028) : une fois par jour, les circuits réels relus — des PROPOSITIONS seulement (jamais sous le
   // seuil d'occurrences) ; le responsable du processus valide. Idempotent : une façon de faire inchangée ne propose rien.
   { cle: "recettes.extraction", executer: async () => (await import("@/modules/recettes/api")).proposerLesRecettesSiDu() },
+  // LE DÉPARTEMENT INFORMATIQUE (24/11/2026) : le budget Informatique de l'année existe pour chaque société (montants à zéro),
+  // le coût de l'IA du mois y est imputé au dernier taux USD → DZD fixé (idempotent par société et par mois), et les
+  // abonnements proches de leur échéance sont rappelés une fois. Bornés dans le processus (6 h, 1 h).
+  { cle: "informatique.cout-ia", executer: async () => { await (await import("@/modules/informatique/api")).tacheCoutIa(); } },
+  { cle: "informatique.rappels", executer: async () => { await (await import("@/modules/informatique/api")).tacheRappelsAbonnements(); } },
   // Caisse d'avance : prévenir les RH 48 h AVANT le rechargement mensuel. Prévenir le jour
   // même ne sert à rien — sortir la somme demande une préparation. Idempotent par échéance.
   { cle: "finance.caisse-avance", executer: runPettyCashRechargeReminders },

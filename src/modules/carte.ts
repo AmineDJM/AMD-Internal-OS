@@ -68,6 +68,11 @@ export const CARTE = {
   "acces-bases": [],
   /** Suivi de dossiers (T3, décision 0051) : la mise à jour EN LOT depuis un tableau (rapprochement contrôlé, plan). */
   "suivi-dossiers": [],
+  /**
+   * Département Informatique (24/11/2026) : abonnements & licences, parc, et le coût de l'IA imputé chaque mois au budget
+   * Informatique de chaque société (journal `ModelCallLog` → `BudgetExpenseLine`). Ne lit aucun module.
+   */
+  informatique: [],
 } as const satisfies Record<string, readonly string[]>;
 
 export type NomModule = keyof typeof CARTE;
