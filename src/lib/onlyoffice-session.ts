@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { resolveDriveAccess, canViewDrive, type DriveAccessLevel } from "@/lib/drive";
 import { canAccessEntity } from "@/lib/entity-access";
 import { peutLirePasseportDuSujet } from "@/modules/ad-pro/api";
+import { peutOuvrirDocument } from "@/lib/entity-access/ouverture-pieces";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import {
   onlyofficeConfigured, onlyofficeServerUrl, appBaseUrl, onlyofficeDocType, onlyofficeTypeOuvrable, fileExt,
@@ -70,7 +71,7 @@ export async function sessionEditeur(user: SessionUser & { name?: string }, cibl
     peutModifier = acces === "EDIT";
     // `key` change à chaque version → le Document Server n'ouvre jamais une copie périmée.
     key = `${cible.id}_${derniere.version}`;
-    urlFichier = `${base}/api/onlyoffice/file?token=${makeFileReadToken(cible.id, user.id)}`;
+    urlFichier = `${base}/api/onlyoffice/file?token=${makeFileReadToken(cible.id, user.id, undefined, derniere.version)}`;
     const nodeId = cible.id;
     rappel = () => `${base}/api/onlyoffice/callback?id=${nodeId}&token=${makeSaveToken("drive", nodeId, user.id)}`;
   } else {
@@ -87,7 +88,7 @@ export async function sessionEditeur(user: SessionUser & { name?: string }, cibl
     peutModifier = await canAccessEntity(user, doc.entityType, doc.entityId, "UPLOAD");
     // Version ET taille : un fichier remplacé sans passer par l'éditeur ne doit pas rouvrir l'ancienne copie.
     key = `doc_${doc.id}_${doc.version}_${doc.sizeBytes ?? 0}`;
-    urlFichier = `${base}/api/onlyoffice/file?token=${makeDocReadToken(doc.id, user.id)}`;
+    urlFichier = `${base}/api/onlyoffice/file?token=${makeDocReadToken(doc.id, user.id, undefined, doc.version)}`;
     const docId = doc.id;
     rappel = () => `${base}/api/onlyoffice/callback?docId=${docId}&token=${makeSaveToken("document", docId, user.id)}`;
   }
@@ -141,4 +142,18 @@ export async function peutEnregistrerOnlyoffice(userId: string, cible: CibleEnre
   if (cible === "drive") return (await resolveDriveAccess(user, id)) === "EDIT";
   const doc = await prisma.document.findUnique({ where: { id }, select: { entityType: true, entityId: true } });
   return !!doc && (await canAccessEntity(user, doc.entityType, doc.entityId, "UPLOAD"));
+}
+
+/**
+ * LE DROIT DE LIRE, RELU AU TÉLÉCHARGEMENT par le Document Server (`/api/onlyoffice/file`, audit Drive du 24/11, F4) :
+ * le jeton dit QUI l'a obtenu, pas qu'il le peut encore. Compte actif ; Drive : `resolveDriveAccess` (qui ferme la
+ * corbeille, F11) ; Document : la porte du téléchargement (`peutOuvrirDocument`, confidentialité comprise, F9).
+ */
+export async function peutLireOnlyoffice(userId: string, cible: CibleEnregistrement, id: string): Promise<boolean> {
+  const u = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true, secondaryRole: true, isActive: true } });
+  if (!u || !u.isActive) return false;
+  const user: SessionUser = { id: u.id, role: u.role, secondaryRole: u.secondaryRole, access: await getAccess(u.id, u.role) };
+  if (cible === "drive") return canViewDrive(await resolveDriveAccess(user, id));
+  const doc = await prisma.document.findUnique({ where: { id }, select: { id: true, entityType: true, entityId: true, stepKey: true, confidentiality: true, uploadedById: true } });
+  return !!doc && (await peutOuvrirDocument(user, doc));
 }

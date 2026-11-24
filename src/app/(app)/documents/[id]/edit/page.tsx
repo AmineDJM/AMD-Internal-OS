@@ -72,7 +72,7 @@ export default async function DocumentEditPage(props: { params: Promise<{ id: st
 
   // LIRE n'est pas ENREGISTRER (`lib/onlyoffice.ts`) : jeton de lecture dans `document.url` (qui part au
   // navigateur), jeton d'enregistrement dans `callbackUrl` seulement.
-  const readToken = makeDocReadToken(params.id, user.id);
+  const readToken = makeDocReadToken(params.id, user.id, undefined, doc.version);
   const saveToken = makeSaveToken("document", params.id, user.id);
   // `key` change à chaque version → invalide le cache du Document Server après sauvegarde.
   const key = `doc_${params.id}_${doc.version}`;

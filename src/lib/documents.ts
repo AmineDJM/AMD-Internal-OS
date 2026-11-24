@@ -150,14 +150,15 @@ export async function persistUploadedDocument(
 
   // MIROIR DRIVE, en arrière-plan : le document est déjà enregistré, c'est ce que la personne
   // voit. La copie se termine côté serveur — on ne fait pas attendre un téléversement pour elle.
-  if (input.mirrorToDrive !== false) {
+  // Une pièce non interne (pharmacovigilance, RH…) n'a JAMAIS de copie dans le Drive (F2) — Regulatory compris.
+  if (input.mirrorToDrive !== false && confidentiality === "INTERNAL") {
     const data = content;
     // Regulatory a SON rangement (dossier du produit, catégorie « Regulatory ») — le miroir générique
     // l'écarte ; sans cette branche, une pièce posée par un autre chemin que la route de lot n'arrivait
     // dans aucun Drive.
     const miroir = entityType === "REGULATORY_PRODUCT"
       ? mirrorRegulatoryUpload({ productId: entityId, ownerId: userId, documentIds: [documentId], files: [{ name: folder ? `${folder}/${file.name}` : file.name, data, mime: file.type || undefined }] })
-      : mirrorDocumentsToDrive({ ownerId: userId, entityType, entityId, files: [{ name: file.name, data, mime: file.type || null }] });
+      : mirrorDocumentsToDrive({ ownerId: userId, entityType, entityId, confidentiality, files: [{ name: file.name, data, mime: file.type || null }] });
     void miroir.catch((e) => console.error("[upload] miroir Drive échoué (non bloquant)", e));
   }
   return { ok: true, documentId };
@@ -213,7 +214,7 @@ export async function inscrireDocumentDirect(
     });
     // REGULATORY (Direction, 06/10) : la pièce rejoint le dossier du produit dans la catégorie
     // « Regulatory » par RÉFÉRENCE à son blob — aucun octet relu, même pour plusieurs Go.
-    if (entityType === "REGULATORY_PRODUCT") {
+    if (entityType === "REGULATORY_PRODUCT" && input.confidentiality === "INTERNAL") {
       void mirrorRegulatoryUpload({ productId: entityId, ownerId: userId, documentIds: [created.id], files: [] })
         .catch((e) => console.error("[upload direct] rangement Drive Regulatory échoué (non bloquant)", e));
     }

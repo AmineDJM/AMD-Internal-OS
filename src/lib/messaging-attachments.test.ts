@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  MAX_ATTACHMENTS, driveRefLabel, driveRefHref, recipientsToGrant, shareWarning,
+  MAX_ATTACHMENTS, driveRefLabel, driveRefHref, shareWarning,
   folderZipName, rootFolderName,
   DOSSIER_MESSAGERIE, nomDossierConversation, nomLotMessagerie, piecesDuLot, libelleLot,
   estImageAffichable, ouverturePiece, urlContenuPiece, redirectionReferenceDrive, imagesDuMessage,
@@ -24,36 +24,6 @@ describe("driveRefHref — où mène le clic", () => {
 
   it("navigue dans un dossier", () => {
     expect(driveRefHref("n1", true)).toBe("/drive?folder=n1");
-  });
-});
-
-describe("recipientsToGrant — qui reçoit un accès", () => {
-  it("accorde aux autres membres de la conversation", () => {
-    expect(recipientsToGrant(["a", "b", "c"], { senderId: "a" }).sort()).toEqual(["b", "c"]);
-  });
-
-  it("n'accorde jamais rien à l'expéditeur — il a déjà accès", () => {
-    expect(recipientsToGrant(["a"], { senderId: "a" })).toEqual([]);
-  });
-
-  it("saute le propriétaire du nœud", () => {
-    expect(recipientsToGrant(["a", "b", "c"], { senderId: "a", ownerId: "b" })).toEqual(["c"]);
-  });
-
-  it("saute qui a DÉJÀ un partage — un VIEW par-dessus un EDIT serait une régression de droit", () => {
-    expect(recipientsToGrant(["a", "b", "c"], { senderId: "a", alreadyShared: ["b"] })).toEqual(["c"]);
-  });
-
-  it("dédoublonne une liste de membres qui répéterait quelqu'un", () => {
-    expect(recipientsToGrant(["b", "b", "c"], { senderId: "a" }).sort()).toEqual(["b", "c"]);
-  });
-
-  it("ignore les identifiants vides", () => {
-    expect(recipientsToGrant(["", "b"], { senderId: "a" })).toEqual(["b"]);
-  });
-
-  it("rend une liste vide quand il n'y a personne d'autre", () => {
-    expect(recipientsToGrant([], { senderId: "a" })).toEqual([]);
   });
 });
 

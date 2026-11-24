@@ -1,4 +1,4 @@
-import type { EntityType } from "@prisma/client";
+import type { Confidentiality, EntityType } from "@prisma/client";
 import { canAccessEntity } from "@/lib/entity-access";
 import { peutLirePasseportDuSujet, peutLirePieceDePriseEnCharge, peutLireFichierDuPosteConfie } from "@/modules/ad-pro/api";
 import { hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
@@ -22,11 +22,34 @@ import { ETAPE_DECLARATION_PARTAGEE } from "@/lib/medical-info/etape-ad-pro-part
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
+/**
+ * UNE PIÈCE « CONFIDENTIELLE » N'EST PLUS QU'UNE ÉTIQUETTE (audit Drive du 24/11, F9) : elle s'ouvre à qui l'a déposée,
+ * aux lecteurs désignés de son objet (Legal : lecteurs nommés ; pharmacovigilance : participants du cas), et à qui peut
+ * MODIFIER l'objet. Lire l'objet ne suffit plus. Les autres niveaux gardent les portes ordinaires.
+ */
+export async function peutOuvrirPieceConfidentielle(
+  user: SessionUser,
+  doc: { entityType: EntityType; entityId: string; uploadedById: string | null },
+): Promise<boolean> {
+  if (doc.uploadedById === user.id) return true;
+  if (doc.entityType === "LEGAL_DOCUMENT"
+    && (await prisma.legalDocumentReader.count({ where: { documentId: doc.entityId, userId: user.id } })) > 0) return true;
+  if (doc.entityType === "PHARMACOVIGILANCE_CASE"
+    && (await prisma.pharmacovigilanceParticipant.count({ where: { caseId: doc.entityId, userId: user.id } })) > 0) return true;
+  return canAccessEntity(user, doc.entityType, doc.entityId, "UPDATE");
+}
+
 /** Un `Document` de module (`/api/documents/[id]`) : l'entité, ou les deux portes étroites d'Ad & Pro. */
 export async function peutOuvrirDocument(
   user: SessionUser,
-  doc: { id: string; entityType: EntityType; entityId: string; stepKey: string | null },
+  doc: { id: string; entityType: EntityType; entityId: string; stepKey: string | null; confidentiality?: Confidentiality; uploadedById?: string | null },
 ): Promise<boolean> {
+  // La confidentialité se lit en base quand l'appelant ne l'a pas chargée : une porte qui l'ignorerait faute de champ
+  // rouvrirait ce que F9 ferme.
+  const niveau = doc.confidentiality !== undefined && doc.uploadedById !== undefined
+    ? { confidentiality: doc.confidentiality, uploadedById: doc.uploadedById }
+    : await prisma.document.findUnique({ where: { id: doc.id }, select: { confidentiality: true, uploadedById: true } });
+  if (niveau?.confidentiality === "CONFIDENTIAL") return peutOuvrirPieceConfidentielle(user, { ...doc, uploadedById: niveau.uploadedById });
   // Le passeport d'un voyageur s'ouvre aussi à qui réserve son billet (audit 360°, I10) — une porte
   // ÉTROITE, à la pièce près : voir `peutLirePasseportDuSujet`.
   // Même porte pour un congrès (passeports, billets émis, vouchers, livrets de séjour) : `peutLirePieceDePriseEnCharge`.

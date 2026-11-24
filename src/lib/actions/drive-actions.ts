@@ -7,7 +7,7 @@ import { enLecture } from "@/lib/vue-lecture";
 import { userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { putBlob, getBlob, retainBlob } from "@/lib/drive-storage";
-import { resolveDriveAccess, effectiveSpaceId, canCreateInSpace, canViewDrive } from "@/lib/drive";
+import { resolveDriveAccess, effectiveSpaceId, canCreateInSpace, canViewDrive, proprietaireDuNouveauDossier, refusSortieArborescence } from "@/lib/drive";
 import { blankOffice, isOfficeKind } from "@/lib/office-templates";
 import { documentName, KIND_LABEL } from "@/lib/office/letterhead";
 import { getMyCompanies } from "@/lib/company";
@@ -59,9 +59,10 @@ export async function createFolder(
     return DENIED;
   }
   const effSpaceId = await effectiveSpaceId(parentId || null, spaceId || null);
+  const ownerId = await proprietaireDuNouveauDossier(parentId || null, user.id);
 
   const node = await prisma.driveNode.create({
-    data: { name, type: "FOLDER", parentId: parentId || null, spaceId: effSpaceId, ownerId: user.id, createdById: user.id },
+    data: { name, type: "FOLDER", parentId: parentId || null, spaceId: effSpaceId, ownerId, createdById: user.id },
     select: { id: true },
   });
   await recordAudit({ actorId: user.id, action: "CREATE", module: "Drive", entityType: "DRIVE_NODE", entityId: node.id, summary: `Dossier « ${name} »` });
@@ -95,7 +96,7 @@ export async function ensureDriveFolders(
   const baseSpace = await effectiveSpaceId(parentId || null, spaceId || null);
 
   // La boucle est partagée avec le dépôt de la messagerie (même arborescence, même réutilisation).
-  const map = await creerArborescenceDrive({ ownerId: user.id, parentId, spaceId: baseSpace, paths });
+  const map = await creerArborescenceDrive({ ownerId: await proprietaireDuNouveauDossier(parentId || null, user.id), parentId, spaceId: baseSpace, paths });
   revalidatePath("/drive");
   if (baseSpace) revalidatePath(`/drive/espace/${baseSpace}`);
   return { ok: true, map };
@@ -162,6 +163,8 @@ export async function moveNode(formData: FormData): Promise<ActionResult> {
   const contextSpaceId = fdStr(formData, "spaceId") || null; // catégorie courante (racine)
   if (!id) return { ok: false, error: "Élément introuvable." };
   if ((await resolveDriveAccess(user, id)) !== "EDIT") return DENIED;
+  const sortie = await refusSortieArborescence(user, id, targetId || null);
+  if (sortie) return { ok: false, error: sortie };
 
   // Catégorie de DESTINATION : celle du dossier cible, ou la catégorie courante à la racine.
   let targetSpaceId: string | null;

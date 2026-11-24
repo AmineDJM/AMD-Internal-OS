@@ -1,24 +1,40 @@
 import { describe, it, expect } from "vitest";
-import { shouldMirrorToDrive, safeFolderName, importFolderPath, IMPORT_DRIVE_ROOT } from "./mirror-path";
+import { EntityType } from "@prisma/client";
+import { shouldMirrorToDrive, copieAuDriveAutorisee, COPIE_AU_DRIVE, safeFolderName, importFolderPath, IMPORT_DRIVE_ROOT } from "./mirror-path";
 
-describe("Ce qui entre dans l'ERP entre aussi dans le Drive", () => {
-  it("un import depuis n'importe quel module part au Drive", () => {
-    expect(shouldMirrorToDrive("SPONSORING")).toBe(true);
-    expect(shouldMirrorToDrive("PCH_TENDER")).toBe(true);
-    expect(shouldMirrorToDrive("HR_REQUEST")).toBe(true);
-    expect(shouldMirrorToDrive("UN_TYPE_AJOUTE_DEMAIN")).toBe(true);
+describe("Ce qui entre dans l'ERP entre aussi dans le Drive — sauf les pièces des personnes (F2)", () => {
+  it("une pièce interne d'un objet d'entreprise part au Drive", () => {
+    expect(shouldMirrorToDrive("SPONSORING", "INTERNAL")).toBe(true);
+    expect(shouldMirrorToDrive("PCH_TENDER", "INTERNAL")).toBe(true);
+    expect(shouldMirrorToDrive("PROMO_MATERIAL", "INTERNAL")).toBe(true);
   });
 
-  it("sauf ce qui a déjà son miroir — on ne veut pas deux copies du même fichier", () => {
-    // Regulatory range par produit et partage avec les parties prenantes : le refaire ici
-    // fabriquerait un doublon, et c'est ce qui fait perdre confiance dans un drive.
-    expect(shouldMirrorToDrive("REGULATORY_PRODUCT")).toBe(false);
-    // Un fichier déposé DANS le Drive n'a pas à être recopié dans le Drive.
-    expect(shouldMirrorToDrive("DRIVE_NODE")).toBe(false);
+  it("une pièce non interne n'a JAMAIS de copie, quel que soit l'objet", () => {
+    expect(shouldMirrorToDrive("SPONSORING", "CONFIDENTIAL")).toBe(false);
+    expect(shouldMirrorToDrive("SPONSORING", "RESTRICTED")).toBe(false);
+    expect(copieAuDriveAutorisee("REGULATORY_PRODUCT", "CONFIDENTIAL")).toBe(false);
   });
 
-  it("sans type d'objet, on ne range nulle part", () => {
-    expect(shouldMirrorToDrive("")).toBe(false);
+  it("RH, médical, pharmacovigilance et voyageurs : jamais, même internes", () => {
+    for (const t of ["HR_REQUEST", "EMPLOYEE", "PAYROLL", "LEAVE_REQUEST", "MEDICAL_INFO_DECLARATION", "VISIT", "DOCTOR",
+      "PHARMACOVIGILANCE_CASE", "MISSION_ASSIGNMENT", "CONGRESS_INTERNATIONAL", "CONGRESS_NATIONAL", "ADMIN_REQUEST", "AD_PRO_ITEM"]) {
+      expect(copieAuDriveAutorisee(t, "INTERNAL"), t).toBe(false);
+    }
+  });
+
+  it("un type que la table ne connaît pas ne se copie pas", () => {
+    expect(shouldMirrorToDrive("UN_TYPE_AJOUTE_DEMAIN", "INTERNAL")).toBe(false);
+    expect(shouldMirrorToDrive("", "INTERNAL")).toBe(false);
+  });
+
+  it("la table couvre EXACTEMENT les types d'objet du schéma — un type nouveau se range en connaissance de cause", () => {
+    expect(Object.keys(COPIE_AU_DRIVE).sort()).toEqual(Object.values(EntityType).sort());
+  });
+
+  it("ce qui a déjà son miroir n'est pas recopié dans « Mes documents importés »", () => {
+    expect(shouldMirrorToDrive("REGULATORY_PRODUCT", "INTERNAL")).toBe(false);
+    expect(copieAuDriveAutorisee("REGULATORY_PRODUCT", "INTERNAL")).toBe(true);
+    expect(shouldMirrorToDrive("DRIVE_NODE", "INTERNAL")).toBe(false);
   });
 });
 

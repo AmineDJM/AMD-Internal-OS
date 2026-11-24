@@ -129,7 +129,7 @@ export async function attachFiles(input: {
   // déjà enregistrée, et une copie ratée ne doit jamais la faire échouer.
   if (toMirror.length > 0) {
     void mirrorDocumentsToDrive({
-      ownerId: input.uploadedById, entityType: input.entityType, entityId: input.entityId, files: toMirror,
+      ownerId: input.uploadedById, entityType: input.entityType, entityId: input.entityId, confidentiality: "INTERNAL", files: toMirror,
     }).catch((e) => console.error("[attach] miroir Drive échoué (non bloquant)", e));
   }
 

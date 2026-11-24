@@ -87,5 +87,11 @@ export async function accessibleDocumentWhere(
   }
 
   if (ors.length === 0) return { id: "__none__" };
-  return { OR: ors };
+  // UNE PIÈCE CONFIDENTIELLE ne se liste qu'à qui pourrait l'ouvrir (audit Drive du 24/11, F9 — `peutOuvrirPieceConfidentielle`) :
+  // son déposant, ou qui peut MODIFIER dans le module. La liste ne promet pas ce que le téléchargement refuserait.
+  return {
+    OR: ors.map((o) => userCan(user, ENTITY_MODULE[o.entityType as EntityType], "UPDATE")
+      ? o
+      : { AND: [o, { OR: [{ confidentiality: { not: "CONFIDENTIAL" as const } }, { uploadedById: user.id }] }] }),
+  };
 }

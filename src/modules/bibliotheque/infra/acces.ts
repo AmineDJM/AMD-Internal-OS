@@ -63,7 +63,7 @@ const JUGES: Record<Famille, Juge> = {
     return ok;
   },
   async DOCUMENT(user, ids) {
-    const docs = await prisma.document.findMany({ where: { id: { in: ids } }, select: { id: true, entityType: true, entityId: true, stepKey: true } });
+    const docs = await prisma.document.findMany({ where: { id: { in: ids } }, select: { id: true, entityType: true, entityId: true, stepKey: true, confidentiality: true, uploadedById: true } });
     const parId = new Map(docs.map((d) => [d.id, d]));
     return filtrer([...parId.keys()], (id) => peutOuvrirDocument(user, parId.get(id)!));
   },

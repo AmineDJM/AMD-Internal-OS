@@ -118,38 +118,11 @@ export function imagesDuMessage<T extends PieceOuvrable>(pieces: readonly T[]): 
 }
 
 /**
- * QUI DOIT RECEVOIR UN ACCÈS quand on partage un nœud du Drive dans une conversation.
- *
- * Trois exclusions, et chacune évite une ligne inutile en base :
- *   • l'EXPÉDITEUR — il a déjà accès, c'est bien pour cela qu'il peut le partager ;
- *   • le PROPRIÉTAIRE du nœud — se partager son propre fichier n'a pas de sens ;
- *   • ceux qui ont DÉJÀ un partage — un `VIEW` posé par-dessus un `EDIT` existant serait une
- *     RÉGRESSION de droit : on ne retire jamais l'édition à quelqu'un en lui envoyant un message.
- *
- * On n'accorde jamais que la LECTURE : envoyer un document, ce n'est pas déléguer sa tenue.
- */
-export function recipientsToGrant(
-  memberIds: readonly string[],
-  opts: { senderId: string; ownerId?: string | null; alreadyShared?: readonly string[] },
-): string[] {
-  const already = new Set(opts.alreadyShared ?? []);
-  const out = new Set<string>();
-  for (const id of memberIds) {
-    if (!id) continue;
-    if (id === opts.senderId) continue;
-    if (opts.ownerId && id === opts.ownerId) continue;
-    if (already.has(id)) continue;
-    out.add(id);
-  }
-  return [...out];
-}
-
-/**
  * L'AVERTISSEMENT AVANT L'ENVOI — dit à l'expéditeur ce qu'il s'apprête à ouvrir.
  *
- * Partager un document du Drive DONNE UN ACCÈS, et un accès ne se reprend pas d'un clic. La
- * phrase se lit avant d'appuyer sur Envoyer, pas après : c'est là qu'on peut encore changer
- * d'avis.
+ * Partager un document du Drive DONNE UN ACCÈS — en lecture, tant que le message vit et que le destinataire reste
+ * dans le fil (`partageParMessagerie`). La phrase se lit avant d'appuyer sur Envoyer : c'est là qu'on peut encore
+ * changer d'avis.
  */
 export function shareWarning(recipientCount: number): string {
   if (recipientCount <= 0) return "Aucun accès supplémentaire ne sera accordé.";

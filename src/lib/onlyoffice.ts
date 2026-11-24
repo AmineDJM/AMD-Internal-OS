@@ -146,25 +146,40 @@ export function extensionsEditables(): string[] {
 //     droit retiré après l'ouverture ne s'exerce plus.
 //
 // Transition : les jetons émis avant ce changement (`kind: "edit" | "docedit"`) restent lus par
-// les deux routes. Plus aucun n'est émis ; ils expirent d'eux-mêmes (24 h au plus), et un éditeur
-// ouvert pendant le déploiement peut encore enregistrer — sous les mêmes contrôles.
+// le rappel d'enregistrement seulement (plus jamais par la lecture, audit Drive du 24/11, F4).
 // ═══════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * JETONS DE LECTURE : UNE HEURE, UNE VERSION, ET LE DROIT RELU À CHAQUE TÉLÉCHARGEMENT (audit Drive du 24/11, F4).
+ *
+ * Le jeton voyage dans le navigateur (`document.url`) : copié, il ouvrait le fichier pendant 24 h, quel que soit le
+ * droit de son porteur ensuite, et toujours dans sa DERNIÈRE version. Il dure désormais une heure (le Document Server
+ * le consomme à l'ouverture), il fige la version ouverte, et `/api/onlyoffice/file` relit le droit de `userId`
+ * (compte actif, nœud hors corbeille). Les jetons d'avant la séparation (`edit`, `docedit`) ne LISENT plus rien.
+ */
+export const DUREE_JETON_LECTURE_S = 3600;
+
+/** Émis il y a plus d'une heure (ou sans date d'émission) : refusé, quelle que soit l'échéance qu'il annonce. */
+function lectureTropAncienne(iat: unknown): boolean {
+  return typeof iat !== "number" || Math.floor(Date.now() / 1000) - iat > DUREE_JETON_LECTURE_S;
+}
 
 /** Jeton de LECTURE d'un fichier du Drive : le Document Server le télécharge, rien de plus. */
 export interface FileReadToken {
   nodeId: string;
   userId: string;
   kind: "lecture";
+  /** La version ouverte ; absente = la dernière (conversions ponctuelles). */
+  version?: number;
 }
 
-export function makeFileReadToken(nodeId: string, userId: string, expiresInSec = 24 * 3600): string {
-  return signJwt({ nodeId, userId, kind: "lecture" }, expiresInSec);
+export function makeFileReadToken(nodeId: string, userId: string, expiresInSec = DUREE_JETON_LECTURE_S, version?: number): string {
+  return signJwt({ nodeId, userId, kind: "lecture", ...(version !== undefined ? { version } : {}) }, Math.min(expiresInSec, DUREE_JETON_LECTURE_S));
 }
 export function readFileReadToken(token: string | null | undefined): FileReadToken | null {
-  const p = verifyJwt<{ nodeId?: string; userId?: string; kind?: string }>(token);
-  // `edit` : jeton émis avant la séparation lecture / enregistrement (transition, 24 h au plus).
-  if (!p || (p.kind !== "lecture" && p.kind !== "edit") || !p.nodeId || !p.userId) return null;
-  return { nodeId: p.nodeId, userId: p.userId, kind: "lecture" };
+  const p = verifyJwt<{ nodeId?: string; userId?: string; kind?: string; version?: unknown; iat?: unknown }>(token);
+  if (!p || p.kind !== "lecture" || !p.nodeId || !p.userId || lectureTropAncienne(p.iat)) return null;
+  return { nodeId: p.nodeId, userId: p.userId, kind: "lecture", ...(typeof p.version === "number" ? { version: p.version } : {}) };
 }
 
 /** Variante pour les **documents** (modèle Document, hors Drive) : pièces des dossiers, Regulatory, etc. */
@@ -172,14 +187,16 @@ export interface DocReadToken {
   docId: string;
   userId: string;
   kind: "doclecture";
+  /** `Document.version` à l'ouverture : le fichier réécrit depuis n'est plus servi sous ce jeton. */
+  version?: number;
 }
-export function makeDocReadToken(docId: string, userId: string, expiresInSec = 24 * 3600): string {
-  return signJwt({ docId, userId, kind: "doclecture" }, expiresInSec);
+export function makeDocReadToken(docId: string, userId: string, expiresInSec = DUREE_JETON_LECTURE_S, version?: number): string {
+  return signJwt({ docId, userId, kind: "doclecture", ...(version !== undefined ? { version } : {}) }, Math.min(expiresInSec, DUREE_JETON_LECTURE_S));
 }
 export function readDocReadToken(token: string | null | undefined): DocReadToken | null {
-  const p = verifyJwt<{ docId?: string; userId?: string; kind?: string }>(token);
-  if (!p || (p.kind !== "doclecture" && p.kind !== "docedit") || !p.docId || !p.userId) return null;
-  return { docId: p.docId, userId: p.userId, kind: "doclecture" };
+  const p = verifyJwt<{ docId?: string; userId?: string; kind?: string; version?: unknown; iat?: unknown }>(token);
+  if (!p || p.kind !== "doclecture" || !p.docId || !p.userId || lectureTropAncienne(p.iat)) return null;
+  return { docId: p.docId, userId: p.userId, kind: "doclecture", ...(typeof p.version === "number" ? { version: p.version } : {}) };
 }
 
 export type CibleEnregistrement = "drive" | "document";
