@@ -7,14 +7,14 @@ import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { Check, X, Loader2, MessageSquare, ArrowRight, SkipForward, Undo2, Send, Ban } from "lucide-react";
 import type { EntityType } from "@prisma/client";
 import { advanceWorkflow, faireAppelAdPro, resoumettreDemande, retirerDemandeAdPro } from "@/lib/actions/workflow-actions";
-import type { WorkflowView, WorkflowEventView, WorkflowStepView } from "@/lib/queries/workflow";
-import { SCOPE_LABELS } from "@/lib/workflow/types";
+import type { WorkflowView, WorkflowEventView } from "@/lib/queries/workflow";
+import { acteurDe, friseDuCircuit, type EtapeDeFrise } from "@/lib/workflow/frise-circuit";
 import { ROLE_LABELS, EXPENSE_ORDER_STATUS } from "@/lib/labels";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea, Label } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { cn, formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
+import { cn, formatCurrency, formatDateTime } from "@/lib/utils";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { actionFailureMessage } from "@/lib/action-outcome";
 
@@ -26,23 +26,7 @@ const STATUS_TONE: Record<string, { label: string; tone: "success" | "danger" | 
   CANCELLED: { label: "Annulé", tone: "neutral" },
 };
 
-function rolesText(roles: string[]): string {
-  return roles.map((r) => ROLE_LABELS[r] ?? r).join(", ");
-}
-
-/** QUI tient une étape, en un mot. */
-function acteurDe(s: WorkflowStepView): string {
-  return s.actorScope === "ROLE" ? rolesText(s.actorRoles) || "—" : SCOPE_LABELS[s.actorScope];
-}
-
-/** Une case de la frise horizontale de « La demande ». */
-export interface EtapeDeFrise {
-  cle: string;
-  titre: string;
-  /** Sous le titre : « date · personne » pour une étape faite, qui la tient sinon. */
-  detail?: string | null;
-  etat: "done" | "current" | "todo" | "rejected";
-}
+export type { EtapeDeFrise } from "@/lib/workflow/frise-circuit";
 
 /** La phrase « état — chez qui », et ce qui vient ensuite. */
 export interface StatutDeLaDemande {
@@ -59,18 +43,6 @@ const TON_STATUT: Record<NonNullable<StatutDeLaDemande["ton"]>, string> = {
   neutre: "border-border bg-secondary/40 text-foreground",
 };
 
-/** « Yacine Habes » → « Y. Habes » : la frise n'a la place que d'un nom court. */
-function nomCourt(nom: string | null): string | null {
-  if (!nom) return null;
-  const p = nom.trim().split(/\s+/);
-  return p.length > 1 ? `${p[0]![0]}. ${p.slice(1).join(" ")}` : nom;
-}
-
-const jourCourt = (iso: string) => formatDate(iso, { day: "numeric", month: "short" });
-
-/** Les gestes qui FONT une étape (et non un commentaire en passant). */
-const GESTES_D_ETAPE = new Set(["APPROVE", "REJECT", "OPINION_AGAINST", "SKIP", "AUTO_SKIP", "AUTO_APPROVE_REQUESTER"]);
-
 /**
  * Panneau générique piloté par la **définition de workflow** configurée (Administration).
  * Affiche la frise dynamique, l'action disponible pour le spectateur à l'étape courante,
@@ -81,8 +53,14 @@ const GESTES_D_ETAPE = new Set(["APPROVE", "REJECT", "OPINION_AGAINST", "SKIP", 
  * « état — chez qui » et, dedans, les gestes de l'étape courante. Mêmes gestes, mêmes actions, mêmes règles ;
  * l'historique n'y figure pas (il vit dans « Traçabilité », pour le Super Admin — `HistoriqueDuCircuit`),
  * ni le retrait (la page le range dans « ⋯ » — `WithdrawForm`).
+ *
+ * LA FICHE EN DEUX MORCEAUX (`partie`, maquette « Fiche Ad & Pro » validée, 24/11/2026) : la fiche montre les GESTES de la
+ * personne qui regarde dans sa carte « À vous » (`partie="gestes"` — pas de frise, l'approbation en seul bouton plein, les
+ * autres issues en boutons discrets), et la frise détaillée dans « Plus d'informations » (`partie="frise"` — la frise,
+ * la phrase de statut, le motif, l'ordre ; aucun geste). Les deux morceaux montent le MÊME formulaire et les MÊMES
+ * actions : rien n'est réécrit, seule la place change. Sans `partie`, le panneau entier, comme avant.
  */
-export function WorkflowPanel({ entityType, entityId, view, compact = false, suite = [], statut = null, gestes = null }: {
+export function WorkflowPanel({ entityType, entityId, view, compact = false, suite = [], statut = null, gestes = null, partie = "tout" }: {
   entityType: EntityType;
   entityId: string;
   view: WorkflowView;
@@ -93,6 +71,8 @@ export function WorkflowPanel({ entityType, entityId, view, compact = false, sui
   statut?: StatutDeLaDemande | null;
   /** Compact : des gestes propres à la page, rangés sous ceux de l'étape (validation finale, appel, relance…). */
   gestes?: React.ReactNode;
+  /** Le morceau à rendre : tout (défaut), la frise seule (sans geste), ou les gestes seuls (carte « À vous »). */
+  partie?: "tout" | "frise" | "gestes";
 }) {
   // LE RAFRAÎCHISSEMENT EST SUIVI (§118.172) : tant que les données d'après n'ont pas remplacé
   // l'écran, ses gestes restent fermés — sinon un second clic agirait sur l'état d'avant.
@@ -175,15 +155,17 @@ export function WorkflowPanel({ entityType, entityId, view, compact = false, sui
 
   // LES GESTES DE L'ÉTAPE COURANTE — un seul jeu de boutons et un seul formulaire, montés par les deux rendus
   // (la frise verticale d'origine, ou l'encart de statut de « La demande »).
+  // LA CARTE « À VOUS » : un seul bouton plein (approuver) ; refuser reste rouge, mais en contour — les autres issues sont discrètes.
+  const sobre = partie === "gestes";
   const boutons = a ? (
                       // Au téléphone : une issue par ligne, pleine largeur, à hauteur de pouce — rien ne déborde à droite.
                       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                        {canApprove && <Button size="sm" variant="success" className="h-11 text-sm sm:h-8 sm:text-xs" onClick={() => setMode("approve")}><Check className="h-4 w-4" /> Approuver</Button>}
-                        {canReject && <Button size="sm" variant="destructive" className="h-11 text-sm sm:h-8 sm:text-xs" onClick={() => setMode("reject")}><X className="h-4 w-4" /> {actionIsLast ? "Refuser" : "Avis défavorable"}</Button>}
+                        {canApprove && <Button size="sm" variant={sobre ? "primary" : "success"} className="h-11 text-sm sm:h-8 sm:text-xs" onClick={() => setMode("approve")}><Check className="h-4 w-4" /> Approuver</Button>}
+                        {canReject && <Button size="sm" variant={sobre ? "outline" : "destructive"} className={cn("h-11 text-sm sm:h-8 sm:text-xs", sobre && "text-destructive")} onClick={() => setMode("reject")}><X className="h-4 w-4" /> {actionIsLast ? "Refuser" : "Avis défavorable"}</Button>}
                         {/* RENVOYER POUR CORRECTION (§118.186) — ouvert là où le refus l'est : la troisième
                             issue, entre laisser passer une demande fausse et la tuer. */}
-                        {canReject && <Button size="sm" variant="outline" onClick={() => setMode("return")}><Undo2 className="h-4 w-4" /> Renvoyer pour correction</Button>}
-                        {canSkip && <Button size="sm" variant="outline" onClick={() => setMode("skip")}><SkipForward className="h-4 w-4" /> Sauter l&apos;étape</Button>}
+                        {canReject && <Button size="sm" variant={sobre ? "ghost" : "outline"} onClick={() => setMode("return")}><Undo2 className="h-4 w-4" /> Renvoyer pour correction</Button>}
+                        {canSkip && <Button size="sm" variant={sobre ? "ghost" : "outline"} onClick={() => setMode("skip")}><SkipForward className="h-4 w-4" /> Sauter l&apos;étape</Button>}
                         {canComment && <Button size="sm" variant="ghost" onClick={() => setMode("comment")}><MessageSquare className="h-4 w-4" /> Commenter</Button>}
                       </div>
   ) : null;
@@ -294,7 +276,7 @@ export function WorkflowPanel({ entityType, entityId, view, compact = false, sui
   ) : null;
 
   // LE MOTIF ET LA RESOUMISSION — communs aux deux rendus.
-  const motifEtReprise = (
+  const motif = (
     <>
       {/* LE MOTIF QUE LE DEMANDEUR DOIT LIRE (§118.186, R03) — un renvoi qui l'attend, ou le refus
           qui a clos sa demande. Hors de l'historique privilégié : il lui est adressé. */}
@@ -314,10 +296,16 @@ export function WorkflowPanel({ entityType, entityId, view, compact = false, sui
           )}
         </div>
       )}
+    </>
+  );
+  // La frise seule (« Plus d'informations ») ne porte aucun geste : la carte « À vous » les porte.
+  const reprise = partie === "frise" ? null : (
+    <>
       {view.peutResoumettre && <ResubmitForm entityType={entityType} entityId={entityId} />}
       {view.peutFaireAppel && <AppealForm entityType={entityType} entityId={entityId} />}
     </>
   );
+  const motifEtReprise = <>{motif}{reprise}</>;
 
   // L'ORDRE DE DÉPENSE émis à l'issue d'un accord global — commun aux deux rendus.
   const ordre = view.outcome?.expenseOrder ? (
@@ -331,19 +319,7 @@ export function WorkflowPanel({ entityType, entityId, view, compact = false, sui
 
   if (compact) {
     // ── LA FRISE HORIZONTALE : la demande déposée, les étapes de SON parcours, puis ce que la page ajoute. ──
-    const creation = view.events.find((e) => e.action === "CREATE");
-    const quand = (e: WorkflowEventView | undefined) => (e ? [jourCourt(e.createdAt), nomCourt(e.actorName)].filter(Boolean).join(" · ") : null);
-    const frise: EtapeDeFrise[] = [
-      ...(creation ? [{ cle: "__demande__", titre: "Demande", detail: quand(creation), etat: "done" as const }] : []),
-      ...view.steps.map((s): EtapeDeFrise => {
-        const fait = [...view.events].reverse().find((e) => e.stepTitle === s.title && GESTES_D_ETAPE.has(e.action));
-        const detail = s.state === "done" || s.state === "rejected" ? quand(fait)
-          : s.state === "current" ? (view.assigneeName ?? acteurDe(s))
-            : acteurDe(s);
-        return { cle: s.slug, titre: s.title, detail, etat: s.state };
-      }),
-      ...suite,
-    ];
+    const frise = friseDuCircuit(view, suite);
 
     // ── LA PHRASE « état — chez qui », et ce qui vient ensuite (la page peut la dire mieux : `statut`). ──
     const courante = view.steps.find((s) => s.state === "current") ?? null;
@@ -360,6 +336,18 @@ export function WorkflowPanel({ entityType, entityId, view, compact = false, sui
             : view.status === "REJECTED" ? { phrase: "Refusée", ton: "refus" }
               : { phrase: st.label, ton: "neutre" };
     const s = statut ?? parDefaut;
+
+    // LES GESTES SEULS (carte « À vous ») : ni frise ni phrase de statut — la fiche les dit au-dessus.
+    if (partie === "gestes") {
+      return (
+        <div className="space-y-3">
+          {!mode && boutons}
+          {mode && formulaire && <div className="rounded-lg border border-border bg-card p-3 text-foreground">{formulaire}</div>}
+          {gestes}
+          {motifEtReprise}
+        </div>
+      );
+    }
 
     return (
       <div className="space-y-3">
@@ -390,9 +378,9 @@ export function WorkflowPanel({ entityType, entityId, view, compact = false, sui
               {s.phrase}
               {s.ensuite && <span className="block text-xs font-normal opacity-90">Ensuite : {s.ensuite}</span>}
             </p>
-            {!mode && boutons}
+            {partie === "tout" && !mode && boutons}
           </div>
-          {mode && formulaire && <div className="mt-3 rounded-lg border border-border bg-card p-3 text-foreground">{formulaire}</div>}
+          {partie === "tout" && mode && formulaire && <div className="mt-3 rounded-lg border border-border bg-card p-3 text-foreground">{formulaire}</div>}
         </div>
 
         {gestes}
@@ -431,7 +419,7 @@ export function WorkflowPanel({ entityType, entityId, view, compact = false, sui
                 </div>
 
                 {/* Action disponible à l'étape courante */}
-                {a && a.slug === s.slug && (
+                {a && a.slug === s.slug && partie !== "frise" && (
                   <div className="mt-3 rounded-lg border border-border bg-secondary/30 p-2.5 sm:p-3">
                     {!mode ? boutons : formulaire}
                   </div>
@@ -476,7 +464,7 @@ export function WorkflowPanel({ entityType, entityId, view, compact = false, sui
         </div>
       )}
 
-      {view.peutRetirer && <WithdrawForm entityType={entityType} entityId={entityId} />}
+      {view.peutRetirer && partie !== "frise" && <WithdrawForm entityType={entityType} entityId={entityId} />}
 
       {/* Historique — visible des spectateurs privilégiés (Super Admin, Direction /
           Directeur des opérations, National Sales, Direction Marketing). L'avis et le

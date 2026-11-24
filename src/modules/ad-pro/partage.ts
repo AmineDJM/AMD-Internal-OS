@@ -11,6 +11,7 @@
  */
 
 export { attachHint, canAttachToAdPro, isOwnBusiness } from "./domaine/attachments";
+export { barreDesEtapes } from "./domaine/barre-etapes";
 export { beneficiaireDuPaiement, gesteVisaPoste, memePrestataire } from "./domaine/bc-poste";
 export { compteursCentre, type FormeBC, type FormePorte, type LigneCentre, REFUS_BC_CENTRE_AD_PRO, REFUS_CENTRE_AD_PRO, siegeAuCentreAdPro, trierCentre } from "./domaine/centre";
 export { bilanCloture, type BilanCloture, etatPostesSponsoring, LIBELLE_QUI_CLOTURE, peutCloturer, quiCloture, type QuiCloture, refusCloture } from "./domaine/cloture-sponsoring";

@@ -1,7 +1,7 @@
 import { BlocHistorique } from "@/modules/ad-pro/ecrans/bloc-historique";
 import { demandeurAfficheDe } from "@/lib/budget-marketing/integration-serveur";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Gavel } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { userCan, hasGlobalView, hasRole, peutUtiliserAssistantIA, scopeSponsoring } from "@/lib/rbac";
 import { SuggestionsDossier } from "@/modules/assistant-ia/ecrans/suggestions-dossier";
 import { canAccessEntity } from "@/lib/entity-access";
@@ -10,15 +10,16 @@ import { getWorkflowForEntity } from "@/lib/queries/workflow";
 import { MissionAssignmentsCard } from "@/components/missions/mission-assignments-card";
 import { prisma } from "@/lib/prisma";
 import { toNumber, formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { PageHeader } from "@/components/shared/page-header";
 import { MenuDossier } from "@/components/shared/menu-dossier";
 import type { DocItem } from "@/components/documents/document-list";
-import { AD_PRO_DOC_CATEGORIES, categoriesDuDepotDeLaDemande, canAttachToAdPro, attachHint, breakdown, canEditAdProRequest, isAdProDecided, siegeAuCentreAdPro, bilanCloture, etatPostesSponsoring, peutCloturer, quiCloture as quiClotureDe, LIBELLE_QUI_CLOTURE } from "@/modules/ad-pro/partage";
+import { AD_PRO_DOC_CATEGORIES, categoriesDuDepotDeLaDemande, canAttachToAdPro, attachHint, breakdown, canEditAdProRequest, isAdProDecided, bilanCloture, etatPostesSponsoring, peutCloturer, quiCloture as quiClotureDe, LIBELLE_QUI_CLOTURE, barreDesEtapes } from "@/modules/ad-pro/partage";
 import { onlyofficeConfigured } from "@/lib/onlyoffice";
-import { SPONSORING_STATUS, SPONSORING_NATURE, PRIORITY } from "@/lib/labels";
+import { SPONSORING_STATUS, SPONSORING_NATURE, PRIORITY, ROLE_LABELS } from "@/lib/labels";
 import { WorkflowPanel, WithdrawForm, HistoriqueDuCircuit, type EtapeDeFrise, type StatutDeLaDemande } from "@/components/workflow/workflow-panel";
+import { circuitPourLaBarre } from "@/lib/workflow/frise-circuit";
+import { resumeDuCircuit } from "@/lib/workflow/resume-circuit";
 import { AppealPanel } from "./decision-panel";
 import { ThirdPartyButton } from "./third-party-button";
 import { InvolvementConversations } from "@/modules/ad-pro/ecrans/involvement-conversations";
@@ -28,10 +29,10 @@ import { peutSupprimerUneDemandeAdPro, loadAdProItems, adProBudgetOptions, conte
 import { promoMaterialOptions } from "@/modules/ad-pro/actions-postes";
 import { AdProItemsPanel } from "@/modules/ad-pro/ecrans/items-panel";
 import { PiecesLegalDeLaDemande } from "@/modules/ad-pro/ecrans/pieces-legal-demande";
-import { CarteDetailsDemande } from "@/modules/ad-pro/ecrans/pieces-jointes-demande";
-import { Faits, Fait, BandeauArgent, Chiffre, IntertitrePostes, CarteTracabilite } from "@/modules/ad-pro/ecrans/carte-demande";
-import { SectionRepliable, Sections } from "@/components/shared/section-repliable";
-import { resumeDuCircuit } from "@/lib/workflow/resume-circuit";
+import { Faits, Fait, BandeauArgent, Chiffre, SectionTracabilite } from "@/modules/ad-pro/ecrans/carte-demande";
+import { BarreEtapes, CarteAVous, CarteLaDemande, CartePostes, PlusDInformations, SectionDeclaration, SectionPieces, ligneDeLaDemande, type GesteAVous } from "@/modules/ad-pro/ecrans/fiche";
+import { droitsDesPostes, gesteDuCircuit, gesteDeLaDeclaration, gestesDesPostes } from "@/modules/ad-pro/ecrans/fiche-gestes";
+import { SectionRepliable } from "@/components/shared/section-repliable";
 import { EspaceDiscussion } from "@/modules/ad-pro/ecrans/espace-discussion";
 import { AdProTransferButton } from "@/modules/ad-pro/ecrans/transfer-button";
 import { AdProEditButton } from "@/modules/ad-pro/ecrans/edit-request-button";
@@ -55,7 +56,7 @@ export default async function SponsoringDetailPage(props: { params: Promise<{ id
   // qu'une demande inexistante, pour ne pas confirmer qu'un identifiant deviné existe.
   const req = await prisma.sponsoringRequest.findFirst({
     where: { AND: [{ id: params.id }, scopeSponsoring(user)] },
-    include: { requester: { select: { name: true } } },
+    include: { requester: { select: { name: true, role: true } } },
   });
   if (!req) notFound();
 
@@ -201,27 +202,33 @@ export default async function SponsoringDetailPage(props: { params: Promise<{ id
           ? { phrase: "Transférée vers un autre module", ton: "neutre" }
           : null;
 
-  // LES GESTES PROPRES AU SPONSORING, rangés avec ceux de l'étape : la validation finale (et la réouverture), l'appel.
+  // LES GESTES PROPRES AU SPONSORING : la validation finale (et la réouverture), l'appel. Quand c'est à la personne qui
+  // regarde d'agir MAINTENANT (clôturer une demande prête, faire appel d'un refus), ils vont dans la carte « À vous » ; sinon
+  // ils restent avec le circuit détaillé, dans « Plus d'informations » — jamais aux deux endroits.
+  const clotureAVous = peutAgirSurLaCloture && enPostes && bilan.cloturable;
+  const appelAVous = canAppeal && req.status === "REFUSED";
+  const panneauCloture = (req.status !== "CLOSED" || etatPostes.closParLaCloture) ? (
+    <ClosurePanel
+      id={req.id}
+      statut={req.status}
+      bilan={bilan}
+      peutAgir={peutAgirSurLaCloture}
+      quiCloture={LIBELLE_QUI_CLOTURE[qui]}
+      cloture={etatPostes.closParLaCloture && req.closedAt
+        ? {
+            le: formatDateTime(req.closedAt),
+            par: closer?.name ?? null,
+            note: req.closingNote,
+            montant: req.amountGranted != null ? toNumber(req.amountGranted) : null,
+          }
+        : null}
+    />
+  ) : null;
+  const panneauAppel = canAppeal ? <AppealPanel id={req.id} etape={etapeQuiTranche} /> : null;
   const gestes = (
     <>
-      {(req.status !== "CLOSED" || etatPostes.closParLaCloture) && (
-        <ClosurePanel
-          id={req.id}
-          statut={req.status}
-          bilan={bilan}
-          peutAgir={peutAgirSurLaCloture}
-          quiCloture={LIBELLE_QUI_CLOTURE[qui]}
-          cloture={etatPostes.closParLaCloture && req.closedAt
-            ? {
-                le: formatDateTime(req.closedAt),
-                par: closer?.name ?? null,
-                note: req.closingNote,
-                montant: req.amountGranted != null ? toNumber(req.amountGranted) : null,
-              }
-            : null}
-        />
-      )}
-      {canAppeal && <AppealPanel id={req.id} etape={etapeQuiTranche} />}
+      {!clotureAVous && panneauCloture}
+      {!appelAVous && panneauAppel}
     </>
   );
 
@@ -229,8 +236,6 @@ export default async function SponsoringDetailPage(props: { params: Promise<{ id
   const ventilation = breakdown(items, req.amountGranted != null ? toNumber(req.amountGranted) : null);
   const accorde = fmt(req.amountGranted);
   const medecin = [req.doctor, req.specialty].filter(Boolean).join(" · ");
-  // CE QUE LES SECTIONS DISENT FERMÉES (17/11/2026).
-  const aVousCircuit = Boolean(workflow?.action) || (peutAgirSurLaCloture && enPostes && bilan.cloturable) || canAppeal;
   // LE DÉLÉGUÉ MÉDICAL SUIT SANS LES MONTANTS DES POSTES (15/11/2026 ; recette du 21/11) : il garde ce qu'il a demandé et
   // suggéré, pas ce qui est affecté ni accordé.
   const suiviSimple = contexte.suiviSimple;
@@ -240,6 +245,39 @@ export default async function SponsoringDetailPage(props: { params: Promise<{ id
     !suiviSimple && accorde ? `accordé ${accorde}` : null,
   ].filter(Boolean).join(" · ");
 
+  // ── LA FICHE SIMPLIFIÉE (maquette « Fiche Ad & Pro » validée, 24/11/2026) : la barre d'étapes, la carte « À vous », la
+  // demande, le tableau des postes, puis « Plus d'informations ». Mêmes données, mêmes composants, mêmes gestes. ──
+  const droitsPostes = droitsDesPostes(user, {
+    canEdit: userCan(user, "SPONSORING", "CREATE") || userCan(user, "SPONSORING", "UPDATE") || canDirection,
+    canAllocate: canDirection, fige: etatPostes.clos, decided, contexte,
+  });
+  const postes = gestesDesPostes(items, droitsPostes);
+  const suitePostes = suite.find((x) => x.cle === "__postes__");
+  const suiteFinale = suite.find((x) => x.cle === "__validation_finale__");
+  const barre = barreDesEtapes({
+    nature: "SPONSORING",
+    circuit: circuitPourLaBarre(workflow),
+    deposee: { detail: formatDate(req.requestDate, { day: "numeric", month: "short" }) },
+    postes: suitePostes ? {
+      ouverts: suitePostes.etat === "current", termines: suitePostes.etat === "done",
+      aVous: postes.posteAVous, n: items.length, chez: quiCourt,
+    } : null,
+    validationFinale: suiteFinale ? {
+      etat: suiteFinale.etat, aVous: clotureAVous,
+      detail: suiteFinale.etat === "done" ? suiteFinale.detail : `chez ${quiCourt}`,
+    } : null,
+    declaration: declaration ? { etat: declaration.etat, detail: declaration.detail, aVous: declaration.aVous } : null,
+  });
+  const panneauDeclaration = declaration ? <EtapeDeclarationAdPro etape={declaration} sourceType="SPONSORING" sourceId={req.id} /> : null;
+  const aVous = [
+    gesteDuCircuit("SPONSORING", req.id, workflow, { suite, statut: statutDemande }),
+    clotureAVous && panneauCloture ? { cle: "cloture", titre: "valider et clôturer la demande", contenu: panneauCloture } : null,
+    appelAVous && panneauAppel ? { cle: "appel", titre: "faire appel de la décision", contenu: panneauAppel } : null,
+    ...postes.gestes,
+    gesteDeLaDeclaration(declaration, panneauDeclaration),
+  ].filter((g): g is GesteAVous => g !== null);
+  const demandeur = req.requester?.name ?? (await demandeurAfficheDe("SPONSORING", req.id));
+
   return (
     <div className="space-y-5">
       <BackLink href="/sponsoring">
@@ -248,19 +286,17 @@ export default async function SponsoringDetailPage(props: { params: Promise<{ id
       {/* J12 : à l'ouverture du dossier, ce que les veilleurs de l'Assistant IA ont constaté ici. */}
       {!user.impersonatedBy && peutUtiliserAssistantIA(user) && <SuggestionsDossier entiteType="SPONSORING" entiteId={req.id} />}
 
+      {/* L'EN-TÊTE : une ligne grise, UN badge d'état (l'appel se dit dans la ligne), les gestes secondaires dans « ⋯ ». */}
       <PageHeader
         title={req.institution}
-        description={`${req.reference} · demandé par ${req.requester?.name ?? (await demandeurAfficheDe("SPONSORING", req.id)) ?? "—"} le ${formatDate(req.requestDate)}`}
+        description={ligneDeLaDemande({
+          reference: req.reference, par: demandeur,
+          role: req.requester?.role ? ROLE_LABELS[req.requester.role] ?? null : null,
+          le: req.requestDate,
+          suite: req.appealCount > 0 ? `appel ×${req.appealCount}${etapeQuiTranche ? ` (« ${etapeQuiTranche} »)` : ""}` : null,
+        })}
       >
         <StatusBadge map={SPONSORING_STATUS} value={req.status} />
-        {req.appealCount > 0 && (
-          <Badge
-            tone="purple" dot={false}
-            title={`Réexamen par l'étape qui a tranché${etapeQuiTranche ? ` (« ${etapeQuiTranche} »)` : ""}`}
-          >
-            <Gavel className="mr-1 h-3 w-3" /> Appel ×{req.appealCount}
-          </Badge>
-        )}
         {menu && (
           <MenuDossier>
             {canEditRequest && editValues && (
@@ -276,86 +312,24 @@ export default async function SponsoringDetailPage(props: { params: Promise<{ id
 
       <BlocHistorique user={user} type="SPONSORING" id={req.id} />
 
-      {/* LA DEMANDE, EN UNE CARTE (Direction, 07/10) — « Détails de la demande », « Postes de la demande » et « Circuit de
-          validation » fusionnés : la frise et la phrase de statut (avec les gestes de l'étape courante), les faits une fois,
-          l'argent en un bandeau, la description et les pièces jointes repliées, puis les postes. « + Pièce jointe » en
-          haut à droite ; la chaîne d'achat (devis → BC → facture) vit sur chaque poste. */}
-      <CarteDetailsDemande
-        titre="La demande"
-        piecesRepliees
-        contentClassName="space-y-3"
-        pieces={{
-          entityType: "SPONSORING", entityId: req.id, documents: docItems,
-          peutDeposer: canUpload, motif: canUpload ? null : (uploadHint ?? null),
-          categories: categoriesDuDepotDeLaDemande(AD_PRO_DOC_CATEGORIES),
-          canDelete, canRename: canUpload, canEdit: onlyofficeConfigured() && canUpload,
-          path: `/sponsoring/${req.id}`,
-        }}
-        entete={
-          // LA DEMANDE EN SECTIONS (17/11/2026) : fermées sur une ligne qui dit l'essentiel ; ouvertes d'office quand la
-          // personne qui regarde y a un geste à faire (« À vous »).
-          <div>
-            <SectionRepliable titre="Circuit de validation" resume={statutDemande?.phrase ?? resumeDuCircuit(workflow)} aVous={aVousCircuit}>
-              {workflow ? (
-                <WorkflowPanel entityType="SPONSORING" entityId={req.id} view={workflow} compact suite={suite} statut={statutDemande} gestes={gestes} />
-              ) : (
-                <div className="space-y-3">
-                  <p className="text-sm text-muted-foreground">Circuit indisponible.</p>
-                  {gestes}
-                </div>
-              )}
-            </SectionRepliable>
-            <SectionRepliable titre="Le sponsoring" resume={[req.type, req.city, medecin].filter(Boolean).join(" · ")}>
-              <div className="space-y-3">
-                <Faits>
-                  <Fait label="Type" valeur={req.type} />
-                  <Fait label="Ville" valeur={req.city} />
-                  <Fait label="Produit" valeur={req.product} />
-                  <Fait label="Nature" valeur={req.nature ? SPONSORING_NATURE[req.nature] : null} />
-                  <Fait label="Médecin" valeur={medecin} />
-                  <Fait label="Importance" valeur={PRIORITY[req.strategicImportance]?.label ?? req.strategicImportance} />
-                  <Fait label="Référent Direction Marketing" valeur={pmUser?.name} />
-                  {req.validatedBy && <Fait label="Validé par" valeur={req.validatedBy} />}
-                </Faits>
-                {(req.description || req.comments) && (
-                  <div className="max-w-prose space-y-2 text-sm">
-                    {req.description && <p className="whitespace-pre-line [overflow-wrap:anywhere]">{req.description}</p>}
-                    {req.comments && (
-                      <p className="whitespace-pre-line [overflow-wrap:anywhere]"><span className="font-medium">Appréciation du délégué : </span>{req.comments}</p>
-                    )}
-                  </div>
-                )}
-              </div>
-            </SectionRepliable>
-            <SectionRepliable titre="Montants" resume={resumeMontants}>
-              <BandeauArgent>
-                <Chiffre label="Demandé (médecin)" valeur={fmt(req.amountRequested) ?? "—"} />
-                <Chiffre label="Suggéré (délégué)" valeur={fmt(req.amountProposed) ?? "—"} />
-                {!suiviSimple && (<>
-                <Chiffre
-                  label="Affecté aux postes"
-                  valeur={formatCurrency(ventilation.totalRequestedDzd)}
-                  note={ventilation.additionalDzd > 0
-                    ? `dont ${formatCurrency(ventilation.additionalDzd)} en rallonge`
-                    : `${ventilation.itemCount} poste${ventilation.itemCount > 1 ? "s" : ""}`}
-                  ton={ventilation.additionalDzd > 0 ? "attente" : undefined}
-                />
-                <Chiffre
-                  label={etatPostes.closParLaCloture ? "Accordé (clôture)" : "Accordé"}
-                  valeur={accorde ?? (regleDeLaTenue ? "À la validation finale" : "—")}
-                  discret={!accorde}
-                />
-                </>)}
-              </BandeauArgent>
-            </SectionRepliable>
-          </div>
-        }
-      >
-        {/* LES POSTES DE LA DEMANDE — « dans les postes on voit tous les postes relatifs à cette demande » (§118.151). Le
-            premier est le sponsoring lui-même, né à la pré-validation de la tenue, en attente de la Direction Marketing (direct :
-            versé à l'association ; indirect : prise en charge — recette 24/11/2026) ; les autres s'ajoutent ensuite. Avant la
-            pré-validation, la liste est vide. Leur bandeau propre a rejoint celui de la carte. */}
-        <IntertitrePostes n={items.length} />
+      <BarreEtapes etapes={barre} />
+      <CarteAVous gestes={aVous} />
+
+      <CarteLaDemande
+        faits={[
+          { label: "Médecin", valeur: medecin },
+          { label: "Ville", valeur: req.city },
+          { label: "Type", valeur: req.type },
+          { label: "Produit", valeur: req.product },
+        ]}
+        description={req.description}
+      />
+
+      {/* LES POSTES DE LA DEMANDE — « dans les postes on voit tous les postes relatifs à cette demande » (§118.151). Le
+          premier est le sponsoring lui-même, né à la pré-validation de la tenue, en attente de la Direction Marketing (direct :
+          versé à l'association ; indirect : prise en charge — recette 24/11/2026) ; les autres s'ajoutent ensuite. Avant la
+          pré-validation, la liste est vide. Un tableau ; « Ouvrir » déplie la carte complète du poste. */}
+      <CartePostes>
         <AdProItemsPanel
           parent="SPONSORING"
           parentId={req.id}
@@ -364,34 +338,80 @@ export default async function SponsoringDetailPage(props: { params: Promise<{ id
           decided={decided}
           tardif={etatPostes.tardif}
           fige={etatPostes.clos}
-          canEdit={userCan(user, "SPONSORING", "CREATE") || userCan(user, "SPONSORING", "UPDATE") || canDirection}
+          canEdit={droitsPostes.canEdit}
           canAllocate={canDirection}
           promoOptions={promoOptions}
           budgetOptions={budgetOptions}
           materiel={materielStock}
-          canIssueOrder={userCan(user, "FINANCES", "UPDATE") || userCan(user, "FINANCES", "VALIDATE")}
-          canViserBC={siegeAuCentreAdPro(user)}
+          canIssueOrder={droitsPostes.canIssueOrder}
+          canViserBC={droitsPostes.canViserBC}
           contexte={contexte}
           resume={false}
+          tableau
         />
-      </CarteDetailsDemande>
+      </CartePostes>
 
-      {/* LES PIÈCES LEGAL RATTACHÉES À LA DEMANDE ELLE-MÊME, hors postes — d'avant les postes, ou qui ne sont pas des achats. */}
-      <PiecesLegalDeLaDemande spectateur={user} entityType="SPONSORING" entityId={req.id} />
+      {/* LA DÉCLARATION (information scientifique) — seulement à SON étape (`etapeDeclaration` : plus « à venir ») ; avant, la
+          barre la montre grisée. Quand c'est à la personne qui regarde, elle est dans « À vous ». */}
+      <SectionDeclaration etape={declaration}>{panneauDeclaration}</SectionDeclaration>
 
-      {/* LE RESTE DE LA FICHE, REPLIÉ (17/11/2026) : médecins concernés, discussion, accompagnants, information médicale,
-          traçabilité — une ligne chacun (recette 24/11/2026 : les médecins rejoignent les sections ; l'information médicale
-          vient en dernier, juste avant la traçabilité). */}
-      <Sections>
+      {/* PLUS D'INFORMATIONS, REPLIÉ : tout le reste de la fiche, chaque partie avec son composant d'avant. */}
+      <PlusDInformations resume={resumeMontants || null}>
+        <SectionRepliable titre="Montants et budget" resume={resumeMontants}>
+          <BandeauArgent>
+            <Chiffre label="Demandé (médecin)" valeur={fmt(req.amountRequested) ?? "—"} />
+            <Chiffre label="Suggéré (délégué)" valeur={fmt(req.amountProposed) ?? "—"} />
+            {!suiviSimple && (<>
+            <Chiffre
+              label="Affecté aux postes"
+              valeur={formatCurrency(ventilation.totalRequestedDzd)}
+              note={ventilation.additionalDzd > 0
+                ? `dont ${formatCurrency(ventilation.additionalDzd)} en rallonge`
+                : `${ventilation.itemCount} poste${ventilation.itemCount > 1 ? "s" : ""}`}
+              ton={ventilation.additionalDzd > 0 ? "attente" : undefined}
+            />
+            <Chiffre
+              label={etatPostes.closParLaCloture ? "Accordé (clôture)" : "Accordé"}
+              valeur={accorde ?? (regleDeLaTenue ? "À la validation finale" : "—")}
+              discret={!accorde}
+            />
+            </>)}
+          </BandeauArgent>
+        </SectionRepliable>
+        <SectionRepliable titre="Détails de la demande" resume={[req.nature ? SPONSORING_NATURE[req.nature] : null, pmUser?.name].filter(Boolean).join(" · ")}>
+          <div className="space-y-3">
+            <Faits>
+              <Fait label="Nature" valeur={req.nature ? SPONSORING_NATURE[req.nature] : null} />
+              <Fait label="Importance" valeur={PRIORITY[req.strategicImportance]?.label ?? req.strategicImportance} />
+              <Fait label="Référent Direction Marketing" valeur={pmUser?.name} />
+              {req.validatedBy && <Fait label="Validé par" valeur={req.validatedBy} />}
+            </Faits>
+            {req.comments && (
+              <p className="max-w-prose whitespace-pre-line text-sm [overflow-wrap:anywhere]"><span className="font-medium">Appréciation du délégué : </span>{req.comments}</p>
+            )}
+          </div>
+        </SectionRepliable>
         {/* LES MÉDECINS CONCERNÉS (Direction, 08/10) — choisis dans l'annuaire : le lien que lisent le cockpit marketing et la fiche du praticien. */}
         <MedecinsConcernesSection user={user} entityType="SPONSORING" entityId={req.id} />
+        <SectionPieces
+          pieces={{
+            entityType: "SPONSORING", entityId: req.id, documents: docItems,
+            peutDeposer: canUpload, motif: canUpload ? null : (uploadHint ?? null),
+            categories: categoriesDuDepotDeLaDemande(AD_PRO_DOC_CATEGORIES),
+            canDelete, canRename: canUpload, canEdit: onlyofficeConfigured() && canUpload,
+            path: `/sponsoring/${req.id}`,
+          }}
+        >
+          {/* LES PIÈCES LEGAL RATTACHÉES À LA DEMANDE ELLE-MÊME, hors postes — d'avant les postes, ou qui ne sont pas des achats. */}
+          <PiecesLegalDeLaDemande spectateur={user} entityType="SPONSORING" entityId={req.id} />
+        </SectionPieces>
         <SectionRepliable titre="Discussion" sansCadre>
           <EspaceDiscussion>
             <AdProDiscussionCard entityType="SPONSORING" entityId={req.id} user={user} />
             <InvolvementConversations threads={involvementThreads} currentUserId={user.id} canManage={hasGlobalView(user)} />
           </EspaceDiscussion>
         </SectionRepliable>
-        <SectionRepliable titre="Accompagnants & délégués" compte={missions.length} sansCadre>
+        <SectionRepliable titre="Accompagnants et délégués" compte={missions.length} sansCadre>
           <MissionAssignmentsCard
             entityType="SPONSORING"
             entityId={req.id}
@@ -402,19 +422,24 @@ export default async function SponsoringDetailPage(props: { params: Promise<{ id
             path={`/sponsoring/${req.id}`}
           />
         </SectionRepliable>
-        {declaration && (
-          <SectionRepliable titre={declaration.titre} resume={declaration.detail ?? undefined} aVous={declaration.aVous}>
-            <EtapeDeclarationAdPro etape={declaration} sourceType="SPONSORING" sourceId={req.id} />
-          </SectionRepliable>
-        )}
-        <SectionRepliable titre="Traçabilité" resume={`créée le ${formatDateTime(req.createdAt)}`} sansCadre>
-          <CarteTracabilite
-            creeeLe={formatDateTime(req.createdAt)}
-            modifieeLe={formatDateTime(req.updatedAt)}
-            historique={user.role === "SUPER_ADMIN" && workflow && workflow.events.length > 0 ? <HistoriqueDuCircuit events={workflow.events} /> : null}
-          />
+        {/* LE CIRCUIT DÉTAILLÉ : la frise complète (circuit, postes, validation finale, déclaration) et la phrase de statut —
+            sans les gestes, qui sont dans « À vous » ; la clôture et l'appel y restent quand ce n'est pas leur moment. */}
+        <SectionRepliable titre="Circuit de validation détaillé" resume={statutDemande?.phrase ?? resumeDuCircuit(workflow)}>
+          {workflow ? (
+            <WorkflowPanel entityType="SPONSORING" entityId={req.id} view={workflow} compact partie="frise" suite={suite} statut={statutDemande} gestes={gestes} />
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">Circuit indisponible.</p>
+              {gestes}
+            </div>
+          )}
         </SectionRepliable>
-      </Sections>
+        <SectionTracabilite
+          creeeLe={formatDateTime(req.createdAt)}
+          modifieeLe={formatDateTime(req.updatedAt)}
+          historique={user.role === "SUPER_ADMIN" && workflow && workflow.events.length > 0 ? <HistoriqueDuCircuit events={workflow.events} /> : null}
+        />
+      </PlusDInformations>
     </div>
   );
 }

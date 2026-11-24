@@ -1,7 +1,7 @@
 import * as React from "react";
-import { ChevronRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { SectionRepliable } from "@/components/shared/section-repliable";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -51,27 +51,6 @@ export function Chiffre({ label, valeur, note, ton, discret = false }: {
   );
 }
 
-/** Ce qu'on lit à la demande : replié par défaut. */
-export function Repli({ titre, children }: { titre: string; children: React.ReactNode }) {
-  return (
-    <details className="group border-t border-border/70 pt-3">
-      <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
-        <ChevronRight className="h-3.5 w-3.5 shrink-0 transition-transform group-open:rotate-90" /> {titre}
-      </summary>
-      <div className="mt-2 max-w-prose space-y-2 text-sm">{children}</div>
-    </details>
-  );
-}
-
-/** L'intertitre des postes, dans la carte. */
-export function IntertitrePostes({ n }: { n: number }) {
-  return (
-    <h3 className="border-t border-border/70 pt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-      Postes ({n})
-    </h3>
-  );
-}
-
 /**
  * TRAÇABILITÉ — créée le, modifiée le ; et, pour le Super Admin seulement, l'historique du circuit (Direction, 07/10).
  * La page décide qui reçoit `historique`.
@@ -97,5 +76,14 @@ export function CarteTracabilite({ creeeLe, modifieeLe, historique }: {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/** « TRAÇABILITÉ ET HISTORIQUE », la section de « Plus d'informations » (24/11/2026) : la carte ci-dessus, repliée. */
+export function SectionTracabilite({ creeeLe, modifieeLe, historique }: { creeeLe: string; modifieeLe: string; historique?: React.ReactNode }) {
+  return (
+    <SectionRepliable titre="Traçabilité et historique" resume={`créée le ${creeeLe}`} sansCadre>
+      <CarteTracabilite creeeLe={creeeLe} modifieeLe={modifieeLe} historique={historique} />
+    </SectionRepliable>
   );
 }

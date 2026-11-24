@@ -59,8 +59,14 @@ async function capture(page: Page, nom: string, cible?: ReturnType<Page["locator
 }
 
 /** La carte d'un poste — désignée par son menu « Autres actions ». */
-function carte(page: Page, libelle: string) {
-  return page.locator("li").filter({ has: page.getByRole("button", { name: `Autres actions — ${libelle}` }) }).last();
+async function carte(page: Page, libelle: string) {
+  const c = page.locator("li").filter({ has: page.getByRole("button", { name: `Autres actions — ${libelle}` }) }).last();
+  // LE TABLEAU DES POSTES (fiche simplifiée, 24/11/2026) : la carte d'un poste se déplie depuis sa ligne, « Ouvrir ».
+  if ((await c.count()) === 0) {
+    const ouvrir = page.getByRole("button", { name: `Ouvrir — ${libelle}`, exact: true });
+    if (await ouvrir.count()) await ouvrir.first().click();
+  }
+  return c;
 }
 
 /** Attendre qu'un fait soit écrit en base — l'écran a pu répondre avant le rafraîchissement. */
@@ -142,7 +148,7 @@ test("POSTE : demander le BC, en corriger le message, puis le retirer avec son m
   const { id } = await poste("Brochures");
   await login(page, KAM_EMAIL);
   await aller(page, `/events/${eventId}`);
-  const c = carte(page, `${P}Brochures`);
+  const c = await carte(page, `${P}Brochures`);
   await c.getByRole("button", { name: "Demander l'émission du BC" }).click();
   await c.getByRole("textbox").fill("Réf. devis DV-12, 2 000 brochures.");
   // Plusieurs assistantes de direction dans la base : la plateforme n'en choisit aucune à la place du demandeur.
@@ -180,7 +186,7 @@ test("UN BC ÉTABLI DANS LEGAL, NON SIGNÉ : la carte le dit, et « Annuler la d
   });
   await login(page, KAM_EMAIL);
   await aller(page, `/events/${eventId}`);
-  const c = carte(page, `${P}Kakémonos`);
+  const c = await carte(page, `${P}Kakémonos`);
   await expect(c.getByText(`BC établi dans Legal : ${P}BC-1`)).toBeVisible();
   await c.getByRole("button", { name: `Autres actions — ${P}Kakémonos` }).click();
   await expect(page.getByRole("menuitem", { name: "Modifier la demande de BC" }), "le message se corrige encore").toBeVisible();

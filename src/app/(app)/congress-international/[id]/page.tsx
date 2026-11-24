@@ -11,10 +11,16 @@ import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { SupprimerDemandeAdPro } from "@/modules/ad-pro/ecrans/supprimer-demande";
 import { type DocItem } from "@/components/documents/document-list";
-import { CONGRESS_REQUEST_STATUS } from "@/lib/labels";
+import { CONGRESS_REQUEST_STATUS, ROLE_LABELS } from "@/lib/labels";
 import { CongressDetailView, AccompagnantsDeLaPriseEnCharge } from "../congress-detail-view";
-import { SectionRepliable, Sections } from "@/components/shared/section-repliable";
+import { SectionRepliable } from "@/components/shared/section-repliable";
+import { circuitPourLaBarre } from "@/lib/workflow/frise-circuit";
 import { resumeDuCircuit } from "@/lib/workflow/resume-circuit";
+import { WithdrawForm } from "@/components/workflow/workflow-panel";
+import { MenuDossier } from "@/components/shared/menu-dossier";
+import { ThirdPartyInvolveButton } from "@/modules/ad-pro/ecrans/third-party-involve";
+import { BarreEtapes, CarteAVous, PlusDInformations, SectionDeclaration, ligneDeLaDemande, type GesteAVous } from "@/modules/ad-pro/ecrans/fiche";
+import { droitsDesPostes, gesteDuCircuit, gesteDeLaDeclaration, gestesDesPostes } from "@/modules/ad-pro/ecrans/fiche-gestes";
 import { etapeDeclaration } from "@/lib/medical-info/etape-ad-pro";
 import { EtapeDeclarationAdPro } from "../../information-medicale/etape-declaration-ad-pro";
 import { CartePriseEnCharge } from "@/modules/ad-pro/ecrans/prise-en-charge/carte-prise-en-charge";
@@ -22,7 +28,7 @@ import { getInvolvementThreads } from "@/lib/queries/involvement";
 import { CarePanel } from "@/modules/ad-pro/ecrans/prise-en-charge/care-panel";
 import { careDirectoryOptions, carePromoOptions } from "@/modules/ad-pro/actions-prise-en-charge-logistique";
 import { BoutonLivret } from "@/modules/ad-pro/ecrans/prise-en-charge/bouton-livret";
-import { peutMarquerRealisee, peutTeleverserBillet, resumeDesFiches, canEditAdProRequest, isAdProDecided, AD_PRO_DOC_CATEGORIES, categoriesDuDepotDeLaDemande, canAttachToAdPro, siegeAuCentreAdPro } from "@/modules/ad-pro/partage";
+import { peutMarquerRealisee, peutTeleverserBillet, resumeDesFiches, canEditAdProRequest, isAdProDecided, AD_PRO_DOC_CATEGORIES, categoriesDuDepotDeLaDemande, canAttachToAdPro, siegeAuCentreAdPro, barreDesEtapes } from "@/modules/ad-pro/partage";
 import { AdProTransferButton } from "@/modules/ad-pro/ecrans/transfer-button";
 import { AdProEditButton } from "@/modules/ad-pro/ecrans/edit-request-button";
 import { BackLink } from "@/components/shared/back-link";
@@ -34,7 +40,7 @@ import { PiecesLegalDeLaDemande } from "@/modules/ad-pro/ecrans/pieces-legal-dem
 import { EspaceDiscussion } from "@/modules/ad-pro/ecrans/espace-discussion";
 import { InvolvementConversations } from "@/modules/ad-pro/ecrans/involvement-conversations";
 import { promoMaterialOptions } from "@/modules/ad-pro/actions-postes";
-import { toNumber } from "@/lib/utils";
+import { formatDate, toNumber } from "@/lib/utils";
 
 // Une page qui dépend de QUI regarde ne se met jamais en cache : la même adresse rend autre chose pour le
 // demandeur, pour la Direction et pour le Super Admin en Vue exacte (voir `lib/vue-exacte.ts`).
@@ -131,21 +137,57 @@ export default async function CongressIntlDetailPage(props: { params: Promise<{ 
   // LE MAGASIN où un poste « Matériel du stock » pioche, et qui confirme après l'événement (§118.167).
   const materielStock = await contexteMaterielStock(user, "CONGRESS_INTERNATIONAL", detail.id, canAllocateItems);
 
+  // ── LE CADRE COMMUN DES FICHES (maquette « Fiche Ad & Pro » validée, 24/11/2026) : la barre d'étapes et la carte « À
+  // vous ». Le bloc des professionnels et « Ce que couvre la prise en charge » (`CartePriseEnCharge`) ne changent pas. ──
+  const postesDecides = ["APPROVED", "COMPLETED"].includes(intl?.requestStatus ?? "");
+  const postes = gestesDesPostes(items, droitsDesPostes(user, {
+    canEdit: userCan(user, "CONGRESS_INTERNATIONAL", "CREATE") || userCan(user, "CONGRESS_INTERNATIONAL", "UPDATE") || canAllocateItems,
+    canAllocate: canAllocateItems, decided: postesDecides, contexte,
+  }));
+  const panneauDeclaration = declaration ? <EtapeDeclarationAdPro etape={declaration} sourceType="CONGRESS_INTERNATIONAL" sourceId={detail.id} /> : null;
+  const barre = barreDesEtapes({
+    nature: "CONGRESS_INTERNATIONAL",
+    circuit: circuitPourLaBarre(workflow),
+    deposee: { detail: formatDate(detail.createdAt, { day: "numeric", month: "short" }) },
+    postes: { ouverts: postesDecides && detail.requestStatus !== "COMPLETED", termines: detail.requestStatus === "COMPLETED", aVous: postes.posteAVous, n: items.length },
+    validationFinale: null,
+    declaration: declaration ? { etat: declaration.etat, detail: declaration.detail, aVous: declaration.aVous } : null,
+  });
+  const aVous = [
+    gesteDuCircuit("CONGRESS_INTERNATIONAL", detail.id, workflow),
+    ...postes.gestes,
+    gesteDeLaDeclaration(declaration, panneauDeclaration),
+  ].filter((g): g is GesteAVous => g !== null);
+  const roleDemandeur = detail.requesterId
+    ? (await prisma.user.findUnique({ where: { id: detail.requesterId }, select: { role: true } }))?.role ?? null
+    : null;
+
   return (
     <div className="space-y-5">
       <BackLink href="/congress-international">
         <ArrowLeft className="h-4 w-4" /> Prises en charge Internationales
       </BackLink>
-      <PageHeader title={detail.name} description="Demande de prise en charge — congrès international.">
+      {/* L'EN-TÊTE COMMUN DES FICHES AD & PRO (24/11/2026) : une ligne grise, UN badge d'état, et les gestes secondaires —
+          livret, corriger, impliquer, transférer, retirer, supprimer — rangés dans « ⋯ » (ils étaient à plat). */}
+      <PageHeader
+        title={detail.name}
+        description={ligneDeLaDemande({ reference: "Prise en charge — congrès international", par: detail.requester || null, role: roleDemandeur ? ROLE_LABELS[roleDemandeur] ?? null : null, le: detail.createdAt })}
+      >
         <StatusBadge map={CONGRESS_REQUEST_STATUS} value={detail.requestStatus} />
-        {peutTeleverser && <BoutonLivret scope="INTERNATIONAL" requestId={detail.id} libelle="Livret général" />}
-        {canEditRequest && editValues && (
-          <AdProEditButton kind="CONGRESS_INTERNATIONAL" id={detail.id} decided={requestDecided} values={editValues} />
-        )}
-        {hasGlobalView(user) && <AdProTransferButton from="CONGRESS_INTERNATIONAL" sourceId={detail.id} title={detail.name} />}
-        <SupprimerDemandeAdPro kind="CONGRESS_INTERNATIONAL" id={detail.id} name={detail.name} enabled={await peutSupprimerUneDemandeAdPro(user, "CONGRESS_INTERNATIONAL", detail.id)} />
+        <MenuDossier>
+          {peutTeleverser && <BoutonLivret scope="INTERNATIONAL" requestId={detail.id} libelle="Livret général" />}
+          {canEditRequest && editValues && (
+            <AdProEditButton kind="CONGRESS_INTERNATIONAL" id={detail.id} decided={requestDecided} values={editValues} />
+          )}
+          {canInvolveThirdParty && <ThirdPartyInvolveButton type={detail.type} id={detail.id} people={missionUsers} />}
+          {hasGlobalView(user) && <AdProTransferButton from="CONGRESS_INTERNATIONAL" sourceId={detail.id} title={detail.name} />}
+          {workflow?.peutRetirer && <WithdrawForm entityType="CONGRESS_INTERNATIONAL" entityId={detail.id} dansUnMenu />}
+          <SupprimerDemandeAdPro kind="CONGRESS_INTERNATIONAL" id={detail.id} name={detail.name} enabled={await peutSupprimerUneDemandeAdPro(user, "CONGRESS_INTERNATIONAL", detail.id)} />
+        </MenuDossier>
       </PageHeader>
       <BlocHistorique user={user} type="CONGRESS_INTERNATIONAL" id={detail.id} />
+      <BarreEtapes etapes={barre} />
+      <CarteAVous gestes={aVous} />
       {/* LA PRISE EN CHARGE EN UNE CARTE (Direction, 07/10) : l'événement et ses pièces jointes, un seul bandeau de chiffres,
           les professionnels, puis ce que couvre la prise en charge — trois rubriques qui se répétaient, fusionnées. */}
       <CartePriseEnCharge
@@ -199,30 +241,27 @@ export default async function CongressIntlDetailPage(props: { params: Promise<{ 
       {/* LES PIÈCES LEGAL RATTACHÉES À LA DEMANDE ELLE-MÊME, hors postes — d'avant les postes, ou qui ne sont pas des achats. */}
       <PiecesLegalDeLaDemande spectateur={user} entityType="CONGRESS_INTERNATIONAL" entityId={detail.id} />
 
-      {/* LE RESTE DE LA FICHE, REPLIÉ (17/11/2026) : médecins concernés, circuit, discussion, accompagnants, information
-          médicale — une ligne chacun ; le circuit s'ouvre seul quand la personne qui regarde y a un geste à faire (« À vous »)
-          (recette 24/11/2026 : les médecins rejoignent les sections ; l'information médicale vient en dernier). */}
-      <Sections>
+      {/* LA DÉCLARATION (information scientifique) — seulement à SON étape ; avant, la barre la montre grisée. */}
+      <SectionDeclaration etape={declaration}>{panneauDeclaration}</SectionDeclaration>
+
+      {/* PLUS D'INFORMATIONS, REPLIÉ (cadre commun des fiches, 24/11/2026) : médecins concernés, discussion, accompagnants, circuit
+          détaillé — chacun avec son composant d'avant. Le circuit y perd ses gestes : ils sont dans « À vous ». */}
+      <PlusDInformations>
         {/* LES MÉDECINS CONCERNÉS (Direction, 08/10) — choisis dans l'annuaire : le lien que lisent le cockpit marketing et la fiche du praticien. */}
         <MedecinsConcernesSection user={user} entityType="CONGRESS_INTERNATIONAL" entityId={detail.id} />
-        <SectionRepliable titre="Circuit de validation" resume={resumeDuCircuit(workflow)} aVous={Boolean(workflow?.action)}>
-          <CongressDetailView enSection detail={detail} workflow={workflow} canInvolveThirdParty={canInvolveThirdParty} entityType="CONGRESS_INTERNATIONAL" entityId={detail.id} missionUsers={missionUsers} />
-        </SectionRepliable>
         <SectionRepliable titre="Discussion" sansCadre>
           <EspaceDiscussion>
             <AdProDiscussionCard entityType="CONGRESS_INTERNATIONAL" entityId={detail.id} user={user} />
             <InvolvementConversations threads={involvementThreads} currentUserId={user.id} canManage={hasGlobalView(user)} />
           </EspaceDiscussion>
         </SectionRepliable>
-        <SectionRepliable titre="Accompagnants & délégués" compte={missions.length} sansCadre>
+        <SectionRepliable titre="Accompagnants et délégués" compte={missions.length} sansCadre>
           <AccompagnantsDeLaPriseEnCharge entityType="CONGRESS_INTERNATIONAL" entityId={detail.id} missions={missions} missionUsers={missionUsers} canManageMissions={canManageMissions} currentUserId={user.id} path={`/congress-international/${detail.id}`} />
         </SectionRepliable>
-        {declaration && (
-          <SectionRepliable titre={declaration.titre} resume={declaration.detail ?? undefined} aVous={declaration.aVous}>
-            <EtapeDeclarationAdPro etape={declaration} sourceType="CONGRESS_INTERNATIONAL" sourceId={detail.id} />
-          </SectionRepliable>
-        )}
-      </Sections>
+        <SectionRepliable titre="Circuit de validation détaillé" resume={resumeDuCircuit(workflow)}>
+          <CongressDetailView enSection partie="frise" detail={detail} workflow={workflow} canInvolveThirdParty={false} entityType="CONGRESS_INTERNATIONAL" entityId={detail.id} missionUsers={missionUsers} />
+        </SectionRepliable>
+      </PlusDInformations>
 
     </div>
   );

@@ -70,8 +70,9 @@ export function CartePorteDg({ parent, parentId, porte, signalSeul = false }: {
   }
   return (
     <div
-      className={`rounded-xl border p-3 text-sm ${ouverte ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-500/30 dark:bg-emerald-500/5" : "border-amber-300 bg-amber-50/60 dark:border-amber-500/40 dark:bg-amber-500/5"}`}
-      data-testid="porte-dg"
+      // VALIDÉE, la porte se dit sobrement (une ligne grise) ; l'ambre reste à ce qui ATTEND le DG — une vraie alerte (24/11/2026).
+      className={`rounded-xl border text-sm ${ouverte ? "border-border bg-secondary/30 px-3 py-2" : "border-amber-300 bg-amber-50/60 p-3 dark:border-amber-500/40 dark:bg-amber-500/5"}`}
+      data-testid="porte-dg" id="porte-dg"
     >
       <div className="flex flex-wrap items-center gap-2">
         {ouverte ? <ShieldCheck className="h-4 w-4 text-emerald-600" /> : <ShieldAlert className="h-4 w-4 text-amber-600" />}

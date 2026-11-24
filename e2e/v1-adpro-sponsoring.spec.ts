@@ -230,8 +230,10 @@ test("1 · le délégué crée un sponsoring DIRECT avec PDF, Word et image ; ch
   // Chaque pièce : l'écran la NOMME, l'aperçu s'ouvre (inline), le téléchargement rend les mêmes octets.
   await page.reload();
   await page.waitForLoadState("networkidle");
-  // Le bloc des pièces est REPLIÉ par défaut : il annonce son compte, on l'ouvre.
-  await page.getByText("Pièces jointes (3)").click();
+  // Les pièces sont dans « Plus d'informations » (fiche simplifiée, 24/11/2026), section « Pièces jointes » : on ouvre les deux.
+  await page.getByText("Plus d'informations").click();
+  await page.locator("summary", { hasText: "Pièces jointes" }).click();
+  await expect(page.getByText("Pièces jointes de la demande (3)")).toBeVisible();
   for (const d of docs) {
     await expect(page.getByText(d.name).first(), `la fiche montre ${d.name}`).toBeVisible();
     const vue = await page.request.get(`/api/documents/${d.id}`);
@@ -273,6 +275,9 @@ test("2 · circuit : le NS RENVOIE pour correction, le délégué MODIFIE et res
   // Avant la prévalidation, le poste né avec la demande ne se soumet pas (aucun poste avant la prévalidation).
   await login(page, "kam");
   await aller(page, `/sponsoring/${sponsoringId}`);
+  // Le tableau des postes (24/11/2026) : la carte du poste né avec la demande se déplie depuis sa ligne.
+  const ouvrirPoste = page.getByRole("button", { name: /^Ouvrir — / });
+  if (await ouvrirPoste.count()) await ouvrirPoste.first().click();
   const soumettre = page.getByRole("button", { name: "Soumettre pour validation" });
   if (await soumettre.count()) {
     await soumettre.first().click();
@@ -323,8 +328,14 @@ test("2 · circuit : le NS RENVOIE pour correction, le délégué MODIFIE et res
 // ─────────────────────────────── 3. Le poste : accord, budget ───────────────────────────────
 
 /** La carte d'un poste, désignée par son menu « Autres actions ». */
-function carte(page: Page, libelle: string) {
-  return page.locator("li").filter({ has: page.getByRole("button", { name: `Autres actions — ${libelle}` }) }).last();
+async function carte(page: Page, libelle: string) {
+  const c = page.locator("li").filter({ has: page.getByRole("button", { name: `Autres actions — ${libelle}` }) }).last();
+  // LE TABLEAU DES POSTES (fiche simplifiée, 24/11/2026) : la carte d'un poste se déplie depuis sa ligne, « Ouvrir ».
+  if ((await c.count()) === 0) {
+    const ouvrir = page.getByRole("button", { name: `Ouvrir — ${libelle}`, exact: true });
+    if (await ouvrir.count()) await ouvrir.first().click();
+  }
+  return c;
 }
 const posteDirect = () => prisma.adProItem.findFirstOrThrow({ where: { sponsoringId } });
 
@@ -335,12 +346,12 @@ test("3 · le poste de naissance a suivi la correction ; le délégué le soumet
 
   await login(page, "kam");
   await aller(page, `/sponsoring/${sponsoringId}`);
-  await carte(page, p0.label).getByRole("button", { name: "Soumettre pour validation" }).click();
+  await (await carte(page, p0.label)).getByRole("button", { name: "Soumettre pour validation" }).click();
   await expect.poll(async () => (await posteDirect()).status).toBe("PENDING");
 
   await login(page, "dm");
   await aller(page, `/sponsoring/${sponsoringId}`);
-  const c = carte(page, p0.label);
+  const c = await carte(page, p0.label);
   await c.getByRole("button", { name: "Valider et choisir le budget" }).click();
   await c.getByRole("spinbutton", { name: "Montant accordé à ce poste" }).fill("700000.50");
   await c.getByRole("combobox", { name: "Budget qui portera ce poste" }).selectOption({ label: `${P} Enveloppe Ad & Pro 2026 › ${P} Sponsoring` });
@@ -353,7 +364,7 @@ test("3 · le poste de naissance a suivi la correction ; le délégué le soumet
   await page.waitForLoadState("networkidle");
   // Le bandeau de la fiche : affecté aux postes = 700 000,50 DZD (indépendant : 70 000 050 centimes).
   await expect(page.getByText("700 000,50 DZD").first()).toBeVisible();
-  await capture(page, "v1-05-poste-accorde", carte(page, p0.label));
+  await capture(page, "v1-05-poste-accorde", await carte(page, p0.label));
 });
 
 // ─────────────────────────────── 4. Sponsoring indirect : hôtellerie, billets, assistante ───────────────────────────────
@@ -380,7 +391,7 @@ test("4 · sponsoring INDIRECT déposé par le Directeur des opérations : la Di
   await login(page, "ops");
   await aller(page, `/sponsoring/${indirectId}`);
   const origine = (await postesInd())[0]!;
-  const c = carte(page, origine.label);
+  const c = await carte(page, origine.label);
   await c.getByRole("button", { name: "Répartir par nature" }).click();
   await c.getByLabel("Prise en charge 1").selectOption("ACCOMMODATION");
   await c.getByLabel("Montant 1").fill("360000.40");
@@ -399,7 +410,7 @@ test("5 · FICHES HÔTELLERIE : ajout (dates → nuitées), modification, retrai
   await login(page, "ops");
   await aller(page, `/sponsoring/${indirectId}`);
   const hotel = (await postesInd()).find((p) => p.kind === "ACCOMMODATION")!;
-  let c = carte(page, hotel.label);
+  let c = await carte(page, hotel.label);
   const ajouterFiche = async (prenom: string, nom: string, arrivee: string, depart: string) => {
     await c.getByRole("button", { name: "Ajouter une fiche hôtellerie" }).click();
     await c.getByLabel("Prénom", { exact: true }).fill(prenom);
@@ -413,7 +424,7 @@ test("5 · FICHES HÔTELLERIE : ajout (dates → nuitées), modification, retrai
     await expect.poll(async () => prisma.adProHebergement.count({ where: { itemId: hotel.id, nom } })).toBe(1);
     await page.reload();
     await page.waitForLoadState("networkidle");
-    c = carte(page, hotel.label);
+    c = await carte(page, hotel.label);
   };
   await ajouterFiche("Amel", "Haddad", "2026-11-20", "2026-11-23");
   await ajouterFiche("Karim", "Benali", "2026-11-20", "2026-11-22");
@@ -430,7 +441,7 @@ test("5 · FICHES HÔTELLERIE : ajout (dates → nuitées), modification, retrai
   await expect.poll(async () => (await prisma.adProHebergement.findFirstOrThrow({ where: { itemId: hotel.id, nom: "Haddad" } })).dateDepart?.toISOString().slice(0, 10)).toBe("2026-11-24");
   await page.reload();
   await page.waitForLoadState("networkidle");
-  c = carte(page, hotel.label);
+  c = await carte(page, hotel.label);
   await expect(c.getByText(/20\/11\/2026 → 24\/11\/2026 · 4 nuits/)).toBeVisible();
 
   // RETIRER : Karim.
@@ -444,7 +455,7 @@ test("5 · FICHES HÔTELLERIE : ajout (dates → nuitées), modification, retrai
   // ENVOYER à l'assistante de direction.
   await page.reload();
   await page.waitForLoadState("networkidle");
-  c = carte(page, hotel.label);
+  c = await carte(page, hotel.label);
   await c.getByRole("button", { name: /Envoyer les fiches prêtes \(1\)/ }).click();
   await expect.poll(async () => prisma.demandeReservation.count({ where: { hebergement: { itemId: hotel.id } } })).toBeGreaterThan(0);
 
@@ -463,7 +474,7 @@ test("6 · paiement du poste DIRECT : pro forma jointe, le PDG autorise au centr
   const p = await posteDirect();
   await login(page, "kam");
   await aller(page, `/sponsoring/${sponsoringId}`);
-  let c = carte(page, p.label);
+  let c = await carte(page, p.label);
   await c.getByRole("button", { name: /demander le paiement/i }).first().click();
   await c.locator('input[name="attachment"]').setInputFiles([{ name: "proforma-asso.pdf", mimeType: "application/pdf", buffer: pdfMinimal("Pro forma association") }]);
   // Un montant AU-DELÀ de l'accordé est refusé par le formulaire (max) — on garde l'accordé prérempli.
@@ -475,7 +486,7 @@ test("6 · paiement du poste DIRECT : pro forma jointe, le PDG autorise au centr
   expect(Number(o1.amount)).toBe(700000.5);
   expect(o1.centralStatus).toBe("AWAITING");
   expect(o1.budgetCategoryId).toBe(categorieId);
-  await capture(page, "v1-08-paiement-demande", carte(page, p.label));
+  await capture(page, "v1-08-paiement-demande", await carte(page, p.label));
 
   // LE CENTRE DE PAIEMENT — le PDG autorise.
   await login(page, "pdg");
@@ -594,7 +605,7 @@ test("9 · BILLETS : un voyageur complet (trajet, date, passeport) envoyé à l'
   const hotel = (await postesInd()).find((p) => p.kind === "ACCOMMODATION")!;
   await login(page, "ops");
   await aller(page, `/sponsoring/${indirectId}`);
-  let c = carte(page, billets.label);
+  let c = await carte(page, billets.label);
   await c.getByRole("button", { name: "Ajouter un voyageur" }).click();
   await c.getByLabel("Prénom", { exact: true }).fill("Amel");
   await c.getByLabel("Nom", { exact: true }).fill("Haddad");
@@ -607,7 +618,7 @@ test("9 · BILLETS : un voyageur complet (trajet, date, passeport) envoyé à l'
   await expect.poll(async () => prisma.adProVoyageur.count({ where: { itemId: billets.id } })).toBe(1);
   await page.reload();
   await page.waitForLoadState("networkidle");
-  c = carte(page, billets.label);
+  c = await carte(page, billets.label);
   // La fiche complète part à l'assistante de direction (la réservation se demande fiche par fiche).
   await c.getByRole("button", { name: /Envoyer les fiches prêtes \(1\)/ }).click();
   await expect.poll(async () => prisma.demandeReservation.count({ where: { voyageur: { itemId: billets.id } } })).toBe(1);
@@ -620,11 +631,11 @@ test("9 · BILLETS : un voyageur complet (trajet, date, passeport) envoyé à l'
   // L'HÔTEL : soumis, accordé par la Direction Marketing, puis le BC demandé à l'assistante.
   await login(page, "ops");
   await aller(page, `/sponsoring/${indirectId}`);
-  await carte(page, hotel.label).getByRole("button", { name: /Soumettre pour validation/ }).click();
+  await (await carte(page, hotel.label)).getByRole("button", { name: /Soumettre pour validation/ }).click();
   await expect.poll(async () => (await prisma.adProItem.findUniqueOrThrow({ where: { id: hotel.id } })).status).toBe("PENDING");
   await login(page, "dm");
   await aller(page, `/sponsoring/${indirectId}`);
-  c = carte(page, hotel.label);
+  c = await carte(page, hotel.label);
   await c.getByRole("button", { name: "Valider et choisir le budget" }).click();
   await c.getByRole("combobox", { name: "Budget qui portera ce poste" }).selectOption({ label: `${P} Enveloppe Ad & Pro 2026 › ${P} Sponsoring` });
   await cliquerDecisif(c.getByRole("button", { name: "Accorder" }));
@@ -633,7 +644,7 @@ test("9 · BILLETS : un voyageur complet (trajet, date, passeport) envoyé à l'
 
   await login(page, "ops");
   await aller(page, `/sponsoring/${indirectId}`);
-  c = carte(page, hotel.label);
+  c = await carte(page, hotel.label);
   await c.getByRole("button", { name: /Demander l'émission du BC|Envoyer la demande de BC/ }).first().click();
   // Plusieurs assistantes actives : on choisit la nôtre (une seule : elle est choisie d'office).
   const assistante = page.getByRole("combobox", { name: /Assistante/ });
@@ -644,5 +655,5 @@ test("9 · BILLETS : un voyageur complet (trajet, date, passeport) envoyé à l'
   const demande = await prisma.documentRequest.findFirst({ where: { entityType: "AD_PRO_ITEM", entityId: hotel.id } });
   expect(demande, "une demande de pièce (BC) est ouverte pour l'assistante").not.toBeNull();
   expect(demande!.askedToId).toBe(ids.ast);
-  await capture(page, "v1-15-bc-demande", carte(page, hotel.label));
+  await capture(page, "v1-15-bc-demande", await carte(page, hotel.label));
 });

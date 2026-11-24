@@ -23,6 +23,8 @@ interface Props {
   compact?: boolean;
   /** Compact : les étapes après le circuit — la déclaration de l'événement (information scientifique, 08/11/2026). */
   suite?: EtapeDeFrise[];
+  /** Compact : les gestes seuls (carte « À vous ») ou la frise seule (« Plus d'informations ») — voir `WorkflowPanel`. */
+  partie?: "tout" | "frise" | "gestes";
 }
 
 /**
@@ -30,14 +32,15 @@ interface Props {
  * circuit de prise en charge. Une fois soumis, le circuit est piloté par le moteur de
  * workflow configurable (WorkflowPanel).
  */
-export function EventFundingPanel({ eventId, requestSubmitted, canSubmit, workflow, compact = false, suite = [] }: Props) {
+export function EventFundingPanel({ eventId, requestSubmitted, canSubmit, workflow, compact = false, suite = [], partie = "tout" }: Props) {
   if (!requestSubmitted) {
+    if (compact && partie === "gestes") return canSubmit ? <SubmitButton id={eventId} compact /> : null;
     if (compact) {
       return (
         <div className="rounded-lg border border-border bg-secondary/40 px-3 py-2.5 sm:px-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
             <p className="min-w-0 font-semibold">{canSubmit ? "Prise en charge non soumise" : "Sans demande de prise en charge"}</p>
-            {canSubmit && <SubmitButton id={eventId} compact />}
+            {canSubmit && partie === "tout" && <SubmitButton id={eventId} compact />}
           </div>
         </div>
       );
@@ -51,7 +54,7 @@ export function EventFundingPanel({ eventId, requestSubmitted, canSubmit, workfl
   // demande ce qui a changé.
   const relancable = canSubmit && (workflow.status === "REJECTED" || workflow.status === "CANCELLED");
   if (compact) {
-    return <WorkflowPanel entityType="EVENT" entityId={eventId} view={workflow} compact suite={suite} gestes={relancable ? <RelaunchForm id={eventId} /> : null} />;
+    return <WorkflowPanel entityType="EVENT" entityId={eventId} view={workflow} compact suite={suite} partie={partie} gestes={relancable && partie !== "frise" ? <RelaunchForm id={eventId} /> : null} />;
   }
   return (
     <div className="space-y-4">

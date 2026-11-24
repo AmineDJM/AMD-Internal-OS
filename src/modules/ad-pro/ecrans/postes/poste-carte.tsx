@@ -43,6 +43,7 @@ import { SIGNATURE_RIEN_DE_PRET, type SignaturePrete } from "@/lib/signature-en-
 import { SectionRepliable } from "@/components/shared/section-repliable";
 import { DiscussionDuPoste } from "./discussion-poste";
 import { DepotDevis } from "./depot-devis";
+import { titreDuPoste } from "./resume-poste";
 
 // La carte d'un poste, montée par `AdProItemsPanel` (`../items-panel.tsx`) — une par poste de la demande.
 
@@ -59,13 +60,6 @@ const GESTES_A_FORMULAIRE: readonly CleGeste[] = [
 
 /** Un autre poste de la même demande — qu'un même devis peut couvrir aussi (§118.204). */
 export interface PosteFrere { id: string; label: string; kind: AdProItemKind }
-
-/** Le titre d'un poste, dit UNE fois : la nature seule quand le libellé la redit mot pour mot. */
-function titreDuPoste(item: ItemRow): { titre: string; nature: string | null } {
-  const nature = ITEM_KIND_LABELS[item.kind];
-  const pareil = item.label.trim().toLocaleLowerCase("fr") === nature.toLocaleLowerCase("fr");
-  return pareil ? { titre: nature, nature: null } : { titre: item.label, nature };
-}
 
 /**
  * LA CARTE D'UN POSTE — « trop de CTA, trop d'affichage, ça doit être clair et évident » (Direction, 04/10).

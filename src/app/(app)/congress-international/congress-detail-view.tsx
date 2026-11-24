@@ -15,7 +15,7 @@ import type { MissionAssignmentDTO } from "@/lib/queries/missions";
  * « Participants Adventum » (retirés de la demande). « Accompagnants & délégués » se pose TOUT EN BAS de la fiche
  * (`AccompagnantsDeLaPriseEnCharge`) : la colonne de droite ne rétrécit plus le reste.
  */
-export function CongressDetailView({ detail, workflow, canInvolveThirdParty, entityType, entityId, missionUsers, enSection = false }: {
+export function CongressDetailView({ detail, workflow, canInvolveThirdParty, entityType, entityId, missionUsers, enSection = false, partie = "tout" }: {
   /** Dans une section repliable (17/11/2026) : le contenu seul, sans carte ni titre — la section les porte. */
   enSection?: boolean;
   detail: CongressDetail;
@@ -24,11 +24,13 @@ export function CongressDetailView({ detail, workflow, canInvolveThirdParty, ent
   entityType: EntityType;
   entityId: string;
   missionUsers: { id: string; name: string }[];
+  /** « frise » : le circuit détaillé sans ses gestes — la fiche les porte dans sa carte « À vous » (24/11/2026). */
+  partie?: "tout" | "frise";
 }) {
   const contenu = (
     <>
         {workflow ? (
-          <WorkflowPanel entityType={entityType} entityId={entityId} view={workflow} />
+          <WorkflowPanel entityType={entityType} entityId={entityId} view={workflow} partie={partie} />
         ) : (
           <p className="text-sm text-muted-foreground">Circuit indisponible.</p>
         )}

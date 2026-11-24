@@ -3,14 +3,13 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Video } from "lucide-react";
 import { userCan, hasGlobalView, hasRole } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
-import { porteeModificationEvenement, canEditAdProRequest, isAdProDecided, breakdown, AD_PRO_DOC_CATEGORIES, categoriesDuDepotDeLaDemande, canAttachToAdPro, attachHint, siegeAuCentreAdPro } from "@/modules/ad-pro/partage";
+import { porteeModificationEvenement, canEditAdProRequest, isAdProDecided, breakdown, AD_PRO_DOC_CATEGORIES, categoriesDuDepotDeLaDemande, canAttachToAdPro, attachHint, barreDesEtapes } from "@/modules/ad-pro/partage";
 import { prisma } from "@/lib/prisma";
 import { getEventDetail, peutSupprimerUneDemandeAdPro, adProEditValues, loadAdProItems, adProBudgetOptions, contexteMaterielStock, contextePostes, getAdProCreateData, requireModuleOuAgences } from "@/modules/ad-pro/api";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { MenuDossier } from "@/components/shared/menu-dossier";
-import { Badge } from "@/components/ui/badge";
-import { EVENT_TYPE, EVENT_SCOPE, EVENT_FORMAT, EVENT_STATUS } from "@/lib/labels";
+import { EVENT_TYPE, EVENT_SCOPE, EVENT_FORMAT, EVENT_STATUS, ROLE_LABELS } from "@/lib/labels";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { EditEventButton } from "../event-form";
 import { EventFundingPanel } from "./funding-panel";
@@ -26,10 +25,12 @@ import { BackLink } from "@/components/shared/back-link";
 import { AdProEditButton } from "@/modules/ad-pro/ecrans/edit-request-button";
 import { AdProItemsPanel } from "@/modules/ad-pro/ecrans/items-panel";
 import { PiecesLegalDeLaDemande } from "@/modules/ad-pro/ecrans/pieces-legal-demande";
-import { CarteDetailsDemande } from "@/modules/ad-pro/ecrans/pieces-jointes-demande";
-import { Faits, Fait, BandeauArgent, Chiffre, IntertitrePostes, CarteTracabilite } from "@/modules/ad-pro/ecrans/carte-demande";
-import { SectionRepliable, Sections } from "@/components/shared/section-repliable";
+import { Faits, Fait, BandeauArgent, Chiffre, SectionTracabilite } from "@/modules/ad-pro/ecrans/carte-demande";
+import { BarreEtapes, CarteAVous, CarteLaDemande, CartePostes, PlusDInformations, SectionDeclaration, SectionPieces, ligneDeLaDemande, type GesteAVous } from "@/modules/ad-pro/ecrans/fiche";
+import { droitsDesPostes, gesteDeLaDeclaration, gestesDesPostes } from "@/modules/ad-pro/ecrans/fiche-gestes";
+import { circuitPourLaBarre } from "@/lib/workflow/frise-circuit";
 import { resumeDuCircuit } from "@/lib/workflow/resume-circuit";
+import { SectionRepliable } from "@/components/shared/section-repliable";
 import { EspaceDiscussion } from "@/modules/ad-pro/ecrans/espace-discussion";
 import { promoMaterialOptions } from "@/modules/ad-pro/actions-postes";
 import { toNumber } from "@/lib/utils";
@@ -134,8 +135,6 @@ export default async function EventDetailPage(props: { params: Promise<{ id: str
   const creeeLe = dates?.createdAt ?? null;
 
   // LES RÉSUMÉS DES SECTIONS (Direction, 17/11/2026 — « l'information reste, mais repliée ») : ce qu'on lit sans ouvrir.
-  const resumeCircuit = resumeDuCircuit(workflow, Boolean(e.requestStatus));
-  const aVousCircuit = Boolean(workflow?.action) || (workflow?.status === "RETURNED" && sonEvenement);
   const lieuTexte = [e.location, e.city, e.country].filter(Boolean).join(", ");
   // LE DÉLÉGUÉ MÉDICAL SUIT SANS LES MONTANTS (15/11/2026 ; recette du 21/11) : « affecté 2 064 770 DZD » disait la somme des
   // postes accordés que ses cartes lui cachent. Il garde le budget qu'il a lui-même estimé.
@@ -148,17 +147,53 @@ export default async function EventDetailPage(props: { params: Promise<{ id: str
     ventilation.overrunDzd > 0 ? `dépassement ${formatCurrency(ventilation.overrunDzd)}` : ventilation.envelopeDzd != null ? `reste ${formatCurrency(ventilation.unallocatedDzd)}` : null,
   ].filter(Boolean).join(" · ");
 
+  // ── LA FICHE SIMPLIFIÉE (maquette « Fiche Ad & Pro » validée, 24/11/2026) : la barre d'étapes, la carte « À vous », la
+  // demande, le tableau des postes, puis « Plus d'informations ». Mêmes données, mêmes composants, mêmes gestes. ──
+  const postesDecides = e.requestStatus ? ["APPROVED", "COMPLETED"].includes(e.requestStatus) : e.status !== "DRAFT" && e.status !== "CANCELLED";
+  const droitsPostes = droitsDesPostes(user, {
+    canEdit: userCan(user, "EVENTS", "CREATE") || canManage || canAllocateItems,
+    canAllocate: canAllocateItems, decided: postesDecides, contexte,
+  });
+  const postes = gestesDesPostes(items, droitsPostes);
+  const panneauDeclaration = declaration ? <EtapeDeclarationAdPro etape={declaration} sourceType="EVENT" sourceId={e.id} /> : null;
+  const suiteDeclaration = declaration ? [{ cle: "__declaration__", titre: declaration.titre, detail: declaration.detail, etat: declaration.etat }] : [];
+  const barre = barreDesEtapes({
+    nature: "EVENT",
+    circuit: e.requestStatus ? circuitPourLaBarre(workflow) : null,
+    deposee: { detail: creeeLe ? formatDate(creeeLe, { day: "numeric", month: "short" }) : null, aSoumettre: !e.requestStatus, aVous: canSubmit },
+    postes: { ouverts: postesDecides && e.requestStatus !== "COMPLETED", termines: e.requestStatus === "COMPLETED", aVous: postes.posteAVous, n: items.length },
+    validationFinale: null,
+    declaration: declaration ? { etat: declaration.etat, detail: declaration.detail, aVous: declaration.aVous } : null,
+  });
+  // LE CIRCUIT DE PRISE EN CHARGE : soumettre ; décider l'étape, resoumettre, faire appel ; relancer après un refus.
+  const relancable = Boolean(e.requestStatus) && canSubmit && (workflow?.status === "REJECTED" || workflow?.status === "CANCELLED");
+  const circuitAVous = !e.requestStatus
+    ? canSubmit
+    : Boolean(workflow && (workflow.action || workflow.peutResoumettre || workflow.peutFaireAppel)) || relancable;
+  const titreCircuit = !e.requestStatus ? "soumettre la demande de prise en charge"
+    : workflow?.action ? `décider — étape « ${workflow.action.title} »`
+      : workflow?.peutResoumettre ? "corriger et resoumettre la demande"
+        : relancable ? "relancer la demande de prise en charge" : "faire appel de la décision";
+  const aVous = [
+    circuitAVous ? {
+      cle: "circuit", titre: titreCircuit,
+      contenu: <EventFundingPanel eventId={e.id} requestSubmitted={!!e.requestStatus} canSubmit={canSubmit} workflow={workflow} compact partie="gestes" />,
+    } : null,
+    ...postes.gestes,
+    gesteDeLaDeclaration(declaration, panneauDeclaration),
+  ].filter((g): g is GesteAVous => g !== null);
+  const roleDemandeur = e.requesterId
+    ? (await prisma.user.findUnique({ where: { id: e.requesterId }, select: { role: true } }))?.role ?? null
+    : null;
+
   return (
     <div className="space-y-5">
       <BackLink href="/events"><ArrowLeft className="h-4 w-4" /> Events</BackLink>
       <PageHeader
         title={e.name}
-        description={[
-          EVENT_TYPE[e.type] ?? e.type,
-          e.requesterName
-            ? `demandé par ${e.requesterName}${creeeLe ? ` le ${formatDate(creeeLe)}` : ""}`
-            : creeeLe ? `créé le ${formatDate(creeeLe)}` : null,
-        ].filter(Boolean).join(" · ")}
+        description={e.requesterName
+          ? ligneDeLaDemande({ reference: EVENT_TYPE[e.type] ?? e.type, par: e.requesterName, role: roleDemandeur ? ROLE_LABELS[roleDemandeur] ?? null : null, le: creeeLe })
+          : [EVENT_TYPE[e.type] ?? e.type, creeeLe ? `créé le ${formatDate(creeeLe)}` : null].filter(Boolean).join(" · ")}
       >
         <StatusBadge map={EVENT_STATUS} value={e.status} />
         {menu && (
@@ -194,135 +229,123 @@ export default async function EventDetailPage(props: { params: Promise<{ id: str
           invitait même à le faire (« Faites avancer la validation via Modifier »). Un événement
           pouvait donc s'afficher « Validé » sans qu'aucune étape ne l'ait validé : deux vérités
           sur la même question, et c'est la plus flatteuse qui gagnait (§118.5, §118.138).
-          La SEULE frise de validation est celle du circuit de prise en charge, en tête de la carte
-          « La demande », et `lib/events/statut.ts` interdit au formulaire d'écrire un verdict. */}
+          La SEULE frise de validation est celle du circuit de prise en charge — la barre d'étapes
+          ci-dessous la résume — et `lib/events/statut.ts` interdit au formulaire d'écrire un verdict. */}
+      <BarreEtapes etapes={barre} />
+      <CarteAVous gestes={aVous} />
 
-      {/* LA DEMANDE, EN UNE CARTE (Direction, 07/10) — « Informations », « Demande de prise en charge (financement) » et
-          « Ce que couvre cet événement » fusionnés : la frise et la phrase de statut de la prise en charge (avec ses gestes :
-          soumettre, décider, relancer), les faits une fois, l'argent en un bandeau, la description et les pièces jointes
-          repliées, puis les postes. « + Pièce jointe » en haut à droite ; la chaîne d'achat vit sur chaque poste. */}
-      <CarteDetailsDemande
-        titre="La demande"
-        piecesRepliees
-        contentClassName="space-y-3"
-        pieces={{
-          entityType: "EVENT", entityId: e.id, documents: docItems,
-          peutDeposer: canUploadDocs, motif: uploadHint,
-          categories: categoriesDuDepotDeLaDemande(AD_PRO_DOC_CATEGORIES),
-          canDelete: userCan(user, "EVENTS", "DELETE") || hasGlobalView(user),
-          canRename: canUploadDocs, canEdit: onlyofficeConfigured() && canUploadDocs,
-          path: `/events/${e.id}`,
-        }}
-        entete={
-          // LA DEMANDE EN SECTIONS : chacune fermée sur une ligne qui dit l'essentiel ; ouverte d'office quand la personne
-          // qui regarde y a un geste à faire (« À vous »).
-          <div>
-            <SectionRepliable titre="Circuit de validation" resume={resumeCircuit} aVous={aVousCircuit} ouvert={!e.requestStatus}>
-              <EventFundingPanel
-                eventId={e.id}
-                requestSubmitted={!!e.requestStatus}
-                canSubmit={canSubmit}
-                workflow={workflow}
-                compact
-                suite={declaration ? [{ cle: "__declaration__", titre: declaration.titre, detail: declaration.detail, etat: declaration.etat }] : []}
-              />
-            </SectionRepliable>
-            <SectionRepliable titre="L'événement" resume={[dateTexte, lieuTexte].filter(Boolean).join(" · ")}>
-              <div className="space-y-3">
-                <Faits>
-                  <Fait label="Dates" valeur={dateTexte} />
-                  <Fait label="Lieu" valeur={lieuTexte} />
-                  <Fait label="Responsable" valeur={e.responsibleName} />
-                  <Fait label="Portée" valeur={EVENT_SCOPE[e.scope] ?? e.scope} />
-                  <Fait label="Format" valeur={EVENT_FORMAT[e.format] ?? e.format} />
-                  <Fait label="Spécialité" valeur={e.specialty} />
-                  <Fait label="Produits" valeur={e.products} />
-                  {e.doctor && <Fait label="Médecins" valeur={e.doctor} />}
-                  <Fait label="Organisateur" valeur={e.organizer} />
-                  {e.meetingLink && (
-                    <Fait
-                      large
-                      label="Webinar"
-                      valeur={<a href={e.meetingLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-primary hover:underline"><Video className="h-4 w-4" /> Lien de connexion</a>}
-                    />
-                  )}
-                </Faits>
-                {e.description && <p className="max-w-prose whitespace-pre-wrap text-sm [overflow-wrap:anywhere]">{e.description}</p>}
-                {e.stats.bySpecialty.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {e.stats.bySpecialty.map((s) => <Badge key={s.name} tone="info" dot={false}>{s.name} · {s.count}</Badge>)}
-                  </div>
-                )}
-              </div>
-            </SectionRepliable>
-            <SectionRepliable titre="Budget" resume={resumeBudget}>
-              {suiviSimple ? (
-                <BandeauArgent>
-                  <Chiffre label="Budget estimé" valeur={e.estimatedBudget !== null ? formatCurrency(e.estimatedBudget) : "—"} />
-                </BandeauArgent>
-              ) : (
-              <BandeauArgent>
-                {e.finalAmount != null ? (
-                  <Chiffre
-                    label="Enveloppe accordée" valeur={formatCurrency(e.finalAmount)}
-                    note={e.estimatedBudget !== null ? `estimé : ${formatCurrency(e.estimatedBudget)}` : null}
-                  />
-                ) : (
-                  <Chiffre label="Budget estimé" valeur={e.estimatedBudget !== null ? formatCurrency(e.estimatedBudget) : "—"} note="enveloppe non tranchée" />
-                )}
-                <Chiffre
-                  label="Affecté aux postes"
-                  valeur={formatCurrency(ventilation.totalRequestedDzd)}
-                  note={ventilation.additionalDzd > 0
-                    ? `dont ${formatCurrency(ventilation.additionalDzd)} en rallonge`
-                    : `${ventilation.itemCount} poste${ventilation.itemCount > 1 ? "s" : ""}`}
-                  ton={ventilation.additionalDzd > 0 ? "attente" : undefined}
-                />
-                {ventilation.overrunDzd > 0 ? (
-                  <Chiffre label="Dépassement" valeur={formatCurrency(ventilation.overrunDzd)} ton="alerte" />
-                ) : (
-                  <Chiffre
-                    label="Reste à affecter"
-                    valeur={ventilation.envelopeDzd != null ? formatCurrency(ventilation.unallocatedDzd) : "—"}
-                    note={ventilation.balanced ? "ventilation complète" : null}
-                    ton={ventilation.balanced ? "succes" : undefined}
-                  />
-                )}
-              </BandeauArgent>
-              )}
-            </SectionRepliable>
-          </div>
-        }
-      >
-        {/* POSTES de l'événement : consulting, traiteur, location de salle… chacun validé à part par la Direction, avec son
-            budget et son bon de commande — comme sur le sponsoring. Leur bandeau propre a rejoint celui de la carte. */}
-        <IntertitrePostes n={items.length} />
+      <CarteLaDemande
+        faits={[
+          { label: "Type", valeur: EVENT_TYPE[e.type] ?? e.type },
+          { label: "Lieu", valeur: lieuTexte },
+          { label: "Dates", valeur: dateTexte },
+          { label: "Produits", valeur: e.products },
+        ]}
+        description={e.description}
+      />
+
+      {/* POSTES de l'événement : consulting, traiteur, location de salle… chacun validé à part par la Direction, avec son
+          budget et son bon de commande — comme sur le sponsoring. Un tableau ; « Ouvrir » déplie la carte complète du poste. */}
+      <CartePostes>
         <AdProItemsPanel
           parent="EVENT"
           parentId={e.id}
           items={items}
           amountGranted={e.finalAmount != null ? toNumber(e.finalAmount) : null}
-          decided={e.requestStatus ? ["APPROVED", "COMPLETED"].includes(e.requestStatus) : e.status !== "DRAFT" && e.status !== "CANCELLED"}
-          canEdit={userCan(user, "EVENTS", "CREATE") || canManage || canAllocateItems}
+          decided={postesDecides}
+          canEdit={droitsPostes.canEdit}
           canAllocate={canAllocateItems}
           promoOptions={promoOptions}
           budgetOptions={budgetOptions}
           materiel={materielStock}
-          canIssueOrder={userCan(user, "FINANCES", "UPDATE") || userCan(user, "FINANCES", "VALIDATE")}
-          canViserBC={siegeAuCentreAdPro(user)}
+          canIssueOrder={droitsPostes.canIssueOrder}
+          canViserBC={droitsPostes.canViserBC}
           contexte={contexte}
           resume={false}
+          tableau
         />
-      </CarteDetailsDemande>
+      </CartePostes>
 
-      {/* LES PIÈCES LEGAL RATTACHÉES À LA DEMANDE ELLE-MÊME, hors postes — d'avant les postes, ou qui ne sont pas des achats. */}
-      <PiecesLegalDeLaDemande spectateur={user} entityType="EVENT" entityId={e.id} />
+      {/* LA DÉCLARATION (information scientifique) — seulement à SON étape ; avant, la barre la montre grisée. */}
+      <SectionDeclaration etape={declaration}>{panneauDeclaration}</SectionDeclaration>
 
-      {/* LE RESTE DE LA FICHE, REPLIÉ (17/11/2026) : médecins concernés, discussion, équipe, information médicale, traçabilité —
-          une ligne chacun, ouvert sur un clic (recette 24/11/2026 : l'information médicale en dernier, avant la traçabilité). */}
-      <Sections>
+      {/* PLUS D'INFORMATIONS, REPLIÉ : tout le reste de la fiche, chaque partie avec son composant d'avant. */}
+      <PlusDInformations resume={resumeBudget || null}>
+        <SectionRepliable titre="Montants et budget" resume={resumeBudget}>
+          {suiviSimple ? (
+            <BandeauArgent>
+              <Chiffre label="Budget estimé" valeur={e.estimatedBudget !== null ? formatCurrency(e.estimatedBudget) : "—"} />
+            </BandeauArgent>
+          ) : (
+          <BandeauArgent>
+            {e.finalAmount != null ? (
+              <Chiffre
+                label="Enveloppe accordée" valeur={formatCurrency(e.finalAmount)}
+                note={e.estimatedBudget !== null ? `estimé : ${formatCurrency(e.estimatedBudget)}` : null}
+              />
+            ) : (
+              <Chiffre label="Budget estimé" valeur={e.estimatedBudget !== null ? formatCurrency(e.estimatedBudget) : "—"} note="enveloppe non tranchée" />
+            )}
+            <Chiffre
+              label="Affecté aux postes"
+              valeur={formatCurrency(ventilation.totalRequestedDzd)}
+              note={ventilation.additionalDzd > 0
+                ? `dont ${formatCurrency(ventilation.additionalDzd)} en rallonge`
+                : `${ventilation.itemCount} poste${ventilation.itemCount > 1 ? "s" : ""}`}
+              ton={ventilation.additionalDzd > 0 ? "attente" : undefined}
+            />
+            {ventilation.overrunDzd > 0 ? (
+              <Chiffre label="Dépassement" valeur={formatCurrency(ventilation.overrunDzd)} ton="alerte" />
+            ) : (
+              <Chiffre
+                label="Reste à affecter"
+                valeur={ventilation.envelopeDzd != null ? formatCurrency(ventilation.unallocatedDzd) : "—"}
+                note={ventilation.balanced ? "ventilation complète" : null}
+                ton={ventilation.balanced ? "succes" : undefined}
+              />
+            )}
+          </BandeauArgent>
+          )}
+        </SectionRepliable>
+        <SectionRepliable titre="Détails de l'événement" resume={[e.responsibleName, EVENT_FORMAT[e.format] ?? e.format].filter(Boolean).join(" · ")}>
+          <div className="space-y-3">
+            <Faits>
+              <Fait label="Responsable" valeur={e.responsibleName} />
+              <Fait label="Portée" valeur={EVENT_SCOPE[e.scope] ?? e.scope} />
+              <Fait label="Format" valeur={EVENT_FORMAT[e.format] ?? e.format} />
+              <Fait label="Spécialité" valeur={e.specialty} />
+              {e.doctor && <Fait label="Médecins" valeur={e.doctor} />}
+              <Fait label="Organisateur" valeur={e.organizer} />
+              {e.meetingLink && (
+                <Fait
+                  large
+                  label="Webinar"
+                  valeur={<a href={e.meetingLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-primary hover:underline"><Video className="h-4 w-4" /> Lien de connexion</a>}
+                />
+              )}
+            </Faits>
+            {e.stats.bySpecialty.length > 0 && (
+              <p className="text-sm text-muted-foreground">
+                {e.stats.bySpecialty.map((x) => `${x.name} · ${x.count}`).join(" — ")}
+              </p>
+            )}
+          </div>
+        </SectionRepliable>
         {/* LES MÉDECINS CONCERNÉS (Direction, 08/10) — choisis dans l'annuaire : le lien que lisent le cockpit marketing et la fiche du praticien. */}
         <MedecinsConcernesSection user={user} entityType="EVENT" entityId={e.id} />
+        <SectionPieces
+          pieces={{
+            entityType: "EVENT", entityId: e.id, documents: docItems,
+            peutDeposer: canUploadDocs, motif: uploadHint,
+            categories: categoriesDuDepotDeLaDemande(AD_PRO_DOC_CATEGORIES),
+            canDelete: userCan(user, "EVENTS", "DELETE") || hasGlobalView(user),
+            canRename: canUploadDocs, canEdit: onlyofficeConfigured() && canUploadDocs,
+            path: `/events/${e.id}`,
+          }}
+        >
+          {/* LES PIÈCES LEGAL RATTACHÉES À LA DEMANDE ELLE-MÊME, hors postes — d'avant les postes, ou qui ne sont pas des achats. */}
+          <PiecesLegalDeLaDemande spectateur={user} entityType="EVENT" entityId={e.id} />
+        </SectionPieces>
         <SectionRepliable titre="Discussion" sansCadre>
           <EspaceDiscussion>
             <AdProDiscussionCard entityType="EVENT" entityId={e.id} user={user} />
@@ -340,19 +363,24 @@ export default async function EventDetailPage(props: { params: Promise<{ id: str
             path={`/events/${e.id}`}
           />
         </SectionRepliable>
-        {declaration && (
-          <SectionRepliable titre={declaration.titre} resume={declaration.detail ?? undefined} aVous={declaration.aVous}>
-            <EtapeDeclarationAdPro etape={declaration} sourceType="EVENT" sourceId={e.id} />
-          </SectionRepliable>
-        )}
-        <SectionRepliable titre="Traçabilité" resume={dates ? `créée le ${formatDateTime(dates.createdAt)}` : undefined} sansCadre>
-          <CarteTracabilite
-            creeeLe={dates ? formatDateTime(dates.createdAt) : "—"}
-            modifieeLe={dates ? formatDateTime(dates.updatedAt) : "—"}
-            historique={user.role === "SUPER_ADMIN" && e.requestStatus && workflow && workflow.events.length > 0 ? <HistoriqueDuCircuit events={workflow.events} /> : null}
+        {/* LE CIRCUIT DÉTAILLÉ : la frise complète et la phrase de statut, sans les gestes (ils sont dans « À vous »). */}
+        <SectionRepliable titre="Circuit de validation détaillé" resume={resumeDuCircuit(workflow, Boolean(e.requestStatus))}>
+          <EventFundingPanel
+            eventId={e.id}
+            requestSubmitted={!!e.requestStatus}
+            canSubmit={canSubmit}
+            workflow={workflow}
+            compact
+            partie="frise"
+            suite={suiteDeclaration}
           />
         </SectionRepliable>
-      </Sections>
+        <SectionTracabilite
+          creeeLe={dates ? formatDateTime(dates.createdAt) : "—"}
+          modifieeLe={dates ? formatDateTime(dates.updatedAt) : "—"}
+          historique={user.role === "SUPER_ADMIN" && e.requestStatus && workflow && workflow.events.length > 0 ? <HistoriqueDuCircuit events={workflow.events} /> : null}
+        />
+      </PlusDInformations>
     </div>
   );
 }

@@ -8,7 +8,6 @@ import { cn, formatDate } from "@/lib/utils";
 import { FormulaireSignature } from "@/components/signature/formulaire-signature";
 import type { SignaturePrete } from "@/lib/signature-en-ligne/partage";
 import { friseAgence, pasAgence, type FaitsPosteAgence, type GesteAgence, type RegardAgence } from "../../domaine/parcours-agence";
-import { toutEstFacture } from "../../domaine/poste-etapes";
 import { demanderProspection, transmettreDevisAgences, retenirLignesDesAgences, soumettreBcMarketing, validerSignerBcMarketing, signerBcMarketing } from "../../actions-postes-agence";
 import { marquerBcEnvoye, envoyerBatConformite, deciderConformitePoste, signerReceptionPoste } from "../../actions-postes-execution";
 import { preparerBrouillonPoste } from "../../actions-postes-lignes";
@@ -16,6 +15,7 @@ import { lienFichierEmis } from "@/lib/lecteurs/fichiers-emis";
 import { emailDeProspection } from "../../domaine/email-prospection";
 import type { ItemRow, Run } from "../items-panel";
 import { ChoixLignesAgences } from "./choix-lignes-agences";
+import { faitsAgenceDuPoste } from "./resume-poste";
 
 /** Les gestes dont le formulaire vit AILLEURS sur la carte (la case des devis, le visa, la facture, le paiement) : la carte les ouvre. */
 export type GesteDelegue = "DEVIS" | "VISER_BC" | "DEMANDER_PAIEMENT" | "BC" | "PAIEMENT";
@@ -28,22 +28,8 @@ const ICONE: Record<GesteAgence, React.ReactNode> = {
   DEPOSER_FACTURE: <Receipt className="h-4 w-4" />, DEMANDER_PAIEMENT: <Receipt className="h-4 w-4" />,
 };
 
-/** Les faits du parcours tels que la carte les lit — une seule traduction, celle de l'écran. */
-export function faitsAgenceDuPoste(item: ItemRow): FaitsPosteAgence | null {
-  if (!item.agence) return null;
-  return {
-    status: item.status, orderStage: item.orderStage,
-    // UN BC ANNULÉ N'EST PAS LE BC DU POSTE (recette de bout en bout, 23/11/2026) : après « Annuler la demande de BC »,
-    // le plus récent annulé se montre dans la case pièce, mais le parcours repart de « pas de BC vivant ».
-    bc: item.pieces.bc && !item.pieces.bc.annulee ? (item.pieces.bc.etape ?? "HORS_CIRCUIT") : null,
-    factures: item.pieces.factures.length, toutFacture: toutEstFacture(item.pieces), expenseOrderId: item.expenseOrderId,
-    expenseOrderStatus: item.expenseOrder?.status ?? null, expenseOrderCentral: item.expenseOrder?.centralStatus ?? null,
-    orderDecisionNote: item.orderDecisionNote ?? null,
-    // Le paiement attend le budget, pas le BC (recette 24/11/2026).
-    budgetChoisi: Boolean(item.budgetCategoryId),
-    agence: item.agence.faits,
-  };
-}
+// Les faits du parcours tels que la carte les lit vivent avec la ligne du tableau des postes (`resume-poste.ts`, sans React) :
+// la page serveur les lit aussi, pour la carte « À vous ».
 
 /** LA FRISE — sept étapes, l'étape en cours nommée en clair. */
 function Frise({ faits }: { faits: FaitsPosteAgence }) {
