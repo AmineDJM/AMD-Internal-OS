@@ -9418,9 +9418,12 @@ model FieldReportAttachment {
 // personnes ajoutées. Aucune donnée identifiante du patient : âge et sexe seulement, facultatifs.
 
 enum PvCaseStatus {
-  RECU // signalé, pas encore pris en charge
-  EN_ANALYSE // Regulatory l'instruit
-  ENQUETE // enquête approfondie : des informations complémentaires sont demandées
+  RECU // signalé, pas encore évalué
+  EN_ANALYSE // ANCIEN (avant le 24/11/2026) : repris en « Reçu » par la migration pv_declaration_autorite
+  ENQUETE // des informations complémentaires sont demandées avant l'évaluation
+  EVALUE // évalué par Regulatory (gravité, attendu, imputabilité) : à déclarer dans le délai
+  DECLARE // déclaré à l'autorité (hors plateforme), déclaration enregistrée
+  SUIVI // après la déclaration : informations complémentaires, suivi transmis
   CLOS // clos, avec sa note de clôture
 }
 
@@ -9466,6 +9469,36 @@ model PharmacovigilanceCase {
   closedById  String?
   closingNote String?
 
+  /// LA DÉCLARATION À L'AUTORITÉ (Super Admin, 24/11/2026) — `src/lib/pharmacovigilance/declaration.ts`.
+  /// Le jour zéro du délai : quand la société a eu connaissance du cas (la visite, sinon le signalement).
+  dateConnaissance         DateTime  @default(now())
+  /// La citation du compte rendu relevée par l'IA, figée au signalement (le compte rendu corrigé l'efface sur la visite).
+  citationIa               String?
+  /// L'évaluation de Regulatory. Nul : pas encore évalué (le délai prend alors la gravité signalée, ou le plus court).
+  evalGrave                Boolean?
+  evalAttendu              Boolean?
+  /// CERTAINE | PROBABLE | POSSIBLE | IMPROBABLE | NON_EVALUABLE (`IMPUTABILITES_PV`).
+  evalImputabilite         String?
+  evalNote                 String?
+  evalueLe                 DateTime?
+  evalueParId              String?
+  /// Faite HORS plateforme (aucune transmission électronique), puis enregistrée ici avec sa pièce.
+  declareLe                DateTime?
+  declarationReference     String?
+  declarationEnregistreeLe DateTime?
+  declareParId             String?
+  accuseLe                 DateTime?
+  accuseReference          String?
+  /// Le visa du pharmacien responsable désigné pour la société du cas (`PvReglage.pharmaciensResponsables`).
+  visaPharmacienLe         DateTime?
+  visaPharmacienParId      String?
+  visaPharmacienNote       String?
+  /// Le dernier palier d'alerte envoyé (J5, J2, J0, DEPASSE) : une alerte par palier, jamais une par jour.
+  alertePalier             String?
+  alertePalierLe           DateTime?
+  /// Le DG informé d'un cas grave — une seule fois.
+  dgInformeLe              DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -9476,6 +9509,20 @@ model PharmacovigilanceCase {
   @@index([occurredOn])
   @@index([promoProductId])
   @@index([visitId])
+}
+
+/// LES RÉGLAGES DE LA PHARMACOVIGILANCE (Super Admin) — une ligne « global ». Les délais sont pré-réglés sur les usages
+/// courants et restent À CONFIRMER par le pharmacien responsable et la réglementation algérienne en vigueur.
+model PvReglage {
+  id                      String   @id @default("global")
+  /// Jours calendaires entre la connaissance d'un cas GRAVE et sa déclaration à l'autorité.
+  delaiGraveJours         Int      @default(15)
+  /// Jours calendaires pour un cas NON GRAVE.
+  delaiNonGraveJours      Int      @default(90)
+  /// Le pharmacien responsable désigné par société : { companyId: userId }. Il vise la déclaration.
+  pharmaciensResponsables Json?
+  updatedById             String?
+  updatedAt               DateTime @default(now()) @updatedAt
 }
 
 /// Une personne ajoutée à l'échange d'un cas : elle lit le cas et prend part à la conversation.

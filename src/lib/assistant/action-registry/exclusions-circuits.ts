@@ -296,6 +296,10 @@ export function classerExclusionsCircuits(): void {
     // fiche du cas, devant le cas, pas des appels d'Adam (un signalement de sécurité ne se fait pas par délégation).
     "pharmacovigilance-actions:signalerCasPv", "pharmacovigilance-actions:commenterCasPv", "pharmacovigilance-actions:changerStatutCasPv",
     "pharmacovigilance-actions:ouvrirEnquetePv", "pharmacovigilance-actions:ajouterParticipantsPv", "pharmacovigilance-actions:retirerParticipantPv",
+    // LA DÉCLARATION À L'AUTORITÉ (24/11/2026) : évaluer, enregistrer la déclaration et son accusé, viser, régler les délais —
+    // des gestes de la fiche (et des réglages du Super Admin), devant la pièce : un acte réglementaire ne se délègue pas.
+    "pharmacovigilance-actions:evaluerCasPv", "pharmacovigilance-actions:declarerCasPv", "pharmacovigilance-actions:enregistrerAccuseCasPv",
+    "pharmacovigilance-actions:viserCasPv", "pharmacovigilance-actions:modifierReglagesPv",
     // LES DEMANDES DE STOCKS DO → KAM : créer, saisir par hôpital, relancer, clore, supprimer — des gestes des écrans Stocks.
     "demande-stocks-actions:creerDemandeStocks", "demande-stocks-actions:saisirStocksDemande", "demande-stocks-actions:relancerDemandeStocks",
     "demande-stocks-actions:cloreDemandeStocks", "demande-stocks-actions:supprimerDemandeStocks",

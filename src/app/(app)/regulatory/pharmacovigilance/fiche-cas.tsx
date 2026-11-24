@@ -14,9 +14,13 @@ import { updateComment, deleteComment } from "@/lib/actions/comment-actions";
 import { commenterCasPv } from "@/lib/actions/pharmacovigilance-actions";
 import { lecteurPv } from "@/lib/pharmacovigilance/acces";
 import { GRAVITE_PV, SEXE_PV, STATUT_PV, lecteurDuCasPv, peutJoindreAuCasPv, statutsSuivantsPv, type StatutPv } from "@/lib/pharmacovigilance/regles";
+import { attendDeclarationPv, etatEcheancePv, jourAlgerPv } from "@/lib/pharmacovigilance/declaration";
+import { lireReglagesPv, viseursPourLeCasPv } from "@/lib/pharmacovigilance/reglages";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { InstructionCasPv } from "./instruction";
 import { ParticipantsCasPv } from "./participants-pv";
+import { CarteDeclarationPv } from "./carte-declaration";
+import { AccusePv, DeclarationPv, EvaluationPv, VisaPv } from "./declaration-pv";
 
 /**
  * LA FICHE D'UN CAS DE PHARMACOVIGILANCE (Direction, 06/10) — ce qui a été signalé, où en est l'instruction, et en bas
@@ -37,7 +41,11 @@ export async function FicheCasPv({ user, id, retour, base }: {
   });
   if (!cas) notFound();
   const l = lecteurPv(user);
-  if (!lecteurDuCasPv(l, cas)) notFound();
+  const reglages = await lireReglagesPv();
+  // LE PHARMACIEN RESPONSABLE DÉSIGNÉ lit le cas qu'il doit viser, même sans lire tous les cas.
+  const viseurs = await viseursPourLeCasPv(cas, reglages);
+  const viseur = viseurs.includes(user.id);
+  if (!lecteurDuCasPv(l, cas) && !viseur) notFound();
   const chemin = `${base}/${cas.id}`;
 
   const [docs, fil, personnes] = await Promise.all([
@@ -52,7 +60,12 @@ export async function FicheCasPv({ user, id, retour, base }: {
       orderBy: { createdAt: "asc" },
     }),
     prisma.user.findMany({
-      where: { id: { in: [cas.reporterId, ...cas.participants.map((p) => p.userId), ...(cas.investigationOpenedById ? [cas.investigationOpenedById] : []), ...(cas.closedById ? [cas.closedById] : [])] } },
+      where: {
+        id: {
+          in: [cas.reporterId, ...cas.participants.map((p) => p.userId), cas.investigationOpenedById, cas.closedById, cas.evalueParId, cas.declareParId, cas.visaPharmacienParId]
+            .filter((x): x is string => Boolean(x)),
+        },
+      },
       select: { id: true, name: true },
     }),
   ]);
@@ -68,6 +81,17 @@ export async function FicheCasPv({ user, id, retour, base }: {
   }));
   const status = cas.status as StatutPv;
   const peutJoindre = peutJoindreAuCasPv(l, cas);
+  const maintenant = new Date();
+  const echeance = etatEcheancePv(cas, reglages.delais, maintenant);
+  const ctx = {
+    declare: cas.declareLe !== null, evalue: cas.evalueLe !== null, evalGrave: cas.evalGrave,
+    visaRequis: viseurs.length > 0, vise: cas.visaPharmacienLe !== null,
+  };
+  const aujourdhui = jourAlgerPv(maintenant);
+  // LES INFORMATIONS DEMANDÉES se lisent en premier tant qu'elles sont attendues : avant l'évaluation (enquête), après
+  // la déclaration (suivi), ou demandées sur un cas déjà évalué.
+  const infosAttendues = Boolean(cas.requestedInfo) && (status === "ENQUETE" || status === "SUIVI"
+    || (status === "EVALUE" && cas.investigationOpenedAt !== null && cas.evalueLe !== null && cas.investigationOpenedAt > cas.evalueLe));
   const suiveurs = new Set([cas.reporterId, ...cas.participants.map((p) => p.userId)]);
   const candidats = l.instruit
     ? await prisma.user.findMany({ where: { isActive: true, id: { notIn: [...suiveurs] } }, select: { id: true, name: true }, orderBy: { name: "asc" } })
@@ -96,10 +120,10 @@ export async function FicheCasPv({ user, id, retour, base }: {
         <StatusBadge map={STATUT_PV} value={status} />
       </PageHeader>
 
-      {/* L'ENQUÊTE OUVERTE se lit en premier : c'est ce qu'on attend du KAM. */}
-      {status === "ENQUETE" && cas.requestedInfo && (
+      {/* LES INFORMATIONS DEMANDÉES se lisent en premier : c'est ce qu'on attend du KAM. */}
+      {infosAttendues && (
         <Card className="border-warning/40">
-          <CardHeader><CardTitle className="flex items-center gap-2"><Search className="h-4 w-4" /> Enquête approfondie — informations demandées</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="flex items-center gap-2"><Search className="h-4 w-4" /> {status === "ENQUETE" ? "Enquête approfondie — informations demandées" : "Informations complémentaires demandées"}</CardTitle></CardHeader>
           <CardContent className="space-y-2 text-sm">
             <p className="whitespace-pre-wrap rounded-lg bg-secondary/40 px-3 py-2">{cas.requestedInfo}</p>
             <p className="text-xs text-muted-foreground">
@@ -121,6 +145,8 @@ export async function FicheCasPv({ user, id, retour, base }: {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="min-w-0 space-y-4 lg:col-span-2">
+          {/* LA DÉCLARATION À L'AUTORITÉ (24/11/2026) : ce que Regulatory et le pharmacien suivent ; le KAM ne la voit pas. */}
+          {(l.instruit || l.voitTout || viseur) && <CarteDeclarationPv cas={cas} echeance={echeance} nom={nom} visaRequis={ctx.visaRequis} />}
           <Card>
             <CardHeader><CardTitle className="flex items-center gap-2"><ShieldAlert className="h-4 w-4" /> Le signalement</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
@@ -146,6 +172,13 @@ export async function FicheCasPv({ user, id, retour, base }: {
                 <p className="text-xs text-muted-foreground">Ce qui s&apos;est passé</p>
                 <p className="mt-0.5 whitespace-pre-wrap">{cas.description}</p>
               </div>
+              {/* LA CITATION DE L'IA (détection dans le compte rendu), figée au signalement : ce qui a fait naître le cas. */}
+              {cas.citationIa && (
+                <div className="min-w-0 sm:col-span-2">
+                  <p className="text-xs text-muted-foreground">Relevé par l&apos;IA dans le compte rendu</p>
+                  <p className="mt-0.5 italic [overflow-wrap:anywhere]">« {cas.citationIa} »</p>
+                </div>
+              )}
               {visite?.report && (
                 <details className="min-w-0 rounded-lg bg-secondary/40 px-3 py-2 sm:col-span-2">
                   <summary className="cursor-pointer text-xs text-muted-foreground">Compte rendu de la visite liée</summary>
@@ -186,11 +219,43 @@ export async function FicheCasPv({ user, id, retour, base }: {
         </div>
 
         <div className="min-w-0 space-y-4 lg:col-span-1">
+          {l.instruit && status !== "CLOS" && (
+            <Card>
+              <CardHeader><CardTitle>{cas.evalueLe ? "Réévaluer" : "Évaluer le cas"}</CardTitle></CardHeader>
+              <CardContent>
+                <EvaluationPv
+                  caseId={cas.id}
+                  defaut={{
+                    grave: cas.evalGrave ?? (cas.severity === "GRAVE" || cas.severity === "DECES" ? true : cas.severity === "NON_GRAVE" ? false : null),
+                    attendu: cas.evalAttendu, imputabilite: cas.evalImputabilite, dateConnaissance: jourAlgerPv(cas.dateConnaissance), note: cas.evalNote,
+                  }}
+                />
+              </CardContent>
+            </Card>
+          )}
+          {l.instruit && cas.evalueLe && attendDeclarationPv(cas) && (
+            <Card className={echeance?.ton === "danger" ? "border-destructive/50" : undefined}>
+              <CardHeader><CardTitle>Enregistrer la déclaration</CardTitle></CardHeader>
+              <CardContent><DeclarationPv caseId={cas.id} aujourdhui={aujourdhui} /></CardContent>
+            </Card>
+          )}
+          {l.instruit && cas.declareLe && !cas.accuseLe && status !== "CLOS" && (
+            <Card>
+              <CardHeader><CardTitle>Accusé de réception</CardTitle></CardHeader>
+              <CardContent><AccusePv caseId={cas.id} aujourdhui={aujourdhui} /></CardContent>
+            </Card>
+          )}
+          {viseur && cas.declareLe && !cas.visaPharmacienLe && status !== "CLOS" && (
+            <Card className="border-warning/40">
+              <CardHeader><CardTitle>Visa du pharmacien responsable</CardTitle></CardHeader>
+              <CardContent><VisaPv caseId={cas.id} /></CardContent>
+            </Card>
+          )}
           {l.instruit && (
             <Card>
               <CardHeader><CardTitle>Instruction</CardTitle></CardHeader>
               <CardContent>
-                <InstructionCasPv caseId={cas.id} status={status} suivants={[...statutsSuivantsPv(status)]} />
+                <InstructionCasPv caseId={cas.id} status={status} suivants={[...statutsSuivantsPv(status, ctx)]} declare={ctx.declare} />
               </CardContent>
             </Card>
           )}

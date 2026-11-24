@@ -333,6 +333,9 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
   // Échéances de DÉPÔT des marchés PCH : responsable + équipe prévenus à J-7, J-2 et au
   // dépassement — le rappel se tait dès que la soumission est déposée.
   { cle: "pch.echeances", executer: runPchDeadlineSweep },
+  // PHARMACOVIGILANCE (Super Admin, 24/11/2026) : le délai de déclaration à l'autorité — Responsable réglementaire et
+  // déclarant prévenus à J-5, J-2, le jour J et au dépassement, une fois par palier ; le rappel se tait à la déclaration.
+  { cle: "pharmacovigilance.echeances", executer: async () => (await import("@/lib/pharmacovigilance/alertes")).alerterEcheancesPv() },
   // FORCE DE VENTE : alertes de supervision (silence, retard à mi-mois, couverture, KAM non
   // armé) — une par type et par mois, jamais une par nuit —, instantané mensuel de chaque KAM
   // (le mois clos ne se recalcule plus) et revue au passage du mois.

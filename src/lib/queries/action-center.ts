@@ -9,6 +9,7 @@ import { clausePlansADecider } from "@/lib/sfe/tournee";
 import { userCan, hasGlobalView, hasRole, scopeRegulatory, scopeDirectives, type SessionUser } from "@/lib/rbac";
 import { lignesInformationMedicale } from "@/lib/queries/action-center-info-med";
 import { lignesQuestionsDesFinances } from "@/lib/queries/action-center-questions-finances";
+import { lignesPharmacovigilance } from "@/lib/queries/action-center-pharmacovigilance";
 import { ORDRES_AUTORISES_NON_REGLES } from "@/modules/finances/api";
 import { getPendingValidations } from "@/lib/queries/validations";
 import { dossiersPromoAMonTour } from "@/lib/queries/promo-circuit";
@@ -798,6 +799,8 @@ export async function getActionCenter(user: SessionUser) {
   items.push(...(await lignesInformationMedicale(user).catch(sansBloquer("action-center.lignesInformationMedicale", []))));
   // 6c bis. Les QUESTIONS DES FINANCES au demandeur (Banque & paiements, 24/11/2026) — `action-center-questions-finances.ts`.
   items.push(...(await lignesQuestionsDesFinances(user).catch(sansBloquer("action-center.lignesQuestionsDesFinances", []))));
+  // 6c ter. La PHARMACOVIGILANCE (24/11/2026) : déclarations à l'autorité à J-5 ou en retard, visas du pharmacien responsable.
+  items.push(...(await lignesPharmacovigilance(user, now).catch(sansBloquer("action-center.lignesPharmacovigilance", []))));
 
   // 6d. Matériel promotionnel — étape en attente de l'acteur courant.
   //

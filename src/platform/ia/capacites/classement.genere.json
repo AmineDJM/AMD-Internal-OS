@@ -9235,6 +9235,46 @@
   "annulation": "retour",
   "appelable": true
  },
+ "pharmacovigilance-actions:declarerCasPv": {
+  "risque": "R2",
+  "familles": [
+   "REGLEMENTAIRE",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "pharmacovigilance-actions:enregistrerAccuseCasPv": {
+  "risque": "R1",
+  "familles": [
+   "REGLEMENTAIRE",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "compensation",
+  "appelable": true
+ },
+ "pharmacovigilance-actions:evaluerCasPv": {
+  "risque": "R2",
+  "familles": [
+   "REGLEMENTAIRE",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "pharmacovigilance-actions:modifierReglagesPv": {
+  "risque": "R1",
+  "familles": [
+   "REGLEMENTAIRE",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
  "pharmacovigilance-actions:ouvrirEnquetePv": {
   "risque": "R2",
   "familles": [
@@ -9256,6 +9296,16 @@
   "appelable": true
  },
  "pharmacovigilance-actions:signalerCasPv": {
+  "risque": "R2",
+  "familles": [
+   "REGLEMENTAIRE",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "pharmacovigilance-actions:viserCasPv": {
   "risque": "R2",
   "familles": [
    "REGLEMENTAIRE",
