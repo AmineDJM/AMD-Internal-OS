@@ -3,7 +3,6 @@ import { getDeclarations, declarationsHiddenByScope } from "@/lib/queries/medica
 import { getCompanyScope, getMyCompanies } from "@/lib/company";
 import { hiddenByScopeMessage } from "@/lib/company-visibility";
 import { toNumber } from "@/lib/utils";
-import { Card, CardContent } from "@/components/ui/card";
 import { ENTITY_TYPE_LABELS } from "@/lib/labels";
 import type { SessionUser } from "@/lib/rbac";
 import { DECLARATION_KIND_LABEL, isDeclarationKind } from "@/lib/medical-info/circuits";
@@ -15,8 +14,9 @@ import { chezDecideur } from "@/lib/medical-info/decideur";
 import { DossiersTable, type LigneDossier } from "./dossiers-table";
 
 /**
- * LE REGISTRE DE L'INFORMATION MÉDICALE — tous les dossiers, ouverts et validés, avec leurs quatre tuiles. Il était l'écran
- * par défaut ; depuis le 23/11/2026 c'est un onglet : le pharmacien ouvre d'abord « À faire », rangé par tour.
+ * LE REGISTRE DE L'INFORMATION MÉDICALE — tous les dossiers, ouverts et validés. Il était l'écran par défaut ; depuis le
+ * 23/11/2026 c'est un onglet : le pharmacien ouvre d'abord « À faire », rangé par tour. Plus de tuiles-compteurs (Super Admin,
+ * 24/11/2026) : elles répétaient les comptes des tours de « À faire » ; la pastille de chaque ligne dit où il en est.
  */
 export async function Registre({ user }: { user: SessionUser }) {
   const [declarations, horsPortee, myCompanies] = await Promise.all([
@@ -70,25 +70,6 @@ export async function Registre({ user }: { user: SessionUser }) {
       valide: parcours.groupe === "VALIDE",
     }));
 
-  // LES QUATRE TUILES — chaque dossier ouvert compte une fois, dans le groupe où il attend.
-  const groupe = (g: Parcours["groupe"]) => lus.filter((l) => l.parcours.groupe === g);
-  const aDeclarer = groupe("A_DECLARER");
-  const pieces = groupe("PIECES");
-  const pharmacien = groupe("A_VALIDER_PHARMACIEN").length;
-  const direction = groupe("A_VALIDER_DIRECTION").length;
-  const bons = groupe("BONS_FINANCES").length;
-  const plusAncien = aDeclarer.reduce((m, l) => Math.max(m, l.jours ?? 0), 0);
-  const personnes = new Set(
-    pieces.flatMap((l) => l.d.requests.filter((r) => r.status === "PENDING").map((r) => r.targetUserId ?? r.id)),
-  ).size;
-
-  const tuiles = [
-    { label: "À déclarer", value: aDeclarer.length, note: aDeclarer.length ? `le plus ancien : ${plusAncien} j` : null, ton: "" },
-    { label: "Pièces attendues", value: pieces.length, note: pieces.length ? `chez ${personnes} personne${personnes > 1 ? "s" : ""}` : null, ton: pieces.length ? "text-warning" : "" },
-    { label: "À valider", value: pharmacien + direction, note: pharmacien + direction ? `${pharmacien} pharmacien · ${direction} Directeur des Opérations` : null, ton: "" },
-    { label: "Bons de versement", value: bons, note: bons ? "en paiement aux Finances" : null, ton: "" },
-  ];
-
   return (
     <div className="space-y-5">
       {masques && (
@@ -96,18 +77,6 @@ export async function Registre({ user }: { user: SessionUser }) {
           <Filter className="mt-0.5 h-4 w-4 shrink-0" aria-hidden /> {masques}
         </p>
       )}
-
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {tuiles.map((t) => (
-          <Card key={t.label}>
-            <CardContent className="space-y-0.5 py-4">
-              <p className="text-xs text-muted-foreground">{t.label}</p>
-              <p className={`text-2xl font-semibold tabular-nums ${t.ton}`}>{t.value}</p>
-              <p className="truncate text-xs text-muted-foreground">{t.note ?? " "}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
 
       <DossiersTable lignes={lignes} />
     </div>

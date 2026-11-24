@@ -14,7 +14,7 @@ import { ETAPE_DECLARATION_PARTAGEE, type EtapeDeclaration } from "@/lib/medical
 import { AuthorityForm, DeclareDecisionCard, ValidateButton } from "./[id]/panels";
 
 const TON: Record<EtapeDeclaration["ton"], string> = {
-  succes: "border-success/40 bg-success/10 text-success",
+  succes: "border-border bg-secondary/40 text-foreground",
   info: "border-primary/30 bg-primary/5 text-primary",
   attente: "border-warning/40 bg-warning/10 text-foreground",
   neutre: "border-border bg-secondary/40 text-muted-foreground",
@@ -28,6 +28,7 @@ const TON: Record<EtapeDeclaration["ton"], string> = {
  * (TOUJOURS partagées avec la demande : c'est le seul endroit où elles se déposent, avec l'écran « À faire » et le dépôt du
  * dossier, qui portent la même marque) et enregistrer la référence ANPP. Une demande dont tous les postes sont accordés,
  * leurs devis validés et leur budget choisi, sans que la déclaration se soit ouverte (ou accordée sous l'ancienne règle) s'ouvre d'ici.
+ * Ni sur-titre ni phrase d'aide (Super Admin, 24/11/2026) : la phrase d'état et le geste suffisent.
  */
 export function EtapeDeclarationAdPro({ etape, sourceType, sourceId }: {
   etape: EtapeDeclaration; sourceType: EntityType; sourceId: string;
@@ -39,10 +40,7 @@ export function EtapeDeclarationAdPro({ etape, sourceType, sourceId }: {
   return (
     <section className="space-y-3 rounded-xl border border-border p-3 sm:p-4" aria-label={etape.titre}>
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0 space-y-1">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Dernière étape du circuit</p>
-          <h3 className="flex items-center gap-1.5 font-semibold"><Stethoscope className="h-4 w-4 shrink-0 text-muted-foreground" /> {etape.titre}</h3>
-        </div>
+        <h3 className="flex min-w-0 items-center gap-1.5 font-semibold"><Stethoscope className="h-4 w-4 shrink-0 text-muted-foreground" /> {etape.titre}</h3>
         {etape.lienDossier && d && (
           <Link href={etape.lienDossier} className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
             Dossier {d.reference} <ArrowUpRight className="h-3.5 w-3.5" />
@@ -53,14 +51,13 @@ export function EtapeDeclarationAdPro({ etape, sourceType, sourceId }: {
       <p className={cn("rounded-lg border px-3 py-2 text-sm font-medium", TON[etape.ton])}>{etape.phrase}</p>
 
       {etape.peutOuvrir && (
-        <div className="flex flex-wrap items-center gap-2">
+        <div>
           <Button
             type="button" size="sm" disabled={saving}
             onClick={() => run(() => { const fd = new FormData(); fd.set("sourceType", sourceType); fd.set("sourceId", sourceId); return ouvrirDeclarationDepuisAdPro(fd); })}
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />} Ouvrir la déclaration
           </Button>
-          <span className="text-xs text-muted-foreground">Les postes de cette demande sont accordés, leurs devis validés et leur budget choisi, mais sa déclaration n&apos;est pas encore ouverte : ouvrez-la pour la déclarer à l&apos;ANPP.</span>
         </div>
       )}
       {err && <p className="text-sm text-destructive">{err}</p>}
@@ -97,19 +94,13 @@ export function EtapeDeclarationAdPro({ etape, sourceType, sourceId }: {
       {etape.peutAgir && d && (etape.decision || etape.validation.peut) && (
         <div className="space-y-3 border-t border-border pt-3">
           {etape.decision && (
-            <div className="space-y-2">
-              <p className="text-sm font-medium">À déclarer à l&apos;ANPP, ou non ?</p>
-              <DeclareDecisionCard
-                id={d.id} state={etape.decision.etat} authorityRef={d.authorityRef}
-                canRequest={etape.decision.peutDemander} validationHref={etape.decision.validationHref}
-              />
-            </div>
+            <DeclareDecisionCard
+              id={d.id} state={etape.decision.etat} authorityRef={d.authorityRef}
+              canRequest={etape.decision.peutDemander} validationHref={etape.decision.validationHref}
+            />
           )}
           {etape.validation.peut && (
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Votre validation</p>
-              <ValidateButton id={d.id} hasPending={etape.validation.piecesAttendues} />
-            </div>
+            <ValidateButton id={d.id} hasPending={etape.validation.piecesAttendues} />
           )}
         </div>
       )}
@@ -120,22 +111,17 @@ export function EtapeDeclarationAdPro({ etape, sourceType, sourceId }: {
         <div className="grid grid-cols-1 gap-4 border-t border-border pt-3 lg:grid-cols-2">
           <div className="min-w-0 space-y-2">
             <p className="text-sm font-medium">Déposer les déclarations</p>
-            <p className="text-xs text-muted-foreground">Déclaration, récépissé, courrier de l&apos;ANPP : rangés dans le dossier {d.reference}, et téléchargeables par qui ouvre la demande (le KAM compris).</p>
             <DocumentUpload
               entityType="MEDICAL_INFO_DECLARATION" entityId={d.id} categories={["SUPPORTING_DOC", "OTHER"]} compact stepKey={ETAPE_DECLARATION_PARTAGEE}
               onUploaded={rafraichir}
             />
           </div>
-          <div className="min-w-0 space-y-2">
-            <p className="text-sm font-medium">Référence ANPP</p>
+          <div className="min-w-0">
             <AuthorityForm id={d.id} authorityRef={d.authorityRef} authorityNotes={d.authorityNotes} />
           </div>
         </div>
       ) : etape.depot.motif && (
-        <p className="border-t border-border pt-3 text-xs text-muted-foreground">
-          {etape.depot.motif}{" "}
-          {etape.lienDossier && <Link href={etape.lienDossier} className="text-primary hover:underline">Ouvrir le dossier</Link>}
-        </p>
+        <p className="border-t border-border pt-3 text-xs text-muted-foreground">{etape.depot.motif}</p>
       ))}
     </section>
   );

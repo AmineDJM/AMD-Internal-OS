@@ -491,14 +491,14 @@ export type TourDeclaration = "LECTURE" | "DEPOT" | "VALIDER" | "BONS" | "PIECES
 
 export const ORDRE_TOURS: readonly TourDeclaration[] = ["LECTURE", "DEPOT", "VALIDER", "BONS", "PIECES", "CHEZ_DO", "AILLEURS"];
 
-export const TITRE_TOUR: Record<TourDeclaration, { titre: string; aide: string }> = {
-  LECTURE: { titre: "Vos lectures à soumettre", aide: "Dites si chaque événement se déclare à l'ANPP : votre lecture part chez le Directeur des Opérations." },
-  DEPOT: { titre: "À déposer à l'ANPP", aide: "La lecture « à déclarer » est accordée : déposez à l'ANPP, joignez le récépissé, saisissez la référence, puis validez." },
-  VALIDER: { titre: "À valider", aide: "Tout est prêt : votre validation envoie le dossier au Directeur des Opérations, qui le clôt." },
-  BONS: { titre: "Bons de versement", aide: "Matériel promotionnel : séparez, faites valider, demandez le paiement de chaque quittance." },
-  PIECES: { titre: "Pièces attendues", aide: "Des pièces sont demandées à d'autres personnes : relancez si elles tardent — vous pouvez aussi continuer sans elles." },
-  CHEZ_DO: { titre: "Chez le Directeur des Opérations", aide: "Rien à faire de votre côté tant qu'il n'a pas tranché." },
-  AILLEURS: { titre: "En paiement", aide: "Les bons sont au centre de paiement ou aux Finances." },
+export const TITRE_TOUR: Record<TourDeclaration, string> = {
+  LECTURE: "Vos lectures à soumettre",
+  DEPOT: "À déposer à l'ANPP",
+  VALIDER: "À valider",
+  BONS: "Bons de versement",
+  PIECES: "Pièces attendues",
+  CHEZ_DO: "Chez le Directeur des Opérations",
+  AILLEURS: "En paiement",
 };
 
 /** Les tours où c'est AU PHARMACIEN de jouer — « À vous » sur la carte Ad & Pro et dans « Mon espace ». */

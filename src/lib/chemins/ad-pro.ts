@@ -53,20 +53,25 @@ export function lienPosteAssistante(itemId: string): string {
 }
 
 /**
- * « À FAIRE — INFORMATION MÉDICALE » (Direction, 23/11/2026) — l'écran du pharmacien : les BAT à contrôler et ses déclarations,
- * rangées par tour. Une notification « BAT à contrôler » mène à la ligne du poste (`#bat-<id>`) : il décide sur place, même
- * pour une « Autre demande » dont il n'ouvre pas la fiche.
+ * « INFORMATION MÉDICALE » — l'écran des déclarations du pharmacien (onglets « À faire » et « Registre »).
  */
 export const CHEMIN_A_FAIRE_INFO_MED = "/information-medicale";
 
-/** L'ancre d'un BAT sur l'écran « À faire — Information médicale ». */
+/**
+ * « CONTRÔLES DE CONFORMITÉ » — LA file des BAT (Super Admin, 24/11/2026 : « ça se répète deux fois »). Les BAT ne vivent
+ * plus qu'ici ; l'information médicale y renvoie par un lien. Une notification « BAT à contrôler » mène à la ligne du poste
+ * (`#bat-<id>`) : le pharmacien décide sur place, même pour une « Autre demande » dont il n'ouvre pas la fiche.
+ */
+export const CHEMIN_CONFORMITE = "/information-medicale/conformite";
+
+/** L'ancre d'un BAT sur l'écran « Contrôles de conformité ». */
 export function ancreBat(itemId: string): string {
   return `bat-${itemId}`;
 }
 
-/** UN BAT à contrôler, sur l'écran du pharmacien. */
+/** UN BAT à contrôler, sur l'écran « Contrôles de conformité ». */
 export function lienBatInfoMed(itemId: string): string {
-  return `${CHEMIN_A_FAIRE_INFO_MED}#${ancreBat(itemId)}`;
+  return `${CHEMIN_CONFORMITE}#${ancreBat(itemId)}`;
 }
 
 /** Le centre de validation Ad & Pro (les sièges du centre y tranchent les BC et les dépassements). */

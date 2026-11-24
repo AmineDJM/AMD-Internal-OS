@@ -79,17 +79,6 @@ export const CIRCUIT_LABEL: Record<MedicalCircuit, string> = {
   PROMO: "Matériel promotionnel",
 };
 
-/** Ce que le circuit exige, dit en une phrase — sur l'onglet comme sur la fiche. */
-export const CIRCUIT_HINT: Record<MedicalCircuit, string> = {
-  EVENT:
-    "Prises en charge nationales et internationales, événements, sponsorings. Pas de bon de versement : "
-    + "le pharmacien fait valider par le Directeur des Opérations s'il y a lieu de déclarer, puis fait le nécessaire auprès de l'ANPP "
-    + "de l'Industrie pharmaceutique.",
-  PROMO:
-    "Le dossier se sépare en matériels, un bon de versement par matériel. Une validation du Directeur des Opérations couvre le dépôt "
-    + "des bons ; le paiement de chacun se demande ensuite séparément.",
-};
-
 /** Range une liste de dossiers dans ses deux familles, en préservant l'ordre reçu. */
 export function splitByCircuit<T extends { sourceType: string; declarationKind?: string | null }>(
   rows: readonly T[],

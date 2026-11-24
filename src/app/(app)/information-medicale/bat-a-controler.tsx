@@ -2,9 +2,10 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { CheckCircle2, Clock, Download, ExternalLink, FileText, Loader2, ShieldCheck, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, Download, ExternalLink, FileText, Loader2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label, Textarea } from "@/components/ui/input";
+import { InfoBulle } from "@/components/ui/info-bulle";
 import { useAction } from "@/components/shared/use-action";
 import { cn, formatDate } from "@/lib/utils";
 import { ancreBat } from "@/lib/chemins/ad-pro";
@@ -12,10 +13,11 @@ import { deciderConformitePoste } from "@/modules/ad-pro/actions-postes-executio
 import type { FileConformite, LigneBat } from "@/modules/ad-pro/api";
 
 /**
- * « BAT À CONTRÔLER » (Direction, 23/11/2026) — tout ce qu'il faut pour décider, SUR LA LIGNE : la demande et son produit,
- * l'agence, le cahier des charges, TOUS les BAT (le plus récent d'abord ; les versions précédentes avec leur « non conforme »),
- * puis « Conforme » ou « Non conforme » (ce qu'il faut corriger, exigé). Puis ce qui attend un BAT corrigé, et les décidés.
- * La ligne porte l'ancre de la notification (`#bat-<poste>`) : elle s'y ouvre surlignée.
+ * « BAT À CONTRÔLER » — l'écran « Contrôles de conformité » (le seul où vivent les BAT depuis le 24/11/2026). Tout ce qu'il
+ * faut pour décider, SUR LA LIGNE : la demande et son produit, l'agence, le cahier des charges, TOUS les BAT (le plus récent
+ * d'abord ; les versions précédentes avec leur « non conforme »), puis « Conforme » ou « Non conforme » (ce qu'il faut
+ * corriger, exigé). Puis ce qui attend un BAT corrigé, et les décidés. Aucune phrase d'aide : la grille de contrôle vit
+ * dans un ⓘ. La ligne porte l'ancre de la notification (`#bat-<poste>`) : elle s'y ouvre surlignée.
  */
 
 const jours = (iso: string) => Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000));
@@ -30,7 +32,7 @@ function Fichiers({ ligne }: { ligne: LigneBat }) {
           <a href={`/api/documents/${f.id}`} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate font-medium text-primary hover:underline">{f.nom}</a>
           <span className="shrink-0 text-xs text-muted-foreground">BAT n° {f.tour} · {formatDate(f.le, { day: "numeric", month: "short" })}</span>
           {f.verdict && (
-            <span className={cn("shrink-0 rounded border px-1.5 text-[0.6875rem]", f.verdict.conforme ? "border-success/40 text-success" : "border-destructive/40 text-destructive")}>
+            <span className={cn("shrink-0 rounded border px-1.5 text-[0.6875rem]", f.verdict.conforme ? "border-border text-muted-foreground" : "border-destructive/40 text-destructive")}>
               {f.verdict.conforme ? "conforme" : "non conforme"}
             </span>
           )}
@@ -60,19 +62,20 @@ function Decision({ ligne }: { ligne: LigneBat }) {
   };
   return (
     <div className="space-y-2 rounded-lg border border-border bg-secondary/30 p-3">
-      <ul className="grid grid-cols-1 gap-x-4 text-xs text-muted-foreground sm:grid-cols-2">
-        <li>• Mentions légales et RCP conformes</li><li>• N° de visa publicitaire présent</li>
-        <li>• Aucune allégation hors AMM</li><li>• Logo et dénomination conformes</li>
-      </ul>
-      <Label htmlFor={`bat-note-${ligne.itemId}`}>Ce qu&apos;il faut corriger (exigé si non conforme)</Label>
+      <div className="flex items-center gap-1">
+        <Label htmlFor={`bat-note-${ligne.itemId}`}>À corriger (exigé si non conforme)</Label>
+        <InfoBulle label="Points à vérifier" align="left">
+          Mentions légales et RCP conformes · N° de visa publicitaire présent · Aucune allégation hors AMM · Logo et dénomination conformes.
+        </InfoBulle>
+      </div>
       <Textarea id={`bat-note-${ligne.itemId}`} value={note} rows={2} onChange={(e) => { setNote(e.target.value); setManque(false); }} />
       {manque && <p className="text-xs text-destructive">Dites ce qu&apos;il faut corriger : l&apos;agence reprendra le BAT d&apos;après vous.</p>}
       {err && <p className="text-sm text-destructive">{err}</p>}
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="success" disabled={saving} onClick={() => decider("CONFORME")}>
+        <Button size="sm" disabled={saving} onClick={() => decider("CONFORME")}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Conforme
         </Button>
-        <Button size="sm" variant="destructive" disabled={saving} onClick={() => decider("NON_CONFORME")}>
+        <Button size="sm" variant="outline" disabled={saving} onClick={() => decider("NON_CONFORME")}>
           <XCircle className="h-4 w-4" /> Non conforme
         </Button>
       </div>
@@ -93,9 +96,10 @@ function CarteBat({ ligne, peutDecider, ancre = true }: { ligne: LigneBat; peutD
             {ligne.produits ? ` · produit : ${ligne.produits}` : ""}
           </p>
         </div>
-        <span className={cn("inline-flex shrink-0 items-center gap-1 text-xs", attente > 2 ? "text-warning" : "text-muted-foreground")}>
-          <Clock className="h-3.5 w-3.5" /> {ligne.statut === "EN_CONTROLE" ? `envoyé ${attente ? `il y a ${attente} j` : "aujourd'hui"}` : `décidé le ${formatDate(ligne.depuis)}`}
-          {ligne.statut === "EN_CONTROLE" && ligne.envoyePar ? ` par ${ligne.envoyePar}` : ""}
+        <span className={cn("inline-flex shrink-0 items-center gap-1 text-xs", ligne.statut === "EN_CONTROLE" && attente > 2 ? "text-warning" : "text-muted-foreground")}>
+          <Clock className="h-3.5 w-3.5" /> {ligne.statut === "EN_CONTROLE"
+            ? `envoyé ${attente ? `il y a ${attente} j` : "aujourd'hui"}${ligne.envoyePar ? ` par ${ligne.envoyePar}` : ""}`
+            : `${ligne.statut === "CONFORME" ? "conforme" : "non conforme"}${ligne.decidePar ? ` — ${ligne.decidePar}` : ""}, le ${formatDate(ligne.depuis)}`}
         </span>
       </div>
       {ligne.cahierDesCharges && (
@@ -105,12 +109,6 @@ function CarteBat({ ligne, peutDecider, ancre = true }: { ligne: LigneBat; peutD
         </details>
       )}
       <Fichiers ligne={ligne} />
-      {ligne.statut === "NON_CONFORME" && (
-        <p className="text-xs text-muted-foreground">Non conforme{ligne.decidePar ? ` (${ligne.decidePar})` : ""} — la Direction Marketing fait corriger le BAT par l&apos;agence ; il vous reviendra ici.</p>
-      )}
-      {ligne.statut === "CONFORME" && (
-        <p className="inline-flex items-center gap-1 text-xs text-success"><ShieldCheck className="h-3.5 w-3.5" /> Conforme{ligne.decidePar ? ` — ${ligne.decidePar}` : ""} : l&apos;impression peut partir.</p>
-      )}
       {ligne.statut === "EN_CONTROLE" && peutDecider && <Decision ligne={ligne} />}
       {ligne.lienPoste && (
         <Link href={ligne.lienPoste} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
@@ -124,12 +122,9 @@ function CarteBat({ ligne, peutDecider, ancre = true }: { ligne: LigneBat; peutD
 export function BatAControler({ file, peutDecider }: { file: FileConformite; peutDecider: boolean }) {
   return (
     <section id="bat" className="scroll-mt-20 space-y-3" aria-labelledby="titre-bat">
-      <div>
-        <h2 id="titre-bat" className="text-base font-semibold">BAT à contrôler <span className="font-normal text-muted-foreground">({file.aControler.length})</span></h2>
-        <p className="text-xs text-muted-foreground">Mentions légales, visa publicitaire, allégations — avant impression. Votre décision part à la Direction Marketing.</p>
-      </div>
+      <h2 id="titre-bat" className="text-base font-semibold">BAT à contrôler <span className="font-normal text-muted-foreground">({file.aControler.length})</span></h2>
       {file.aControler.length === 0
-        ? <p className="rounded-lg border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">Aucun BAT n&apos;attend votre contrôle.</p>
+        ? <p className="rounded-lg border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">Aucun BAT à contrôler.</p>
         : <ul className="space-y-3">{file.aControler.map((l) => <CarteBat key={l.itemId} ligne={l} peutDecider={peutDecider} />)}</ul>}
       {file.enAttenteCorrection.length > 0 && (
         <details className="rounded-lg border border-border px-3 py-2">

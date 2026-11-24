@@ -6,7 +6,7 @@ import type { PosteDeclare } from "@/modules/ad-pro/api";
 
 const CONFORMITE: Record<string, { libelle: string; ton: string }> = {
   EN_CONTROLE: { libelle: "BAT en contrôle", ton: "text-warning" },
-  CONFORME: { libelle: "BAT conforme", ton: "text-success" },
+  CONFORME: { libelle: "BAT conforme", ton: "" },
   NON_CONFORME: { libelle: "BAT non conforme", ton: "text-destructive" },
 };
 

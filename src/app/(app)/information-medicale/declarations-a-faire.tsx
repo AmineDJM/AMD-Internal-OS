@@ -19,7 +19,8 @@ import { AuthorityForm, DeclareDecisionCard, RelancerPieceButton, ValidateButton
  * « DÉCLARATIONS » DE L'ÉCRAN « À FAIRE » (Direction, 23/11/2026) — rangées par TOUR (`medical-info/parcours.ts`) : d'abord ce qui
  * est au pharmacien (sa lecture, le dépôt ANPP, sa validation, ses bons), puis ce qu'il attend des autres (pièces — à
  * relancer), puis ce qui est chez le Directeur des Opérations ou en paiement. Chaque ligne : UNE phrase, UN geste, ses
- * fichiers. « À venir » : les demandes accordées dont la déclaration attend encore des postes, et pourquoi.
+ * fichiers. « À venir » : les demandes accordées dont la déclaration attend encore des postes, et pourquoi. Aucune phrase
+ * d'aide sous les titres (Super Admin, 24/11/2026) : la consigne de la ligne suffit.
  */
 
 function Fichiers({ fichiers }: { fichiers: LigneDeclarationAFaire["fichiers"] }) {
@@ -30,7 +31,7 @@ function Fichiers({ fichiers }: { fichiers: LigneDeclarationAFaire["fichiers"] }
         <li key={f.id} className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs">
           <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           <a href={`/api/documents/${f.id}`} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate text-primary hover:underline">{f.nom}</a>
-          <span className="shrink-0 text-muted-foreground">{formatDate(f.le, { day: "numeric", month: "short" })}{f.partagee ? " · partagée avec la demande" : " · interne"}</span>
+          <span className="shrink-0 text-muted-foreground">{formatDate(f.le, { day: "numeric", month: "short" })}{f.partagee ? "" : " · interne"}</span>
           <a href={`/api/documents/${f.id}?dl=1`} className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-0.5 font-medium hover:bg-secondary" aria-label={`Télécharger ${f.nom}`}>
             <Download className="h-3 w-3" /> Télécharger
           </a>
@@ -50,12 +51,10 @@ function Geste({ l, gestionnaire }: { l: LigneDeclarationAFaire; gestionnaire: b
       return (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div className="min-w-0 space-y-1.5">
-            <p className="text-xs font-medium">1. Joindre la déclaration et le récépissé ANPP</p>
-            <p className="text-xs text-muted-foreground">Partagés avec la demande : le KAM les télécharge depuis sa fiche.</p>
+            <p className="text-xs font-medium">Déclaration et récépissé ANPP</p>
             <DocumentUpload entityType="MEDICAL_INFO_DECLARATION" entityId={l.id} categories={["SUPPORTING_DOC", "OTHER"]} compact stepKey={ETAPE_DECLARATION_PARTAGEE} onUploaded={rafraichir} />
           </div>
           <div className="min-w-0 space-y-1.5">
-            <p className="text-xs font-medium">2. Enregistrer la référence ANPP — puis valider</p>
             <AuthorityForm id={l.id} authorityRef={l.authorityRef} authorityNotes={l.authorityNotes} />
           </div>
         </div>
@@ -137,28 +136,22 @@ export function DeclarationsAFaire({ tours, aVenir, gestionnaire }: {
   tours: { tour: TourDeclaration; lignes: LigneDeclarationAFaire[] }[]; aVenir: LigneAVenir[]; gestionnaire: boolean;
 }) {
   return (
-    <section className="space-y-4" aria-labelledby="titre-declarations">
-      <div>
-        <h2 id="titre-declarations" className="text-base font-semibold">Déclarations</h2>
-        <p className="text-xs text-muted-foreground">Rangées par tour : d&apos;abord ce qui est à vous. La déclaration s&apos;arrête à la validation du Directeur des Opérations.</p>
-      </div>
+    <section className="space-y-4" aria-label="Déclarations">
       {tours.length === 0 && (
-        <p className="rounded-lg border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">Aucune déclaration en cours.</p>
+        <p className="rounded-lg border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
+          Aucune déclaration en cours{gestionnaire ? " — « Nouvelle déclaration » pour en ouvrir une." : "."}
+        </p>
       )}
       {tours.map(({ tour, lignes }) => (
         <div key={tour} className="space-y-2">
-          <div>
-            <h3 className="text-sm font-semibold">{TITRE_TOUR[tour].titre} <span className="font-normal text-muted-foreground">({lignes.length})</span></h3>
-            <p className="text-xs text-muted-foreground">{TITRE_TOUR[tour].aide}</p>
-          </div>
+          <h3 className="text-sm font-semibold">{TITRE_TOUR[tour]} <span className="font-normal text-muted-foreground">({lignes.length})</span></h3>
           <ul className="space-y-3">{lignes.map((l) => <LigneDeclaration key={l.id} l={l} gestionnaire={gestionnaire} />)}</ul>
         </div>
       ))}
       {aVenir.length > 0 && (
         <details className="rounded-lg border border-border px-3 py-2" open={tours.length === 0}>
-          <summary className="cursor-pointer text-sm font-semibold">À venir — demandes accordées, déclaration pas encore ouverte ({aVenir.length})</summary>
-          <p className="mt-1 text-xs text-muted-foreground">La déclaration s&apos;ouvre d&apos;elle-même quand chaque poste est accordé, son devis validé et son budget choisi par la Direction Marketing. Un brouillon la retient ; un poste ajouté ensuite la rejoint.</p>
-          <ul className="mt-3 divide-y divide-border">
+          <summary className="cursor-pointer text-sm font-semibold">À venir ({aVenir.length})</summary>
+          <ul className="mt-2 divide-y divide-border">
             {aVenir.map((v) => (
               <li key={v.cle} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm">
                 <span className="min-w-0">
