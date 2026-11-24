@@ -995,8 +995,13 @@ fichiers dérivés des MÊMES données, cohérents chiffre par chiffre — ou au
 - **Le bouton du BC du poste, et la même pièce comptée une fois (Direction, 14/10)** — la case « Bon de commande »
   (`components/ad-pro/devis-bc-poste.tsx`) porte TOUJOURS « Générer le bon de commande » dès qu'un devis qui compte a des
   lignes validées : le clic ouvre l'aperçu (voir ci-dessus) ; qui n'est pas le demandeur prépare l'aperçu, que le demandeur
-  valide. Bloqué (plafond, budget, demande chez l'assistante), le bouton reste visible,
-  inactif, la raison écrite à côté et « Demander une révision du poste ». Le plafond ne somme que les devis QUI COMPTENT
+  valide. Bloqué (plafond, demande chez l'assistante), le bouton reste visible,
+  inactif, la raison écrite à côté et « Demander une révision du poste ». **Le budget ne bloque plus le BC (24/11/2026)** :
+  la Direction Marketing le choisit en parallèle ; le paiement (`demanderPaiementPoste`) et la déclaration à
+  l'information médicale l'exigent (`domaine/devis-poste.ts`, `domaine/postes.ts`). **La société qui commande (24/11/2026)** :
+  quand ni la demande ni la fiche salarié du demandeur ne la nomment (demandeur hors annuaire RH, ex. Super Admin),
+  l'aperçu la fait choisir (« Société qui commande », `choisirSocieteDuBcPoste`) ; elle s'inscrit une fois sur la demande
+  (une société déjà posée ne se change pas d'ici), et l'aperçu se génère et se retire sans elle. Le plafond ne somme que les devis QUI COMPTENT
   (`refusMontantDesDevis`, `lib/ad-pro/devis-poste.ts`) : `devisMisAPart` écarte la COPIE d'une pièce déjà comptée (mêmes
   lignes ET même fichier — empreinte SHA-256 du blob ou de la lecture, `empreintesDesDevis` — ou même numéro chez le même
   fournisseur ; les mêmes lignes seules ne sont qu'un « doublon probable », dit sans être décidé) et, en billetterie, les

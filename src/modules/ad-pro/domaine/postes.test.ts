@@ -225,11 +225,11 @@ describe("canSubmitItem — ce qui part en validation", () => {
 describe("canRequestPurchaseOrder — le bon de commande ne part pas trop tôt", () => {
   const base = { status: "APPROVED" as const, amountGranted: 1000, budgetCategoryId: "cat1", orderStage: "NONE" as const };
 
-  it("exige un poste accordé, chiffré ET imputé à un budget", () => {
+  it("exige un poste accordé et chiffré — PLUS le budget (recette 24/11/2026 : il se choisit en parallèle du BC)", () => {
     expect(canRequestPurchaseOrder(base).ok).toBe(true);
     expect(canRequestPurchaseOrder({ ...base, status: "PENDING" }).ok).toBe(false);
     expect(canRequestPurchaseOrder({ ...base, amountGranted: null }).ok).toBe(false);
-    expect(canRequestPurchaseOrder({ ...base, budgetCategoryId: null }).ok).toBe(false);
+    expect(canRequestPurchaseOrder({ ...base, budgetCategoryId: null }).ok).toBe(true);
   });
 
   it("ne redemande pas ce qui est en cours ou déjà émis — mais rouvre après un refus", () => {

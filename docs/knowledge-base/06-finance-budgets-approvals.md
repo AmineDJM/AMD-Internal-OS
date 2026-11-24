@@ -174,6 +174,20 @@ Direction Marketing; REVIEW_DG iff `porteDgRequise`; IN_EXECUTION; COMPLETED) [V
 > sent → BAT conformity (MEDICAL_INFO_PHARMACIST) → reception → invoice (guarded by `refusAvantReception`). For agency
 > postes the DG total gate is a signal only (`refusPorteDgDuPoste`). `sitsOnPaymentCentre` now honours `secondaryRole`.
 
+> **Recette 24/11/2026 (Ad & Pro)** — README journal entry of 2026-11-24 and `docs/readme/38-parcours-agence-signature-en-ligne.md`.
+> (1) A poste is published **without amount or budget**; the amount comes from the quote (agency choice / validated lines;
+> a direct sponsoring to the association is validated at its pro forma amount, "Valider le poste (montant)"). (2) The
+> **budget is no longer required by the approval nor by the BC** (`decideAdProItem`, `choisirAgencePoste`,
+> `domaine/devis-poste.ts`, `canRequestPurchaseOrder` in `domaine/postes.ts`): Direction Marketing picks it **in parallel**
+> with the BC ("Choisir le budget", `setAdProItemBudget`); **payment requires it** (`demanderPaiementPoste`) and so does the
+> medical-info declaration. Work in progress at the time of writing [U]. (3) Sponsoring: the nature's poste is **born at
+> Direction Marketing pre-validation**, PENDING its decision (`infra/postes/naissance-sponsoring.ts`, pure
+> `domaine/poste-du-sponsoring.ts`), not at creation. (4) Medical-info declaration (`lib/medical-info/declaration-postes.ts`)
+> opens when every poste is approved, its quote validated (lines, agency, attached BC or retained traveller quote) and its
+> budget chosen; a poste added later is accepted and joins it once ready (amount re-reported, pharmacist notified); a
+> validated declaration is not rewritten. (5) BC preview: the ordering company is chosen on the preview when neither the
+> request nor the requester's HR record names it (`choisirSocieteDuBcPoste`, written once on the request).
+
 ### 4.4 The workflow engine (4 configurable circuits)
 
 **Seed** (`defaults.ts:33`): `preliminary` (ROLE `NATIONAL_SALES`) → `dg` (ROLE `GENERAL_MANAGER`, no own threshold:
@@ -236,6 +250,9 @@ pharmacist exists and the step emits a declaration → creates a `MedicalInfoDec
 order is emitted later at the declaration's validation, `validateDeclarationByDirection` per comments) [V for the
 branch, U for the downstream]. Otherwise, if `emitExpenseOrder` → `createExpenseOrder` (category `EVENEMENT`) **unless
 the operation has postes** (`countAdProItems > 0` → no global order, anti double-count, `engine.ts:998`) [V].
+Since 19/11/2026 an Ad & Pro pre-validation opens no declaration here: `lib/medical-info/declaration-postes.ts` opens it
+when every poste is ready (approved, quote validated [V, header comment]; budget chosen — recette 24/11/2026, in
+progress [U]).
 
 ### 4.5 Postes (AdProItem) — the spend unit
 
@@ -449,8 +466,9 @@ centre seat = `DIRECTION` / `SUPER_ADMIN` / named seat.
 1. **Create** — `actions/sponsoring-actions.ts:createSponsoring` (`:69`): `userCan(SPONSORING, CREATE)`; required
    fields named at once; `adProInit(user,"SPONSORING")` (`origin.ts:111`) → KAM ⇒ `AWAITING_PRELIMINARY`;
    business unit imposed from the author (`businessUnitDuDemandeur`); `companyId = moneyEntityOf(user.id)`;
-   `createWithRetry` writes the request **and its first poste** atomically (nested create: kind from nature, amount =
-   delegate's suggestion, `budgetKind INCLUDED`) (`:184-243`); attachments; audit; `notifyAdProCreation` → NS [V].
+   `createWithRetry` writes the request **only** — since 24/11/2026 the nature's poste (kind from nature, amount =
+   delegate's suggestion) is no longer created here but at step 5 (`modules/ad-pro/actions-sponsoring.ts`);
+   attachments; audit; `notifyAdProCreation` → NS [V, 2026-11-24].
 2. **Instance birth** — first view/gesture: `workflow/engine.ts:ensureInstance` (`:380`) → `parcoursEffectif` freezes
    `finalSlug=null`, `skippedSlugs=[]` (KAM + sponsoring traverses all steps); `currentSlug=preliminary` [V].
 3. **NS approves** — `actions/workflow-actions.ts:advanceWorkflow` → `engine.ts:advanceWorkflowInstance` (claim) →
@@ -459,18 +477,23 @@ centre seat = `DIRECTION` / `SUPER_ADMIN` / named seat.
    the dossier [V]. A NS "reject" here is only `OPINION_AGAINST` (not the deciding step) [V].
 4. **Direction des opérations** (`final`, GLOBAL_VIEW `DIRECTION`) approves → lands on `marketing` [V].
 5. **DM pre-validates the tenue** — APPROVE at `ETAPE_PRE_VALIDATION_SPONSORING`: `issueTerminaleSponsoring` →
-   `PRE_VALIDATED` (`issue-sponsoring.ts:54`); `emitFinancials` with `argentDecideApres` → medical-info declaration
-   (estimated from postes, `montantADeclarer`) but **no expense order**; instance `APPROVED`; requester notified "tenue
-   pré-validée" (`engine.ts:858-940`) [V].
-6. **Poste work** — (indirect: `repartirPoste` splits by nature). Requester `submitAdProItem` → `decideAdProItem`
-   stage 1 by `DIRECTION` (sets `opsDecidedAt`) → stage 2 by DM with `amountGranted` + `budgetCategoryId` → poste
-   `APPROVED`; `reprojeterMontantDemande` [V]. **Budget check = category choice only**; no availability check [V/U].
+   `PRE_VALIDATED` (`issue-sponsoring.ts:54`); **no expense order**; instance `APPROVED`; requester notified "tenue
+   pré-validée" (`engine.ts:858-940`) [V]. Since 19/11/2026 pre-validation **opens no medical-info declaration**
+   (it opens when every poste is ready, `lib/medical-info/declaration-postes.ts:ouvrirDeclarationSiPostesValides`);
+   since 24/11/2026 the nature's poste is **born here**, PENDING DM (`infra/postes/naissance-sponsoring.ts`) [V].
+6. **Poste work** — (indirect: `repartirPoste` splits by nature). Historical (10-24): requester `submitAdProItem` →
+   `decideAdProItem` stage 1 by `DIRECTION` → stage 2 by DM with `amountGranted` + `budgetCategoryId`. Since 27/10 a
+   single DM acceptance; since 24/11/2026 DM validates the **amount** (from the quote / pro forma) and picks the
+   **budget separately** (`setAdProItemBudget`, in parallel with the BC); `reprojeterMontantDemande` [V/U — in progress].
+   **Budget check = category choice only**; no availability check [V/U].
 7. **BC** (indirect postes) — two mutually exclusive routes: (a) `requestAdProItemOrder` (`:2442`) → secretariat
    request to the assistante, who deposits the BC; or (b) platform-generated from validated quote lines:
    `genererBonDeCommandePoste` (`:4147`, mandatory preview draft, no number) → `validerEtEnvoyerBcPoste` (`:4163`,
    requester or Super Admin only; assigns number `NNN/DG/AAAA`, produces Word+PDF, starts the BC march). Above
    `bcValidationThreshold`, visa by DG/SA (`approveAdProItemOrder`, `:2537`); then Finances
-   `bc-signature-actions.ts:signerBonDeCommande` (signed copy + Luna check) [V].
+   `bc-signature-actions.ts:signerBonDeCommande` (signed copy + Luna check) [V]. Since 24/11/2026 the BC no longer waits
+   for the budget, and the preview asks for the ordering company when neither request nor requester's HR record names it
+   (`choisirSocieteDuBcPoste`) [V].
 8. **Payment request** — `demanderPaiementPoste` (`:1285`) → `payerLesFacturesDuPoste` (`:1613`): invoice deposited &
    controlled vs BC, ≤ granted, claim `orderStage ISSUED` → `expense-orders.ts:createExpenseOrder` (`:269`) with
    `budgetCategoryId` of the poste, category EVENEMENT, `sourceType SPONSORING`, `requiresInvoice` per kind →

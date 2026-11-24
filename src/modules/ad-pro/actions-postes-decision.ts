@@ -144,7 +144,7 @@ export async function decideAdProItem(_prev: ActionResult | undefined, formData:
   if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
   // QUI TRANCHE (27/10/2026) : un poste d'ARGENT est accepté par la Direction Marketing, qui fixe le
-  // montant et choisit le budget — un seul temps. Le matériel du stock garde sa décision unique (il
+  // montant (le budget se choisit ensuite, recette 24/11/2026). Le matériel du stock garde sa décision unique (il
   // n'engage pas d'argent, §118.167).
   const argent = item.kind !== "STOCK_MATERIAL";
   const droits = argent ? await peutTrancherSur(user, owner) : null;
@@ -191,13 +191,13 @@ export async function decideAdProItem(_prev: ActionResult | undefined, formData:
   if (granted != null && granted < 0) return { ok: false, error: "Un montant ne peut pas être négatif." };
   const status = decision as AdProItemStatus;
 
-  // ── ACCORD DE LA DIRECTION MARKETING : le BUDGET est exigé (« elle sélectionne le budget »). Le choisir plus
-  // tard était un geste à part qu'on oubliait : le poste restait accordé et impayable.
+  // ── VALIDATION DE LA DIRECTION MARKETING : LE MONTANT, PAS ENCORE LE BUDGET (recette 24/11/2026). Elle valide le poste
+  // (montant du devis retenu, ou de la pro forma), PUIS choisit le budget — un geste à part, la carte l'offre aussitôt comme
+  // étape suivante (`setAdProItemBudget`), et l'information médicale l'attend. Un budget envoyé reste accepté, vérifié.
   let budgetCategoryId: string | null = item.budgetCategoryId;
   if (argent && status === "APPROVED") {
     const choisi = fdStr(formData, "budgetCategoryId");
     budgetCategoryId = choisi ?? item.budgetCategoryId;
-    if (!budgetCategoryId) return { ok: false, error: "Choisissez le budget qui portera ce poste : la validation de la Direction Marketing le fixe en même temps que le montant." };
     // LA CATÉGORIE CONVIENT À LA DEMANDE (point 9, 27/10) : sa nature, son exercice, sa Business Unit.
     if (choisi) {
       const refusCat = await refusCategoriePourLaDemande(choisi, owner.parent, owner.id);
@@ -308,6 +308,8 @@ export async function decideAdProItem(_prev: ActionResult | undefined, formData:
     if (phrase) suite += ` ${phrase}`;
   }
   suite += phrasePiece;
+  // VALIDÉ SANS BUDGET (recette 24/11/2026) : l'étape suivante se nomme — c'est elle qui ouvre l'information médicale.
+  if (accordArgent && !budgetCategoryId) suite += " Étape suivante : choisir le budget qui porte ce poste (« Choisir le budget »).";
   if (info?.requesterId && info.requesterId !== user.id) {
     // LE DÉLÉGUÉ SUIT SANS LES DÉTAILS (`suitSansDetails`) : la note d'un ACCORD (« Agence retenue : … », montants) ne lui
     // est pas écrite ; le motif d'un refus ou d'une révision, si — c'est ce qu'il doit savoir.

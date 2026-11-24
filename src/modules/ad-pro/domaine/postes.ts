@@ -241,13 +241,14 @@ export const REFUS_INDIRECT_NON_REPARTI =
   + "chaque nature devient un poste qui se valide, se commande et se paie à part.";
 
 /**
- * Une demande d'ÉMISSION DE BON DE COMMANDE ne se fait que sur un poste ACCORDÉ, CHIFFRÉ, dont
- * le budget a été choisi, et une seule fois — sauf refus, qui rouvre le droit de redemander.
- * Fonction PURE — testée.
+ * Une demande d'ÉMISSION DE BON DE COMMANDE ne se fait que sur un poste ACCORDÉ, CHIFFRÉ, et une
+ * seule fois — sauf refus, qui rouvre le droit de redemander. LE BUDGET N'EST PLUS EXIGÉ ICI (recette
+ * 24/11/2026) : il se choisit en parallèle du BC, et le paiement l'exige. Fonction PURE — testée.
  */
 export function canRequestPurchaseOrder(item: {
   status: AdProItemStatus;
   amountGranted?: number | null;
+  /** Lu, plus exigé (recette 24/11/2026). */
   budgetCategoryId?: string | null;
   orderStage: AdProItemOrderStage;
 }): { ok: boolean; reason?: string } {
@@ -256,7 +257,6 @@ export function canRequestPurchaseOrder(item: {
   if (typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0) {
     return { ok: false, reason: "Affectez d'abord un montant à ce poste." };
   }
-  if (!item.budgetCategoryId) return { ok: false, reason: "Choisissez d'abord le budget (enveloppe) qui portera ce poste." };
   if (item.orderStage === "REQUESTED" || item.orderStage === "DIRECTION_OK") {
     return { ok: false, reason: "Une demande d'émission est déjà en cours." };
   }

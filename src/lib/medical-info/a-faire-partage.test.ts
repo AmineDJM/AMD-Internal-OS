@@ -45,10 +45,22 @@ describe("le tour d'une déclaration", () => {
 });
 
 describe("les postes au regard de la déclaration", () => {
-  /** Par défaut : un poste d'imprimerie dont le devis est validé — ce qui le rend prêt une fois accordé. */
-  const p = (status: string, extra: Partial<{ voie: string; agence: boolean; montant: number; kind: string; devis: boolean }> = {}) => ({
+  /** Par défaut : un poste d'imprimerie dont le devis est validé et le budget choisi — ce qui le rend prêt une fois accordé. */
+  const p = (status: string, extra: Partial<{ voie: string; agence: boolean; montant: number; kind: string; devis: boolean; budget: boolean }> = {}) => ({
     status, kind: extra.kind ?? "PRINTING", voie: extra.voie ?? null, amountGranted: extra.montant ?? 1000, amountEstimated: null,
     execution: { agenceRetenueAt: extra.agence ? new Date() : null }, devisValide: extra.devis ?? true,
+    budgetCategoryId: extra.budget === false ? null : "cat-1",
+  });
+
+  it("LE BUDGET CHOISI D'ABORD (recette 24/11/2026) : un poste validé sans budget retient la déclaration — sauf le matériel du stock", () => {
+    const l = lirePostesPourDeclaration([p("APPROVED", { montant: 1000 }), p("APPROVED", { montant: 500, budget: false })]);
+    expect(l).toMatchObject({ total: 2, valides: 1, prets: false, montant: 1000, blocages: ["1 poste accordé sans budget choisi"] });
+    // Le sponsoring direct (sans devis) attend aussi son budget ; le matériel du stock n'en a jamais.
+    expect(lirePostesPourDeclaration([p("APPROVED", { kind: "ASSOCIATION_SUPPORT", devis: false, budget: false })]).blocages).toEqual(["1 poste accordé sans budget choisi"]);
+    expect(lirePostesPourDeclaration([p("APPROVED", { kind: "STOCK_MATERIAL", devis: false, montant: 0, budget: false })]).prets).toBe(true);
+    // Agence choisie (lignes validées), budget pas encore choisi : il retient ; le budget choisi, il est prêt.
+    expect(lirePostesPourDeclaration([p("APPROVED", { voie: "AGENCE", agence: true, budget: false }), p("APPROVED", { budget: false })]).blocages).toEqual(["2 postes accordés sans budget choisi"]);
+    expect(lirePostesPourDeclaration([p("APPROVED", { voie: "AGENCE", agence: true })]).prets).toBe(true);
   });
 
   it("LE DEVIS VALIDÉ D'ABORD (recette 24/11/2026) : un poste accordé sans devis validé retient la déclaration, et le montant ne le compte pas", () => {

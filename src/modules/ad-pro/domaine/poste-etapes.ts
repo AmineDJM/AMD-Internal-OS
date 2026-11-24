@@ -25,8 +25,9 @@ import type { EtatPorteDg } from "@/lib/seuils/porte-dg-total";
  *
  * ── L'ORDRE DES QUESTIONS EST LE CYCLE ──────────────────────────────────────────────────────
  *
- * On ne propose pas de choisir un budget avant l'accord, ni de demander un bon de commande sans
- * budget, ni d'émettre un ordre de dépense sur une opération que personne n'a accordée. Chaque
+ * On ne propose pas de choisir un budget avant l'accord, ni de demander le paiement sans budget
+ * (le BC, lui, n'attend plus le budget : il se choisit en parallèle — recette 24/11/2026, `pasBudget`),
+ * ni d'émettre un ordre de dépense sur une opération que personne n'a accordée. Chaque
  * « geste » rendu ici est un geste que l'action serveur ACCEPTERA dans cet état : un bouton
  * qu'une action refuse n'est pas un bouton (§118.83). Les gardes restent dans les actions ; ce
  * module ne dit que ce qui a un sens à proposer — un banc rejoue chaque geste rendu par la VRAIE
@@ -331,7 +332,8 @@ export function etapesDuPoste(p: FaitsPoste): Etape[] {
       etat: bcSigne(p) || (p.expenseOrderId && !p.bc) ? "FAIT"
         : p.orderStage === "REFUSED" || p.bc === "REFUSE" ? "REFUSE"
         : p.bc || p.orderStage === "REQUESTED" || p.orderStage === "DIRECTION_OK" ? "EN_COURS"
-        : accorde && p.budgetCategoryId ? "EN_COURS" : "A_VENIR",
+        // Le BC n'attend pas le budget (recette 24/11/2026) : dès l'accord, il est en cours.
+        : accorde ? "EN_COURS" : "A_VENIR",
     });
   }
   const factureOuverte = accorde && p.budgetCategoryId && (sansBC ? true : bcSigne(p));
@@ -429,9 +431,11 @@ export function prochainPas(p: FaitsPoste, r: RegardPoste): ProchainPas {
   }
 
   // ── L'ACCORD DE LA DIRECTION MARKETING (27/10/2026 : un seul temps) ─────────────────────
+  // VALIDER, PUIS CHOISIR LE BUDGET (recette 24/11/2026) : le geste ne demande plus que le montant — le budget se choisit
+  // ensuite, en parallèle du BC (`pasBudget`).
   if (p.status === "PENDING") {
     return droits.marketing && !r.fige
-      ? { geste: { cle: "DECIDER", libelle: "Accorder le poste (montant et budget)" }, attente: null }
+      ? { geste: { cle: "DECIDER", libelle: "Valider le poste (montant)" }, attente: null }
       : { geste: null, attente: `En attente — chez ${qui2} (montant et budget).` };
   }
 
@@ -447,11 +451,9 @@ export function prochainPas(p: FaitsPoste, r: RegardPoste): ProchainPas {
       ? { geste: { cle: "MONTANT", libelle: "Affecter le montant accordé" }, attente: null }
       : { geste: null, attente: `${capitale(qui2)} affecte le montant accordé à ce poste.` };
   }
-  if (!p.budgetCategoryId) {
-    return droits.marketing && !r.fige
-      ? { geste: { cle: "BUDGET", libelle: "Choisir le budget" }, attente: null }
-      : { geste: null, attente: `${capitale(qui2)} choisit le budget qui porte ce poste.` };
-  }
+  // LE BUDGET NE RETIENT PLUS LE BC (recette 24/11/2026) : il se choisit EN PARALLÈLE (`pasBudget`, que la carte montre à
+  // côté) ; seul le PAIEMENT l'attend — plus bas, là où il se demande.
+  const budget = pasBudget(p, r);
   // ── LA PORTE DU DG : le total de la demande dépasse le seuil et n'est pas (ou plus) validé ──
   // Ni bon de commande, ni paiement, ni engagement tant qu'elle est fermée (27/10/2026).
   if (p.porteDg === "EN_ATTENTE" || p.porteDg === "A_REVOIR") {
@@ -471,18 +473,19 @@ export function prochainPas(p: FaitsPoste, r: RegardPoste): ProchainPas {
   // de demande de sponsoring suffit à demander le paiement (Direction, 05/10).
   if (direct && p.orderStage === "NONE" && !p.bc) {
     if (!r.operationDecidee) return { geste: null, attente: "La proforma ou la lettre de demande se joindra quand l'opération sera accordée." };
-    return payer;
+    return budget ?? payer;
   }
 
   // ── LE BON DE COMMANDE : demande → (centre) → assistante → vérification → signature Finances ──
   // LA FACTURE DÉPOSÉE (recette du 23/11/2026), le geste n'est plus de la déposer : il ouvre la case « Paiement », qui porte
   // la demande et, si la facture s'écarte du BC, l'argumentation exigée.
   if (p.bc === "SIGNE" && p.toutFacture && !direct) {
+    if (budget) return budget;
     return r.canEdit
       ? { geste: { cle: "PAIEMENT_A_DEMANDER", libelle: "Demander le paiement" }, attente: null }
       : { geste: null, attente: "Facture déposée — le demandeur demande le paiement." };
   }
-  if (p.bc === "SIGNE") return payer;
+  if (p.bc === "SIGNE") return budget ?? payer;
   if (p.bc) return { geste: null, attente: ATTENTE_BC[p.bc] ?? "Bon de commande en cours au registre." };
   // DEMANDÉ : l'assistante l'établit pendant que, au-dessus du seuil, le centre le vise en parallèle.
   if (p.orderStage === "REQUESTED" || p.orderStage === "DIRECTION_OK") {
@@ -518,6 +521,24 @@ export function prochainPas(p: FaitsPoste, r: RegardPoste): ProchainPas {
 }
 
 const capitale = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** Ce que les autres lisent tant que le budget n'est pas choisi (recette 24/11/2026). */
+export const ATTENTE_BUDGET = "En attente — la Direction Marketing choisit le budget.";
+
+/**
+ * LE BUDGET, EN PARALLÈLE DU BC (recette 24/11/2026) — la Direction Marketing valide le poste (le montant), puis choisit son
+ * budget : un geste à part, qui ne retient pas le bon de commande (il suit son chemin, `prochainPas` / `pasAgence`) mais que
+ * le PAIEMENT et l'INFORMATION MÉDICALE attendent. Fonction PURE : « Choisir le budget » pour qui tient la Direction
+ * Marketing (l'action `setAdProItemBudget` l'accepte d'elle et du Super Admin), la phrase d'attente pour les autres — `null`
+ * quand il n'y a rien à choisir (pas un poste d'argent, pas accordé, budget déjà posé, paiement déjà parti).
+ */
+export function pasBudget(p: Pick<FaitsPoste, "kind" | "status" | "budgetCategoryId" | "expenseOrderId">, r: RegardPoste): ProchainPas | null {
+  if (p.kind === "STOCK_MATERIAL" || p.status !== "APPROVED" || p.budgetCategoryId || p.expenseOrderId) return null;
+  const droits = r.validation ?? { operations: false, marketing: false };
+  return droits.marketing && !r.fige
+    ? { geste: { cle: "BUDGET", libelle: "Choisir le budget" }, attente: null }
+    : { geste: null, attente: ATTENTE_BUDGET };
+}
 
 /**
  * Le geste qui suit la validation des lignes (Direction, 11/2026) : le BC de chaque devis validé est né avec elle — la personne

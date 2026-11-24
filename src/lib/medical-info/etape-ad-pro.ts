@@ -44,7 +44,7 @@ export function seDeclareEnInformationScientifique(type: EntityType | string): b
 
 /**
  * L'ÉTAPE, pour la fiche d'une demande Ad & Pro. `circuitConclu` : la pré-validation (ou l'ancien accord) a conclu le
- * circuit — la déclaration s'ouvre ensuite, quand le dernier poste est prêt (accordé, son devis validé). `null` pour ce qui ne se déclare pas ici
+ * circuit — la déclaration s'ouvre ensuite, quand le dernier poste est prêt (accordé, son devis validé, son budget choisi). `null` pour ce qui ne se déclare pas ici
  * (matériel promotionnel, « autres »).
  */
 export async function etapeDeclaration(
@@ -66,19 +66,20 @@ export async function etapeDeclaration(
     decision: null, validation: { peut: false, piecesAttendues: false }, aVous: false,
   };
   if (!decl) {
-    // LA DÉCLARATION ATTEND LES DEVIS VALIDÉS (Direction, 19/11/2026 — recette 24/11/2026) : elle s'ouvre seule quand le
-    // dernier poste est accordé et son devis validé par la Direction Marketing. Tant qu'il en reste, l'étape dit combien.
+    // LA DÉCLARATION ATTEND LES DEVIS VALIDÉS ET LE BUDGET (Direction, 19/11/2026 — recette 24/11/2026) : elle s'ouvre seule
+    // quand le dernier poste est accordé, son devis validé et son budget choisi par la Direction Marketing. Tant qu'il en
+    // reste, l'étape dit combien.
     const { ouvrable, postes } = await declarationOuvrable(sourceType, sourceId);
     const attendPostes = circuitConclu && !ouvrable;
     return {
       ...base,
       etat: circuitConclu && ouvrable ? "current" : "todo",
-      detail: !circuitConclu ? "après les devis validés"
+      detail: !circuitConclu ? "après les devis validés et le budget choisi"
         : attendPostes ? (postes.total ? `${postes.valides}/${postes.total} postes prêts` : "aucun poste encore") : "à ouvrir",
       phrase: !circuitConclu
-        ? "Après la pré-validation, l'accord des postes et la validation de leurs devis par la Direction Marketing, le pharmacien déclare l'événement à l'ANPP."
+        ? "Après la pré-validation, l'accord des postes, la validation de leurs devis et le choix de leur budget par la Direction Marketing, le pharmacien déclare l'événement à l'ANPP."
         : attendPostes
-          ? `La déclaration s'ouvrira quand chaque poste sera accordé et son devis validé par la Direction Marketing — ${postes.valides} sur ${postes.total} le sont${postes.blocages.length ? ` (${postes.blocages.join(", ")})` : ""}. Un poste ajouté ensuite la rejoindra.`
+          ? `La déclaration s'ouvrira quand chaque poste sera accordé, son devis validé et son budget choisi par la Direction Marketing — ${postes.valides} sur ${postes.total} le sont${postes.blocages.length ? ` (${postes.blocages.join(", ")})` : ""}. Un poste ajouté ensuite la rejoindra.`
           : "Déclaration pas encore ouverte — chez le pharmacien responsable de l'information médicale",
       ton: circuitConclu && !attendPostes ? "attente" : "neutre",
       declaration: null, lienDossier: null, peutAgir: false, peutOuvrir: tient && circuitConclu && ouvrable,

@@ -19,13 +19,25 @@ PHASE 1 — PRÉVALIDATION (la route dépend de QUI crée : workflow/parcours.ts
   Directeur des opérations, DG,         → DIRECTION MARKETING
     Direction, Super Admin
   Direction Marketing                   → PRÉVALIDÉE D'OFFICE (tracé au journal du circuit)
-  · la Direction Marketing PRÉVALIDE : ni montant, ni catégorie, ni ordre global ; la déclaration PRIM part ici
+  · la Direction Marketing PRÉVALIDE : ni montant, ni catégorie, ni ordre global ; la déclaration PRIM n'en part
+    plus (19/11/2026 : elle attend que les postes soient prêts, phase 2)
   · sponsoring → « Tenue pré-validée » (PRE_VALIDATED) ; prise en charge / événement / autre → « prévalidée » (APPROVED)
+    — le poste de la nature d'un sponsoring NAÎT ICI (24/11/2026), en attente de la Direction Marketing
   · à la création, l'acteur de l'étape reçoit « à vous d'agir », les suivants « pour information » (ouvrirLeCircuit)
 
 PHASE 2 — POSTES (aucun poste, aucun budget avant la prévalidation : refusAvantPrevalidation)
   ajoutés par la Direction Marketing, le Directeur des opérations, le demandeur, et le National Sales pour ses délégués
-  → UN SEUL ACCORD : la Direction Marketing (montant + sous-catégorie) — une AUTRE personne qu'elle sur sa propre demande
+  (un poste ajouté par la Direction Marketing elle-même naît en attente de son accord, jamais « Soumettre »)
+  → la Direction Marketing PUBLIE le poste sans montant ni budget ; l'assistante prospecte et dépose les devis
+  → UN SEUL ACCORD : la Direction Marketing valide les lignes / choisit l'agence — le MONTANT vient du devis (un
+    sponsoring direct à l'association : de sa pro forma, « Valider le poste (montant) ») — une AUTRE personne
+    qu'elle sur sa propre demande
+  → EN PARALLÈLE (24/11/2026) : le BC s'ouvre aussitôt (l'assistante le génère, la Direction Marketing le valide,
+    centre, DG au-dessus du seuil, signature des Finances) ET la Direction Marketing « Choisir le budget » ;
+    le paiement exige le budget
+  → DÉCLARATION à l'information médicale : s'ouvre quand CHAQUE poste est accordé, son devis validé (lignes
+    validées, agence choisie, BC joint ou devis de voyageur retenu) et son budget choisi ; un poste ajouté après
+    la rejoint une fois prêt (montant mis à jour, pharmacien prévenu) ; validée, elle n'est pas réécrite
 
 PHASE 3 — LE DG VALIDE LE TOTAL (lib/ad-pro/porte-dg.ts)
   total = somme des postes de toute la demande (accordé, sinon estimé ; refusés exclus)
@@ -108,15 +120,17 @@ prises en charge…) : devis à l'assistante de direction, BC, factures. Une foi
 Marketing **valide tout, met chaque poste dans un budget, valide et clôture**. »
 
 ```
-Création : demandé par le médecin + suggéré par le délégué + NATURE (direct / indirect)
-   → le POSTE naît avec la demande : « Sponsoring direct (association) » ou « Sponsoring indirect
-     (prise en charge) », chiffré au montant SUGGÉRÉ, la demande du médecin écrite dans le poste
+Création : demandé par le médecin + suggéré par le délégué + NATURE (direct / indirect) — aucun poste encore
    → le circuit de son demandeur — un KAM : National Sales PUIS Direction des opérations (28/09/2026) —
      et porte du DG au-delà du seuil
    → DIRECTION MARKETING : pré-valide ou refuse la TENUE — aucun montant accordé, aucun ordre global
-        → statut « Tenue pré-validée — postes en cours » ; la déclaration PRIM part (estimation des postes)
+        → statut « Tenue pré-validée — postes en cours »
+        → le POSTE NAÎT ICI (24/11/2026 ; avant, avec la demande) : « Sponsoring direct (association) » ou
+          « Sponsoring indirect (prise en charge) », chiffré au montant SUGGÉRÉ, la demande du médecin écrite
+          dans le poste, EN ATTENTE de la Direction Marketing — sans « Soumettre pour validation »
    → POSTES : ajout (stand, billetterie, hôtellerie…), devis au secrétariat, décision poste par poste,
      BC → centre de validation Ad&Pro → émission → facture → paiement (centre de paiement)
+   → DÉCLARATION (information médicale) : quand chaque poste est accordé, son devis validé et son budget choisi
    → VALIDATION FINALE ET CLÔTURE (Direction Marketing) : tout poste décidé, chaque poste accordé rangé
      dans un budget et chiffré → la SOMME des postes accordés devient le montant accordé → « Clôturée »
    → (si besoin) ROUVRIR, motif obligatoire → la demande repasse « pré-validée », ses postes se rouvrent
@@ -144,7 +158,7 @@ Création : demandé par le médecin + suggéré par le délégué + NATURE (dir
 
 « Ici c'est trop complexe : plus simple, plus séparé, plus lisible, moins de boutons » (Direction, 01/10). Chaque
 carte de poste dit **ce qu'il est**, **ce qu'il coûte** (estimé, accordé, payé à, budget), **où il en est** (la
-frise chiffré → Direction → budget → bon de commande → paiement) et **un seul geste** — celui de la personne qui
+frise chiffré → Direction → budget et bon de commande — en parallèle depuis le 24/11/2026 — → paiement) et **un seul geste** — celui de la personne qui
 regarde — ou ce qu'on attend et de qui (`ad-pro/poste-etapes.ts`, pur). Les gestes secondaires (modifier, affecter
 un montant, changer le budget, émettre sans BC, historique, retirer) vivent dans le menu « ⋯ », et les pièces et
 demandes au secrétariat dans un dépliant « Pièces et demandes ».
@@ -158,6 +172,13 @@ demandes au secrétariat dans un dépliant « Pièces et demandes ».
 - **Médecin absent de l'annuaire.** Sous le choix des médecins, la case « Médecin non présent dans l'annuaire »
   ouvre une saisie libre (un nom par ligne) : les noms écrits **s'ajoutent** aux médecins cochés. Rien n'est créé
   dans l'annuaire.
+- **Médecins concernés (24/11/2026).** Sur la fiche, une **liste déroulante de tout l'annuaire**, filtrable : on
+  coche plusieurs médecins et un bouton les relie d'un geste avec le rôle choisi (`ajouterMedecinsConcernes`).
+- **Créer les postes depuis un fichier (24/11/2026)** — à côté de « Ajouter un poste » (carte Postes). Le cahier des
+  charges est gardé dans les pièces de la demande ; l'IA propose les postes ; la personne relit chaque carte (nature,
+  libellé, description, quantité, comment le poste se paie : **par une agence** / **directement**) puis crée. Un poste
+  « par une agence » part en prospection chez l'assistante choisie, avec son cahier des charges, dans le même geste.
+  Ni montant ni budget à la publication : un montant écrit dans le document va dans les notes.
 - **Billetterie : les voyageurs.** Sur un poste « Prise en charge de la billetterie » : nom (suggéré parmi les
   médecins de la demande), trajet, dates d'aller et de retour, précisions, passeport (pièce du poste). Un nom
   suffit ; ce qui manque pour réserver est nommé sur la ligne. « Demander la réservation » ouvre un **sujet** pour
@@ -170,6 +191,11 @@ demandes au secrétariat dans un dépliant « Pièces et demandes ».
   montre ce qui part avec ; tout est réversible depuis la corbeille.
 - **Déposer un devis** (« Devis » dans les pièces liées) : seuls le **titre** et le **PDF** sont obligatoires — le
   fournisseur est facultatif. Un engagement, un bon de commande ou une facture exigent toujours leur partie.
+  Sur un poste (24/11/2026) : **plusieurs fichiers d'un coup**, une carte par fichier lue par l'IA (fournisseur,
+  montant, référence), modifiable, puis « Déposer les N devis » — un devis par fichier ; la bascule « pages d'un
+  même devis » revient à un seul devis. **« Supprimer »** un devis : la Direction Marketing (qui arbitre), qui
+  modifie la demande, et la personne qui l'a ajouté — pour l'assistante, tant que les devis ne sont pas transmis ;
+  le devis **retenu** de l'agence ne se supprime pas, et la ligne le dit (`retirerDevisDuPoste`).
 - **On agit sur un poste d'une demande qu'on VOIT.** Chaque geste sur un poste (modifier, soumettre, décider,
   répartir, voyageurs, réservation, matériel du stock…) lit la porte de la fiche de sa demande (`canAccessEntity`,
   VIEW) en plus du droit du module : un délégué n'agit pas sur les postes du congrès d'un collègue (portée « ses

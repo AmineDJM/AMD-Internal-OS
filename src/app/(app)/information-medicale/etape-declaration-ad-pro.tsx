@@ -27,7 +27,7 @@ const TON: Record<EtapeDeclaration["ton"], string> = {
  * soumettre sa lecture, puis — une fois la lecture « à déclarer » accordée, et seulement alors — déposer les déclarations
  * (TOUJOURS partagées avec la demande : c'est le seul endroit où elles se déposent, avec l'écran « À faire » et le dépôt du
  * dossier, qui portent la même marque) et enregistrer la référence ANPP. Une demande dont tous les postes sont accordés,
- * leurs devis validés, sans que la déclaration se soit ouverte (ou accordée sous l'ancienne règle) s'ouvre d'ici.
+ * leurs devis validés et leur budget choisi, sans que la déclaration se soit ouverte (ou accordée sous l'ancienne règle) s'ouvre d'ici.
  */
 export function EtapeDeclarationAdPro({ etape, sourceType, sourceId }: {
   etape: EtapeDeclaration; sourceType: EntityType; sourceId: string;
@@ -60,7 +60,7 @@ export function EtapeDeclarationAdPro({ etape, sourceType, sourceId }: {
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />} Ouvrir la déclaration
           </Button>
-          <span className="text-xs text-muted-foreground">Les postes de cette demande sont accordés et leurs devis validés, mais sa déclaration n&apos;est pas encore ouverte : ouvrez-la pour la déclarer à l&apos;ANPP.</span>
+          <span className="text-xs text-muted-foreground">Les postes de cette demande sont accordés, leurs devis validés et leur budget choisi, mais sa déclaration n&apos;est pas encore ouverte : ouvrez-la pour la déclarer à l&apos;ANPP.</span>
         </div>
       )}
       {err && <p className="text-sm text-destructive">{err}</p>}

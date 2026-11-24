@@ -134,7 +134,8 @@ describe("de la relecture au formulaire d'ajout ordinaire", () => {
   it("compose le formulaire de l'écran « Ajouter un poste » — description et quantité en précisions", () => {
     expect(versFormulaireDuPoste(poste, "AD_PRO_OTHER", "d1")).toEqual([
       ["parent", "AD_PRO_OTHER"], ["parentId", "d1"], ["kind", "PRINTING"], ["label", "Kakémonos 85 × 200 cm"], ["budgetKind", "INCLUDED"],
-      ["notes", "Pour le stand.\nQuantité : 4"], ["amountEstimated", "48000"],
+      // Ni montant ni budget à la publication (recette 24/11/2026) : le montant lu reste dans les notes.
+      ["notes", `Pour le stand.\nQuantité : 4\nMontant écrit dans le cahier des charges : ${(48000).toLocaleString("fr-FR")} DZD`],
     ]);
     const sansRien = versFormulaireDuPoste({ ...poste, description: null, quantite: null, montant: null }, "EVENT", "e1");
     expect(sansRien.map(([k]) => k)).toEqual(["parent", "parentId", "kind", "label", "budgetKind"]);

@@ -375,13 +375,32 @@ export function versFormulaireDuPoste(
   const champs: [string, string][] = [
     ["parent", parent], ["parentId", parentId], ["kind", p.nature], ["label", p.libelle], ["budgetKind", "INCLUDED"],
   ];
-  const notes = notesDuPoste(p);
+  // NI MONTANT NI BUDGET À LA PUBLICATION (recette 24/11/2026) : le montant vient du devis (ou de la pro forma) à la
+  // validation d'Assia ; un montant écrit dans le document est gardé dans les notes, pour information.
+  const montantLu = p.montant !== null && p.montant > 0 ? `Montant écrit dans le cahier des charges : ${p.montant.toLocaleString("fr-FR")} DZD` : null;
+  const notes = [notesDuPoste(p), montantLu].filter(Boolean).join("\n").slice(0, NOTES_MAX);
   if (notes) champs.push(["notes", notes]);
-  if (p.montant !== null && p.montant > 0) champs.push(["amountEstimated", String(p.montant)]);
   if (p.voie) champs.push(["voie", p.voie]);
   if (p.voie === "AGENCE") {
     champs.push(["cahierDesCharges", cahierDuPoste(p, o.fichier ?? null)]);
     if (o.assistanteId) champs.push(["assistanteId", o.assistanteId]);
   }
   return champs;
+}
+
+/**
+ * LE FORMULAIRE « AJOUTER UN POSTE », PRÉ-REMPLI (recette 24/11/2026) — « les postes du cahier des charges suivent
+ * exactement le chemin des postes saisis à la main » : chaque proposition s'affiche dans CE formulaire (nature, libellé,
+ * précisions, cahier des charges pour la voie « par une agence ») ; la voie, la conformité, les fiches et l'assistante s'y
+ * choisissent comme à la main, et « Ajouter » envoie le même formulaire à la même action.
+ */
+export function initialDuPoste(p: PosteDuFichier, fichier: string | null): {
+  kind: NatureDuFichier; label: string; notes: string; cahierDesCharges: string;
+} {
+  const precisions = [
+    p.description,
+    p.quantite !== null ? `Quantité : ${p.quantite.toLocaleString("fr-FR")}` : null,
+    p.montant !== null && p.montant > 0 ? `Montant écrit dans le cahier des charges : ${p.montant.toLocaleString("fr-FR")} DZD` : null,
+  ].filter(Boolean).join(" · ");
+  return { kind: p.nature, label: p.libelle, notes: precisions.slice(0, NOTES_MAX), cahierDesCharges: cahierDuPoste(p, fichier) };
 }

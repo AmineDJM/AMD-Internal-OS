@@ -39,6 +39,8 @@ export function faitsAgenceDuPoste(item: ItemRow): FaitsPosteAgence | null {
     factures: item.pieces.factures.length, toutFacture: toutEstFacture(item.pieces), expenseOrderId: item.expenseOrderId,
     expenseOrderStatus: item.expenseOrder?.status ?? null, expenseOrderCentral: item.expenseOrder?.centralStatus ?? null,
     orderDecisionNote: item.orderDecisionNote ?? null,
+    // Le paiement attend le budget, pas le BC (recette 24/11/2026).
+    budgetChoisi: Boolean(item.budgetCategoryId),
     agence: item.agence.faits,
   };
 }
@@ -125,11 +127,10 @@ function TransmettreLesDevis({ nombre, enCours, id, ajouter, transmettre }: {
   );
 }
 
-export function ParcoursAgence({ item, regard, assistantes, budgetOptions, signature, busy, run, ouvrir }: {
+export function ParcoursAgence({ item, regard, assistantes, signature, busy, run, ouvrir }: {
   item: ItemRow;
   regard: RegardAgence;
   assistantes: { id: string; name: string }[];
-  budgetOptions: { id: string; label: string }[];
   signature: SignaturePrete;
   busy: string | null;
   run: Run;
@@ -233,11 +234,12 @@ export function ParcoursAgence({ item, regard, assistantes, budgetOptions, signa
         />
       )}
 
-      {/* LE COMPARATIF — la Direction Marketing coche les lignes qu'elle commande dans chaque devis, et le budget (23/11/2026) :
+      {/* LE COMPARATIF — la Direction Marketing coche les lignes qu'elle commande dans chaque devis (23/11/2026 ; le budget se
+          choisit ensuite, en parallèle du BC — recette 24/11/2026) :
           un BC par agence ; plusieurs agences retenues, le poste est scindé, un poste par agence. */}
       {ouvert === "CHOISIR_AGENCE" && (
         <ChoixLignesAgences
-          itemId={item.id} devis={devis} budgetCategoryId={item.budgetCategoryId ?? null} budgetOptions={budgetOptions} enCours={enCours}
+          itemId={item.id} devis={devis} enCours={enCours}
           onAnnuler={fermer}
           onRetenir={(f) => void run(`agc:${item.id}`, () => retenirLignesDesAgences(f), "Lignes retenues.").then(fermer)}
         />

@@ -260,9 +260,9 @@ suite("Sponsoring — pré-validation de la tenue, postes, validation finale et 
   });
 
   it("chaque poste est accepté en UN SEUL TEMPS — la Direction Marketing, qui choisit le budget", async () => {
-    // RÈGLE DU 27/10/2026 : soumis par le demandeur, accepté par la Direction Marketing AVEC son budget. Le Directeur des
-    // opérations a validé la DEMANDE en amont ; il ne revalide plus chaque poste (l'ancien premier temps est franchi
-    // d'office à la soumission, et tracé). L'accord sans budget n'existe toujours pas.
+    // RÈGLE DU 27/10/2026 : soumis par le demandeur, accepté par la Direction Marketing. Le Directeur des opérations a validé
+    // la DEMANDE en amont ; il ne revalide plus chaque poste (l'ancien premier temps est franchi d'office à la soumission, et
+    // tracé). RECETTE 24/11/2026 : elle valide le montant, PUIS choisit le budget — deux gestes.
     // Le poste du sponsoring est né en attente (prévalidation) ; le stand, ajouté ensuite, se soumet.
     // Le stand, AJOUTÉ PAR LA DIRECTION MARKETING, est né en attente lui aussi : elle ne se « soumet » pas un poste à
     // elle-même (recette 24/11/2026) — le soumettre encore est refusé, il attend déjà.
@@ -279,9 +279,12 @@ suite("Sponsoring — pré-validation de la tenue, postes, validation finale et 
       expect(pasLui.ok === false ? pasLui.error : "accordé", `${role} n'accepte plus un poste`).toMatch(/attend la décision de la Direction Marketing/);
     }
     ACTOR = await actorFor(dmId, "PRODUCT_MANAGER");
+    // VALIDER, PUIS CHOISIR LE BUDGET (recette 24/11/2026) : la Direction Marketing valide le montant, sans budget ; le budget
+    // est l'étape d'après, à part (`setAdProItemBudget`).
     const sansBudget = await decideAdProItem(undefined, fd({ id: postAutoId, decision: "APPROVED", amountGranted: "80000" }));
-    expect(sansBudget.ok === false ? sansBudget.error : "accordé").toMatch(/Choisissez le budget/);
-    expect((await decideAdProItem(undefined, fd({ id: postAutoId, decision: "APPROVED", amountGranted: "80000", budgetCategoryId: catId }))).ok).toBe(true);
+    expect(sansBudget.ok, sansBudget.ok ? "" : sansBudget.error).toBe(true);
+    expect((await prisma.adProItem.findUniqueOrThrow({ where: { id: postAutoId } })).budgetCategoryId, "validé, budget à choisir").toBeNull();
+    expect((await setAdProItemBudget(undefined, fd({ id: postAutoId, budgetCategoryId: catId }))).ok).toBe(true);
     expect((await decideAdProItem(undefined, fd({ id: standId, decision: "REJECTED", note: "Pas de stand cette année" }))).ok).toBe(true);
     // L'ESTIMATION suit les décisions : le montant ACCORDÉ remplace l'estimé, et un poste REFUSÉ ne
     // pèse plus rien. 80 000 et non 90 000 (l'estimé d'origine) ni 130 000 (le stand refusé compté) —

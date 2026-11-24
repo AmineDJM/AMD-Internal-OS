@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import type { AdProItemKind } from "@prisma/client";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { reporterLesPostesDeclares, signalerPostesALaDeclaration } from "@/lib/workflow/engine";
+import { reporterLesPostesDeclares, signalerPostesALaDeclaration, ouvrirDeclarationSiPostesValides, posteCompteDansLaDeclaration } from "@/lib/workflow/engine";
 import { toNumber } from "@/lib/utils";
 import { moneyEntityOf } from "@/lib/company";
 import { notifyUser, notifyRoles } from "@/lib/notify";
@@ -610,6 +610,8 @@ export async function setAdProItemBudget(_prev: ActionResult | undefined, formDa
   if (item.status !== "APPROVED") return { ok: false, error: "Le poste doit d'abord être accordé." };
 
   const budgetCategoryId = fdStr(formData, "budgetCategoryId");
+  // DÉCLARÉ AVANT LE GESTE ? (recette 24/11/2026) — le budget choisi peut rendre le poste PRÊT pour l'information médicale.
+  const declareAvant = await posteCompteDansLaDeclaration(id).catch(sansBloquer("ad-pro.setAdProItemBudget.declareAvant", true));
   if (budgetCategoryId) {
     const cat = await prisma.budgetCategoryLine.findUnique({
       where: { id: budgetCategoryId },
@@ -624,8 +626,21 @@ export async function setAdProItemBudget(_prev: ActionResult | undefined, formDa
     await prisma.adProItem.update({ where: { id }, data: { budgetCategoryId: null, updatedById: user.id } });
     await audit(user, owner.parent, owner.id, "UPDATE", `Poste « ${item.label} » : imputation budgétaire retirée.`);
   }
+  // LE BUDGET CHOISI OUVRE L'INFORMATION MÉDICALE (recette 24/11/2026) : la déclaration attend que chaque poste soit validé,
+  // son devis validé ET son budget choisi — c'est souvent ce geste-ci, le dernier, qui l'ouvre. Déjà ouverte, le poste qui
+  // devient prêt la rejoint (son montant, le pharmacien prévenu) ; le budget retiré l'en sort. Rien de bloquant. (Le BC,
+  // lui, n'attend pas le budget : il suit son chemin en parallèle.)
+  const ouverte = await ouvrirDeclarationSiPostesValides(owner.parent, owner.id)
+    .catch(sansBloquer("ad-pro.setAdProItemBudget.ouvrirDeclaration", null));
+  if (!ouverte && !declareAvant && budgetCategoryId) {
+    const ref = (await PARENTS[owner.parent].load(owner.id))?.ref ?? "";
+    await signalerPostesALaDeclaration(owner.parent, owner.id, { moment: "DEVIS", ref, postes: [{ id, label: item.label }] })
+      .catch(sansBloquer("ad-pro.setAdProItemBudget.signalerDeclaration"));
+  } else if (!ouverte) {
+    await reporterLesPostesDeclares(owner.parent, owner.id).catch(sansBloquer("ad-pro.setAdProItemBudget.reporterDeclaration"));
+  }
   revalidate(owner.parent, owner.id);
-  return { ok: true, id };
+  return { ok: true, id, message: budgetCategoryId ? (ouverte ? "Budget choisi — la déclaration à l'information médicale est ouverte." : "Budget choisi.") : "Imputation budgétaire retirée." };
 }
 
 /** Référence d'une demande administrative — même forme que le module (DEM-année-n). */

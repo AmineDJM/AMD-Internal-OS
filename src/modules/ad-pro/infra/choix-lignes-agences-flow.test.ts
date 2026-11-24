@@ -14,6 +14,8 @@ import { prisma } from "@/lib/prisma";
 import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { choisirAgencePoste, retenirLignesDesAgences } from "../actions-postes-agence";
+import { setAdProItemBudget } from "../actions-postes";
+import { postesPourDeclaration } from "@/lib/medical-info/declaration-postes";
 import { valeurDeLigne } from "../domaine/choix-agences";
 import { grouperParRepartition, resumeRepartition } from "../domaine/poste-etapes";
 
@@ -49,11 +51,11 @@ suite("Ad & Pro — la Direction Marketing retient des LIGNES de plusieurs devis
   const docs: string[] = [];
 
   /** Un poste « par une agence » dont les devis sont transmis : il attend le choix de la Direction Marketing. */
-  async function posteATrancher(label: string): Promise<string> {
+  async function posteATrancher(label: string, congresId = congres): Promise<string> {
     const maintenant = new Date();
     const id = (await prisma.adProItem.create({
       data: {
-        congressNationalId: congres, kind: "PRINTING", label: `${TAG}${label}`, voie: "AGENCE", conformiteRequise: true,
+        congressNationalId: congresId, kind: "PRINTING", label: `${TAG}${label}`, voie: "AGENCE", conformiteRequise: true,
         status: "PENDING", submittedAt: maintenant, opsDecidedAt: maintenant, opsDecidedById: u.dm, createdById: u.kam,
       },
       select: { id: true },
@@ -94,6 +96,8 @@ suite("Ad & Pro — la Direction Marketing retient des LIGNES de plusieurs devis
   const validees = (pieceId: string) => prisma.adProDevisLigne.findMany({ where: { devis: { legalDocumentId: pieceId }, validatedItemId: { not: null } }, select: { id: true, validatedItemId: true } });
   const brouillonDe = async (pieceId: string) => ((await prisma.adProDevis.findUniqueOrThrow({ where: { legalDocumentId: pieceId } })).bcBrouillon as { itemId?: string } | null);
   const postesDuCongres = () => prisma.adProItem.findMany({ where: { congressNationalId: congres }, select: { id: true } });
+  /** La demande dont le circuit est conclu (la déclaration peut s'y ouvrir) — le banc « budget en parallèle » (recette 24/11/2026). */
+  let congresDeclare = "", defId = "";
 
   beforeAll(async () => {
     const mk = async (n: string, role: SessionUser["role"]) =>
@@ -110,8 +114,19 @@ suite("Ad & Pro — la Direction Marketing retient des LIGNES de plusieurs devis
   }, 60_000);
 
   afterAll(async () => {
-    const postes = (await postesDuCongres().catch(() => [])).map((p) => p.id);
+    const postes = [
+      ...(await postesDuCongres().catch(() => [])),
+      ...(congresDeclare ? await prisma.adProItem.findMany({ where: { congressNationalId: congresDeclare }, select: { id: true } }).catch(() => []) : []),
+    ].map((p) => p.id);
     const ids = Object.values(u).filter(Boolean);
+    if (congresDeclare) {
+      const decls = (await prisma.medicalInfoDeclaration.findMany({ where: { sourceId: congresDeclare }, select: { id: true } }).catch(() => [])).map((d) => d.id);
+      await prisma.notification.deleteMany({ where: { link: { in: decls.map((d) => `/information-medicale/${d}`) } } }).catch(() => {});
+      await prisma.auditLog.deleteMany({ where: { entityId: { in: [congresDeclare, ...decls] } } }).catch(() => {});
+      await prisma.medicalInfoDeclaration.deleteMany({ where: { sourceId: congresDeclare } }).catch(() => {});
+      await prisma.workflowInstance.deleteMany({ where: { entityId: congresDeclare } }).catch(() => {});
+      await prisma.workflowDefinition.deleteMany({ where: { id: defId } }).catch(() => {});
+    }
     await prisma.bcBrouillonVersion.deleteMany({ where: { itemId: { in: postes } } }).catch(() => {});
     await prisma.adProItemPiece.deleteMany({ where: { itemId: { in: postes } } }).catch(() => {});
     await prisma.legalDocument.deleteMany({ where: { id: { in: docs } } }).catch(() => {});
@@ -120,7 +135,7 @@ suite("Ad & Pro — la Direction Marketing retient des LIGNES de plusieurs devis
     await prisma.adProItem.deleteMany({ where: { id: { in: postes } } }).catch(() => {});
     await prisma.adProPorteDg.deleteMany({ where: { entityId: congres } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { OR: [{ entityId: { in: [congres, ...postes, ...docs] } }, { actorId: { in: ids } }] } }).catch(() => {});
-    await prisma.congressNational.deleteMany({ where: { id: congres } }).catch(() => {});
+    await prisma.congressNational.deleteMany({ where: { id: { in: [congres, congresDeclare].filter(Boolean) } } }).catch(() => {});
     await prisma.budgetCategoryLine.deleteMany({ where: { id: catId } }).catch(() => {});
     await prisma.budgetEnvelope.deleteMany({ where: { id: envId } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
@@ -241,5 +256,52 @@ suite("Ad & Pro — la Direction Marketing retient des LIGNES de plusieurs devis
     const p = await prisma.adProItem.findUniqueOrThrow({ where: { id } });
     expect(Number(p.amountGranted)).toBe(238_000);
     expect((await validees(alpha.pieceId)).length).toBe(2);
+  });
+
+  it("LE BUDGET EN PARALLÈLE (recette 24/11/2026) : l'agence choisie SANS budget, le poste est accordé et son BC naît aussitôt — l'information médicale attend le budget ; Assia le choisit, la déclaration s'ouvre", async () => {
+    // Une demande dont le circuit est conclu : la déclaration peut s'y ouvrir — quand chaque poste est prêt.
+    defId = (await prisma.workflowDefinition.create({ data: { category: `${TAG}WF`, name: `${TAG}circuit` } })).id;
+    congresDeclare = (await prisma.congressNational.create({ data: { name: `${TAG}Congrès de Sétif`, requesterId: u.kam, requestStatus: "APPROVED" }, select: { id: true } })).id;
+    await prisma.workflowInstance.create({ data: { definitionId: defId, entityType: "CONGRESS_NATIONAL", entityId: congresDeclare, category: `${TAG}WF`, status: "APPROVED" } });
+    const declaration = () => prisma.medicalInfoDeclaration.findUnique({ where: { sourceType_sourceId: { sourceType: "CONGRESS_NATIONAL", sourceId: congresDeclare } } });
+    const id = await posteATrancher("Kakémonos", congresDeclare);
+    const alpha = await devis(id, `${TAG}Alpha`, [{ ref: "Kakémono", q: 4, p: 10_000 }]);
+
+    // 1. LE CHOIX DE L'AGENCE, SANS BUDGET : accepté — le montant vient du devis.
+    ACTOR = await acteur(u.dm, "PRODUCT_MANAGER");
+    const f = new FormData();
+    f.set("id", id);
+    f.append("ligne", valeurDeLigne(alpha.pieceId, alpha.lignes[0]!));
+    const r = await retenirLignesDesAgences(f);
+    expect(r.ok, r.error).toBe(true);
+    expect(r.message).toContain("Choisir le budget");
+    const accorde = await prisma.adProItem.findUniqueOrThrow({ where: { id } });
+    expect(accorde.status).toBe("APPROVED");
+    expect(Number(accorde.amountGranted), "40 000 HT, TTC 19 %").toBe(47_600);
+    expect(accorde.budgetCategoryId, "le budget n'est pas encore choisi").toBeNull();
+    // LE BC N'ATTEND PAS LE BUDGET : son brouillon est déjà chez l'assistante.
+    expect((await brouillonDe(alpha.pieceId))?.itemId, "le BC naît sans attendre le budget").toBe(id);
+    // L'INFORMATION MÉDICALE, ELLE, L'ATTEND.
+    expect(await declaration(), "sans budget : pas de déclaration").toBeNull();
+    expect((await postesPourDeclaration("CONGRESS_NATIONAL", congresDeclare)).blocages).toEqual(["1 poste accordé sans budget choisi"]);
+
+    // 2. LE BUDGET SE CHOISIT PAR LA DIRECTION MARKETING — pas par l'assistante.
+    ACTOR = await acteur(u.ast, "DIRECTION_ASSISTANT");
+    const pasElle = await setAdProItemBudget(undefined, (() => { const x = new FormData(); x.set("id", id); x.set("budgetCategoryId", catId); return x; })());
+    expect(pasElle.ok, "l'assistante ne choisit pas le budget").toBe(false);
+    expect((await prisma.adProItem.findUniqueOrThrow({ where: { id } })).budgetCategoryId).toBeNull();
+
+    // 3. ASSIA CHOISIT LE BUDGET : le poste est prêt, le dernier — la déclaration s'ouvre, au montant du poste.
+    ACTOR = await acteur(u.dm, "PRODUCT_MANAGER");
+    const b = new FormData();
+    b.set("id", id);
+    b.set("budgetCategoryId", catId);
+    const choisi = await setAdProItemBudget(undefined, b);
+    expect(choisi.ok, choisi.ok ? "" : choisi.error).toBe(true);
+    expect((await prisma.adProItem.findUniqueOrThrow({ where: { id } })).budgetCategoryId).toBe(catId);
+    const d = await declaration();
+    expect(d, "le budget choisi ouvre la déclaration").not.toBeNull();
+    expect(Number(d!.amount)).toBe(47_600);
+    expect(choisi.message).toContain("déclaration");
   });
 });

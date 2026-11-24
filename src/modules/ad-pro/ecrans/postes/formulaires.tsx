@@ -31,13 +31,13 @@ import { sansBonDeCommande } from "../../domaine/poste-etapes";
 /**
  * TRANCHER UN POSTE — trois temps, une boîte.
  *  - `OPERATIONS` : la Direction des opérations valide (premier temps) ;
- *  - `MARKETING` : la Direction Marketing valide ET fixe le montant accordé ET choisit le budget
- *    (`decideAdProItem` exige le budget à l'accord) ;
+ *  - `MARKETING` : la Direction Marketing valide ET fixe le montant accordé — le budget se choisit
+ *    ENSUITE, à part, en parallèle du BC (recette 24/11/2026 : « Choisir le budget », `setAdProItemBudget`) ;
  *  - `STOCK` : la décision unique du matériel du stock.
  * Renvoyer et refuser exigent un motif à chaque temps.
  */
-export function BoiteDecision({ item, mode, budgetOptions, busy, run, fdOf, onCancel, revoir = false, accordSeul = false }: {
-  item: ItemRow; mode: "OPERATIONS" | "MARKETING" | "STOCK"; budgetOptions: { id: string; label: string }[];
+export function BoiteDecision({ item, mode, busy, run, fdOf, onCancel, revoir = false, accordSeul = false }: {
+  item: ItemRow; mode: "OPERATIONS" | "MARKETING" | "STOCK";
   busy: string | null; run: Run; fdOf: (extra?: Record<string, string>) => FormData; onCancel: () => void;
   /** REVOIR UNE DÉCISION DÉJÀ PRISE (audit R12) : la décision d'hier reste à l'historique. */
   revoir?: boolean;
@@ -55,15 +55,15 @@ export function BoiteDecision({ item, mode, budgetOptions, busy, run, fdOf, onCa
   const [montant, setMontant] = React.useState(montantDepart != null ? String(montantDepart) : "");
   const [payeA, setPayeA] = React.useState(item.supplier ?? surLePoste?.fournisseur ?? "");
   const [fichier, setFichier] = React.useState<File | null>(null);
-  const [budget, setBudget] = React.useState(item.budgetCategoryId ?? "");
   const occupe = busy === `dec:${item.id}`;
   const offrir = (s: AdProItemStatus) => (!revoir || item.status !== s) && (!accordSeul || s === "APPROVED");
   const montantOk = Number(montant.replace(",", ".")) > 0;
-  const accordPret = !marketing || (montantOk && Boolean(budget));
+  // LE MONTANT SEUL (recette 24/11/2026) : le budget n'est plus demandé ici — c'est l'étape d'après sur la carte.
+  const accordPret = !marketing || montantOk;
   const decider = (decision: AdProItemStatus, ok: string) => void run(`dec:${item.id}`, () => {
     const fd = fdOf({
       decision, note: note.trim(),
-      ...(marketing && decision === "APPROVED" ? { amountGranted: montant.replace(",", "."), budgetCategoryId: budget } : {}),
+      ...(marketing && decision === "APPROVED" ? { amountGranted: montant.replace(",", ".") } : {}),
       ...(direct && decision === "APPROVED" ? { supplier: payeA.trim() } : {}),
     });
     if (direct && decision === "APPROVED" && fichier) fd.append("proforma", fichier);
@@ -98,16 +98,6 @@ export function BoiteDecision({ item, mode, budgetOptions, busy, run, fdOf, onCa
               className="mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-2 text-base tabular-nums outline-none focus:border-primary/60 sm:py-1.5 sm:text-sm"
             />
           </label>
-          <label className="text-xs">
-            Budget
-            <select
-              value={budget} onChange={(e) => setBudget(e.target.value)} aria-label="Budget qui portera ce poste"
-              className="mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-2 text-base outline-none focus:border-primary/60 sm:py-1.5 sm:text-sm"
-            >
-              <option value="">Choisir le budget…</option>
-              {budgetOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-            </select>
-          </label>
           {direct && (
             <label className="text-xs sm:col-span-2">
               Payé à
@@ -129,10 +119,11 @@ export function BoiteDecision({ item, mode, budgetOptions, busy, run, fdOf, onCa
         {offrir("APPROVED") && (
           <BoutonDecisif
             size="sm" className="max-sm:w-full" disabled={occupe || !accordPret}
-            title={!accordPret ? "Indiquez le montant accordé et choisissez le budget." : mode === "STOCK" ? "Accorder réserve le matériel au magasin." : undefined}
-            onClick={() => decider("APPROVED", mode === "OPERATIONS" ? "Validé — transmis au second temps." : mode === "STOCK" ? "Poste accordé — le matériel est réservé au magasin." : "Poste accordé.")}
+            title={!accordPret ? "Indiquez le montant accordé." : mode === "STOCK" ? "Accorder réserve le matériel au magasin." : undefined}
+            onClick={() => decider("APPROVED", mode === "OPERATIONS" ? "Validé — transmis au second temps." : mode === "STOCK" ? "Poste accordé — le matériel est réservé au magasin."
+              : item.budgetCategoryId ? "Poste validé." : "Poste validé — choisissez maintenant le budget.")}
           >
-            <ThumbsUp className="h-4 w-4" /> {mode === "OPERATIONS" ? "Valider" : mode === "STOCK" ? "Accorder et réserver" : "Accorder"}
+            <ThumbsUp className="h-4 w-4" /> {mode === "OPERATIONS" ? "Valider" : mode === "STOCK" ? "Accorder et réserver" : "Valider le poste (montant)"}
           </BoutonDecisif>
         )}
         {offrir("REVISION") && (
@@ -565,19 +556,27 @@ export function FormulaireRepartition({ origine, busy, onSubmit, onCancel }: {
 
 // ─────────────────────────────── Ajouter / modifier ───────────────────────────────
 
-export function AddItemForm({ parent, parentId, decided, busy, onCancel, onSubmit, assistantes = [], marketing = false }: {
+export function AddItemForm({ parent, parentId, decided, busy, onCancel, onSubmit, assistantes = [], marketing = false, initial, libelleAnnuler = "Annuler" }: {
   parent: AdProParent; parentId: string; decided: boolean; busy: boolean; onCancel: () => void; onSubmit: (fd: FormData) => void;
   /** Les assistantes de direction — la Direction Marketing choisit celle qui prospecte, dans le même geste. */
   assistantes?: { id: string; name: string }[];
   /** La personne qui ajoute tient la Direction Marketing : « Ajouter » lance aussi la prospection. */
   marketing?: boolean;
+  /**
+   * LE MÊME FORMULAIRE, PRÉ-REMPLI (recette 24/11/2026) : un poste proposé par l'IA depuis le cahier des charges s'ajoute par
+   * CE formulaire — même voie, même conformité, mêmes fiches, même bouton —, rempli d'avance et modifiable.
+   */
+  initial?: { kind?: AdProItemKind; label?: string; notes?: string; cahierDesCharges?: string };
+  /** Le libellé du bouton qui renonce (« Annuler » ; « Retirer » pour une proposition de l'IA). */
+  libelleAnnuler?: string;
 }) {
   // NI « PAYÉ À », NI « MONTANT ESTIMÉ », NI « DÉJÀ COUVERT PAR LE BUDGET ? » (Direction, 23/11/2026) : le montant et le
   // bénéficiaire viennent des pièces — les lignes retenues des devis d'agence, la pro forma ou la facture d'un poste payé
   // directement —, et tout poste naît « inclus ». « SPONSORING INDIRECT » se donne en NATURES (§118.175) : sa répartition
   // crée un poste par nature.
-  const [nature, setNature] = React.useState<AdProItemKind>("STAND");
-  const [voie, setVoie] = React.useState<"AGENCE" | "DIRECT" | null>(voieParDefaut("STAND"));
+  const natureInitiale = initial?.kind ?? "STAND";
+  const [nature, setNature] = React.useState<AdProItemKind>(natureInitiale);
+  const [voie, setVoie] = React.useState<"AGENCE" | "DIRECT" | null>(voieParDefaut(natureInitiale));
   const stock = nature === NATURE_MATERIEL_STOCK;
   const indirect = nature === "INDIRECT_SUPPORT";
   const parAgence = !stock && !indirect && voie === "AGENCE";
@@ -609,7 +608,7 @@ export function AddItemForm({ parent, parentId, decided, busy, onCancel, onSubmi
         <label className="text-xs">
           Libellé
           <input
-            name="label" required
+            name="label" required defaultValue={initial?.label}
             placeholder={stock ? "Matériel du stand — congrès SAHO" : indirect ? "Sponsoring indirect — congrès SAHO" : "Stand 12 m² — hall B"}
             className="mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-2 text-base outline-none focus:border-primary/60 sm:text-sm"
           />
@@ -637,7 +636,7 @@ export function AddItemForm({ parent, parentId, decided, busy, onCancel, onSubmi
           <label className="block text-xs">
             Cahier des charges — ce qu&apos;il faut commander
             <textarea
-              name="cahierDesCharges" required rows={3} placeholder="Ex. : stand 9 m² avec comptoir, 4 kakémonos, livraison sur site le 11/12."
+              name="cahierDesCharges" required rows={3} defaultValue={initial?.cahierDesCharges} placeholder="Ex. : stand 9 m² avec comptoir, 4 kakémonos, livraison sur site le 11/12."
               className="mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-2 text-base outline-none focus:border-primary/60 sm:text-sm"
             />
           </label>
@@ -662,7 +661,7 @@ export function AddItemForm({ parent, parentId, decided, busy, onCancel, onSubmi
       )}
       <label className="block text-xs">
         Précisions
-        <input name="notes" placeholder="Facultatif" className="mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-2 text-base outline-none focus:border-primary/60 sm:text-sm" />
+        <input name="notes" defaultValue={initial?.notes} placeholder="Facultatif" className="mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-2 text-base outline-none focus:border-primary/60 sm:text-sm" />
       </label>
 
       {decided && !stock && (
@@ -678,7 +677,7 @@ export function AddItemForm({ parent, parentId, decided, busy, onCancel, onSubmi
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
           {parAgence ? (marketing ? "Ajouter et demander la prospection" : "Ajouter et soumettre") : "Ajouter"}
         </Button>
-        <Button size="sm" type="button" variant="outline" onClick={onCancel}>Annuler</Button>
+        <Button size="sm" type="button" variant="outline" onClick={onCancel}>{libelleAnnuler}</Button>
       </div>
     </form>
   );

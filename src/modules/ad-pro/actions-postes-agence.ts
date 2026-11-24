@@ -29,8 +29,10 @@ import { preparerBrouillonPoste, validerEtEnvoyerBcPoste } from "./actions-poste
  *   1. la Direction Marketing demande la PROSPECTION (cahier des charges, assistante) ;
  *   2. l'assistante dépose les devis des agences sur le poste (`ajouterDevisPoste`) et les TRANSMET ;
  *   3. la Direction Marketing CHOISIT : elle coche les lignes qu'elle commande dans chaque devis — un BC par agence, rien que
- *      ces lignes (23/11/2026). Une agence : le poste est accepté au total de ses lignes, avec son budget ; plusieurs : il est
- *      SCINDÉ, un poste par agence. Les devis sans ligne cochée sont « non retenus », chaque BC naît en brouillon chez l'assistante ;
+ *      ces lignes (23/11/2026). Une agence : le poste est accepté au total de ses lignes ; plusieurs : il est SCINDÉ, un poste
+ *      par agence. Les devis sans ligne cochée sont « non retenus », chaque BC naît en brouillon chez l'assistante ;
+ *   3 bis. EN PARALLÈLE, la Direction Marketing CHOISIT LE BUDGET de chaque poste (recette 24/11/2026, `setAdProItemBudget`) :
+ *      le BC ne l'attend pas ; l'information médicale, si (et le paiement) ;
  *   4. l'assistante FINALISE le BC (composeur) et le SOUMET ;
  *   5. la Direction Marketing le VALIDE, le SIGNE et le CACHETTE (mot de passe + code) — il part au centre Ad & Pro au-dessus
  *      du seuil, puis à la signature des Finances.
@@ -132,13 +134,21 @@ type LectureDuChoix = (devis: readonly DevisDuChoix[]) => ReturnType<typeof lire
 
 type PosteDuChoix = { id: string; label: string; supplier: string | null };
 
+/** Le formulaire minimal d'une action sur un poste — son seul identifiant. */
+const formulaireDuPoste = (id: string): FormData => {
+  const fd = new FormData();
+  fd.set("id", id);
+  return fd;
+};
+
 /**
- * ACCORDER UN POSTE À SON AGENCE — ses lignes cochées sont déjà validées pour lui : le poste est accepté à leur total, avec
- * son budget, par la décision ordinaire (mêmes gardes, même historique). Si l'accord ne tient pas, les lignes ne restent
- * pas validées pour rien : le poste redevient « à choisir », avec ses devis.
+ * ACCORDER UN POSTE À SON AGENCE — ses lignes cochées sont déjà validées pour lui : le poste est accepté à leur total par la
+ * décision ordinaire (mêmes gardes, même historique) — SANS BUDGET d'ordinaire (recette 24/11/2026 : la Direction Marketing
+ * le choisit ensuite, `setAdProItemBudget`) ; un budget envoyé reste accepté. Si l'accord ne tient pas, les lignes ne
+ * restent pas validées pour rien : le poste redevient « à choisir », avec ses devis.
  */
 async function accorderLePoste(
-  poste: PosteDuChoix, r: { pieceId: string; agence: string }, budgetCategoryId: string,
+  poste: PosteDuChoix, r: { pieceId: string; agence: string }, budgetCategoryId: string | null,
 ): Promise<{ ok: true; montant: number; fournisseur: string | null } | { ok: false; error: string }> {
   const apres = await devisDuPoste(poste.id, r.pieceId);
   const montant = apres ? (apres.entete.tvaRate === null ? apres.totalValideHt : apres.totalValideTtc) : 0;
@@ -146,7 +156,7 @@ async function accorderLePoste(
   fdDecision.set("id", poste.id);
   fdDecision.set("decision", "APPROVED");
   fdDecision.set("amountGranted", String(Math.round(montant * 100) / 100));
-  fdDecision.set("budgetCategoryId", budgetCategoryId);
+  if (budgetCategoryId) fdDecision.set("budgetCategoryId", budgetCategoryId);
   fdDecision.set("note", `Agence retenue : ${r.agence}`);
   const decision = await decideAdProItem(undefined, fdDecision);
   if (decision.ok) return { ok: true, montant, fournisseur: apres?.fournisseur ?? null };
@@ -174,12 +184,14 @@ async function retenirLesAgences(formData: FormData, lire: LectureDuChoix): Prom
     .map((d) => ({ pieceId: d.pieceId, agence: nomAgence(d), entete: d.entete, lignes: d.lignes }));
   const lu = lire(devis);
   if (!lu.ok) return lu;
+  // LE BUDGET N'EST PLUS EXIGÉ ICI (recette 24/11/2026) : la Direction Marketing choisit l'agence (le montant vient du devis),
+  // PUIS le budget, à part. Envoyé, il est accepté et vérifié comme avant.
   const budgetCategoryId = fdStr(formData, "budgetCategoryId");
-  if (!budgetCategoryId) return { ok: false, error: "Choisissez le budget qui portera ce poste." };
   const plan = planDuChoix(devis, lu.parDevis);
   if (!plan.ok) return plan;
   // CE QUE LA DÉCISION REFUSERAIT se lit AVANT d'écrire : une scission ne doit pas naître pour un accord impossible.
-  const avant = (await refusSiClos(owner.parent, owner.id, { partir: true })) ?? (await refusCategoriePourLaDemande(budgetCategoryId, owner.parent, owner.id));
+  const avant = (await refusSiClos(owner.parent, owner.id, { partir: true }))
+    ?? (budgetCategoryId ? await refusCategoriePourLaDemande(budgetCategoryId, owner.parent, owner.id) : null);
   if (avant) return { ok: false, error: avant };
   // UNE SCISSION SUR UNE DEMANDE DÉCLARÉE EST PERMISE (recette 24/11/2026) : les postes nés rejoignent la déclaration.
   const scission = plan.retenues.length > 1;
@@ -203,6 +215,7 @@ async function retenirLesAgences(formData: FormData, lire: LectureDuChoix): Prom
   const faits: string[] = [];
   const echecs: string[] = [];
   const accordes: { id: string; label: string }[] = [];
+  let sansBudget = 0;
   for (const [i, r] of plan.retenues.entries()) {
     const poste = i === 0
       ? { id: item.id, label: item.label, supplier: item.supplier }
@@ -221,19 +234,21 @@ async function retenirLesAgences(formData: FormData, lire: LectureDuChoix): Prom
     ]);
     // Le BC naît en brouillon (aucun numéro) : l'assistante, qui a déposé le devis, le finalise — elle est prévenue par la
     // préparation elle-même (« Bon de commande à finaliser », sur SA page), une seule fois, et seulement si le BC est prêt.
-    const fdBc = new FormData();
-    fdBc.set("id", poste.id);
-    const brouillon = await preparerBrouillonPoste(fdBc);
+    // LE BC N'ATTEND PAS LE BUDGET (recette 24/11/2026) : son brouillon naît tout de suite ; le budget se choisit EN PARALLÈLE
+    // (`setAdProItemBudget`) — il n'est exigé qu'au paiement, et par l'information médicale.
+    const brouillon = await preparerBrouillonPoste(formulaireDuPoste(poste.id));
     const bc = brouillon.ok ? "Le BC est chez l'assistante pour finalisation." : brouillon.error ?? "";
+    const avecBudget = (await prisma.adProItem.findUnique({ where: { id: poste.id }, select: { budgetCategoryId: true } }))?.budgetCategoryId ?? null;
     await audit(user, owner.parent, owner.id, "UPDATE", `Agence retenue pour le poste « ${poste.label} » : ${r.agence} — ${accord.montant.toLocaleString("fr-FR")} DZD.`);
     accordes.push({ id: poste.id, label: poste.label });
+    if (!avecBudget) sansBudget += 1;
     faits.push(scission
       ? `« ${poste.label} » : ${r.agence} (${accord.montant.toLocaleString("fr-FR")} DZD)${brouillon.ok ? "" : ` — ${bc}`}.`
       : `Agence retenue : ${r.agence} (${accord.montant.toLocaleString("fr-FR")} DZD). ${bc}`.trim());
   }
-  // L'AGENCE CHOISIE VALIDE LE POSTE « AGENCE » — ses lignes retenues sont son devis validé : s'il était le dernier, la
-  // déclaration s'ouvre (Direction, 19/11/2026). Déjà ouverte, ce poste tardif la rejoint : son montant, et le pharmacien
-  // prévenu (recette 24/11/2026).
+  // L'AGENCE CHOISIE VALIDE LE POSTE « AGENCE » — ses lignes retenues sont son devis validé : s'il était le dernier (et son
+  // budget choisi — recette 24/11/2026 : sans budget, il retient encore), la déclaration s'ouvre (Direction, 19/11/2026). Déjà
+  // ouverte, ce poste tardif la rejoint quand il est prêt : son montant, et le pharmacien prévenu (recette 24/11/2026).
   const ouverte = await ouvrirDeclarationSiPostesValides(owner.parent, owner.id)
     .catch(sansBloquer("ad-pro.choisirAgencePoste.ouvrirDeclaration", null));
   if (!ouverte && accordes.length > 0) {
@@ -243,7 +258,9 @@ async function retenirLesAgences(formData: FormData, lire: LectureDuChoix): Prom
   revalidate(owner.parent, owner.id);
   revalidatePath("/agences");
   const tete = scission ? `Poste scindé en ${plan.retenues.length} postes, un BC par agence.` : "";
-  const message = [tete, ...faits, ...(scission && faits.length ? ["Chaque BC prêt est chez l'assistante pour finalisation."] : [])].filter(Boolean).join(" ");
+  // LE BUDGET RESTE À CHOISIR (recette 24/11/2026) — en parallèle du BC : c'est lui que l'information médicale attend.
+  const suiteBudget = sansBudget > 0 ? [`À choisir aussi : le budget ${sansBudget > 1 ? "de chaque poste" : "du poste"} (« Choisir le budget ») — l'information médicale l'attend.`] : [];
+  const message = [tete, ...faits, ...(scission && faits.length ? ["Chaque BC prêt est chez l'assistante pour finalisation."] : []), ...suiteBudget].filter(Boolean).join(" ");
   if (echecs.length > 0) return { ok: false, error: [message, ...echecs].filter(Boolean).join(" ") };
   return { ok: true, id: item.id, message };
 }

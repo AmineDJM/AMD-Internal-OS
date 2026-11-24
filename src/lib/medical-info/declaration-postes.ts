@@ -19,9 +19,10 @@ import { sansBonDeCommande } from "@/modules/ad-pro/partage";
  *   • la pré-validation n'ouvre plus rien (`emitFinancials`, moteur du circuit) ;
  *   • le dossier s'ouvre au moment où le DERNIER poste est PRÊT : accordé par la Direction Marketing, son agence choisie
  *     pour un poste « agence », et — RECETTE 24/11/2026 — SON DEVIS VALIDÉ par la Direction Marketing (au moins une ligne
- *     d'un devis validée pour lui : `validerLignesDuDevis`, ou le choix de l'agence qui valide les lignes retenues). Un
- *     poste sans devis — le versement d'un sponsoring direct (`sansBonDeCommande`), le matériel du stock — est prêt dès
- *     qu'il est accordé. Un poste refusé ne compte pas ; un brouillon retient ;
+ *     d'un devis validée pour lui : `validerLignesDuDevis`, ou le choix de l'agence qui valide les lignes retenues) ET SON
+ *     BUDGET CHOISI (`setAdProItemBudget` — la Direction Marketing valide d'abord le montant, puis choisit le budget). Un
+ *     poste sans devis — le versement d'un sponsoring direct (`sansBonDeCommande`) — est prêt dès qu'il est accordé et son
+ *     budget choisi ; le matériel du stock, dès qu'il est accordé. Un poste refusé ne compte pas ; un brouillon retient ;
  *   • UN POSTE TARDIF EST TOUJOURS PERMIS (recette 24/11/2026) : la déclaration ouverte, la demande prend encore des postes.
  *     Ils passent l'accord et le devis comme les autres ; le montant déclaré suit les postes prêts
  *     (`reporterLesPostesDeclares`) et le pharmacien est prévenu (`signalerPostesALaDeclaration`). Une déclaration déjà
@@ -53,6 +54,8 @@ type PosteLu = {
   execution: { agenceRetenueAt: Date | null } | null;
   /** Au moins une ligne d'un devis (non annulé) est validée pour ce poste — ou un BC vivant, ou un devis de voyageur retenu. */
   devisValide: boolean;
+  /** Le budget (catégorie) choisi par la Direction Marketing — exigé pour être prêt (recette 24/11/2026). */
+  budgetCategoryId: string | null;
 };
 
 const pl = (n: number, s: string, p: string) => `${n} ${n > 1 ? p : s}`;
@@ -70,8 +73,13 @@ export function passeParUnDevis(p: { kind: string; voie: string | null }): boole
 
 const sansAgence = (p: PosteLu) => p.status === "APPROVED" && p.voie === "AGENCE" && !p.execution?.agenceRetenueAt;
 const sansDevis = (p: PosteLu) => p.status === "APPROVED" && !sansAgence(p) && passeParUnDevis(p) && !p.devisValide;
-/** UN POSTE PRÊT À ÊTRE DÉCLARÉ : accordé, son agence choisie (voie « agence »), son devis validé (s'il en a un). */
-const estPret = (p: PosteLu) => p.status === "APPROVED" && !sansAgence(p) && !sansDevis(p);
+/**
+ * ACCORDÉ SANS BUDGET CHOISI (recette 24/11/2026) — la Direction Marketing valide le poste (montant), PUIS choisit le budget :
+ * l'information médicale attend ce second geste. Le matériel du stock n'engage pas d'argent : il n'a jamais de budget.
+ */
+const sansBudget = (p: PosteLu) => p.status === "APPROVED" && p.kind !== "STOCK_MATERIAL" && !p.budgetCategoryId;
+/** UN POSTE PRÊT À ÊTRE DÉCLARÉ : accordé, son agence choisie (voie « agence »), son devis validé (s'il en a un), son budget choisi. */
+const estPret = (p: PosteLu) => p.status === "APPROVED" && !sansAgence(p) && !sansDevis(p) && !sansBudget(p);
 
 /**
  * LA LECTURE DES POSTES — PURE. UN BROUILLON RETIENT LA DÉCLARATION (recette sponsoring, 23/11/2026) : il compte, et
@@ -89,6 +97,7 @@ export function lirePostesPourDeclaration(tous: readonly PosteLu[]): PostesPourD
     n((p) => p.status === "REVISION") ? `${pl(n((p) => p.status === "REVISION"), "poste", "postes")} à revoir par le demandeur` : null,
     n(sansAgence) ? `${pl(n(sansAgence), "poste « agence » sans agence choisie", "postes « agence » sans agence choisie")}` : null,
     n(sansDevis) ? `${pl(n(sansDevis), "poste accordé dont le devis n'est pas encore validé", "postes accordés dont le devis n'est pas encore validé")}` : null,
+    n(sansBudget) ? `${pl(n(sansBudget), "poste accordé sans budget choisi", "postes accordés sans budget choisi")}` : null,
     postes.length === 0 ? "aucun poste" : null,
   ].filter((x): x is string => Boolean(x));
   return {
@@ -110,7 +119,7 @@ const PIECE_QUI_ARRETE_LE_DEVIS: Prisma.AdProItemPieceWhereInput = {
 };
 
 const CHOIX_POSTE = {
-  status: true, kind: true, voie: true, amountGranted: true, amountEstimated: true,
+  status: true, kind: true, voie: true, amountGranted: true, amountEstimated: true, budgetCategoryId: true,
   execution: { select: { agenceRetenueAt: true } },
   lignesDevisValidees: { where: DEVIS_VIVANT, select: { id: true }, take: 1 },
   // LE DEVIS VALIDÉ AUTREMENT QUE LIGNE À LIGNE (recette 24/11/2026) : un BC joint tel quel (ou demandé au secrétariat), ou le
@@ -120,13 +129,14 @@ const CHOIX_POSTE = {
 } as const;
 
 type PosteBrut = {
-  status: unknown; kind: unknown; voie: unknown; amountGranted: unknown; amountEstimated: unknown;
+  status: unknown; kind: unknown; voie: unknown; amountGranted: unknown; amountEstimated: unknown; budgetCategoryId: string | null;
   execution: { agenceRetenueAt: Date | null } | null; lignesDevisValidees: readonly unknown[]; pieces: readonly unknown[];
 };
 const lu = (p: PosteBrut): PosteLu => ({
   status: String(p.status), kind: String(p.kind), voie: p.voie ? String(p.voie) : null,
   amountGranted: p.amountGranted, amountEstimated: p.amountEstimated, execution: p.execution,
   devisValide: p.lignesDevisValidees.length > 0 || p.pieces.length > 0,
+  budgetCategoryId: p.budgetCategoryId,
 });
 
 /** Où en sont les postes d'une demande, au regard de la déclaration. */
@@ -292,7 +302,7 @@ export async function signalerPostesALaDeclaration(
       ? " — la déclaration est déjà validée : son montant n'est pas modifié."
       : " — la déclaration est déjà rattachée à son ordre de dépense : son montant n'est pas modifié."
     : geste.moment === "AJOUT"
-      ? ` — ${postes.length > 1 ? "ils rejoindront la déclaration une fois accordés et leur devis validé" : "il rejoindra la déclaration une fois accordé et son devis validé"} par la Direction Marketing.`
+      ? ` — ${postes.length > 1 ? "ils rejoindront la déclaration une fois accordés, leur devis validé et leur budget choisi" : "il rejoindra la déclaration une fois accordé, son devis validé et son budget choisi"} par la Direction Marketing.`
       : ` — ${postes.length > 1 ? "ils sont désormais déclarés" : "il est désormais déclaré"}${montant != null ? ` (montant déclaré : ${toNumber(montant).toLocaleString("fr-FR")} DZD)` : ""}.`;
   await notifyRoles(["MEDICAL_INFO_PHARMACIST"], {
     type: "GENERIC",

@@ -46,7 +46,7 @@ async function actorFor(id: string): Promise<CurrentUser> {
 
 suite("Information médicale — l'écran « À faire » d'Alaa", () => {
   let primId = "", dmId = "", doId = "", delegueId = "";
-  let autreId = "", autreSansBatId = "", posteBatId = "", defId = "", spoId = "";
+  let autreId = "", autreSansBatId = "", posteBatId = "", defId = "", spoId = "", catId = "";
   const decls: Record<string, string> = {};
 
   beforeAll(async () => {
@@ -94,6 +94,11 @@ suite("Information médicale — l'écran « À faire » d'Alaa", () => {
     await prisma.workflowInstance.create({ data: { definitionId: defId, entityType: "SPONSORING", entityId: spoId, category: `${TAG}WF`, status: "APPROVED" } });
     await prisma.adProItem.create({ data: { sponsoringId: spoId, kind: "ASSOCIATION_SUPPORT", label: `${TAG}Versement association`, status: "PENDING", amountEstimated: 50000 } });
     await prisma.adProItem.create({ data: { sponsoringId: spoId, kind: "OTHER", label: `${TAG}Brouillon`, status: "DRAFT", amountEstimated: 9000 } });
+    // LE BUDGET QUE LA DIRECTION MARKETING CHOISIT APRÈS LA VALIDATION (recette 24/11/2026) — la déclaration l'attend.
+    const env = await prisma.budgetEnvelope.create({
+      data: { name: `${TAG}Enveloppe`, modules: ["SPONSORING"], totalAmount: 1_000_000, periodStart: new Date("2026-01-01"), periodEnd: new Date("2026-12-31") },
+    });
+    catId = (await prisma.budgetCategoryLine.create({ data: { envelopeId: env.id, name: `${TAG}Sponsoring`, allocated: 1_000_000 }, select: { id: true } })).id;
   }, 120_000);
 
   afterAll(async () => {
@@ -107,7 +112,10 @@ suite("Information médicale — l'écran « À faire » d'Alaa", () => {
     await prisma.adProOtherRequest.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
     await prisma.workflowInstance.deleteMany({ where: { definitionId: defId } }).catch(() => {});
     await prisma.workflowDefinition.deleteMany({ where: { id: defId } }).catch(() => {});
+    await prisma.adProItem.deleteMany({ where: { sponsoringId: spoId } }).catch(() => {});
     await prisma.sponsoringRequest.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
+    await prisma.budgetCategoryLine.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
+    await prisma.budgetEnvelope.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: comptes } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { OR: [{ actorId: { in: comptes } }, { entityId: { in: [autreId, spoId, ...ids] } }] } }).catch(() => {});
     await retirerComptesEtSemis({ where: { id: { in: comptes } } }).catch(() => {});
@@ -179,8 +187,12 @@ suite("Information médicale — l'écran « À faire » d'Alaa", () => {
     await prisma.adProItem.updateMany({ where: { sponsoringId: spoId, status: "PENDING" }, data: { status: "APPROVED", amountGranted: 50000 } });
     expect(await ouvrirDeclarationSiPostesValides("SPONSORING", spoId), "le brouillon la retient").toBeNull();
     await prisma.adProItem.deleteMany({ where: { sponsoringId: spoId, status: "DRAFT" } });
+    // LE BUDGET D'ABORD (recette 24/11/2026) : validé au montant, le versement attend encore son budget.
+    expect(await ouvrirDeclarationSiPostesValides("SPONSORING", spoId), "validé sans budget : elle attend").toBeNull();
+    expect((await postesPourDeclaration("SPONSORING", spoId)).blocages).toEqual(["1 poste accordé sans budget choisi"]);
+    await prisma.adProItem.updateMany({ where: { sponsoringId: spoId }, data: { budgetCategoryId: catId } });
     const ouverte = await ouvrirDeclarationSiPostesValides("SPONSORING", spoId);
-    expect(ouverte, "le brouillon retiré, elle s'ouvre").toBeTruthy();
+    expect(ouverte, "le brouillon retiré et le budget choisi, elle s'ouvre").toBeTruthy();
     expect(await postesPourDeclaration("SPONSORING", spoId)).toMatchObject({ total: 1, valides: 1, prets: true, brouillons: 0, montant: 50000 });
     expect((await declarationsAVenir()).some((v) => v.id === spoId), "ouverte : plus « à venir »").toBe(false);
   });

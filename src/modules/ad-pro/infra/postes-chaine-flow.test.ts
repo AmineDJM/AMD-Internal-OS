@@ -43,7 +43,7 @@ import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/
 import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity, accesAuxPiecesLegal } from "@/lib/entity-access";
-import { addAdProItem, submitAdProItem, requestAdProItemOrder, approveAdProItemOrder } from "../actions-postes";
+import { addAdProItem, submitAdProItem, requestAdProItemOrder, approveAdProItemOrder, setAdProItemBudget } from "../actions-postes";
 import { decideAdProItem } from "../actions-postes-decision";
 import { ajouterDevisPoste, retirerDevisDuPoste, demanderPaiementPoste } from "../actions-postes-paiement";
 import { submitDocumentRequest, decideDocumentRequest } from "@/lib/actions/document-request-actions";
@@ -297,7 +297,7 @@ suite("Ad & Pro — la chaîne d'un poste : un seul temps, BC par l'assistante, 
 
   // ── LA VALIDATION : UN SEUL TEMPS, LA DIRECTION MARKETING ────────────────────────────────
 
-  it("UN SEUL TEMPS : soumis, le poste va DROIT à la Direction Marketing — la Direction des opérations ne le tranche pas ; l'accord sans budget est refusé", async () => {
+  it("UN SEUL TEMPS : soumis, le poste va DROIT à la Direction Marketing — la Direction des opérations ne le tranche pas ; validé au montant, le budget se choisit ensuite (recette 24/11/2026)", async () => {
     const id = await nouveauPoste("kam", "CONGRESS_NATIONAL", congres, "Affiches", 120_000);
     await comme("kam");
     const s = await submitAdProItem(undefined, fd({ id }));
@@ -321,14 +321,17 @@ suite("Ad & Pro — la chaîne d'un poste : un seul temps, BC par l'assistante, 
     expect((await poste(id)).status, "rien n'est écrit sur un refus").toBe("PENDING");
 
     await comme("dm");
-    const sansBudget = await decideAdProItem(undefined, fd({ id, decision: "APPROVED", amountGranted: "110000" }));
-    expect(sansBudget.ok === false ? sansBudget.error : "accordé").toMatch(/Choisissez le budget/);
-    expect((await poste(id)).status).toBe("PENDING");
-    ok(await decideAdProItem(undefined, fd({ id, decision: "APPROVED", amountGranted: "110000", budgetCategoryId: catId })));
+    // VALIDER, PUIS CHOISIR LE BUDGET (recette 24/11/2026) : l'accord ne demande plus que le montant ; le budget est l'étape
+    // d'après, à part — le BC ne l'attend pas, le paiement et l'information médicale si.
+    ok(await decideAdProItem(undefined, fd({ id, decision: "APPROVED", amountGranted: "110000" })));
+    const valide = await poste(id);
+    expect(valide.status).toBe("APPROVED");
+    expect(valide.budgetCategoryId, "validé sans budget").toBeNull();
+    ok(await setAdProItemBudget(undefined, fd({ id, budgetCategoryId: catId })));
     const accorde = await poste(id);
     expect(accorde.status).toBe("APPROVED");
     expect(Number(accorde.amountGranted)).toBe(110_000);
-    expect(accorde.budgetCategoryId, "le budget est fixé AVEC l'accord").toBe(catId);
+    expect(accorde.budgetCategoryId, "le budget, choisi à part").toBe(catId);
     expect((await file("dm")).some((i) => i.key === cle), "décidé : il quitte la file").toBe(false);
   });
 

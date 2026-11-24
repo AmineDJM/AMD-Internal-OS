@@ -8,7 +8,8 @@ import type { EtapeBC } from "@/lib/bons-de-commande/regle";
  * Un poste « payé par une agence » suit un seul chemin, le même pour tout l'Ad & Pro :
  *
  *   prospection (la Direction Marketing la demande, l'assistante dépose les devis)
- *   → choix de l'agence (la Direction Marketing : montant = devis retenu, budget)
+ *   → choix de l'agence (la Direction Marketing : montant = devis retenu ; le budget se choisit EN PARALLÈLE du BC — recette
+ *     24/11/2026 : le BC ne l'attend pas, le paiement et l'information médicale si)
  *   → bon de commande (généré du devis, finalisé par l'assistante, validé + signé + cacheté par la Direction Marketing,
  *     visé par le centre Ad & Pro au-dessus du seuil, signé + cacheté par les Finances)
  *   → envoi à l'agence → conformité du BAT (information médicale, si requise) → réception (PV)
@@ -57,6 +58,11 @@ export interface FaitsPosteAgence {
   expenseOrderCentral?: string | null;
   /** Le motif du centre Ad & Pro (refus du BC par le DG) — affiché tel quel. */
   orderDecisionNote?: string | null;
+  /**
+   * Le budget du poste est choisi (recette 24/11/2026) — le BC ne l'attend pas, le PAIEMENT si. Absent : non lu — le
+   * paiement se propose comme avant (l'action, elle, garde la règle).
+   */
+  budgetChoisi?: boolean;
   agence: FaitsAgence;
 }
 
@@ -162,6 +168,11 @@ export function pasAgence(p: FaitsPosteAgence, r: RegardAgence): PasAgence {
   const g = (cle: GesteAgence, libelle: string): PasAgence => ({ geste: { cle, libelle }, attente: null });
   const att = (attente: string): PasAgence => ({ geste: null, attente });
   const mk = r.marketing && !r.fige;
+  // LE PAIEMENT ATTEND LE BUDGET (recette 24/11/2026) — le BC, non : il se choisit en parallèle (« Choisir le budget », à côté
+  // sur la carte), et la facture ne se dépose avec sa demande de paiement qu'une fois le budget posé.
+  if ((e === "FACTURE" || e === "PAIEMENT_A_DEMANDER") && p.budgetChoisi === false) {
+    return att(`${e === "FACTURE" ? "Réceptionné" : "Facture déposée"} — le paiement attend le budget : ${DM} le choisit.`);
+  }
   switch (e) {
     case "PROSPECTION_A_DEMANDER":
       return mk ? g("DEMANDER_PROSPECTION", "Demander la prospection d'agences") : att(`À lancer — ${DM} demande la prospection d'agences.`);

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { lireSources } from "@/platform/source";
-import { faitsDuPoste, etapesDuPoste, prochainPas, facturePourPayer, grouperParRepartition, resumeRepartition, toutEstFacture, LIBELLE_JUSTIFICATIF_DIRECT, type FaitsPoste, type RegardPoste } from "./poste-etapes";
+import { faitsDuPoste, etapesDuPoste, prochainPas, pasBudget, ATTENTE_BUDGET, facturePourPayer, grouperParRepartition, resumeRepartition, toutEstFacture, LIBELLE_JUSTIFICATIF_DIRECT, type FaitsPoste, type RegardPoste } from "./poste-etapes";
 
 /**
  * LE GESTE SUIVANT D'UN POSTE (§118.175, §118.204) — un seul, ou ce qu'on attend et de qui.
@@ -72,7 +72,8 @@ describe("le geste suivant d'un poste", () => {
     // directement à la Direction Marketing.
     for (const opsDecidedAt of [null, "2026-10-01"]) {
       const p = poste({ status: "PENDING", amountEstimated: 120_000, opsDecidedAt });
-      expect(prochainPas(p, MARKETING).geste).toEqual({ cle: "DECIDER", libelle: "Accorder le poste (montant et budget)" });
+      // VALIDER, PUIS CHOISIR LE BUDGET (recette 24/11/2026) : le geste ne demande plus que le montant.
+      expect(prochainPas(p, MARKETING).geste).toEqual({ cle: "DECIDER", libelle: "Valider le poste (montant)" });
       // Ce qui ferait tomber la règle : proposer encore « Valider (Direction des opérations) ».
       expect(prochainPas(p, OPERATIONS)).toEqual({ geste: null, attente: "En attente — chez la Direction Marketing (montant et budget)." });
       expect(prochainPas(p, regard({ canAllocate: true, validation: { operations: true, marketing: true } })).geste?.cle).toBe("DECIDER");
@@ -87,9 +88,10 @@ describe("le geste suivant d'un poste", () => {
     const p = poste({ status: "PENDING", amountEstimated: 120_000, opsDecidedAt: "2026-10-01" });
     expect(prochainPas(p, regard({ secondTempsParOperations: true })).attente).toBe("En attente — chez la Direction Marketing (montant et budget).");
     expect(prochainPas(p, regard({ secondTempsParOperations: true })).attente).not.toMatch(/Direction des opérations/);
-    // Accordé sans budget (poste d'avant la règle) : c'est la Direction Marketing qui le choisit.
-    expect(prochainPas(poste({ status: "APPROVED", amountGranted: 120_000 }), regard({ secondTempsParOperations: true })).attente)
-      .toBe("La Direction Marketing choisit le budget qui porte ce poste.");
+    // Accordé sans budget : c'est la Direction Marketing qui le choisit — EN PARALLÈLE du BC (recette 24/11/2026).
+    expect(pasBudget(poste({ status: "APPROVED", amountGranted: 120_000 }), regard({ secondTempsParOperations: true })))
+      .toEqual({ geste: null, attente: ATTENTE_BUDGET });
+    expect(ATTENTE_BUDGET).toBe("En attente — la Direction Marketing choisit le budget.");
   });
 
   it("la frise d'un poste n'a plus d'étape « Direction des opérations » : « Direction Marketing » est EN COURS dès la soumission", () => {
@@ -128,12 +130,21 @@ describe("le geste suivant d'un poste", () => {
     expect(dg(pret({ porteDg: "A_REVOIR" }))?.etat).toBe("REFUSE");
   });
 
-  it("accordé d'AVANT la règle : montant, puis budget, puis bon de commande — dans cet ordre", () => {
+  it("LE BUDGET EN PARALLÈLE DU BC (recette 24/11/2026) : montant d'abord ; puis le BC n'attend pas le budget — le paiement, si", () => {
     const sansMontant = poste({ status: "APPROVED", amountEstimated: 120_000 });
     expect(prochainPas(sansMontant, MARKETING).geste?.cle).toBe("MONTANT");
     const sansBudget = poste({ status: "APPROVED", amountGranted: 120_000 });
-    expect(prochainPas(sansBudget, MARKETING).geste?.cle).toBe("BUDGET");
-    expect(prochainPas(sansBudget, DEMANDEUR).attente).toMatch(/budget/);
+    // Le BC suit son chemin sans budget…
+    expect(prochainPas(sansBudget, DEMANDEUR).geste?.cle).toBe("DEMANDER_BC");
+    // …et « Choisir le budget » s'offre à côté, à la Direction Marketing seule ; les autres lisent qui on attend.
+    expect(pasBudget(sansBudget, MARKETING)).toEqual({ geste: { cle: "BUDGET", libelle: "Choisir le budget" }, attente: null });
+    expect(pasBudget(sansBudget, DEMANDEUR)).toEqual({ geste: null, attente: "En attente — la Direction Marketing choisit le budget." });
+    expect(pasBudget(sansBudget, regard({ ...MARKETING, fige: true }))?.geste).toBeNull();
+    expect(pasBudget(pret(), MARKETING)).toBeNull();
+    expect(pasBudget(poste({ status: "PENDING", amountEstimated: 5 }), MARKETING)).toBeNull();
+    // LE PAIEMENT ATTEND LE BUDGET : un BC signé sans budget ne propose pas « Déposer la facture et demander le paiement ».
+    expect(prochainPas({ ...sansBudget, bc: "SIGNE" }, DEMANDEUR)).toEqual({ geste: null, attente: "En attente — la Direction Marketing choisit le budget." });
+    expect(prochainPas({ ...sansBudget, bc: "SIGNE" }, MARKETING).geste?.cle).toBe("BUDGET");
     expect(prochainPas(pret(), DEMANDEUR).geste?.cle).toBe("DEMANDER_BC");
     expect(prochainPas(pret(), regard()).attente).toMatch(/demandeur/);
   });

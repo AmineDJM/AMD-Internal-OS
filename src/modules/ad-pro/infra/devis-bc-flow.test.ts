@@ -610,7 +610,7 @@ suite("Ad & Pro — lignes de devis validées → un BC par devis, régénérabl
       expect(ajout[0].body).toContain(d!.reference);
       expect(ajout[0].body).toContain(`${RUN} Congrès de Béjaïa`);
       expect(ajout[0].body).toContain(`${TAG}Poste tardif`);
-      expect(ajout[0].body).toMatch(/rejoindra la déclaration une fois accordé et son devis validé/);
+      expect(ajout[0].body).toMatch(/rejoindra la déclaration une fois accordé, son devis validé et son budget choisi/);
       expect(Number((await declaration())!.amount), "pas encore prêt : le montant déclaré ne le compte pas").toBe(100_000);
 
       // Accordé, mais son devis pas encore validé : toujours pas déclaré.

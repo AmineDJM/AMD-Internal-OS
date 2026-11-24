@@ -504,7 +504,9 @@ budgets et les données marché (`lib/marketing-cockpit/donnees.ts` ; calculs pu
   Bénéficiaire · Orateur · Invité · Autre ; carte `components/ad-pro/medecins-concernes.tsx` sur chaque fiche, actions
   `ad-pro-medecins-actions.ts`, règles pures `lib/ad-pro/medecins-concernes.ts`, lecture `queries/ad-pro-medecins.ts`).
   Pour un congrès, invités et prises en charge s'additionnent sans doublon (rien n'est copié). Le cockpit (dépenses par
-  praticien), la fiche praticien, Produits 360 et le ROI Ad & Pro lisent ce lien.
+  praticien), la fiche praticien, Produits 360 et le ROI Ad & Pro lisent ce lien. Depuis le 24/11/2026, la carte propose
+  une **liste déroulante de tout l'annuaire**, filtrable : plusieurs médecins cochés se relient d'un geste avec un rôle
+  (`ajouterMedecinsConcernes`, `modules/ad-pro/actions-medecins.ts` ; écran `ecrans/medecins-concernes-client.tsx`).
 - **« Ce qui dépend vraiment du terrain » (09/10, maquette validée)** — en marché d'AO, la part de réceptions PCH ne
   mesure pas l'effort marketing ; calculs purs `lib/marketing-cockpit/terrain.ts` (+ tests), lecture
   `terrain-donnees.ts` : **décideurs engagés** (H vus ≥ 2 fois dans le cycle), **conversions B → A / A → B** depuis le
@@ -1112,8 +1114,8 @@ se dérive maintenant du registre canonique (§118.73). **Le même geste existe 
 | Ce qui est **annoncé** doit être **chiffré** | `plannedGaps()` (pure, testée) | Un congrès déclare `hasBooth`/`hasSymposium` : l'écart se voit avant la facture. |
 
 **Garde-fous financiers** (purs et testés) : `canSubmitItem` (on ne soumet pas un poste sans
-chiffre), `canRequestPurchaseOrder` (accordé + chiffré + budget choisi, une seule fois — un refus
-rouvre le droit), `canEmitOrder` (jamais un poste non accordé, jamais deux fois). Un montant déjà
+chiffre), `canRequestPurchaseOrder` (accordé + chiffré, une seule fois — un refus rouvre le droit ;
+le budget n'y est plus exigé depuis le 24/11/2026 : il se choisit en parallèle du BC, le paiement l'exige), `canEmitOrder` (jamais un poste non accordé, jamais deux fois). Un montant déjà
 couvert par un ordre ne peut plus changer, un poste payé ne peut plus être retiré.
 
 Les différences réelles entre modules — où lit-on l'enveloppe, quel statut vaut « accordé »,

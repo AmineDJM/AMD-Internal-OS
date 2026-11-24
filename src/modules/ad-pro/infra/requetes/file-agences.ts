@@ -81,7 +81,7 @@ export function etapeDeLaFile(e: EtapeAgence): EtapeFile {
  * « Prospection d'agences » et pour « Aujourd'hui » (recette du 23/11/2026) : deux copies finiraient par ne plus s'accorder.
  */
 function faitsDuPoste(
-  i: { status: FaitsPosteAgence["status"]; orderStage: FaitsPosteAgence["orderStage"]; expenseOrderId: string | null },
+  i: { status: FaitsPosteAgence["status"]; orderStage: FaitsPosteAgence["orderStage"]; expenseOrderId: string | null; budgetCategoryId: string | null },
   p: PiecesDuPoste | undefined,
   agence: AgenceVue,
   ordre: { status: string; centralStatus: string } | null,
@@ -91,6 +91,8 @@ function faitsDuPoste(
     bc: p?.bc && !p.bc.annulee ? (p.bc.etape ?? "HORS_CIRCUIT") : null,
     factures: p?.factures.length ?? 0, toutFacture: p ? toutEstFacture(p) : false, expenseOrderId: i.expenseOrderId,
     expenseOrderStatus: ordre?.status ?? null, expenseOrderCentral: ordre?.centralStatus ?? null,
+    // Le paiement attend le budget, pas le BC (recette 24/11/2026) — la même lecture que la carte.
+    budgetChoisi: Boolean(i.budgetCategoryId),
     agence: agence.faits,
   };
 }
@@ -127,7 +129,7 @@ export async function fileAgences(user: SessionUser): Promise<LigneFileAgence[] 
     include: {
       item: {
         select: {
-          id: true, label: true, kind: true, status: true, orderStage: true, voie: true, conformiteRequise: true, expenseOrderId: true,
+          id: true, label: true, kind: true, status: true, orderStage: true, voie: true, conformiteRequise: true, expenseOrderId: true, budgetCategoryId: true,
           sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true, otherRequestId: true,
         },
       },
@@ -224,7 +226,7 @@ export async function tachesAgence(user: SessionUser): Promise<TacheAgence[]> {
     },
     orderBy: { updatedAt: "asc" }, take: 200,
     select: {
-      id: true, label: true, kind: true, status: true, orderStage: true, voie: true, conformiteRequise: true, updatedAt: true, expenseOrderId: true,
+      id: true, label: true, kind: true, status: true, orderStage: true, voie: true, conformiteRequise: true, updatedAt: true, expenseOrderId: true, budgetCategoryId: true,
       execution: { select: { assistanteId: true } },
       sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true, otherRequestId: true,
     },

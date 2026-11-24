@@ -157,7 +157,7 @@ export function DeclarationsAFaire({ tours, aVenir, gestionnaire }: {
       {aVenir.length > 0 && (
         <details className="rounded-lg border border-border px-3 py-2" open={tours.length === 0}>
           <summary className="cursor-pointer text-sm font-semibold">À venir — demandes accordées, déclaration pas encore ouverte ({aVenir.length})</summary>
-          <p className="mt-1 text-xs text-muted-foreground">La déclaration s&apos;ouvre d&apos;elle-même quand chaque poste est accordé et son devis validé par la Direction Marketing. Un brouillon la retient ; un poste ajouté ensuite la rejoint.</p>
+          <p className="mt-1 text-xs text-muted-foreground">La déclaration s&apos;ouvre d&apos;elle-même quand chaque poste est accordé, son devis validé et son budget choisi par la Direction Marketing. Un brouillon la retient ; un poste ajouté ensuite la rejoint.</p>
           <ul className="mt-3 divide-y divide-border">
             {aVenir.map((v) => (
               <li key={v.cle} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm">

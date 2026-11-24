@@ -511,13 +511,17 @@ export function refusTauxDuDevis(tvaRate: number | null): string | null {
  * LA GÉNÉRATION EST-ELLE OUVERTE POUR CE POSTE ? — `null` si oui, sinon la raison. Lue par l'ACTION
  * (`genererBonDeCommandePoste`) ET par la carte : un bouton offert est un geste que l'action accepte (§118.83), et
  * deux copies des mêmes conditions finiraient par ne plus s'accorder (§118.5). Les mêmes portes que « demander le
- * BC » : le poste est accordé, son montant et son budget posés, aucun paiement demandé, aucune demande de BC ouverte
- * chez l'assistante (deux chemins pour le même BC feraient deux commandes).
+ * BC » : le poste est accordé, son montant posé, aucun paiement demandé, aucune demande de BC ouverte chez l'assistante
+ * (deux chemins pour le même BC feraient deux commandes).
+ *
+ * LE BC N'ATTEND PLUS LE BUDGET (recette 24/11/2026) : la Direction Marketing le choisit EN PARALLÈLE ; il n'est exigé qu'au
+ * paiement (`demanderPaiementPoste`) et par l'information médicale. `budgetCategoryId` reste lu par les appelants, sans porte.
  */
 export function refusGenerationBC(p: {
   status: string;
   amountGranted: number | null;
-  budgetCategoryId: string | null;
+  /** Lu, plus exigé (recette 24/11/2026). */
+  budgetCategoryId?: string | null;
   orderStage: string;
   expenseOrderId: string | null;
   /** La demande de BC chez l'assistante : son nom quand elle est ouverte, `null` sinon. */
@@ -528,7 +532,6 @@ export function refusGenerationBC(p: {
   if (p.status !== "APPROVED") return "Le poste doit d'abord être accordé par la Direction.";
   if (p.orderStage === "NONE" || p.orderStage === "REFUSED") {
     if (!(typeof p.amountGranted === "number" && Number.isFinite(p.amountGranted) && p.amountGranted > 0)) return "Affectez d'abord un montant à ce poste.";
-    if (!p.budgetCategoryId) return "Choisissez d'abord le budget (enveloppe) qui portera ce poste.";
   }
   if (p.demandeOuverte) {
     return `La demande de bon de commande est déjà chez ${p.demandeChez ?? "l'assistante de direction"} : annulez-la (« Annuler la demande de BC ») pour générer le bon de commande d'ici — deux chemins pour le même BC feraient deux commandes.`;

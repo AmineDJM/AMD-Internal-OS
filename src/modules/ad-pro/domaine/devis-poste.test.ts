@@ -150,7 +150,8 @@ describe("la génération est-elle ouverte ? — la MÊME règle pour la carte e
   it("refuse, en nommant le remède, chaque cas qui l'interdit", () => {
     expect(refusGenerationBC({ ...ok, status: "PENDING" })).toMatch(/accordé par la Direction/);
     expect(refusGenerationBC({ ...ok, amountGranted: null })).toMatch(/Affectez d'abord un montant/);
-    expect(refusGenerationBC({ ...ok, budgetCategoryId: null })).toMatch(/Choisissez d'abord le budget/);
+    // LE BC N'ATTEND PLUS LE BUDGET (recette 24/11/2026) : il se choisit en parallèle — le paiement, lui, l'exige.
+    expect(refusGenerationBC({ ...ok, budgetCategoryId: null })).toBeNull();
     expect(refusGenerationBC({ ...ok, expenseOrderId: "o1" })).toMatch(/paiement de ce poste est déjà demandé/);
     expect(refusGenerationBC({ ...ok, orderStage: "ISSUED" })).toMatch(/paiement de ce poste est déjà demandé/);
     expect(refusGenerationBC({ ...ok, demandeOuverte: true, demandeChez: "Amel" })).toMatch(/déjà chez Amel.*Annuler la demande de BC/);

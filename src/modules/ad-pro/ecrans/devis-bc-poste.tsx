@@ -291,8 +291,8 @@ export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration
       )}
       {onAccorder && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <Button size="sm" onClick={onAccorder}><ThumbsUp className="h-3.5 w-3.5" /> Accorder le poste</Button>
-          <span className="text-xs text-muted-foreground">Montant accordé et budget : le bon de commande s&apos;ouvre ensuite.</span>
+          <Button size="sm" onClick={onAccorder}><ThumbsUp className="h-3.5 w-3.5" /> Valider le poste (montant)</Button>
+          <span className="text-xs text-muted-foreground">Montant validé : le bon de commande s&apos;ouvre aussitôt ; le budget se choisit en parallèle.</span>
         </div>
       )}
 

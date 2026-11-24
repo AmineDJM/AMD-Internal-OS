@@ -18,7 +18,7 @@ import { ChampReference } from "@/components/references/champ-reference";
 import { deleteDocument } from "@/lib/actions/document-actions";
 import { decideDocumentRequest } from "@/lib/actions/document-request-actions";
 import { NATURES_PIECE_SECRETARIAT, PIECE_SECRETARIAT, peutDemanderPiece, type NaturePieceSecretariat } from "../../domaine/pieces-secretariat";
-import { etapesDuPoste, prochainPas, faitsDuPoste, sansBonDeCommande, LIBELLE_JUSTIFICATIF_DIRECT, type CleGeste, type EtatEtape, type RegardPoste } from "../../domaine/poste-etapes";
+import { etapesDuPoste, prochainPas, pasBudget, faitsDuPoste, sansBonDeCommande, LIBELLE_JUSTIFICATIF_DIRECT, type CleGeste, type EtatEtape, type RegardPoste } from "../../domaine/poste-etapes";
 import { porteDesVoyageurs } from "../../domaine/voyageurs";
 import { porteDesHebergements } from "../../domaine/hebergements";
 import { DocumentUpload } from "@/components/documents/document-upload";
@@ -125,6 +125,10 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
   // LA PORTE DU DG (27/10/2026) : la même pour tous les postes de la demande — la carte la lit, l'action la garde.
   const faits = { ...faitsDuPoste(item), porteDg: porteDg?.etat, porteDgPhrase: porteDg?.phrase ?? null };
   const pas = prochainPas(faits, regard);
+  // LE BUDGET, EN PARALLÈLE DU BC (recette 24/11/2026) : montré à côté du prochain geste — sauf quand c'est lui (le paiement
+  // l'attend), pour ne pas le dire deux fois.
+  const budgetParallele = pasBudget(faits, regard);
+  const budgetEnPlus = budgetParallele && pas.geste?.cle !== "BUDGET" && pas.attente !== budgetParallele.attente ? budgetParallele : null;
   const etapes = etapesDuPoste(faits);
   const { titre, nature } = titreDuPoste(item);
   // LE PARCOURS AGENCE (15/11/2026) : sa frise et SON geste remplacent ceux d'avant ; l'assistante chargée du poste y travaille.
@@ -182,7 +186,8 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
   if (arbitrer && !stock && !item.expenseOrderId && pas.geste?.cle !== "MONTANT") {
     entrees.push({ cle: "montant", libelle: "Affecter un montant", icone: <Wallet className="h-3.5 w-3.5" />, faire: () => setPanneau("MONTANT") });
   }
-  if (arbitrer && !stock && item.status === "APPROVED" && item.orderStage !== "ISSUED" && item.budgetCategoryId && pas.geste?.cle !== "BUDGET") {
+  // Le budget se change par qui le choisit — la Direction Marketing (ou le Super Admin) : l'action le refuse à tout autre.
+  if (droits.marketing && !regard.fige && !stock && item.status === "APPROVED" && item.orderStage !== "ISSUED" && item.budgetCategoryId && pas.geste?.cle !== "BUDGET") {
     entrees.push({ cle: "budget", libelle: "Changer le budget", icone: <Wallet className="h-3.5 w-3.5" />, faire: () => setPanneau("BUDGET") });
   }
   // LA DEMANDE DE BC SE CORRIGE ET SE RETIRE tant qu'aucun ordre n'est parti (§118.187, audit R06) —
@@ -288,7 +293,8 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
   });
   // « Joindre un BC existant » = la demande à l'assistante (qui l'uploade) : le geste d'avant, tant qu'il est ouvert.
   // « ACCORDER » OÙ L'ON BUTE (Direction, 15/11/2026) : la case « Bon de commande » dit « le poste doit d'abord être
-  // accordé » — à qui peut l'accorder, elle offre le geste lui-même (la boîte de décision, montant et budget). Un poste
+  // accordé » — à qui peut l'accorder, elle offre le geste lui-même (la boîte de décision : le montant ; le budget se choisit
+  // ensuite, recette 24/11/2026). Un poste
   // « agence » s'accorde en choisissant son agence (sa frise) : pas ici. Un sponsoring indirect non plus : il se répartit d'abord.
   const peutAccorder = !stock && !agence && item.kind !== "INDIRECT_SUPPORT" && item.status === "PENDING" && droits.marketing && !regard.fige;
   const ouvrirAccord = () => {
@@ -389,7 +395,7 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
           la demande (§118.83) — passe dans un ⓘ. */}
       {agence && (
         <ParcoursAgence
-          item={item} regard={regardAgence} assistantes={assistantes} budgetOptions={budgetOptions} signature={signature} busy={busy} run={run}
+          item={item} regard={regardAgence} assistantes={assistantes} signature={signature} busy={busy} run={run}
           ouvrir={(g) => (g === "BC" ? ouvrirPieces("bc") : g === "PAIEMENT" ? ouvrirPieces("paiement") : g === "DEVIS" ? setPanneau("DEVIS") : setPanneau(g))}
         />
       )}
@@ -415,6 +421,16 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
           )}
         </div>
       )}
+
+      {/* LE BUDGET, EN PARALLÈLE (recette 24/11/2026) — après la validation, la Direction Marketing choisit le budget pendant
+          que le BC suit son chemin ; le paiement et l'information médicale l'attendent. */}
+      {budgetEnPlus && (budgetEnPlus.geste ? (
+        <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => basculer("BUDGET")} disabled={enCours}>
+          <Wallet className="h-4 w-4" /> {budgetEnPlus.geste.libelle}
+        </Button>
+      ) : (
+        <p className="flex items-start gap-1.5 text-sm text-muted-foreground"><Wallet className="mt-0.5 h-4 w-4 shrink-0" /> <span>{budgetEnPlus.attente}</span></p>
+      ))}
 
       {/* Les petits formulaires qu'un geste ouvre — un seul à la fois. */}
       {panneau === "MODIFIER" && editer && (
@@ -454,15 +470,15 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
         />
       )}
       {panneau === "VALIDER_OPS" && droits.operations && item.status === "PENDING" && (
-        <BoiteDecision item={item} mode="OPERATIONS" budgetOptions={budgetOptions} busy={busy} run={run} fdOf={fdOf} onCancel={fermer} />
+        <BoiteDecision item={item} mode="OPERATIONS" busy={busy} run={run} fdOf={fdOf} onCancel={fermer} />
       )}
       {panneau === "DECIDER" && item.status === "PENDING" && (stock ? arbitrer : droits.marketing) && (
         <div id={`accord-${item.id}`} className="scroll-mt-24">
-          <BoiteDecision item={item} mode={stock ? "STOCK" : "MARKETING"} budgetOptions={budgetOptions} busy={busy} run={run} fdOf={fdOf} onCancel={fermer} />
+          <BoiteDecision item={item} mode={stock ? "STOCK" : "MARKETING"} busy={busy} run={run} fdOf={fdOf} onCancel={fermer} />
         </div>
       )}
       {panneau === "REVOIR_DECISION" && peutRevoir && revisable && (
-        <BoiteDecision item={item} mode={stock ? "STOCK" : "MARKETING"} budgetOptions={budgetOptions} busy={busy} run={run} fdOf={fdOf} onCancel={fermer} revoir accordSeul={bcLegal} />
+        <BoiteDecision item={item} mode={stock ? "STOCK" : "MARKETING"} busy={busy} run={run} fdOf={fdOf} onCancel={fermer} revoir accordSeul={bcLegal} />
       )}
       {panneau === "MODIFIER_BC" && bcEnCours && toucheBC && (
         <DemandeBC
@@ -504,7 +520,7 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
           void run(`alloc:${item.id}`, () => updateAdProItem(undefined, fdOf({ amountGranted: v })), "Montant affecté.").then(fermer);
         }} />
       )}
-      {panneau === "BUDGET" && (arbitrer || droits.marketing) && item.status === "APPROVED" && (
+      {panneau === "BUDGET" && droits.marketing && !regard.fige && item.status === "APPROVED" && (
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <Wallet className="h-3.5 w-3.5 text-muted-foreground" />
           <select

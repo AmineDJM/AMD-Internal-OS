@@ -111,6 +111,17 @@ describe("parcours agence — chaque personne voit SON geste, les autres savent 
     // Le paiement demandé : l'étape d'après, quoi que dise la couverture.
     expect(etapeAgence(poste({ ...signe, factures: 1, toutFacture: true, expenseOrderId: "o", expenseOrderStatus: "PENDING" }, recu))).toBe("PAIEMENT");
   });
+  it("LE BUDGET EN PARALLÈLE (recette 24/11/2026) : le BC ne l'attend pas, le paiement si", () => {
+    // Agence choisie, budget pas encore choisi : le BC suit son chemin (préparer, finaliser, valider et signer).
+    expect(pasAgence(poste({ status: "APPROVED", budgetChoisi: false }, { prospectionDemandee: true, devisTransmis: true, agenceRetenue: true, assistante: "Radia" }), personne({ marketing: true })).geste?.cle).toBe("PREPARER_BC");
+    expect(pasAgence(poste({ status: "APPROVED", budgetChoisi: false }, { ...choisi, bcSoumis: false }), personne({ assistante: true })).geste?.cle).toBe("FINALISER_BC");
+    // Réceptionné ou facturé sans budget : le paiement attend la Direction Marketing.
+    const recu = { ...choisi, bcEnvoye: true, receptionFaite: true };
+    expect(pasAgence(poste({ ...signe, budgetChoisi: false }, recu), personne({ marketing: true })))
+      .toEqual({ geste: null, attente: "Réceptionné — le paiement attend le budget : la Direction Marketing le choisit." });
+    expect(pasAgence(poste({ ...signe, factures: 1, toutFacture: true, budgetChoisi: false }, recu), personne({ marketing: true })).geste).toBeNull();
+    expect(pasAgence(poste({ ...signe, factures: 1, toutFacture: true, budgetChoisi: true }, recu), personne({ marketing: true })).geste?.cle).toBe("DEMANDER_PAIEMENT");
+  });
   it("une demande close n'offre plus de décision à la Direction Marketing", () => {
     expect(pasAgence(poste(), personne({ marketing: true, fige: true })).geste).toBeNull();
   });

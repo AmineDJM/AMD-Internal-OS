@@ -18,8 +18,8 @@ export function tientLaDeclarationAdPro(user: SessionUser): boolean {
 /**
  * OUVRIR LA DÉCLARATION D'UNE DEMANDE AD & PRO QUI N'EN A PAS (Direction, 08/11/2026).
  *
- * La déclaration s'ouvre d'ordinaire d'elle-même quand le DERNIER poste est prêt — accordé, son devis validé par la Direction
- * Marketing (`ouvrirDeclarationSiPostesValides`, 19/11/2026, recette 24/11/2026). Une demande accordée sous l'ancienne règle du
+ * La déclaration s'ouvre d'ordinaire d'elle-même quand le DERNIER poste est prêt — accordé, son devis validé et son budget
+ * choisi par la Direction Marketing (`ouvrirDeclarationSiPostesValides`, 19/11/2026, recette 24/11/2026). Une demande accordée sous l'ancienne règle du
  * montant global n'en a aucune, et l'étape de la frise resterait vide pour toujours : le pharmacien l'ouvre d'ici (depuis
  * la fiche, ou « À venir » de son écran « À faire »).
  *
@@ -55,8 +55,8 @@ export async function ouvrirDeclarationAdPro(
     return {
       ok: false,
       error: postes.total > 0
-        ? `La déclaration s'ouvre quand chaque poste est accordé et son devis validé par la Direction Marketing : ${postes.valides} sur ${postes.total} le sont${postes.blocages.length ? ` (${postes.blocages.join(", ")})` : ""}.`
-        : "La déclaration s'ouvre quand les postes de la demande sont accordés et leurs devis validés : elle n'en a encore aucun.",
+        ? `La déclaration s'ouvre quand chaque poste est accordé, son devis validé et son budget choisi par la Direction Marketing : ${postes.valides} sur ${postes.total} le sont${postes.blocages.length ? ` (${postes.blocages.join(", ")})` : ""}.`
+        : "La déclaration s'ouvre quand les postes de la demande sont accordés, leurs devis validés et leur budget choisi : elle n'en a encore aucun.",
     };
   }
   const resume = await loadEntity(type, sourceId);

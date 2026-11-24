@@ -3,7 +3,6 @@
 import * as React from "react";
 import { ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/input";
 import { cn, formatCurrency } from "@/lib/utils";
 import { nomAgence, phraseDuChoix, totalDesLignes, valeurDeLigne } from "../../domaine/choix-agences";
 import type { ItemRow } from "../items-panel";
@@ -40,13 +39,12 @@ function CaseDuDevis({ id, coche, partiel, desactive, onChange, children }: {
 /**
  * LE CHOIX DES LIGNES, DEVIS PAR DEVIS (Direction, 23/11/2026) — la Direction Marketing coche ce qu'elle commande dans
  * chaque devis transmis ; les totaux se lisent en direct (par agence et au total, l'arithmétique du BC), et la phrase dit
- * ce qui va se passer : un poste accordé, ou un poste scindé en autant de postes que d'agences retenues.
+ * ce qui va se passer : un poste accordé, ou un poste scindé en autant de postes que d'agences retenues. Le budget ne se
+ * choisit plus ici (recette 24/11/2026) : c'est l'étape d'après, en parallèle du BC.
  */
-export function ChoixLignesAgences({ itemId, devis, budgetCategoryId, budgetOptions, enCours, onRetenir, onAnnuler }: {
+export function ChoixLignesAgences({ itemId, devis, enCours, onRetenir, onAnnuler }: {
   itemId: string;
   devis: Devis[];
-  budgetCategoryId: string | null;
-  budgetOptions: { id: string; label: string }[];
   enCours: boolean;
   onRetenir: (f: FormData) => void;
   onAnnuler: () => void;
@@ -154,14 +152,8 @@ export function ChoixLignesAgences({ itemId, devis, budgetCategoryId, budgetOpti
         <span className="font-semibold tabular-nums">{formatCurrency(total)}{mention ? ` ${mention}` : ""}</span>
       </p>
 
-      <div className="space-y-1">
-        <Label htmlFor={`agc-bud-${itemId}`}>Budget qui porte {retenus.length > 1 ? "ces postes" : "ce poste"}</Label>
-        <select id={`agc-bud-${itemId}`} name="budgetCategoryId" required defaultValue={budgetCategoryId ?? ""} className="w-full rounded-lg border border-border bg-background px-2 py-2 text-sm">
-          <option value="">Choisir le budget (enveloppe › catégorie)…</option>
-          {budgetOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-        </select>
-      </div>
-
+      {/* PLUS DE BUDGET ICI (recette 24/11/2026) : l'agence choisie, le BC part ; le budget se choisit ensuite, en parallèle
+          (« Choisir le budget » sur le poste). */}
       <p className="text-xs text-muted-foreground" role="status">
         {phraseDuChoix(retenus.map((x) => ({ agence: nomAgence(x.d), nombre: x.choisies.size })))}
       </p>

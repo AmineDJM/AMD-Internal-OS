@@ -1,5 +1,42 @@
 ## 🧾 Journal des évolutions récentes
 
+### AD & PRO, RECETTE DU 24/11 : LE POSTE PUBLIÉ SANS MONTANT, LE BC ET LE BUDGET EN PARALLÈLE, LA DÉCLARATION QUI ATTEND LES POSTES PRÊTS (2026-11-24)
+
+Recette Ad & Pro de la Direction du 24/11/2026 (commits `2755db2a`, `9ee78395`, `5d3a976c`, puis un lot en cours sur
+l'ordre d'un poste). Parcours décrit : [parcours agence](38-parcours-agence-signature-en-ligne.md).
+- **L'ordre d'un poste (lot en cours).** La Direction Marketing publie le poste **sans montant ni budget** → l'assistante
+  prospecte et dépose les devis → la Direction Marketing valide les lignes / choisit l'agence : le **montant vient du
+  devis** (un sponsoring direct à l'association se valide au montant de sa pro forma : « Valider le poste (montant) ») →
+  **en parallèle** : (a) le **BC** s'ouvre aussitôt (l'assistante le génère et le corrige, la Direction Marketing le valide,
+  centre de validation, DG au-dessus du seuil, signature des Finances) ; (b) la Direction Marketing **« Choisir le
+  budget »**, ce qui ouvre la phase d'information médicale. Le **paiement exige le budget** (`demanderPaiementPoste`) ; le BC
+  ne l'exige plus (`choisirAgencePoste`, `decideAdProItem`, `domaine/devis-poste.ts`, `domaine/postes.ts`).
+- **Sponsoring : le poste naît à la prévalidation.** La demande ne crée plus son poste à la création ; le poste de la nature
+  (direct : association ; indirect : prise en charge) **naît à la prévalidation de la Direction Marketing** (après le N+1
+  puis le Directeur des opérations), en attente de la Direction Marketing, sans « Soumettre pour validation »
+  (`domaine/poste-du-sponsoring.ts`, `infra/postes/naissance-sponsoring.ts`). Un poste ajouté par la Direction Marketing
+  elle-même naît en attente de son accord — jamais « Soumettre ».
+- **Déclaration à l'information médicale.** Elle s'ouvre quand chaque poste est accordé, son devis validé (lignes validées,
+  agence choisie, BC joint ou devis de voyageur retenu) et son budget choisi. Un poste ajouté **après** l'ouverture est
+  accepté (plus de refus) et la rejoint une fois prêt : montant mis à jour, pharmacien prévenu « Poste ajouté à une
+  déclaration » ; une déclaration déjà validée n'est pas réécrite (le pharmacien est prévenu). `lib/medical-info/declaration-postes.ts`.
+- **La société qui commande le BC.** Quand ni la demande ni la fiche salarié du demandeur ne la nomment (demandeur hors
+  annuaire RH, ex. Super Admin), l'aperçu du BC la fait choisir (« Société qui commande ») ; elle s'inscrit une fois sur la
+  demande (`choisirSocieteDuBcPoste`). L'aperçu se génère et se retire sans elle.
+- **Devis d'un poste.** « Supprimer » offert à la Direction Marketing (qui arbitre) et à la personne qui a ajouté le devis
+  (pour l'assistante, avant transmission) ; le devis retenu de l'agence ne se supprime pas, et la ligne le dit. Dépôt :
+  **plusieurs fichiers d'un coup**, une carte par fichier lue par l'IA (fournisseur, montant, référence), modifiable,
+  « Déposer les N devis » — un devis par fichier ; bascule « pages d'un même devis ».
+- **« Créer les postes depuis un fichier »** (carte Postes) : le cahier des charges est gardé dans les pièces de la demande,
+  l'IA propose les postes, la personne relit (nature, libellé, description, quantité, comment le poste se paie : par une
+  agence / directement) puis crée ; un poste « par une agence » part en prospection chez l'assistante choisie avec son cahier
+  des charges dans le même geste. Ni montant ni budget à la publication : un montant écrit dans le document va dans les notes
+  (`proposerPostesDepuisFichier`, `domaine/postes-fichier.ts`, `ecrans/postes-depuis-fichier.tsx`).
+- **Médecins concernés** : liste déroulante de tout l'annuaire, filtrable ; plusieurs médecins cochés d'un geste avec un rôle
+  (`ajouterMedecinsConcernes`).
+- Bancs : `infra/societe-bc-et-suppression-devis-flow.test.ts`, `infra/sponsoring-poste-prevalidation-flow.test.ts`,
+  `domaine/postes-fichier.test.ts`, `infra/postes-fichier-ia.test.ts`, `infra/devis-bc-flow.test.ts`.
+
 ### MES DEMANDES DE PAIEMENT : LA PLUS RÉCENTE EN TÊTE, ET « MA PRIORITÉ » (2026-11-10)
 
 « Affichées de la plus récente à la plus ancienne, et l'utilisateur peut les ordonner comme il veut, selon sa priorité »
