@@ -138,6 +138,8 @@ const COMPANY_OF_SOURCE: Partial<Record<EntityType, (id: string) => Promise<{ co
   REGULATORY_PRODUCT: (id) => prisma.regulatoryProduct.findUnique({ where: { id }, select: { companyId: true } }),
   // LA PAIE D'UNE ENTITÉ (§118.176) : le virement porte l'entité dont on vire les salaires.
   PAYROLL: (id) => prisma.payrollWire.findUnique({ where: { id }, select: { companyId: true } }),
+  // UNE ÉCHÉANCE DE CHARGE FIXE DES LOCAUX (24/11/2026) : la société qui loue, ou qui reçoit la facture.
+  FIXED_CHARGE: (id) => prisma.echeanceChargeFixe.findUnique({ where: { id }, select: { companyId: true } }),
 };
 
 /**

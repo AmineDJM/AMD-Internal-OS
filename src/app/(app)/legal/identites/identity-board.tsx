@@ -12,6 +12,8 @@ import { DocumentUpload } from "@/components/documents/document-upload";
 import { DocumentList, type DocItem } from "@/components/documents/document-list";
 import { COMPANY_DOC_CATEGORIES } from "@/lib/legal/company-docs";
 import { cn } from "@/lib/utils";
+import type { SocieteChargesVue } from "@/modules/finances/partage";
+import { ChargesFixesSection, type DroitsChargesFixes } from "@/modules/finances/ecrans/charges-fixes/section";
 
 export interface IdentityCompany {
   id: string;
@@ -33,12 +35,17 @@ export interface IdentityCompany {
  * l'ancien contenu du presse-papier dans un document officiel.
  */
 export function IdentityBoard({
-  companies, sections, initial, canEdit,
+  companies, sections, initial, canEdit, charges, droitsCharges, echeanceCible,
 }: {
   companies: IdentityCompany[];
   sections: IdentitySection[];
   initial: string;
   canEdit: boolean;
+  /** « Locaux & charges fixes » de chaque société (24/11/2026). */
+  charges: Record<string, SocieteChargesVue>;
+  droitsCharges: DroitsChargesFixes;
+  /** L'échéance désignée par « Aujourd'hui » ou une notification (`charge:période`). */
+  echeanceCible: string | null;
 }) {
   const [companyId, setCompanyId] = React.useState(initial);
   const [editing, setEditing] = React.useState(false);
@@ -110,6 +117,14 @@ export function IdentityBoard({
           </section>
         ))}
       </div>
+
+      {/* LOCAUX & CHARGES FIXES (Super Admin, 24/11/2026) — elles alimentent le budget de l'Administration. */}
+      {charges[company.id] && (
+        <ChargesFixesSection
+          key={company.id} companyId={company.id} societe={company.label} vue={charges[company.id]}
+          droits={droitsCharges} echeanceCible={echeanceCible}
+        />
+      )}
 
       {/* LES PIÈCES DE L'ENTITÉ — extrait du registre, attestation fiscale, statuts, RIB scanné.
           Rattachées à la société elle-même : c'est ce qu'on joint à un dossier en même temps
@@ -193,7 +208,7 @@ function IdentitySheet({
   return (
     <Sheet
       open onClose={onClose} width="lg"
-      title={`Coordonnées — ${company.label}`}
+      title={`Informations — ${company.label}`}
       description="Un champ laissé vide reste vide : rien n'est deviné, et les champs vides ne sont pas copiés dans le bloc."
     >
       <form onSubmit={submit} className="space-y-4">

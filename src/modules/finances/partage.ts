@@ -137,3 +137,16 @@ export {
   REGLE_DE_RATTACHEMENT, type SensTva, sensDeLaDirection, type SourceTva, TAUX_TVA, type TauxTva, totauxDeLaSaisie, tvaAPreremplir,
   tvaDe, valeursDuFormulaire,
 } from "./domaine/tva";
+// Les charges fixes des locaux et le budget de l'Administration (Super Admin, 24/11/2026) : natures, échéances, écart de
+// la facture, réserve pour imprévus, prévision de trésorerie, pré-remplissage `AUTO_CHARGES_FIXES` de la campagne.
+export {
+  type ChargeFixePourCalcul, type ChargeVue, CLE_DONS_MECENAT, type EcheanceVue, type LigneBudgetVue, type SocieteChargesVue,
+  lireSaisieCharge, rubriqueDeNature, CLE_MOYENS_GENERAUX, CLE_REMBOURSEMENT_EMPRUNT, CLE_RESERVE_IMPREVUS,
+  cleEcheance, CODE_ENVELOPPE_ADMINISTRATION, DELAI_APPARITION_JOURS, ecartFacture, type EcheanceCalculee, echeancesAApparaitre,
+  echeancesEntre, estNatureChargeFixe, etatEcheance, type EtatEcheanceCharge, joursAvant, LIBELLE_ETAT_ECHEANCE,
+  LIBELLE_MODE_MONTANT, LIBELLE_NATURE_CHARGE_FIXE, LIBELLE_PERIODICITE_CHARGE, libellePeriode, type LignePrefillChargeFixe,
+  lignesPrefillChargesFixes, MODES_MONTANT_CHARGE, type ModeMontantCharge, montantAnnuel, type MoisPrevision,
+  NATURES_CHARGE_FIXE, type NatureChargeFixe, nomEnveloppeAdministration, PERIODICITES_CHARGE, type PeriodiciteCharge,
+  peutDemanderPaiement, peutLibererReserve, previsionChargesFixes, REFUS_RESERVE, refusSurReserve, SEUIL_ECART_FACTURE,
+  SOURCE_PREFILL_CHARGES_FIXES, TON_ETAT_ECHEANCE,
+} from "./domaine/charges-fixes";

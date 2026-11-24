@@ -94,6 +94,11 @@ const POINTS: Point[] = [
   ["src/app/(app)/legal/[id]/emettre-avoir.tsx", "Émettre l&apos;avoir", 1],
   ["src/app/(app)/legal/[id]/send-to-settlement.tsx", "au règlement", 1],
   ["src/app/(app)/finances/paiements-a-faire/payer.tsx", "Marquer payé", 1],
+  // Informations de la société › Locaux & charges fixes (24/11/2026) : demander le paiement d'une échéance, retirer une
+  // charge, libérer la réserve pour imprévus.
+  ["src/modules/finances/ecrans/charges-fixes/section.tsx", "envoyer()", 1],
+  ["src/modules/finances/ecrans/charges-fixes/section.tsx", "retirerChargeFixe", 1],
+  ["src/modules/finances/ecrans/charges-fixes/section.tsx", "Libérer la réserve", 1],
   // Matériel promotionnel
   ["src/app/(app)/promo-material/[id]/circuit-card.tsx", "startPromoCircuit", 1],
   ["src/app/(app)/promo-material/[id]/circuit-card.tsx", "validatePromoStep", 1],

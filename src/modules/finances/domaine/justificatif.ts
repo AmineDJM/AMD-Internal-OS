@@ -100,7 +100,7 @@ const OPERATION_AD_PRO: RegleJustificatif = {
 export type OrigineOrdre =
   | "PAYMENT_REQUEST" | "ADMIN_REQUEST" | "MEDICAL_INFO_DECLARATION" | "LEGAL_DOCUMENT" | "SPONSORING"
   | "CONGRESS_NATIONAL" | "CONGRESS_INTERNATIONAL" | "EVENT" | "AD_PRO_OTHER" | "PROMO_MATERIAL"
-  | "CONSULTING_CONTRACT" | "REGULATORY_PRODUCT" | "PAYROLL" | "SALARY_ADVANCE" | "SANS_SOURCE";
+  | "CONSULTING_CONTRACT" | "REGULATORY_PRODUCT" | "PAYROLL" | "SALARY_ADVANCE" | "FIXED_CHARGE" | "SANS_SOURCE";
 
 export const JUSTIFICATIF_DE_SOURCE: Record<OrigineOrdre, RegleJustificatif> = {
   // La demande de paiement : la facture, le BC ou le devis qu'elle exige à la transmission ; le BON DE VERSEMENT de
@@ -133,6 +133,9 @@ export const JUSTIFICATIF_DE_SOURCE: Record<OrigineOrdre, RegleJustificatif> = {
     natures: ["DEMANDE_SIGNEE", "REQUEST_LETTER", "PROOF"], lieux: ["DOCUMENT_ORDRE", "PIECE_DOSSIER", "PIECE_SOURCE", "SOURCE"],
     toutFichierDeLaSource: true, service: "Les RH",
   },
+  // Une échéance de charge fixe des locaux (24/11/2026) : la FACTURE (ou l'appel de loyer, la quittance), jointe par les
+  // Finances à la demande et rangée sur l'ordre à sa naissance.
+  FIXED_CHARGE: { natures: ["INVOICE", "PAYMENT_RECEIPT", "REQUEST_LETTER", "CONTRACT"], lieux: ["DOCUMENT_ORDRE", "PIECE_DOSSIER"], service: "Les Finances" },
   // La remise de caisse d'avance : le bon de remise, joint à la remise.
   SANS_SOURCE: { natures: ["CASH_VOUCHER", "REQUEST_LETTER", "PROOF"], lieux: ["DOCUMENT_ORDRE", "PIECE_DOSSIER"], service: "Les Moyens généraux" },
 };

@@ -1,5 +1,5 @@
-import { requireModule } from "@/lib/session";
-import { userCan } from "@/lib/rbac";
+import { requireModule, requireUser } from "@/lib/session";
+import { hasRole, userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -8,10 +8,16 @@ import { IDENTITY_SECTIONS, identityFieldKeys } from "@/lib/legal/identity";
 import { IdentityBoard, type IdentityCompany } from "./identity-board";
 import { lireSensiblesPour } from "@/modules/coffre/api-lecture";
 import type { DocItem } from "@/components/documents/document-list";
+import { chargerChargesFixes, peutLibererReserve } from "@/modules/finances/api";
 
 export const dynamic = "force-dynamic";
 
 /**
+ * INFORMATIONS DE LA SOCIÉTÉ (ex-« Coordonnées des entités », Super Admin 24/11/2026) — la carte d'identité de chaque
+ * entité, copiable, et ses LOCAUX & CHARGES FIXES (loyer, électricité, eau…), qui alimentent le budget de l'Administration
+ * et que les Finances paient chaque mois. Ouverte à qui tient Legal (l'assistante de direction) ET aux Finances : ce sont
+ * elles qui saisissent les charges et en demandent le paiement.
+ *
  * COORDONNÉES LÉGALES & FISCALES — la carte d'identité de chaque entité, copiable.
  *
  * RC, NIF, NIS, article d'imposition, RIB, siège : on les redemande dix fois par mois, sur un
@@ -23,9 +29,11 @@ export const dynamic = "force-dynamic";
  * numéros sont ce par quoi elle s'engage. On choisit l'entité, on lit, on copie — le champ
  * seul ou le bloc entier.
  */
-export default async function LegalIdentitiesPage(props: { searchParams?: Promise<{ entite?: string }> }) {
+export default async function LegalIdentitiesPage(props: { searchParams?: Promise<{ entite?: string; echeance?: string }> }) {
   const searchParams = await props.searchParams;
-  const user = await requireModule("LEGAL");
+  // Legal, OU les Finances (leurs charges fixes) — chacun par la garde de SON module (masqué compris).
+  const qui = await requireUser();
+  const user = !userCan(qui, "LEGAL", "VIEW") && userCan(qui, "FINANCES", "VIEW") ? await requireModule("FINANCES") : await requireModule("LEGAL");
   const canEdit = userCan(user, "LEGAL", "UPDATE");
 
   // Le cloisonnement s'applique : on ne lit pas la carte fiscale d'une société qu'on ne voit pas.
@@ -33,7 +41,7 @@ export default async function LegalIdentitiesPage(props: { searchParams?: Promis
   if (mine.length === 0) {
     return (
       <div className="space-y-5">
-        <PageHeader title="Coordonnées légales & fiscales" />
+        <PageHeader title="Informations de la société" />
         <EmptyState
           icon="Building2"
           title="Aucune entité dans votre périmètre"
@@ -88,13 +96,21 @@ export default async function LegalIdentitiesPage(props: { searchParams?: Promis
     ? searchParams.entite
     : companies[0].id;
 
+  // LOCAUX & CHARGES FIXES — saisis par les Finances (et qui tient cette page), payés par les Finances.
+  const charges = Object.fromEntries(await chargerChargesFixes(mine.map((c) => c.id), user));
+  const droitsCharges = {
+    saisir: userCan(user, "FINANCES", "UPDATE") || canEdit,
+    payer: hasRole(user, "FINANCE_BUDGET_MANAGER") || user.role === "SUPER_ADMIN",
+    liberer: peutLibererReserve(user),
+  };
+
   return (
     <div className="space-y-5">
-      <PageHeader
-        title="Coordonnées légales & fiscales"
-        description="La carte d'identité de chaque entité — dénomination exacte, RC, NIF, NIS, article d'imposition, siège, banque, représentant légal. Choisissez l'entité, copiez le champ dont vous avez besoin ou le bloc entier : c'est ce qu'on recopie de mémoire, et c'est là que les fautes de frappe entrent dans les dossiers."
+      <PageHeader title="Informations de la société" />
+      <IdentityBoard
+        companies={companies} sections={IDENTITY_SECTIONS} initial={initial} canEdit={canEdit}
+        charges={charges} droitsCharges={droitsCharges} echeanceCible={searchParams?.echeance ?? null}
       />
-      <IdentityBoard companies={companies} sections={IDENTITY_SECTIONS} initial={initial} canEdit={canEdit} />
     </div>
   );
 }

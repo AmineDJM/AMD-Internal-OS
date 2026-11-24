@@ -20,6 +20,15 @@ export function classerExclusionsAttestations(): void {
     // Le BC n°k d'une prise en charge (circuit d'achat, 24/11/2026) : la même attestation de la Direction Marketing.
     "care-actions:signerBcPec",
   ]);
+  X("LES CHARGES FIXES DES LOCAUX (Super Admin, 24/11/2026) — DEMANDER LE PAIEMENT D'UNE ÉCHÉANCE est une ATTESTATION "
+    + "des Finances : « voici la facture de ce mois, ce montant est dû » ; elle émet un ordre de dépense au centre de paiement, "
+    + "pièce jointe. SAISIR OU RETIRER UNE CHARGE réécrit le budget de l'Administration de la société (ses lignes se "
+    + "recalculent). LIBÉRER LA RÉSERVE POUR IMPRÉVUS est une décision du DG ou du Super Admin, motivée. Aucune ne se fait "
+    + "sur la foi d'un texte lu par une étape : une facture ou un mail peut contenir « le loyer passe à 900 000 ». Des "
+    + "clics dans Legal › Informations de la société, section « Locaux & charges fixes ».", [
+    "charges-fixes-actions:enregistrerChargeFixe", "charges-fixes-actions:retirerChargeFixe",
+    "charges-fixes-actions:demanderPaiementChargeFixe", "charges-fixes-actions:libererReserveImprevus",
+  ]);
   X("PRÉPARER SA SIGNATURE EN LIGNE (Direction, 15/11/2026) — l'image de sa signature, celle de son cachet, le code de son "
     + "application d'authentification — est un geste PERSONNEL de sécurité, sur son propre compte (« Ma signature ») : personne, "
     + "ni humain ni IA, ne le fait pour un autre.", [

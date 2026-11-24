@@ -97,6 +97,8 @@ export const ENTITY_MODULE: Record<EntityType, Module> = {
   STOCK_PCH_RELEVE: "STOCKS",
   // Le contrat ou la facture d'un abonnement du département Informatique (24/11/2026).
   IT_SUBSCRIPTION: "INFORMATIQUE_ABONNEMENTS",
+  // Une échéance de charge fixe des locaux (Informations de la société, 24/11/2026) : payée par les Finances.
+  FIXED_CHARGE: "FINANCES",
 };
 
 /**

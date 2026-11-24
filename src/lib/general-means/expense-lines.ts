@@ -29,7 +29,7 @@ export interface ReceiptDraft {
  * Un `articleId` inconnu (article supprimé entre l'ouverture du formulaire et l'envoi) n'est pas
  * une erreur : la ligne redevient un achat libre, à condition d'être nommée.
  */
-export async function readReceipt(raw: unknown, givenLabel?: string | null): Promise<ReceiptDraft | { error: string }> {
+export async function readReceipt(raw: unknown, givenLabel?: string | null, companyId?: string | null): Promise<ReceiptDraft | { error: string }> {
   const lines = parseLinesField(raw);
   const ids = Array.from(new Set(lines.map((l) => l.articleId).filter((x): x is string => Boolean(x))));
   const names = new Map<string, string>();
@@ -40,7 +40,7 @@ export async function readReceipt(raw: unknown, givenLabel?: string | null): Pro
   // Les cases budgétaires envoyées par le formulaire sont RE-VÉRIFIÉES ici : une catégorie hors
   // des enveloppes ouvertes aux moyens généraux est ignorée, l'article reste « à classer ».
   const allowedCategories = lines.some((l) => l.budgetCategoryId)
-    ? await allowedGeneralMeansCategoryIds()
+    ? await allowedGeneralMeansCategoryIds(companyId)
     : new Set<string>();
   const resolved: ReceiptLine[] = lines.map((l) => ({
     ...l,
@@ -71,7 +71,7 @@ export async function readReceipt(raw: unknown, givenLabel?: string | null): Pro
  */
 export async function finaliserNatures(
   lines: ReceiptLine[],
-  opts: { userId: string; objet?: string | null; classer: boolean },
+  opts: { userId: string; objet?: string | null; classer: boolean; companyId?: string | null },
 ): Promise<ReceiptLine[]> {
   // CE QUE LA PERSONNE A RETENU des natures proposées pendant la saisie — avant tout classement d'office (journal du
   // pilotage, jamais bloquant ; sans proposition ouverte, rien n'est écrit).
@@ -83,12 +83,13 @@ export async function finaliserNatures(
   const aFaire = lines.some((l) => lireValeurNouvelle(l.budgetCategoryId)) || (opts.classer && lines.some((l) => !l.budgetCategoryId));
   if (!aFaire) return lines;
   try {
-    await assurerNaturesMoyensGeneraux();
-    const connues = await naturesConnues();
+    // LES NATURES DE LA SOCIÉTÉ de la dépense (budget de l'Administration, 24/11/2026).
+    await assurerNaturesMoyensGeneraux(opts.companyId);
+    const connues = await naturesConnues(opts.companyId);
     const out: ReceiptLine[] = [];
     for (const l of lines) {
       const nom = lireValeurNouvelle(l.budgetCategoryId);
-      out.push(nom ? { ...l, budgetCategoryId: (await categoriePourNom(nom, connues))?.id ?? null } : l);
+      out.push(nom ? { ...l, budgetCategoryId: (await categoriePourNom(nom, connues, opts.companyId))?.id ?? null } : l);
     }
     if (!opts.classer) return out;
     const restantes = out.map((l, i) => ({ l, i })).filter((x) => !x.l.budgetCategoryId);
@@ -99,7 +100,7 @@ export async function finaliserNatures(
     for (let k = 0; k < restantes.length; k++) {
       const p = propositions[k];
       if (!p) continue;
-      const id = "categorieId" in p ? p.categorieId : (await categoriePourNom(p.nouvelle, connues))?.id ?? null;
+      const id = "categorieId" in p ? p.categorieId : (await categoriePourNom(p.nouvelle, connues, opts.companyId))?.id ?? null;
       out[restantes[k].i] = { ...out[restantes[k].i], budgetCategoryId: id };
     }
     return out;

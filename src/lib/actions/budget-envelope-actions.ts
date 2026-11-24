@@ -10,6 +10,7 @@ import { fdStr, fdNum, fdDate, fdBool, type ActionResult } from "@/lib/actions/t
 import { poleDe } from "@/lib/budget/domaines";
 import { supprimerSousGarde } from "@/lib/budget/suppression-garde";
 import { annulable } from "@/lib/effets/ecran";
+import { refusSurReserve } from "@/modules/finances/partage";
 
 const NOT_ALLOWED: ActionResult = { ok: false, error: "Gestion des enveloppes réservée au Super Admin (ou à un délégué)." };
 
@@ -174,6 +175,11 @@ export async function updateBudgetCategory(formData: FormData): Promise<ActionRe
   if (denied) return denied;
   const parentId = fdStr(formData, "parentId");
   const isSub = Boolean(parentId) && parentId !== id; // pas d'auto-rattachement
+  // LA RÉSERVE POUR IMPRÉVUS (24/11/2026) : la baisser, c'est la libérer — le DG ou le Super Admin seulement.
+  const avant = await prisma.budgetCategoryLine.findUnique({ where: { id }, select: { cle: true, allocated: true } });
+  const nouveau = fdNum(formData, "allocated") ?? 0;
+  const refusReserve = refusSurReserve({ cle: avant?.cle, geste: nouveau < Number(avant?.allocated ?? 0) ? "BAISSER" : "MONTER", user });
+  if (refusReserve) return { ok: false, error: refusReserve };
   await prisma.budgetCategoryLine.update({
     where: { id },
     data: {
@@ -194,6 +200,9 @@ export async function deleteBudgetCategory(formData: FormData): Promise<ActionRe
   if (!id) return { ok: false, error: "Identifiant manquant." };
   const denied = await ensureCanManageCategory(user, id);
   if (denied) return denied;
+  // Supprimer la réserve pour imprévus, c'est la libérer : le DG ou le Super Admin seulement (24/11/2026).
+  const refusReserve = refusSurReserve({ cle: (await prisma.budgetCategoryLine.findUnique({ where: { id }, select: { cle: true } }))?.cle, geste: "BAISSER", user });
+  if (refusReserve) return { ok: false, error: refusReserve };
   // Les écritures de trésorerie attribuées repassent en « non attribué » (FK SetNull) ; les dépenses
   // budgétaires, elles, partiraient en cascade : refusé tant qu'il en reste (`budget/suppression-garde.ts`).
   const fait = await supprimerSousGarde({ categoryId: id });
@@ -223,6 +232,11 @@ export async function attributeTransaction(formData: FormData): Promise<ActionRe
       return c ? poleDe(c.envelope) !== null && canManageEnvelope(user, c.envelope) : false;
     });
     if (!ok) return { ok: false, error: "Allocation réservée à la Direction." };
+  }
+  // Imputer sur la réserve pour imprévus, c'est la consommer : le DG ou le Super Admin seulement (24/11/2026).
+  if (budgetCategoryId) {
+    const refusReserve = refusSurReserve({ cle: (await prisma.budgetCategoryLine.findUnique({ where: { id: budgetCategoryId }, select: { cle: true } }))?.cle, geste: "IMPUTER", user });
+    if (refusReserve) return { ok: false, error: refusReserve };
   }
   await prisma.financeTransaction.update({ where: { id: transactionId }, data: { budgetCategoryId } });
   revalidatePath("/budgets");

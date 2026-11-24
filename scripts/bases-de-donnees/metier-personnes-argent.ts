@@ -110,9 +110,12 @@ export const BASES_PERSONNES_ARGENT: BaseDef[] = [
       PaymentCentreMessage: "Message du centre de paiement",
       PaymentThreshold: "Seuil de signature d'un paiement",
       DocumentRequest: "Demande de pièce justificative",
+      ChargeFixeSociete: "Charge fixe des locaux d'une société (loyer, électricité…), saisie dans Informations de la société",
+      EcheanceChargeFixe: "Échéance de charge fixe demandée au paiement (source de l'ordre FIXED_CHARGE)",
     },
     plusSensibles: {
       TreasuryAccount: { niveau: "secret", pourquoi: "banque et RIB des comptes de la société" },
+      ChargeFixeSociete: { niveau: "confidentiel", pourquoi: "bénéficiaires, RIB et montants des loyers et charges de la société" },
     },
   },
   {

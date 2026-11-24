@@ -3773,6 +3773,42 @@
   "annulation": "retour",
   "appelable": true
  },
+ "charges-fixes-actions:demanderPaiementChargeFixe": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "compensation",
+  "appelable": true
+ },
+ "charges-fixes-actions:enregistrerChargeFixe": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "charges-fixes-actions:libererReserveImprevus": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "charges-fixes-actions:retirerChargeFixe": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": true
+ },
  "coaching-actions:creerFicheCoaching": {
   "risque": "R2",
   "familles": [

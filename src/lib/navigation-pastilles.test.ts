@@ -23,7 +23,7 @@ const entree = (label: string): NavItem => {
 describe("pastillesDesEntrees — chaque module compté une fois", () => {
   it("PRÉMISSE : Legal et son sous-menu portent le MÊME module — sinon le cas ne mesure rien", () => {
     // Les Finances ne sont plus le cas : leurs trois écrans ont chacun leur clé depuis le 24/11/2026 (Banque & paiements,
-    // Comptabilité, Doublons de factures) — c'est Legal › Coordonnées des entités qui répète le module de son parent.
+    // Comptabilité, Doublons de factures) — c'est Legal › Informations de la société qui répète le module de son parent.
     const legal = entree("Legal");
     const modules = legal.children?.map((c) => c.module) ?? [];
     expect(modules.length).toBeGreaterThanOrEqual(1);

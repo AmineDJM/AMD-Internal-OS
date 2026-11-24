@@ -398,6 +398,7 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/finances/infra/revision-ordre.ts → src/lib/notify",
     "src/modules/finances/infra/settle-invoice.ts → src/lib/refs",
     "src/modules/finances/infra/verser-remise.ts → src/lib/notify",
+    "src/modules/finances/infra/charges-fixes.ts → src/lib/notify", // le rappel J-15 des charges fixes aux Finances (24/11/2026)
     // L'ENTITÉ DE L'ARGENT (Adventum, Novapharm…) et la visibilité par entité : `company` et `entity-access`
     // décident quelle société voit quel ordre. Cible = une porte « entités » du socle (proposition §5.3).
     "src/modules/finances/actions-demandes.ts → src/lib/company",
@@ -406,6 +407,8 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/finances/actions-soldes.ts → src/lib/company",
     "src/modules/finances/actions-tresorerie.ts → src/lib/company",
     "src/modules/finances/actions-tresorerie.ts → src/lib/company-defaut",
+    // Les charges fixes des locaux (24/11/2026) : la société de la charge doit être dans le périmètre de qui la saisit.
+    "src/modules/finances/actions-charges-fixes.ts → src/lib/company",
     "src/modules/finances/infra/expense-orders.ts → src/lib/entity-access",
     "src/modules/finances/infra/requetes/centre-paiement.ts → src/lib/company",
     "src/modules/finances/infra/requetes/compta.ts → src/lib/company",

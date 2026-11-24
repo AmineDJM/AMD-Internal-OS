@@ -56,7 +56,7 @@ export type NatureLot =
   | "paiement" | "justificatif" | "declaration" | "declaration-prete" | "declaration-pieces" | "declaration-finale"
   | "validation" | "conge" | "achat" | "demande" | "adpro" | "correction" | "plan" | "mission"
   | "invitation" | "formation" | "regulatory" | "piece" | "directive" | "tache" | "stock" | "promo"
-  | "prise-en-charge" | "support" | "dossier" | "agence" | "bat" | "total-dg" | "question-finances" | "echeance" | "autre";
+  | "prise-en-charge" | "support" | "dossier" | "agence" | "bat" | "total-dg" | "question-finances" | "echeance" | "charge-fixe" | "autre";
 
 interface DefNature {
   /** Le chapeau — le filtre de la file et l'étiquette du lot. */
@@ -206,6 +206,12 @@ export const NATURES: Record<NatureLot, DefNature> = {
     chapeau: "Échéances", titre: (n) => `${n} ${pl(n, "échéance")} à tenir`,
     sousTitre: "", verbe: "Ouvrir", liste: null, decision: false,
   },
+  // LES CHARGES FIXES DES LOCAUX (Super Admin, 24/11/2026) : chaque échéance, quinze jours avant — les Finances joignent la
+  // facture et demandent le paiement depuis Informations de la société.
+  "charge-fixe": {
+    chapeau: "Finances", titre: (n) => `${n} ${pl(n, "charge fixe", "charges fixes")} à payer`,
+    sousTitre: "Loyer et charges des locaux — joignez la facture", verbe: "Payer", liste: null, decision: false,
+  },
   autre: {
     chapeau: "Autres", titre: (n) => `${n} ${pl(n, "élément")} à traiter`,
     sousTitre: "", verbe: "Ouvrir", liste: null, decision: false,
@@ -222,6 +228,7 @@ export function natureDe(e: ElementFile): NatureLot {
   if (o.startsWith("ECHEANCE:")) return "echeance";
   if (o.startsWith("QUESTION_FINANCES:")) return "question-finances";
   if (e.key.startsWith("justif-")) return "justificatif";
+  if (e.key.startsWith("chargefixe-")) return "charge-fixe";
   if (e.kind === "payment" || o.startsWith("EXPENSE_ORDER:")) return "paiement";
   if (o.startsWith("MEDICAL_INFO_DECLARATION:")) {
     if (e.statut === "AWAITING_DIRECTION") return "declaration-finale";

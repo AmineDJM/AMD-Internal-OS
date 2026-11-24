@@ -7,7 +7,8 @@ import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { LIBELLE_MAX, valeurNouvelle } from "@/lib/general-means/natures";
-import { assurerNaturesMoyensGeneraux, categoriePourNom, naturesConnues } from "@/lib/general-means/natures-store";
+import { assurerNaturesMoyensGeneraux, categoriePourNom, naturesConnues, societeDuDepartement } from "@/lib/general-means/natures-store";
+import { companyIdForNew } from "@/lib/company";
 import { classerLibelles } from "@/lib/natures-depenses-ia";
 import { actionReversible } from "@/lib/effets/reversible";
 
@@ -51,8 +52,11 @@ export async function proposerNaturesLignes(formData: FormData): Promise<Resulta
   }
   if (libelles.every((l) => !l)) return { ok: true, propositions: libelles.map(() => null) };
 
-  await assurerNaturesMoyensGeneraux();
-  const categories = await naturesConnues();
+  // Les natures de la SOCIÉTÉ de la dépense (budget de l'Administration, 24/11/2026) : celle du département quand le
+  // formulaire le dit, sinon celle de la personne.
+  const societe = (await societeDuDepartement(fdStr(formData, "departmentId"))) ?? (await companyIdForNew(user.id));
+  await assurerNaturesMoyensGeneraux(societe);
+  const categories = await naturesConnues(societe);
   const noms = new Map(categories.map((c) => [c.id, c.nom]));
   const { propositions } = await classerLibelles({ libelles, objet: fdStr(formData, "objet"), categories, userId: user.id, montree: true });
   return {
@@ -77,10 +81,20 @@ export async function classerDepensesNonClassees(formData: FormData): Promise<Ac
     const user = await requireUser();
     if (!estSuperAdmin(user)) return { ok: false, error: "Réservé au Super Admin." };
     const departmentId = fdStr(formData, "departmentId");
-    const duDepartement = departmentId ? { departmentId } : {};
+    // UNE SOCIÉTÉ PAR LOT (24/11/2026) : les natures vivent dans le budget de l'Administration de chaque société — celle du
+    // département demandé, sinon la première qui a des dépenses à ranger ; le message dit ce qui reste.
+    const aRanger = { budgetCategoryId: null, kind: { not: "HR" as const } };
+    const societe = departmentId
+      ? await societeDuDepartement(departmentId)
+      : (await prisma.departmentBudgetExpense.findFirst({
+          where: { ...aRanger, department: { companyId: { not: null } }, OR: [{ lines: { none: {} } }, { lines: { some: { budgetCategoryId: null } } }] },
+          select: { department: { select: { companyId: true } } },
+        }))?.department.companyId ?? null;
+    if (!societe) return { ok: true, message: "Aucune dépense à classer dans une société : tout est rangé (une dépense sans société se range à la main)." };
+    const duDepartement = departmentId ? { departmentId } : { department: { companyId: societe } };
 
-    await assurerNaturesMoyensGeneraux();
-    const categories = await naturesConnues();
+    await assurerNaturesMoyensGeneraux(societe);
+    const categories = await naturesConnues(societe);
 
     const lignes = await prisma.departmentExpenseLine.findMany({
       where: { budgetCategoryId: null, expense: { budgetCategoryId: null, kind: { not: "HR" }, ...duDepartement } },
@@ -109,7 +123,7 @@ export async function classerDepensesNonClassees(formData: FormData): Promise<Ac
       if (!p) return null;
       if ("categorieId" in p) return p.categorieId;
       const avant = categories.length;
-      const c = await categoriePourNom(p.nouvelle, categories);
+      const c = await categoriePourNom(p.nouvelle, categories, societe);
       if (c && categories.length > avant) creees.add(c.nom);
       return c?.id ?? null;
     };

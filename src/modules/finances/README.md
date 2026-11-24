@@ -32,6 +32,16 @@ Ancien emplacement : `src/lib/{finance,finances,payments}/`, `src/lib/expense-or
   ni aux Finances — et son émetteur a une ligne « Joindre le justificatif » ; la pièce jointe (dossier, fiche, registre,
   ordre) le fait entrer seul au centre. `ExpenseOrder.justificatifExige` marque les ordres nés sous la règle : eux seuls
   sont bloqués au règlement si la pièce disparaît ; les ordres d'avant sont signalés au centre, jamais bloqués.
+- **Les charges fixes des locaux et le budget de l'Administration** (Super Admin, 24/11/2026) : `domaine/charges-fixes`
+  (natures à clé stable, échéances par périodicité, montant annuel, écart de la facture > 10 %, réserve pour imprévus
+  libérable par le DG ou le Super Admin seulement, prévision à 12 mois, pré-remplissage `AUTO_CHARGES_FIXES`),
+  `infra/budget-administration` (l'enveloppe « Administration <année> » par société, code `ADMINISTRATION`, tenue par les
+  Finances : une ligne par nature recalculée à chaque charge modifiée, et les lignes Moyens généraux — les natures `MG_*`
+  par société en sous-lignes —, Dons et mécénat, Réserve pour imprévus, Remboursement d'emprunt), `infra/charges-fixes`
+  (saisie, demande de paiement → `createExpenseOrder` origine `FIXED_CHARGE`, facture jointe sur l'ordre, rappel J-15),
+  `infra/requetes/charges-fixes` (section « Locaux & charges fixes » d'Informations de la société `/legal/identites`,
+  « Aujourd'hui » des Finances, brique du centre de paiement, prévision, pré-remplissage) ; écran
+  `ecrans/charges-fixes/section.tsx` ; tables `ChargeFixeSociete`, `EcheanceChargeFixe`.
 - **Règles tenues par des tests du module** : un seul écrivain d'ordre, qui le fait naître au centre ; liste FERMÉE des
   écrivains de l'autorisation, de `PAID` et du montant (`centre-ecrivains.test.ts`) ; écrivains de la trésorerie
   (`ecrivains-tresorerie.test.ts`) ; deux issues au centre (`centre-deux-issues.test.ts`).
