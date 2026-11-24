@@ -3,6 +3,7 @@ import { optionsFromMap } from "@/components/shared/form-fields";
 import { LEGAL_DOC_KIND } from "@/lib/labels";
 import type { PartyOption } from "@/lib/contacts/parties";
 import { LIBELLE_CHAMP_DU_FICHIER } from "@/lib/legal/piece-emise";
+import { CHAMP_TVA_AUTRES, CHAMP_TVA_ENVOYEE, CHAMPS_TVA, champHt, champTva, TAUX_TVA } from "@/modules/finances/partage";
 
 /**
  * LES CHAMPS D'UN DOCUMENT LÉGAL — une seule définition pour la création ET la modification.
@@ -67,7 +68,8 @@ export function legalFields(
   const facture = invoiceOnly || v("kind") === "INVOICE";
   const tous = construire();
   const champs = daterLeReglement ? tous : tous.filter((c) => !("name" in c) || c.name !== "paidDate");
-  return pieceEmise ? champs.filter((c) => !("name" in c) || !CHAMPS_DU_FICHIER.has(c.name)) : champs;
+  // La TVA d'une pièce émise est celle de son fichier, calculée par la fabrique : elle ne se ressaisit pas.
+  return pieceEmise ? champs.filter((c) => !("name" in c) || (!CHAMPS_DU_FICHIER.has(c.name) && !CHAMPS_TVA_FORMULAIRE.has(c.name))) : champs;
 
   function construire(): FieldDef[] {
   return [
@@ -94,7 +96,8 @@ export function legalFields(
     },
     { type: "date", name: "startDate", label: facture ? LIBELLES_FACTURE.startDate : "Date de début (facultative)", defaultValue: v("startDate") },
     { type: "date", name: "endDate", label: facture ? LIBELLES_FACTURE.endDate : "Date de fin — vide = sans échéance", defaultValue: v("endDate") },
-    { type: "number", name: "amount", label: "Montant (DZD)", defaultValue: v("amount") },
+    { type: "number", name: "amount", label: facture ? "Montant TTC (DZD)" : "Montant (DZD)", defaultValue: v("amount") },
+    ...(facture ? champsTva(v) : []),
     // LE SENS DE L'ARGENT — jamais deviné du nom de la partie en face : selon la facture, la
     // même société est celle qu'on paie ou celle qui nous paie, et une écriture posée à
     // l'envers est pire qu'une écriture absente parce qu'elle se voit moins.
@@ -166,6 +169,29 @@ export function legalFields(
   ];
   }
 }
+
+/**
+ * LA TVA D'UNE FACTURE (lot « tva », 24/11/2026) — base HT et TVA PAR TAUX (la table des taux de la TVA), le timbre à
+ * part. La TVA laissée vide se calcule (HT × taux) ; le serveur vérifie HT + TVA + timbre = TTC. Tout vide : TVA « à
+ * compléter », jamais inventée.
+ */
+function champsTva(v: (k: string) => string | undefined): FieldDef[] {
+  const champs: FieldDef[] = [{ type: "hidden", name: CHAMP_TVA_ENVOYEE, value: "1" }];
+  for (const t of TAUX_TVA) {
+    if (t.taux === 0) {
+      champs.push({ type: "number", name: champHt(t.taux), label: "HT à 0 % (DZD)", defaultValue: v(champHt(t.taux)) });
+      continue;
+    }
+    champs.push(
+      { type: "number", name: champHt(t.taux), label: `HT à ${t.court} (DZD)`, defaultValue: v(champHt(t.taux)) },
+      { type: "number", name: champTva(t.taux), label: `TVA à ${t.court} (DZD)`, defaultValue: v(champTva(t.taux)), hint: t.taux === TAUX_TVA[0]!.taux ? "Vide : calculée (HT × taux)." : undefined },
+    );
+  }
+  champs.push({ type: "number", name: CHAMP_TVA_AUTRES, label: "Timbre et autres taxes (DZD)", defaultValue: v(CHAMP_TVA_AUTRES), hint: "HT + TVA + timbre = montant TTC." });
+  return champs;
+}
+
+const CHAMPS_TVA_FORMULAIRE = new Set<string>([...CHAMPS_TVA, CHAMP_TVA_ENVOYEE]);
 
 /** Les noms de champ que le fichier d'une pièce émise porte — lus du module pur, jamais recopiés (§118.5). */
 const CHAMPS_DU_FICHIER = new Set<string>(Object.keys(LIBELLE_CHAMP_DU_FICHIER));

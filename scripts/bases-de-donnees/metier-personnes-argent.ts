@@ -169,6 +169,8 @@ export const BASES_PERSONNES_ARGENT: BaseDef[] = [
       LegalDocument: "Document légal (contrat, bon de commande, facture, devis, avoir)",
       LegalFolder: "Dossier juridique",
       LegalDocumentReader: "Lecteur autorisé d'un document légal",
+      FactureTva: "TVA d'une facture ou d'un avoir (HT, TVA, TTC) — source de la TVA de la G50",
+      FactureTvaTaux: "Détail par taux (19 %, 9 %, 0 %) de la TVA d'une facture",
       BcBrouillonVersion: "Version du brouillon d'un bon de commande",
       MailPartner: "Correspondant du registre des courriers",
       MailEntry: "Courrier enregistré (arrivée / départ)",

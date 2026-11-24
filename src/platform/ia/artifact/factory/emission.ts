@@ -22,6 +22,7 @@ import { refusPieceAmont, phrasePieceAmontNonRattachee, PIECE_AMONT_INTROUVABLE 
 import { refusPlafondAvoir, netDeLaFacture } from "@/lib/lecteurs/avoir";
 import type { PorteBC } from "@/lib/bons-de-commande/regle";
 import { controlerRibDePiece } from "@/modules/coffre/api";
+import { enregistrerTvaDeLaPieceEmise } from "@/modules/finances/api-tva";
 import { echec, type EchecFabrique, type Habillage, manquesDIdentite, profilDocumentaire, type ProfilDocumentaire } from "./profil";
 import { attribuerNumero, type DemandeDocument, type DocumentEmis, echeanceLegale, type Fabrique, fabriqueDe, nomFichier, pdfDeLaPiece, reserveDuBC, reservePdf, resumeTotaux, specDepuisDemande } from "./demande";
 import { motifDe, peutEcrire, porterSerieAuMoins, porteurDuNumero } from "./numerotation";
@@ -382,6 +383,9 @@ async function terminerEmission(
     where: { id: legalDocumentId },
     data: { driveNodeId: docx.nodeId, amount: new Prisma.Decimal(construit.totaux.totalTtc), updatedById: user.id, custom: { fabrique: finale } as unknown as Prisma.InputJsonValue },
   });
+  // LA TVA D'UNE FACTURE OU D'UN AVOIR ÉMIS (lot « tva ») : HT, TVA et TTC par taux, tels que la pièce les imprime — la
+  // TVA collectée de la G50 se calcule de là, sans ressaisie.
+  await enregistrerTvaDeLaPieceEmise(legalDocumentId, spec.type, construit.totaux, user.id);
   await recordAudit({
     actorId: user.id, action: "CREATE", module: "Legal", entityType: "LEGAL_DOCUMENT", entityId: legalDocumentId,
     summary: `${LIBELLE_TYPE[spec.type]} ${fabrique.numero} émis${spec.type === "FACTURE" ? "e" : ""} ${parQui(user, ctx.canal)} pour ${spec.tiers.nom} — ${formaterDzd(construit.totaux.totalTtc)}${ctx.repris ? " (émission interrompue terminée)" : ""}${ctx.delegation ? ` — autorisé par : ${ctx.delegation}` : ""}`,

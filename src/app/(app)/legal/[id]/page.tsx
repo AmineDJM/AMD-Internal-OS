@@ -45,6 +45,7 @@ import { linksOf, linkedViews } from "@/lib/links/store";
 import { porteDuBC, origineDuBC, centreVouluDuBC } from "@/lib/bons-de-commande/aiguillage";
 import { blocageParLeBC, reserveEtapeBC } from "@/lib/bons-de-commande/regle";
 import { REFUS_FACTURE_EMISE_AU_REGLEMENT, peutDaterLeReglement, refusFactureDePoste } from "@/modules/finances/partage";
+import { etatTvaDesFactures, tvaDeLaFacture, valeursDuFormulaire } from "@/modules/finances/api";
 import { siegeAuCentreAdPro } from "@/modules/ad-pro/partage";
 import { ouvreLeCentreDeValidations } from "@/lib/validations/centre";
 import { BonDeCommandeGate } from "./bc-gate";
@@ -335,7 +336,12 @@ export default async function LegalDocumentPage(
   const partyOptions = await listPartyOptions(user.id, { includeIds: doc.counterpartyIds });
   const canCreateContact = userCan(user, "GENERAL_MEANS", "CREATE");
 
+  // LA TVA DE LA FACTURE (lot « tva ») : rouverte dans le formulaire, et son état dit sur la fiche.
+  const [tvaSaisie, etatTva] = doc.kind === "INVOICE" || doc.kind === "CREDIT_NOTE"
+    ? await Promise.all([tvaDeLaFacture(doc.id), etatTvaDesFactures([doc.id]).then((m) => m.get(doc.id) ?? null)])
+    : [null, null];
   const fields = legalFields({
+    ...valeursDuFormulaire(tvaSaisie),
     title: doc.title,
     reference: doc.reference ?? undefined,
     kind: doc.kind,
@@ -464,6 +470,11 @@ export default async function LegalDocumentPage(
                 )}
               </div>
               <Info label="Montant" value={doc.amount !== null ? formatCurrency(toNumber(doc.amount)) : null} />
+              {etatTva && (
+                <Info label="TVA" value={etatTva.aCompleter
+                  ? `À compléter — ${etatTva.phrase}`
+                  : `HT ${formatCurrency(etatTva.ht ?? 0)} · TVA ${formatCurrency(etatTva.tva ?? 0)}`} />
+              )}
               <Info label="Annulé le" value={doc.cancelledAt ? formatDate(doc.cancelledAt) : null} />
               <Info label="Motif d'annulation" value={doc.cancelReason} />
               {/* D'OÙ ÇA VIENT : le chemin de retour vers la demande qui a justifié cet

@@ -21,6 +21,7 @@ import { avalActif } from "@/lib/legal/aval";
 import { refusRevisionAval } from "@/lib/legal/piece-emise";
 import type { PorteBC } from "@/lib/bons-de-commande/regle";
 import { controlerRibDePiece } from "@/modules/coffre/api";
+import { enregistrerTvaDeLaPieceEmise } from "@/modules/finances/api-tva";
 import { sansBloquer } from "@/lib/journal";
 import { echec, type EchecFabrique, manquesDIdentite, profilDocumentaire, type ProfilDocumentaire } from "./profil";
 import { coordonneesChoisies, coordonneesParDefaut, type DemandeDocument, type DocumentEmis, echeanceLegale, emetteurDeLaPiece, type Fabrique, fabriqueDe, mentionsNettoyees, nomFichier, pdfDeLaPiece, piedDePageDe, reserveDuBC, reservePdf, resumeTotaux, signataireChoisi } from "./demande";
@@ -254,6 +255,8 @@ export async function reviserDocumentDrive(
           },
         });
         if (n.count === 1 && renum.change) await appliquerNumeroRevise(tx, renum, { id: doc.id, companyId: doc.companyId ?? f.societeId, type: f.type }, user.id);
+        // La TVA suit la révision, dans la même transaction : la pièce et sa TVA disent le même TTC.
+        if (n.count === 1) await enregistrerTvaDeLaPieceEmise(doc.id, f.type, construit.totaux!, user.id, tx);
         return n;
       });
     } catch (e) {

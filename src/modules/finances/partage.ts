@@ -128,3 +128,12 @@ export {
 } from "./domaine/pieces-legal";
 // `type Proposition` (domaine/pieces-legal) : réexport mis en commentaire — aucun appelant hors du domaine (knip, 04/11).
 // export type { Proposition } from "./domaine/pieces-legal";
+
+// LA TVA DES FACTURES (Super Admin, 24/11/2026) : les taux, la saisie et sa cohérence, la TVA du mois (collectée − déductible).
+export {
+  bornesDeLaPeriode, calculerTvaDuMois, CHAMP_TVA_AUTRES, CHAMP_TVA_ENVOYEE, CHAMP_TVA_LUE, champHt, CHAMPS_TVA, champTva,
+  type DetailTaux, estPeriodeTva, estTauxTva, type FactureIncomplete, type FacturePourTva, LIBELLE_SENS_TVA, LIBELLE_SOURCE_TVA,
+  libelleTaux, type LigneTva, PHRASE_INCOMPLETE, periodeDeLaFacture, type RaisonIncomplete, raisonIncomplete, refusSaisieTva,
+  REGLE_DE_RATTACHEMENT, type SensTva, sensDeLaDirection, type SourceTva, TAUX_TVA, type TauxTva, totauxDeLaSaisie, tvaAPreremplir,
+  tvaDe, valeursDuFormulaire,
+} from "./domaine/tva";

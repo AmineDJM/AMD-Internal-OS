@@ -19,7 +19,7 @@ import { lecteursDeLaSuite, normalizeReaderIds, canManageLegalReaders } from "@/
 import { fdStr, fdDate, type ActionResult } from "@/lib/actions/types";
 import { attachFormFiles } from "@/lib/documents";
 import { verifierFacturesAvantDepot, marquerDoublonPossible } from "@/lib/factures/connues";
-import { createExpenseOrder, syncInvoiceSettlement, annulerOrdreNonRegle } from "@/modules/finances/api";
+import { createExpenseOrder, syncInvoiceSettlement, annulerOrdreNonRegle, lireTvaDeLaPiece, appliquerTvaDuFormulaire } from "@/modules/finances/api";
 import { resolveDriveAccess, canViewDrive } from "@/lib/drive";
 import { PHRASE_PREVALIDATION } from "@/lib/bons-de-commande/prevalidation";
 import { libererPrevalidation, retenueOrpheline, effacerNonRetenusDuBC } from "@/lib/bons-de-commande/retenue-bc";
@@ -138,6 +138,7 @@ export async function createLegalDocument(
     }
     const dates = validateDates(f.startDate, f.endDate);
     if (!dates.ok) return { ok: false, error: dates.error };
+    const tva = lireTvaDeLaPiece(formData, { kind: f.kind, ttc: f.amount, dateEmission: f.startDate }); if (!tva.ok) return { ok: false, error: tva.error };
     const chainErr = await checkChainFrom(f.chainFromId);
     if (chainErr) return { ok: false, error: chainErr };
 
@@ -238,6 +239,7 @@ export async function createLegalDocument(
       summary: `Document légal « ${title} »${readerIds.length ? ` — restreint à ${readerIds.length} lecteur(s)` : ""}`,
     });
 
+    await appliquerTvaDuFormulaire(created.id, tva, user.id);
     // UNE FACTURE DÉJÀ RÉGLÉE, saisie a posteriori, inscrit son mouvement aussitôt : tout paiement
     // de la plateforme passe par les Finances, y compris celui qu'on enregistre après coup.
     await syncInvoiceSettlement(created.id, user.id);
@@ -322,6 +324,7 @@ export async function updateLegalDocument(formData: FormData): Promise<ActionRes
     if (!title) return { ok: false, error: "Le titre exact du document est obligatoire." };
     const dates = validateDates(startDate, endDate);
     if (!dates.ok) return { ok: false, error: dates.error };
+    const tva = lireTvaDeLaPiece(formData, { kind, ttc: emise ? (avant.amount === null ? null : Number(avant.amount)) : f.amount, dateEmission: startDate }); if (!tva.ok) return { ok: false, error: tva.error };
     const chainErr = await checkChainFrom(f.chainFromId, id);
     if (chainErr) return { ok: false, error: chainErr };
     // UNE FACTURE SAISIE LIGNE À LIGNE SUR UN DOSSIER PROMOTIONNEL RESTE CHAÎNÉE À SON BC (§118.168).
@@ -410,6 +413,7 @@ export async function updateLegalDocument(formData: FormData): Promise<ActionRes
       });
       if (f.reference) await inscrireNumeroBcDepose({ companyId: avant.companyId, reference: f.reference, legalDocumentId: id, userId: user.id }).catch(sansBloquer("legal-actions.updateLegalDocument.inscrireNumeroBcDepose"));
     }
+    await appliquerTvaDuFormulaire(id, tva, user.id);
     // Une date de règlement posée ou retirée depuis le formulaire ORDINAIRE fait bouger l'argent
     // exactement comme depuis la ligne du tableau : c'est le même document, donc la même règle.
     await syncInvoiceSettlement(id, user.id);

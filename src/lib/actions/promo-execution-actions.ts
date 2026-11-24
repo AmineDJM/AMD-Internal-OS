@@ -10,12 +10,12 @@ import { recordAudit } from "@/lib/audit";
 import { type SessionUser } from "@/lib/rbac";
 import { persistUploadedDocument } from "@/lib/documents";
 import { validateDocumentUpload } from "@/lib/storage";
-import { createExpenseOrder, annulerOrdreNonRegle } from "@/modules/finances/api";
+import { createExpenseOrder, annulerOrdreNonRegle, enregistrerTvaFacture } from "@/modules/finances/api";
 import { createMedicalInfoDeclaration } from "@/lib/medical-info";
 import { aiguillerBC, porteDuBC } from "@/lib/bons-de-commande/aiguillage";
 import { etatDuBC } from "@/lib/bons-de-commande/etat";
 import { canCancel } from "@/lib/legal/lifecycle";
-import { canSendToSettlement, cleEnvoiAuReglement } from "@/modules/finances/partage";
+import { canSendToSettlement, cleEnvoiAuReglement, estTauxTva } from "@/modules/finances/partage";
 import { getAppSettings } from "@/lib/settings";
 import { enSerie } from "@/lib/refs";
 import {
@@ -575,6 +575,8 @@ export async function deposerFacturePromo(formData: FormData): Promise<ActionRes
           },
         },
       });
+      // LA TVA DÉDUCTIBLE de la facture du fournisseur (lot « tva ») : de ses lignes et de son taux ; un taux hors barème reste à compléter.
+      if (estTauxTva(tvaRate)) await enregistrerTvaFacture(doc.id, { lignes: [{ taux: tvaRate, baseHt: totaux.ht, tva: totaux.tva }], autresTaxes: totaux.taxe, ttc: montant as number }, { source: "LIGNES", acteurId: user.id, sens: "DEDUCTIBLE" }, tx);
       if (confirmation) await consignerConfirmation(tx, { confirmation, cibleType: "PROMO_FACTURE", cibleId: doc.id, confirmeeParId: user.id });
       return doc;
     }).catch((e) => { if (e instanceof RefusLecture) return { refus: e.message } as const; throw e; });

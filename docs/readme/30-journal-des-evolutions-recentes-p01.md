@@ -26,6 +26,23 @@ Décisions du Super Admin du 24/11/2026 (section « Pouvoir des directeurs & don
   historiques intacts ; « Agir comme » inchangé.
 - **Société** : le Cockpit Opérations ne liste plus les BU (ni leurs KAM) d'une société à laquelle la personne n'a pas accès.
 - Banc : `src/lib/actions/pouvoir-directeurs-flow.test.ts`.
+### LA TVA DES FACTURES : HT, TVA, TTC PAR TAUX — LA TVA DE LA G50 SE CALCULE (2026-11-24)
+
+Décision du Super Admin du 24/11/2026 (« très, très, très important »).
+- **Le modèle** : `FactureTva` + `FactureTvaTaux` (migration `20270248300000_tva_factures`) — HT, TVA, timbre/autres taxes,
+  TTC et le détail par taux (19 %, 9 %, 0 % ; table `TAUX_TVA`, `src/modules/finances/domaine/tva.ts`). Société et date
+  de facture = celles de la pièce (`companyId`, `startDate`) ; sens = sa `direction` (vente → collectée, achat → déductible),
+  celle de sa facture pour un avoir. Pas de ligne = TVA « non renseignée » : les factures d'avant gardent leur montant comme
+  TTC, rien n'est inventé.
+- **La saisie** : la fabrique (facture, avoir, révision) enregistre la TVA de ses totaux ; le formulaire Legal d'une facture
+  porte HT / TVA par taux et le timbre (TVA vide = HT × taux), préremplis par la lecture de la pièce (`prerempli-tva.ts`,
+  repérage déterministe, chaque champ prouvé) ; la facture de matériel promotionnel la tire de ses lignes. Le serveur
+  refuse ce qui ne fait pas HT + TVA + timbre = TTC (`refusSaisieTva`).
+- **Le calcul** : `tvaDuMois(companyId, "AAAA-MM")` (porte `api-tva.ts`) → collectée, déductible, à payer (crédit si
+  négatif), détail par taux, pièces à compléter ; rattachement à la date de facture (heure d'Alger). TVA nette = collectée − déductible, sans prorata. `tvaAPayerDuMois` est la
+  source de la ligne « TVA du mois » de la G50 (`null` tant qu'une pièce du mois est à compléter).
+- **L'écran** : Legal › factures — colonnes HT / TVA / TTC, filtre « TVA à compléter », état de la TVA sur la fiche, qui la
+  complète (« Modifier »). Banc : `src/modules/finances/tva-factures-flow.test.ts`.
 
 ### MOYENS GÉNÉRAUX : LE SERVICE SE RÈGLE DANS LES RÉGLAGES, LA CAISSE NE COMPTE UNE REMISE QU'À LA CONFIRMATION DU CAISSIER (2026-11-24)
 

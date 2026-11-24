@@ -22,6 +22,7 @@ import { legalListScope } from "@/lib/legal/list-view";
 import { legalReaderWhere } from "@/lib/lecteurs/legal";
 import { natureFromParam, invoiceTally, PURCHASE_CHAIN_KINDS } from "@/lib/legal/invoices";
 import { totauxAvoirsActifs } from "@/lib/lecteurs/avoirs-actifs";
+import { etatTvaDesFactures } from "@/modules/finances/api";
 import { nonRetenusDesPieces } from "@/lib/bons-de-commande/retenue-bc";
 import { libelleNonRetenu } from "@/lib/bons-de-commande/copie-signee";
 import { perimetreLegal } from "@/lib/queries/visibilite-listes";
@@ -146,6 +147,7 @@ export default async function LegalPage(
   // rangé ailleurs que sa facture, et ce qu'elle doit encore n'en dépend pas. Le compte « à régler », son total et
   // le filtre de la liste lisent le NET — le même que le règlement encaisse.
   const avoirsParFacture = await totauxAvoirsActifs(docs.filter((d) => d.kind === "INVOICE").map((d) => d.id));
+  const tvaParPiece = await etatTvaDesFactures(docs.filter((d) => d.kind === "INVOICE" || d.kind === "CREDIT_NOTE").map((d) => d.id));
   // LES DEVIS D'AD & PRO NON RETENUS (Direction, 11/2026) : l'offre écartée reste au registre, et le dit.
   const nonRetenus = await nonRetenusDesPieces(docs.filter((d) => d.kind === "QUOTE").map((d) => d.id));
   const rows: LegalRow[] = docs.map((d) => ({
@@ -170,6 +172,7 @@ export default async function LegalPage(
     paidDate: d.paidDate?.toISOString() ?? null,
     expenseOrderId: d.expenseOrderId,
     avoirs: avoirsParFacture.get(d.id) ?? 0,
+    tva: tvaParPiece.get(d.id) ?? null,
     nonRetenu: (() => { const n = nonRetenus.get(d.id); return n ? libelleNonRetenu(n.le, n.par) : null; })(),
     // OÙ LA PIÈCE EST RANGÉE — « Événements › 2026 › Journée… » : on sait à quelle demande est ce BC.
     dossier: d.folderId ? cheminLisible(folderPath(folderRows, d.folderId).map((f) => f.name)) : null,
