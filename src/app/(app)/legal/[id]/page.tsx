@@ -51,6 +51,7 @@ import { BonDeCommandeGate } from "./bc-gate";
 import { HistoriqueAnnulable } from "@/modules/assistant-ia/ecrans/barre-annulation";
 import { etatDuBC } from "@/lib/bons-de-commande/etat";
 import { peutSignerBC } from "@/lib/queries/bons-de-commande";
+import { refusSecondeSignature } from "@/lib/signature-en-ligne/signer-bc";
 import { fichiersEmis, lienFichierEmis } from "@/lib/legal/fichiers-emis";
 import { pieceDefinitive, pieceEmise, refusRevisionAval, remedePieceEmise, specRevisable, valeursComposables, type TypePieceEmise } from "@/lib/legal/piece-emise";
 
@@ -290,6 +291,11 @@ export default async function LegalDocumentPage(
     ? await Promise.all([etatDuBC(doc.id), origineDuBC(doc)])
     : [null, null];
   const porte = etatBC?.porte ?? null;
+  // DEUX SIGNATURES, DEUX PERSONNES (Super Admin, 24/11/2026) : qui a signé ce BC pour la Direction Marketing ne se voit
+  // pas proposer la signature des Finances — la même règle que l'action.
+  const refusSignature = etatBC?.etape === "A_SIGNER" && peutSignerBC(user)
+    ? await refusSecondeSignature(doc.id, "FINANCES", { id: user.id, role: user.role, secondaryRole: user.secondaryRole })
+    : null;
   // Le centre que désigne l'origine — la MÊME lecture que l'aiguillage, pôle du contrat compris :
   // la fiche ne peut pas annoncer le centre Ad & Pro pour un BC que la règle envoie ailleurs (§118.150).
   const centreAttendu = origine ? await centreVouluDuBC(origine) : "VALIDATION";
@@ -594,7 +600,7 @@ export default async function LegalDocumentPage(
               validationRequise={etatBC?.validationRequise ?? true}
               signeLe={etatBC?.signeLe?.toISOString() ?? null} signePar={etatBC?.signePar?.name ?? null}
               renvoi={etatBC?.renvoi ? { le: etatBC.renvoi.le.toISOString(), par: etatBC.renvoi.par, note: etatBC.renvoi.note } : null}
-              peutSigner={peutSignerBC(user)}
+              peutSigner={peutSignerBC(user)} refusSignature={refusSignature}
             />
           )}
 

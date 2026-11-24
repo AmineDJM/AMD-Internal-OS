@@ -138,7 +138,8 @@ export function FileBonsDeCommande({
 
 const montant = (m: number | null) => (m != null && m > 0 ? `${m.toLocaleString("fr-FR")} DZD` : "montant non renseigné");
 
-type EtatMarketing = { attend: boolean; dm: { nom: string; titre: string; le: string } | null };
+/** `refus` : la personne qui regarde a signé ce BC pour la Direction Marketing — la place des Finances revient à une autre. */
+type EtatMarketing = { attend: boolean; dm: { nom: string; titre: string; le: string } | null; refus?: string | null };
 
 function LigneASigner({ ligne: l, peutSigner, signature, marketing }: {
   ligne: LigneBCFinances; peutSigner: boolean; signature: SignaturePrete; marketing: EtatMarketing | null;
@@ -147,6 +148,8 @@ function LigneASigner({ ligne: l, peutSigner, signature, marketing }: {
   // SIGNER EN LIGNE d'abord (15/11/2026) ; la copie imprimée, signée et déposée reste possible.
   const [mode, setMode] = React.useState<"EN_LIGNE" | "COPIE">("EN_LIGNE");
   const attend = marketing?.attend === true;
+  // DEUX SIGNATURES, DEUX PERSONNES (Super Admin, 24/11/2026) : qui a signé pour la Direction Marketing ne signe pas ici.
+  const dejaSigneDM = marketing?.refus ?? null;
   const [fait, setFait] = React.useState<string | null>(null);
   // RENVOYER AU LIEU DE SIGNER (audit 360°, R09) : le motif est exigé, à l'écran comme à l'action.
   const [renvoi, setRenvoi] = React.useState<string | null>(null);
@@ -157,6 +160,7 @@ function LigneASigner({ ligne: l, peutSigner, signature, marketing }: {
   // POURQUOI ce BC est à signer — UNE raison : validé par un centre, OU sous le seuil (recette du 23/11/2026 : les
   // deux s'affichaient ensemble pour le BC d'un poste sous le seuil). Le motif n'est cité que si un centre a décidé.
   const raison = raisonASignerBC(l.porte, l.seuil);
+  const signable = peutSigner && !fait && renvoi === null && !attend && !dejaSigneDM;
   return (
     <li id={ancreBonDeCommande(l.id)} className="surface space-y-3 p-3 sm:p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -175,6 +179,7 @@ function LigneASigner({ ligne: l, peutSigner, signature, marketing }: {
         </div>
       </div>
       {attend && <p className="rounded-lg bg-warning/10 px-3 py-2 text-sm">En attente de la signature de la Direction Marketing : il se signe ici juste après.</p>}
+      {peutSigner && !fait && dejaSigneDM && <p className="rounded-lg bg-secondary/60 px-3 py-2 text-sm">{dejaSigneDM}</p>}
       {marketing?.dm && <p className="text-xs text-muted-foreground">Signé et cacheté par {marketing.dm.nom} ({marketing.dm.titre}) le {new Date(marketing.dm.le).toLocaleDateString("fr-FR", { timeZone: "Africa/Algiers" })}.</p>}
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone={raison.sousLeSeuil ? "info" : "success"} dot={false}>{raison.texte}</Badge>
@@ -198,7 +203,7 @@ function LigneASigner({ ligne: l, peutSigner, signature, marketing }: {
           </a>
         ) : null}
       </div>
-      {peutSigner && !fait && renvoi === null && !attend && (
+      {signable && (
         <div className="flex gap-1 text-xs" role="tablist" aria-label="Manière de signer">
           {([["EN_LIGNE", "Signer et cacheter en ligne"], ["COPIE", "Déposer une copie signée"]] as const).map(([m, lib]) => (
             <button
@@ -210,7 +215,7 @@ function LigneASigner({ ligne: l, peutSigner, signature, marketing }: {
           ))}
         </div>
       )}
-      {peutSigner && !fait && renvoi === null && !attend && mode === "EN_LIGNE" && (
+      {signable && mode === "EN_LIGNE" && (
         <FormulaireSignature
           titre="Signer et cacheter ce bon de commande" bouton="Signer et cacheter" pret={signature} busy={saving} qualite="FINANCES"
           apercu={l.fichiers.pdf ? lienFichierEmis(l.id, "pdf") : null}
@@ -224,7 +229,7 @@ function LigneASigner({ ligne: l, peutSigner, signature, marketing }: {
           }}
         />
       )}
-      {peutSigner && !fait && renvoi === null && !attend && mode === "COPIE" && (
+      {signable && mode === "COPIE" && (
         <div className="grid grid-cols-1 gap-2 rounded-lg bg-secondary/40 p-3 sm:grid-cols-2">
           <label className="space-y-1 text-xs">
             <span className="font-medium text-foreground">BC signé (scan ou photo) — obligatoire</span>
@@ -243,7 +248,7 @@ function LigneASigner({ ligne: l, peutSigner, signature, marketing }: {
         </div>
       )}
       <div className="flex flex-wrap items-center gap-2">
-        {peutSigner && !fait && renvoi === null && !attend && mode === "COPIE" && (
+        {signable && mode === "COPIE" && (
           <BoutonDecisif
             size="sm" className="h-11 w-full text-sm sm:h-8 sm:w-auto sm:text-xs" disabled={saving || !copie || !signataire.trim()}
             onClick={() => {

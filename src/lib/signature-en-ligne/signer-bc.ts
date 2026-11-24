@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { persistUploadedDocument } from "@/lib/documents";
 import { readFileByKey } from "@/lib/storage";
@@ -9,6 +10,7 @@ import { lireVisuel } from "./visuels";
 import type { Qualite } from "./placement";
 import { LIBELLE_QUALITE_SIGNATURE, titreSignataire } from "./partage";
 import { enSuppleance } from "./suppleance";
+import { refusSignataireDouble, type SignataireBC, type SignaturePosee } from "./signataires-distincts";
 
 // Les actions qui signent nomment qui a signé (la place, ou le Super Admin en suppléance) — par la porte qu'elles importent déjà.
 export { enSuppleance } from "./suppleance";
@@ -38,6 +40,39 @@ export async function signaturesDuBC(legalDocumentId: string) {
 }
 
 export const REFUS_SIGNATURE_MARKETING_ABSENTE = "Ce bon de commande attend d'abord la signature de la Direction Marketing : il se signe aux Finances juste après.";
+
+/**
+ * LES SIGNATURES DÉJÀ POSÉES, telles que la règle des signataires distincts les lit (Super Admin, 24/11/2026) : les places
+ * signées en ligne, et la signature des Finances portée par la pièce (`signedById`) — c'est elle que pose la copie signée
+ * sur papier, qui n'écrit aucune `SignatureBC`.
+ */
+async function signaturesPosees(db: Prisma.TransactionClient | typeof prisma, legalDocumentId: string): Promise<SignaturePosee[]> {
+  const lignes = await db.signatureBC.findMany({ where: { legalDocumentId }, select: { qualite: true, userId: true } });
+  const piece = await db.legalDocument.findUnique({ where: { id: legalDocumentId }, select: { signedById: true } });
+  return piece?.signedById ? [...lignes, { qualite: "FINANCES", userId: piece.signedById }] : lignes;
+}
+
+/** Le refus de la règle, lu sans verrou — pour refuser tôt (avant le code, avant Luna) et pour l'écran. */
+export async function refusSecondeSignature(legalDocumentId: string, qualite: Qualite, signataire: SignataireBC): Promise<string | null> {
+  return refusSignataireDouble(await signaturesPosees(prisma, legalDocumentId), qualite, signataire);
+}
+
+/**
+ * LIRE ET ÉCRIRE SOUS LE MÊME VERROU — la garde qui tient face à deux signatures simultanées de la même personne aux deux
+ * places : un verrou transactionnel par BC sérialise toutes les écritures de signature (en ligne, papier, parcours agence) ;
+ * chacune relit les signatures posées APRÈS avoir pris le verrou, donc après que la précédente a été validée. Sans migration :
+ * une contrainte SQL ne sait pas comparer deux lignes (`SignatureBC`) à une colonne d'une autre table (`signedById`).
+ */
+export async function sousVerrouDesSignataires<T>(
+  legalDocumentId: string, qualite: Qualite, signataire: SignataireBC, ecrire: (tx: Prisma.TransactionClient) => Promise<T>,
+): Promise<{ refus: string } | { fait: T }> {
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('signature-bc'), hashtext(${legalDocumentId}))`;
+    const refus = refusSignataireDouble(await signaturesPosees(tx, legalDocumentId), qualite, signataire);
+    if (refus) return { refus };
+    return { fait: await ecrire(tx) };
+  });
+}
 
 /** Le PDF sur lequel signer : celui de la Direction Marketing pour les Finances quand il existe, sinon le PDF émis. */
 async function pdfDeBase(legalDocumentId: string, qualite: Qualite, lireBlob: LireBlob): Promise<Buffer | null> {
@@ -82,13 +117,17 @@ export async function apposerSignatureEnLigne(i: {
   const suppleance = enSuppleance(i.qualite, porteur);
   const titre = i.titre ?? titreSignataire(i.qualite, suppleance);
   const maintenant = new Date();
-  // LA PLACE D'ABORD : une seule signature par qualité — deux clics n'en posent pas deux.
+  // LA PLACE D'ABORD : une seule signature par qualité — deux clics n'en posent pas deux. Et sous le verrou des signataires :
+  // la personne qui a signé l'autre place ne prend pas celle-ci (sauf le Super Admin).
   let ligne: { id: string };
   try {
-    ligne = await prisma.signatureBC.create({
-      data: { legalDocumentId: i.legalDocumentId, qualite: i.qualite, userId: i.user.id, signataireNom: nom.slice(0, 120), signataireTitre: titre, methode: "EN_LIGNE", signedAt: maintenant, jeton, ip: i.ip, agent: i.agent?.slice(0, 250) ?? null },
-      select: { id: true },
-    });
+    const r = await sousVerrouDesSignataires(i.legalDocumentId, i.qualite, { id: i.user.id, role: porteur?.role ?? "", secondaryRole: porteur?.secondaryRole }, (tx) =>
+      tx.signatureBC.create({
+        data: { legalDocumentId: i.legalDocumentId, qualite: i.qualite, userId: i.user.id, signataireNom: nom.slice(0, 120), signataireTitre: titre, methode: "EN_LIGNE", signedAt: maintenant, jeton, ip: i.ip, agent: i.agent?.slice(0, 250) ?? null },
+        select: { id: true },
+      }));
+    if ("refus" in r) return { ok: false, error: r.refus };
+    ligne = r.fait;
   } catch {
     return { ok: false, error: `Ce bon de commande porte déjà la signature « ${LIBELLE_QUALITE[i.qualite]} ».` };
   }
@@ -115,17 +154,21 @@ export async function apposerSignatureEnLigne(i: {
   }
 }
 
-/** Pour la file des signataires : quels BC attendent encore la Direction Marketing, et qui l'a signé. */
-export async function etatMarketingDesBC(ids: readonly string[]): Promise<Record<string, { attend: boolean; dm: { nom: string; titre: string; le: string } | null }>> {
+/**
+ * Pour la file des signataires : quels BC attendent encore la Direction Marketing, et qui l'a signé. `refus` : la personne
+ * qui regarde a signé ce BC pour la Direction Marketing — la signature des Finances ne lui est pas proposée.
+ */
+export async function etatMarketingDesBC(ids: readonly string[], regard?: SignataireBC): Promise<Record<string, { attend: boolean; dm: { nom: string; titre: string; le: string } | null; refus: string | null }>> {
   if (ids.length === 0) return {};
   const [exiges, dms] = await Promise.all([
     prisma.adProItemPiece.findMany({ where: { legalDocumentId: { in: [...ids] }, nature: "BON_DE_COMMANDE", item: { voie: "AGENCE" } }, select: { legalDocumentId: true } }),
-    prisma.signatureBC.findMany({ where: { legalDocumentId: { in: [...ids] }, qualite: "DIRECTION_MARKETING" }, select: { legalDocumentId: true, signataireNom: true, signataireTitre: true, signedAt: true } }),
+    prisma.signatureBC.findMany({ where: { legalDocumentId: { in: [...ids] }, qualite: "DIRECTION_MARKETING" }, select: { legalDocumentId: true, userId: true, signataireNom: true, signataireTitre: true, signedAt: true } }),
   ]);
+  const refusDe = new Map(regard ? dms.map((d) => [d.legalDocumentId, refusSignataireDouble([{ qualite: "DIRECTION_MARKETING", userId: d.userId }], "FINANCES", regard)]) : []);
   const exige = new Set(exiges.map((e) => e.legalDocumentId));
   // Le titre écrit à la signature (« Super Admin, en suppléance de la Direction Marketing »), pas la place seule.
   const dmDe = new Map(dms.map((d) => [d.legalDocumentId, { nom: d.signataireNom, titre: d.signataireTitre ?? LIBELLE_QUALITE.DIRECTION_MARKETING, le: d.signedAt.toISOString() }]));
-  return Object.fromEntries(ids.map((id) => [id, { attend: exige.has(id) && !dmDe.has(id), dm: dmDe.get(id) ?? null }]));
+  return Object.fromEntries(ids.map((id) => [id, { attend: exige.has(id) && !dmDe.has(id), dm: dmDe.get(id) ?? null, refus: refusDe.get(id) ?? null }]));
 }
 
 /**

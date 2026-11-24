@@ -26,7 +26,7 @@ import { qrPng } from "@/lib/qr";
 import { deposerVisuel, type NatureVisuel } from "@/lib/signature-en-ligne/visuels";
 import { CHEMIN_MA_SIGNATURE } from "@/lib/signature-en-ligne/partage";
 import { lienPosteAssistante } from "@/lib/chemins/ad-pro";
-import { apposerSignatureEnLigne, exigeSignatureMarketing, REFUS_SIGNATURE_MARKETING_ABSENTE } from "@/lib/signature-en-ligne/signer-bc";
+import { apposerSignatureEnLigne, exigeSignatureMarketing, REFUS_SIGNATURE_MARKETING_ABSENTE, refusSecondeSignature, sousVerrouDesSignataires } from "@/lib/signature-en-ligne/signer-bc";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -72,6 +72,11 @@ export async function signerBonDeCommande(formData: FormData): Promise<ActionRes
   if (motif) return { ok: false, error: motif };
   // LE BC D'UN POSTE « PAR UNE AGENCE » (15/11/2026) : la Direction Marketing signe d'abord.
   if (await marketingManquante(id)) return { ok: false, error: REFUS_SIGNATURE_MARKETING_ABSENTE };
+  // DEUX SIGNATURES, DEUX PERSONNES (Super Admin, 24/11/2026) : qui enregistre la copie signée tient la place des Finances —
+  // refusé tôt s'il a signé pour la Direction Marketing (avant Luna), puis revérifié sous verrou à l'écriture.
+  const signataireFinances = { id: user.id, role: user.role, secondaryRole: user.secondaryRole };
+  const refusDouble = await refusSecondeSignature(id, "FINANCES", signataireFinances);
+  if (refusDouble) return { ok: false, error: refusDouble };
 
   // L'ÉTAT D'ABORD, LES PIÈCES ENSUITE (§118.18) : la copie signée, puis le signataire.
   if (!copie) return { ok: false, error: "Téléversez le bon de commande SIGNÉ (scan ou photo) : la signature s'enregistre avec sa copie." };
@@ -89,11 +94,12 @@ export async function signerBonDeCommande(formData: FormData): Promise<ActionRes
   // et ce clic — un montant relevé qui la renvoie à son centre, un autre fournisseur. Le verrou
   // porte donc sur sa DERNIÈRE ÉCRITURE, pas seulement sur l'absence de signature : sinon on
   // signerait un BC que la règle venait de renvoyer à la validation.
-  const signe = await prisma.legalDocument.updateMany({
+  const pose = await sousVerrouDesSignataires(id, "FINANCES", signataireFinances, (tx) => tx.legalDocument.updateMany({
     where: { id, signedAt: null, updatedAt: etat.majLe },
     data: { signedAt: new Date(), signedById: user.id, signedByName: signataire.slice(0, 120), signatureCheck: verdict as unknown as Prisma.InputJsonValue },
-  });
-  if (signe.count === 0) {
+  }));
+  if ("refus" in pose) return { ok: false, error: pose.refus };
+  if (pose.fait.count === 0) {
     const deja = await prisma.legalDocument.findUnique({ where: { id }, select: { signedAt: true } });
     return {
       ok: false,
@@ -176,6 +182,9 @@ export async function signerBonDeCommandeEnLigne(formData: FormData): Promise<Ac
   const motif = motifNonSignable(etat.etape, etat.porte);
   if (motif) return { ok: false, error: motif };
   if (await marketingManquante(id)) return { ok: false, error: REFUS_SIGNATURE_MARKETING_ABSENTE };
+  // DEUX SIGNATURES, DEUX PERSONNES (24/11/2026) : refusé avant le code à usage unique ; l'apposition le revérifie sous verrou.
+  const refusDouble = await refusSecondeSignature(id, "FINANCES", { id: user.id, role: user.role, secondaryRole: user.secondaryRole });
+  if (refusDouble) return { ok: false, error: refusDouble };
   if (fdStr(formData, "lu") !== "oui") return { ok: false, error: "Cochez « J'ai lu ce bon de commande » : on ne signe que ce qu'on a relu." };
   const h = await headers();
   const ip = clientIp(h);

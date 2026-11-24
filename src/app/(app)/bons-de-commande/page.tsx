@@ -35,7 +35,7 @@ export default async function BonsDeCommandePage(props: { searchParams: Promise<
   if (!file) notFound();
   const peutSigner = peutSignerBC(user);
   // LA SIGNATURE EN LIGNE (15/11/2026) : ce qui est prêt chez le signataire, et les BC qui attendent d'abord la Direction Marketing.
-  const [signature, marketing] = await Promise.all([etatSignatureEnLigne(user.id), etatMarketingDesBC(file.aSigner.map((l) => l.id))]);
+  const [signature, marketing] = await Promise.all([etatSignatureEnLigne(user.id), etatMarketingDesBC(file.aSigner.map((l) => l.id), { id: user.id, role: user.role, secondaryRole: user.secondaryRole })]);
   const montantASigner = file.aSigner.reduce((t, l) => t + (l.montant ?? 0), 0);
   const sansMontant = file.aSigner.filter((l) => l.montant == null || l.montant <= 0).length;
 
