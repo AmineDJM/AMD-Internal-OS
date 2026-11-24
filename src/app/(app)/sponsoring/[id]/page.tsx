@@ -37,7 +37,7 @@ import { AdProTransferButton } from "@/modules/ad-pro/ecrans/transfer-button";
 import { AdProEditButton } from "@/modules/ad-pro/ecrans/edit-request-button";
 import { BackLink } from "@/components/shared/back-link";
 import { AdProDiscussionCard } from "@/modules/ad-pro/ecrans/discussion-card";
-import { MedecinsConcernes } from "@/modules/ad-pro/ecrans/medecins-concernes";
+import { MedecinsConcernesSection } from "@/modules/ad-pro/ecrans/medecins-concernes";
 import { porteLeRoleQuiTranche } from "@/lib/personnes/referents-gamme";
 import { etapeDeclaration } from "@/lib/medical-info/etape-ad-pro";
 import { EtapeDeclarationAdPro } from "../../information-medicale/etape-declaration-ad-pro";
@@ -305,11 +305,6 @@ export default async function SponsoringDetailPage(props: { params: Promise<{ id
                 </div>
               )}
             </SectionRepliable>
-            {declaration && (
-              <SectionRepliable titre={declaration.titre} resume={declaration.detail ?? undefined} aVous={declaration.aVous}>
-                <EtapeDeclarationAdPro etape={declaration} sourceType="SPONSORING" sourceId={req.id} />
-              </SectionRepliable>
-            )}
             <SectionRepliable titre="Le sponsoring" resume={[req.type, req.city, medecin].filter(Boolean).join(" · ")}>
               <div className="space-y-3">
                 <Faits>
@@ -384,11 +379,12 @@ export default async function SponsoringDetailPage(props: { params: Promise<{ id
       {/* LES PIÈCES LEGAL RATTACHÉES À LA DEMANDE ELLE-MÊME, hors postes — d'avant les postes, ou qui ne sont pas des achats. */}
       <PiecesLegalDeLaDemande spectateur={user} entityType="SPONSORING" entityId={req.id} />
 
-      {/* LES MÉDECINS CONCERNÉS (Direction, 08/10) — choisis dans l'annuaire : le lien que lisent le cockpit marketing et la fiche du praticien. */}
-      <MedecinsConcernes user={user} entityType="SPONSORING" entityId={req.id} />
-
-      {/* LE RESTE DE LA FICHE, REPLIÉ (17/11/2026) : discussion, accompagnants, traçabilité — une ligne chacun. */}
+      {/* LE RESTE DE LA FICHE, REPLIÉ (17/11/2026) : médecins concernés, discussion, accompagnants, information médicale,
+          traçabilité — une ligne chacun (recette 24/11/2026 : les médecins rejoignent les sections ; l'information médicale
+          vient en dernier, juste avant la traçabilité). */}
       <Sections>
+        {/* LES MÉDECINS CONCERNÉS (Direction, 08/10) — choisis dans l'annuaire : le lien que lisent le cockpit marketing et la fiche du praticien. */}
+        <MedecinsConcernesSection user={user} entityType="SPONSORING" entityId={req.id} />
         <SectionRepliable titre="Discussion" sansCadre>
           <EspaceDiscussion>
             <AdProDiscussionCard entityType="SPONSORING" entityId={req.id} user={user} />
@@ -406,6 +402,11 @@ export default async function SponsoringDetailPage(props: { params: Promise<{ id
             path={`/sponsoring/${req.id}`}
           />
         </SectionRepliable>
+        {declaration && (
+          <SectionRepliable titre={declaration.titre} resume={declaration.detail ?? undefined} aVous={declaration.aVous}>
+            <EtapeDeclarationAdPro etape={declaration} sourceType="SPONSORING" sourceId={req.id} />
+          </SectionRepliable>
+        )}
         <SectionRepliable titre="Traçabilité" resume={`créée le ${formatDateTime(req.createdAt)}`} sansCadre>
           <CarteTracabilite
             creeeLe={formatDateTime(req.createdAt)}

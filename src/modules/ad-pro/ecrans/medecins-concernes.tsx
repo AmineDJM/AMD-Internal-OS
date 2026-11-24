@@ -3,6 +3,7 @@ import type { SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InfoBulle } from "@/components/ui/info-bulle";
+import { SectionRepliable } from "@/components/shared/section-repliable";
 import { medecinsConcernesDe } from "../infra/requetes/medecins";
 import type { TypeMedecinsConcernes } from "../domaine/medecins-concernes";
 import { MedecinsConcernesClient, type PuceMedecin } from "./medecins-concernes-client";
@@ -40,5 +41,31 @@ export async function MedecinsConcernes({ user, entityType, entityId }: { user: 
         <MedecinsConcernesClient entityType={entityType} entityId={entityId} medecins={puces} peutModifier={peutModifier} />
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * LES MÉDECINS CONCERNÉS EN SECTION REPLIABLE (recette 24/11/2026) — « comme les autres » : sur la fiche d'un sponsoring ou
+ * d'un événement, la carte rejoint les sections repliées du bas (discussion, accompagnants…), fermée sur une ligne qui
+ * nomme les médecins reliés ; ouverte, la même liste déroulante de l'annuaire.
+ */
+export async function MedecinsConcernesSection({ user, entityType, entityId }: { user: SessionUser; entityType: TypeMedecinsConcernes; entityId: string }) {
+  const [medecins, peutModifier] = await Promise.all([
+    medecinsConcernesDe(entityType, entityId),
+    canAccessEntity(user, entityType, entityId, "UPDATE"),
+  ]);
+  if (medecins.length === 0 && !peutModifier) return null;
+  const puces: PuceMedecin[] = medecins.map((m) => ({
+    doctorId: m.doctorId, nom: m.nom, specialite: m.specialite, etablissement: m.etablissement, role: m.role, montant: m.montant,
+    modifiable: m.source === "LIEN", origine: ORIGINE[m.source],
+  }));
+  const noms = medecins.slice(0, 3).map((m) => m.nom).join(", ");
+  const resume = medecins.length === 0
+    ? "Aucun médecin relié — à choisir dans l'annuaire"
+    : `${noms}${medecins.length > 3 ? ` et ${medecins.length - 3} autre${medecins.length - 3 > 1 ? "s" : ""}` : ""}`;
+  return (
+    <SectionRepliable titre="Médecins concernés" compte={medecins.length} resume={resume} sansCadre>
+      <MedecinsConcernesClient entityType={entityType} entityId={entityId} medecins={puces} peutModifier={peutModifier} />
+    </SectionRepliable>
   );
 }

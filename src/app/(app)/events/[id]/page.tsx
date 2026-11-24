@@ -38,7 +38,7 @@ import type { DocItem } from "@/components/documents/document-list";
 import { AdProDiscussionCard } from "@/modules/ad-pro/ecrans/discussion-card";
 import { etapeDeclaration } from "@/lib/medical-info/etape-ad-pro";
 import { EtapeDeclarationAdPro } from "../../information-medicale/etape-declaration-ad-pro";
-import { MedecinsConcernes } from "@/modules/ad-pro/ecrans/medecins-concernes";
+import { MedecinsConcernesSection } from "@/modules/ad-pro/ecrans/medecins-concernes";
 
 export const dynamic = "force-dynamic";
 
@@ -227,11 +227,6 @@ export default async function EventDetailPage(props: { params: Promise<{ id: str
                 suite={declaration ? [{ cle: "__declaration__", titre: declaration.titre, detail: declaration.detail, etat: declaration.etat }] : []}
               />
             </SectionRepliable>
-            {declaration && (
-              <SectionRepliable titre={declaration.titre} resume={declaration.detail ?? undefined} aVous={declaration.aVous}>
-                <EtapeDeclarationAdPro etape={declaration} sourceType="EVENT" sourceId={e.id} />
-              </SectionRepliable>
-            )}
             <SectionRepliable titre="L'événement" resume={[dateTexte, lieuTexte].filter(Boolean).join(" · ")}>
               <div className="space-y-3">
                 <Faits>
@@ -323,11 +318,11 @@ export default async function EventDetailPage(props: { params: Promise<{ id: str
       {/* LES PIÈCES LEGAL RATTACHÉES À LA DEMANDE ELLE-MÊME, hors postes — d'avant les postes, ou qui ne sont pas des achats. */}
       <PiecesLegalDeLaDemande spectateur={user} entityType="EVENT" entityId={e.id} />
 
-      {/* LES MÉDECINS CONCERNÉS (Direction, 08/10) — choisis dans l'annuaire : le lien que lisent le cockpit marketing et la fiche du praticien. */}
-      <MedecinsConcernes user={user} entityType="EVENT" entityId={e.id} />
-
-      {/* LE RESTE DE LA FICHE, REPLIÉ (17/11/2026) : discussion, équipe, traçabilité — une ligne chacun, ouvert sur un clic. */}
+      {/* LE RESTE DE LA FICHE, REPLIÉ (17/11/2026) : médecins concernés, discussion, équipe, information médicale, traçabilité —
+          une ligne chacun, ouvert sur un clic (recette 24/11/2026 : l'information médicale en dernier, avant la traçabilité). */}
       <Sections>
+        {/* LES MÉDECINS CONCERNÉS (Direction, 08/10) — choisis dans l'annuaire : le lien que lisent le cockpit marketing et la fiche du praticien. */}
+        <MedecinsConcernesSection user={user} entityType="EVENT" entityId={e.id} />
         <SectionRepliable titre="Discussion" sansCadre>
           <EspaceDiscussion>
             <AdProDiscussionCard entityType="EVENT" entityId={e.id} user={user} />
@@ -345,6 +340,11 @@ export default async function EventDetailPage(props: { params: Promise<{ id: str
             path={`/events/${e.id}`}
           />
         </SectionRepliable>
+        {declaration && (
+          <SectionRepliable titre={declaration.titre} resume={declaration.detail ?? undefined} aVous={declaration.aVous}>
+            <EtapeDeclarationAdPro etape={declaration} sourceType="EVENT" sourceId={e.id} />
+          </SectionRepliable>
+        )}
         <SectionRepliable titre="Traçabilité" resume={dates ? `créée le ${formatDateTime(dates.createdAt)}` : undefined} sansCadre>
           <CarteTracabilite
             creeeLe={dates ? formatDateTime(dates.createdAt) : "—"}
