@@ -46,7 +46,7 @@ const TON: Record<EtatPorteBC, "warning" | "success" | "danger" | "info"> = {
 
 export function BonDeCommandeGate({
   documentId, porte, centreAttendu, canAddress, siegeAuCentre,
-  etape, seuil, validationRequise, signeLe, signePar, renvoi, peutSigner,
+  etape, seuil, validationRequise, signeLe, signePar, renvoi, peutSigner, refusSignature = null,
 }: {
   documentId: string;
   porte: PorteBC | null;
@@ -66,6 +66,8 @@ export function BonDeCommandeGate({
   renvoi: { le: string; par: string | null; note: string | null } | null;
   /** La personne peut-elle signer (« Modifier » sur le module « Bons de commande », §118.176) ? */
   peutSigner: boolean;
+  /** La personne a signé ce BC pour la Direction Marketing : la signature des Finances revient à une autre (24/11/2026). */
+  refusSignature?: string | null;
 }) {
   const { rafraichir } = useRafraichir();
   const [busy, setBusy] = React.useState<"ADRESSER" | "SIGNER" | "RENVOYER" | null>(null);
@@ -181,7 +183,8 @@ export function BonDeCommandeGate({
         {aSigner && (
           <div className="space-y-2 rounded-lg bg-secondary/40 px-3 py-2">
             <p className="text-xs">{reserveEtapeBC("A_SIGNER", porte, seuil)}</p>
-            {peutSigner && motifRenvoi === null && (
+            {peutSigner && refusSignature && <p className="text-xs">{refusSignature}</p>}
+            {peutSigner && !refusSignature && motifRenvoi === null && (
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <label className="space-y-1 text-xs">
                   <span className="font-medium">BC signé (scan ou photo) — obligatoire</span>
@@ -195,10 +198,12 @@ export function BonDeCommandeGate({
             )}
             {peutSigner && (
               <div className="flex flex-wrap items-center gap-2">
-                <BoutonDecisif size="sm" onClick={() => void agir("SIGNER")} disabled={busy !== null || motifRenvoi !== null || !copie || !signataire.trim()}>
-                  {busy === "SIGNER" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FilePen className="h-4 w-4" />}
-                  Enregistrer le BC signé
-                </BoutonDecisif>
+                {!refusSignature && (
+                  <BoutonDecisif size="sm" onClick={() => void agir("SIGNER")} disabled={busy !== null || motifRenvoi !== null || !copie || !signataire.trim()}>
+                    {busy === "SIGNER" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FilePen className="h-4 w-4" />}
+                    Enregistrer le BC signé
+                  </BoutonDecisif>
+                )}
                 {motifRenvoi === null && (
                   <Button size="sm" variant="secondary" onClick={() => setMotifRenvoi("")} disabled={busy !== null}>
                     <Undo2 className="h-4 w-4" /> Renvoyer à l&apos;émetteur
