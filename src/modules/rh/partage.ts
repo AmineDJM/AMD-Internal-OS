@@ -26,5 +26,6 @@ export { MODES_TRANSPORT_MISSION, VALEURS_DU_MODELE } from "./domaine/ordre-miss
 
 // ── Organisation : ligne hiérarchique, arbre d'équipe, indicateurs, départ
 export { type DepartmentNodeLite, type EmployeeNode, managementChainOf, type ManagerSource, managesAnyone, resolveManager } from "./domaine/reporting-line";
+export { echeancesDeLaFiche, type EcheanceRh, type FicheEcheances, finDEssai } from "./domaine/echeances";
 export { flattenTree, subtreeOf, type TeamTreeNode } from "./domaine/team-tree";
 export { avecLiens, type CommonCounts, commonKpis, JOB_LABEL, type JobCounts, jobKpis, jobOf, type LiensKpi, NO_JOB_KPI_NOTE, type TeamJob, type TeamKpi } from "./domaine/team-kpis";

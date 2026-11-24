@@ -472,7 +472,7 @@ suite("« Mon espace » — ce qui m'attend, une ligne par objet, et depuis quan
     expect(file, "l'ancre des notifications existe sur la page").toContain('const ANCRE_CONGES = "conges-a-signer"');
     const lecture = source("src/lib/queries/aujourdhui-espace.ts");
     expect(lecture).toContain("getActionCenter(user)");
-    expect(lecture).toContain("regrouperFile([...centre.items, ...piecesADeposer], now)");
+    expect(lecture, "les échéances des modules sont des lignes de la même file").toContain("regrouperFile([...centre.items, ...piecesADeposer, ...echeances], now)");
     expect(lecture).not.toContain("getLeavesToDecide");
     expect(source("src/lib/espace/aujourdhui.ts"), "chaque ligne sait depuis quand elle attend").toContain("attente: attenteDe(e, now)");
     expect(source("src/lib/espace/a-faire.ts"), "la ligne dit depuis quand").toContain("attend depuis ${l.attente} j");

@@ -46,6 +46,8 @@ export interface ElementFile {
   statut?: string | null;
   /** La priorité que la base porte (tâche, validation, demande) — `HIGH`/`CRITICAL` rendent la ligne urgente. */
   priority?: string | null;
+  /** La liste du module, quand la nature n'en a pas une seule (une échéance : la liste du module qui la porte). */
+  liste?: string | null;
 }
 
 // ─────────────────────────────────────────── Natures ─────────────────────────────────────────
@@ -54,7 +56,7 @@ export type NatureLot =
   | "paiement" | "declaration" | "declaration-prete" | "declaration-pieces" | "declaration-finale"
   | "validation" | "conge" | "achat" | "demande" | "adpro" | "correction" | "plan" | "mission"
   | "invitation" | "formation" | "regulatory" | "piece" | "directive" | "tache" | "stock" | "promo"
-  | "prise-en-charge" | "support" | "dossier" | "agence" | "bat" | "total-dg" | "question-finances" | "autre";
+  | "prise-en-charge" | "support" | "dossier" | "agence" | "bat" | "total-dg" | "question-finances" | "echeance" | "autre";
 
 interface DefNature {
   /** Le chapeau — le filtre de la file et l'étiquette du lot. */
@@ -193,6 +195,12 @@ export const NATURES: Record<NatureLot, DefNature> = {
     chapeau: "Finances", titre: (n) => `${n} ${pl(n, "question")} des Finances`,
     sousTitre: "Elles attendent votre réponse pour payer", verbe: "Répondre", liste: null, decision: false,
   },
+  // LES ÉCHÉANCES DES MODULES (Super Admin, 24/11/2026 — `echeances/regles.ts`) : pas de page à part, un lot par
+  // module, sous le chapeau du module qui les porte (« Ressources humaines », « Legal »).
+  echeance: {
+    chapeau: "Échéances", titre: (n) => `${n} ${pl(n, "échéance")} à tenir`,
+    sousTitre: "", verbe: "Ouvrir", liste: null, decision: false,
+  },
   autre: {
     chapeau: "Autres", titre: (n) => `${n} ${pl(n, "élément")} à traiter`,
     sousTitre: "", verbe: "Ouvrir", liste: null, decision: false,
@@ -206,6 +214,7 @@ const estReste = (e: ElementFile) => e.objet.startsWith(PREFIXE_RESTE) || e.obje
 /** LA NATURE D'UNE LIGNE — lue sur l'identité de l'objet d'abord, sur le module ensuite. */
 export function natureDe(e: ElementFile): NatureLot {
   const o = e.objet;
+  if (o.startsWith("ECHEANCE:")) return "echeance";
   if (o.startsWith("QUESTION_FINANCES:")) return "question-finances";
   if (e.kind === "payment" || o.startsWith("EXPENSE_ORDER:")) return "paiement";
   if (o.startsWith("MEDICAL_INFO_DECLARATION:")) {
@@ -311,6 +320,8 @@ export interface Lot {
   geste: Geste;
   /** La file est coupée au-delà : une ligne le dit et mène à la liste complète (§118.60). */
   suite: Geste | null;
+  /** La liste propre aux lignes (une échéance : celle de son module), à défaut de celle de la nature. */
+  liste?: string | null;
 }
 
 const REF = /\b[A-Z]{2,6}-\d{4}-\d{2,}\b/;
@@ -344,6 +355,8 @@ function parUrgenceLigne(a: LigneLot, b: LigneLot): number {
   return (b.retard ?? 0) - (a.retard ?? 0)
     || (b.montant ?? 0) - (a.montant ?? 0)
     || (b.attente ?? -1) - (a.attente ?? -1)
+    // La plus proche échéance d'abord (une échéance n'a ni montant ni attente).
+    || (a.echeanceDans ?? Number.MAX_SAFE_INTEGER) - (b.echeanceDans ?? Number.MAX_SAFE_INTEGER)
     || a.libelle.localeCompare(b.libelle, "fr");
 }
 
@@ -396,7 +409,7 @@ function echeanceDansDe(e: ElementFile, now: Date, retard: number | null): numbe
 }
 
 /** Le lien qui ouvre le lot : l'écran de la nature, filtré quand l'écran sait l'être — le bureau ou le « Suivi des agences » pour le parcours agence. */
-function gesteDuLot(nature: NatureLot, lignes: LigneLot[], module: string): Geste {
+function gesteDuLot(nature: NatureLot, lignes: LigneLot[], module: string, liste: string | null): Geste {
   const def = NATURES[nature];
   if (nature === "paiement") {
     // « Régler les N » OUVRE l'écran des paiements, ces ordres mis en évidence : le règlement reste
@@ -411,7 +424,7 @@ function gesteDuLot(nature: NatureLot, lignes: LigneLot[], module: string): Gest
   }
   if (lignes.length === 1) return { libelle: def.verbe, href: lignes[0].geste.href };
   const pageAgence = nature === "agence" ? (module === LIBELLE_AGENCES ? CHEMIN_AGENCES : module === LIBELLE_BUREAU ? CHEMIN_BUREAU : null) : null;
-  return { libelle: `${def.verbe} — tout voir`, href: (pageAgence ?? def.liste) ?? lignes[0].geste.href };
+  return { libelle: `${def.verbe} — tout voir`, href: (pageAgence ?? def.liste ?? liste) ?? lignes[0].geste.href };
 }
 
 /**
@@ -424,10 +437,11 @@ export function regrouperFile(elements: readonly ElementFile[], now: Date): Lot[
   const parNature = new Map<string, GroupeFile>();
   for (const e of elements) {
     const nature = natureDe(e);
-    // « Autres » se range par module : deux modules sans nature propre ne font pas un même lot.
-    const id = nature === "autre" ? `autre:${e.module}` : nature;
+    // « Autres » et les échéances se rangent par module : deux modules ne font pas un même lot.
+    const id = nature === "autre" || nature === "echeance" ? `${nature}:${e.module}` : nature;
     const g = parNature.get(id) ?? { id, nature, module: e.module, lignes: [], suite: null };
     parNature.set(id, g);
+    if (e.liste && !g.liste) g.liste = e.liste;
     if (estReste(e)) {
       g.suite = { libelle: e.title, href: e.href };
       continue;
@@ -443,7 +457,7 @@ export function regrouperFile(elements: readonly ElementFile[], now: Date): Lot[
   return lots.sort(parUrgence);
 }
 
-export interface GroupeFile { id: string; nature: NatureLot; module: string; lignes: LigneLot[]; suite: Geste | null }
+export interface GroupeFile { id: string; nature: NatureLot; module: string; lignes: LigneLot[]; suite: Geste | null; liste?: string | null }
 
 /**
  * Un lot à partir de ses lignes — partagé par la file et par ses groupes (« En retard », « Aujourd'hui »,
@@ -499,10 +513,11 @@ export function construireLot(g: GroupeFile, opts: { taireRetard?: boolean } = {
     const ton: Lot["ton"] = enRetard > 0 ? "late" : (attenteMax ?? 0) >= 30 ? "warn" : "";
 
     return {
-      id, nature: g.nature, module: g.module, chapeau: g.nature === "autre" ? g.module : def.chapeau, titre, sousTitre,
+      id, nature: g.nature, module: g.module, chapeau: g.nature === "autre" || g.nature === "echeance" ? g.module : def.chapeau, titre, sousTitre,
       n, montant, enRetard, retardMax, retardCumule, attenteMax, ton, lignes, familles,
-      geste: n === 0 && g.suite ? g.suite : gesteDuLot(g.nature, lignes, g.module),
+      geste: n === 0 && g.suite ? g.suite : gesteDuLot(g.nature, lignes, g.module, g.liste ?? null),
       suite: n > 0 ? g.suite : null,
+      liste: g.liste ?? null,
     };
   }
 }

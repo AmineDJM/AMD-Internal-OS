@@ -106,6 +106,7 @@ export default async function EmployeeDetailPage(props: { params: Promise<{ id: 
     trialRenewed: employee.trialRenewed,
     trialRenewalStart: d10(employee.trialRenewalStart),
     trialRenewalEnd: d10(employee.trialRenewalEnd),
+    prochaineVisiteMedicale: d10(employee.prochaineVisiteMedicale),
     birthDate: d10(employee.birthDate),
     email: employee.email ?? "",
     phone: employee.phone ?? "",
@@ -241,6 +242,7 @@ export default async function EmployeeDetailPage(props: { params: Promise<{ id: 
                   <Info label="Solde congés" value={`${toNumber(employee.leaveBalanceDays)} j`} />
                   <Info label="Embauche" value={employee.hireDate ? formatDate(employee.hireDate) : null} />
                   <Info label="Fin de contrat" value={employee.contractEnd ? formatDate(employee.contractEnd) : null} />
+                  <Info label="Visite médicale du travail" value={employee.prochaineVisiteMedicale ? formatDate(employee.prochaineVisiteMedicale) : null} />
                   <Info label="Email" value={employee.email} />
                   <Info label="Téléphone" value={employee.phone} />
                 </div>

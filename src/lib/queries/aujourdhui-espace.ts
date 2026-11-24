@@ -3,6 +3,7 @@ import type { SessionUser } from "@/lib/rbac";
 import { getActionCenter } from "@/lib/queries/action-center";
 import { isOutstanding } from "@/lib/doc-request";
 import { getMyTeam } from "@/lib/queries/my-team";
+import { lignesEcheancesPour } from "@/lib/queries/echeances-aujourdhui";
 import { getMyTeamOverview } from "@/lib/queries/my-team-overview";
 import { peutRelancer } from "@/lib/tasks/request-flow";
 import { composerEquipe, regrouperFile, totaux, type ElementFile, type Lot, type MembreEncart, type MembreLu } from "@/lib/espace/aujourdhui";
@@ -39,7 +40,7 @@ export interface Aujourdhui {
 export async function chargerAujourdhui(user: SessionUser, opts: { maintenant?: Date } = {}): Promise<Aujourdhui> {
   const now = opts.maintenant ?? new Date();
 
-  const [centre, pieces, team] = await Promise.all([
+  const [centre, pieces, team, echeances] = await Promise.all([
     getActionCenter(user),
     prisma.documentRequest.findMany({
       where: { OR: [{ askedToId: user.id }, { askedById: user.id }] },
@@ -47,6 +48,8 @@ export async function chargerAujourdhui(user: SessionUser, opts: { maintenant?: 
       select: { id: true, label: true, reference: true, status: true, dueDate: true, createdAt: true, askedToId: true, askedById: true, askedBy: { select: { name: true } } },
     }),
     getMyTeam(user, { maintenant: now }).catch(sansBloquer("aujourdhui-espace.chargerAujourdhui.getMyTeam", null)),
+    // LES ÉCHÉANCES DES MODULES (Super Admin, 24/11/2026) : des lignes de la file, rangées sous leur module — pas de page à part.
+    lignesEcheancesPour(user, now).catch(sansBloquer("aujourdhui-espace.chargerAujourdhui.lignesEcheancesPour", [] as ElementFile[])),
   ]);
 
   // LA FILE : le centre d'actions, plus les pièces qu'on ME demande (l'ancienne section « Pièces demandées »).
@@ -59,7 +62,7 @@ export async function chargerAujourdhui(user: SessionUser, opts: { maintenant?: 
       statusLabel: "À déposer",
     }));
   const piecesEnAttente = pieces.filter((r) => r.askedById === user.id && isOutstanding(r.status)).length;
-  const lots = regrouperFile([...centre.items, ...piecesADeposer], now);
+  const lots = regrouperFile([...centre.items, ...piecesADeposer, ...echeances], now);
   const { ouverts, enRetard } = totaux(lots);
 
   // L'ÉQUIPE — pour un N+1 seulement (des directs dans l'organigramme).

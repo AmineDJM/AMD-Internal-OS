@@ -43,4 +43,6 @@ export { compteSuitLaFiche } from "./infra/depart";
 export { getLeavesToDecide, getMyAdvances, getMyLeaveBalance, getMyLeaveRequests, getRhData } from "./infra/requetes/hr";
 export { getEmployeeHrDossier, getHrRequestQueue, getHrRequestsPretes, getMyHrDossier, type HrDocumentDTO, type HrQueueItem, type HrRequestDTO } from "./infra/requetes/hr-documents";
 export { getHrPulse } from "./infra/requetes/hr-pulse";
+// Les échéances de la fiche (fin de contrat, essai, visite médicale) — branchées dans « Aujourd'hui » (`lib/echeances/registre.ts`).
+export { lireEcheancesRh } from "./infra/requetes/echeances";
 export { complementsConges, discussionsDesConges } from "./infra/requetes/conges-discussion";
