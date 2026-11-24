@@ -51,3 +51,48 @@ Quand le stockage objet est configuré (`S3_*`), les fichiers vivent **dans le b
 garde que leurs métadonnées : la copie de la base ne les contient pas. Activer le **versionnement** du bucket de
 production (Supabase / R2 / S3) couvre la suppression accidentelle ; sans stockage objet, les fichiers sont dans la
 base et donc dans la copie.
+
+### 5. Fichiers du bucket et clé de chiffrement
+
+> Audit du Drive du 24/11/2026 (A2, A8). La copie nocturne de la base **ne contient pas** les fichiers du bucket,
+> et elle ne sert à rien sans la **clé** qui les déchiffre. Les trois points ci-dessous sont à tenir ensemble.
+
+**La clé (`DRIVE_ENCRYPTION_KEY`).** Tous les fichiers (Drive, documents, pièces) sont chiffrés AES-256-GCM avec
+cette clé : 32 octets, en hexadécimal (64 caractères) ou base64 (44). Depuis le 24/11/2026 :
+
+- elle est **obligatoire en production** et doit être **identique** sur `amd-internal-os`, `adventum-ia` et
+  `amd-worker` (plus aucun repli sur `NEXTAUTH_SECRET`/`AUTH_SECRET`, qui différaient d'un service à l'autre) ;
+- une clé **mal formée** (collée tronquée) est une **erreur**, plus un repli silencieux ;
+- chaque fichier garde l'empreinte de sa clé (`FileBlob.keyId`) ; un redépôt ne réemploie jamais un fichier
+  d'une autre clé ; les fichiers d'avant (sans empreinte) se relisent avec la clé active, et prennent leur
+  empreinte à la première lecture réussie ;
+- le premier service qui démarre pose l'empreinte de sa clé dans les réglages (`AppSetting.driveKeyFingerprint`) ;
+  un service qui démarre avec une autre clé **refuse d'enregistrer des fichiers** et `/api/health` répond
+  `"cleFichiers": "divergente"` (`"absente"` / `"invalide"` si la variable manque ou est fausse ; `"etat": "degrade"`).
+
+*Première mise en place* (avant de déployer cette version) : poser sur les **trois** services la clé
+qu'utilisait jusqu'ici le service web — sa `DRIVE_ENCRYPTION_KEY` si elle existait ; sinon, dans le Shell Render
+du service web, `node -e "console.log(require('crypto').createHash('sha256').update(process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET).digest('hex'))"`.
+Si `adventum-ia` ou le worker ont écrit des fichiers avec leur propre secret (fichiers « illisibles »),
+calculer de même la clé dérivée de LEUR secret et la mettre dans `DRIVE_ENCRYPTION_KEYS` des trois services.
+
+*Rotation* : nouvelle clé dans `DRIVE_ENCRYPTION_KEY`, l'ancienne dans `DRIVE_ENCRYPTION_KEYS` (liste séparée par
+des virgules), sur les trois services, puis redéployer. Le premier service redémarré fait avancer la référence ;
+les anciens fichiers restent lisibles tant que l'ancienne clé est dans le trousseau. **Ne jamais retirer une
+ancienne clé** du trousseau tant que des fichiers en dépendent.
+
+**La clé sous séquestre.** Sans elle, ni la production ni une copie ne se relisent. La conserver **hors de
+Render et hors de GitHub** (coffre de la Direction, comme `SAUVEGARDE_PHRASE`), avec toutes les anciennes clés
+du trousseau, et noter la date de chaque rotation.
+
+**La copie nocturne du bucket.** Cloudflare R2 **n'a pas de versionnement d'objets** : un objet supprimé ou
+écrasé l'est pour de bon, et la copie de la base n'en garde que les métadonnées. Il faut donc une copie
+nocturne du bucket de production vers un bucket **d'un autre compte** (idéalement un autre fournisseur, avec
+verrouillage d'objet), en mode **ajout seul** (sans propager les suppressions), par exemple
+`rclone copy prod:amd-fichiers sauvegarde:amd-fichiers-copie --immutable` planifié chaque nuit après la copie de
+la base. Les objets sont déjà chiffrés : la copie ne voit jamais le clair.
+
+**Restauration testée.** Une restauration n'est prouvée que si un fichier se rouvre. Une fois par trimestre (et
+après chaque rotation de clé) : restaurer la copie de la base (§ 3), pointer un service de test sur la copie du
+bucket (`S3_*`) avec la clé et le trousseau sous séquestre, ouvrir trois fichiers de dates différentes (dont un
+antérieur à la dernière rotation), vérifier `/api/health` (`"cleFichiers": "ok"`), et consigner le résultat.

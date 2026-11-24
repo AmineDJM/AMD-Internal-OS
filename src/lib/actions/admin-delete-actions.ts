@@ -236,6 +236,12 @@ export async function destroyDeletedRecord(formData: FormData): Promise<DeleteRe
   const recId = String(formData.get("id") ?? "");
   const rec = await prisma.deletedRecord.findUnique({ where: { id: recId } });
   if (!rec || rec.purgedAt) return { ok: false, error: "Entrée introuvable ou déjà détruite." };
+  // L'ENTRÉE EST RÉCLAMÉE AVANT TOUT (audit Drive du 24/11, A6, §118.151). Deux destructions simultanées (double
+  // clic, deux onglets) lisaient toutes deux `purgedAt` nul et rendaient DEUX fois les références de chaque
+  // fichier : un contenu partagé avec une copie ailleurs perdait ses octets. Seule celle qui pose `purgedAt` libère.
+  // Close, l'entrée ne tient plus ses blobs par son lot (`storage/blob-refs.ts`) : `releaseBlob` peut les effacer.
+  const reclame = await prisma.deletedRecord.updateMany({ where: { id: recId, purgedAt: null }, data: { purgedAt: new Date() } });
+  if (reclame.count !== 1) return { ok: false, error: "Entrée déjà détruite (par un autre geste à l'instant)." };
 
   // Fichiers des pièces jointes snapshotées (s'il n'a pas été restauré).
   if (!rec.restoredAt) {
@@ -266,7 +272,6 @@ export async function destroyDeletedRecord(formData: FormData): Promise<DeleteRe
     }
   }
 
-  await prisma.deletedRecord.update({ where: { id: recId }, data: { purgedAt: new Date() } });
   await recordAudit({
     actorId: user.id, action: "DELETE", module: "Administration",
     summary: `Corbeille — destruction définitive : ${rec.label} « ${rec.name} »`,

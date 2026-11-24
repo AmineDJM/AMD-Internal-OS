@@ -18,6 +18,9 @@ export async function register(): Promise<void> {
     await import("@/platform/ia/telemetry/usage-sink");
     // D3 (décision 0057) : la garde de l'accès par base, en OBSERVATION — elle compte, elle ne refuse rien.
     (await import("@/modules/acces-bases/api")).brancherGardeDonnees();
+    // LA CLÉ DES FICHIERS (audit Drive du 24/11, A2) : son empreinte est posée ou comparée à la référence commune.
+    // Ne bloque pas le démarrage (une clé divergente refuse les écritures de fichiers, le reste de l'ERP sert).
+    void (await import("@/lib/storage/cle-drive-empreinte")).verifierCleDriveAuDemarrage();
     const { battementWebArme } = await import("@/lib/taches-de-fond/mode");
     if (battementWebArme()) await import("@/lib/scheduled");
   }

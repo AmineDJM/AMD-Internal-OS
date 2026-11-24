@@ -168,9 +168,12 @@ export async function getDriveListing(
   if (trash) {
     // La corbeille d'une catégorie est réservée à ses gestionnaires.
     if (spaceId && !spaceManage) return null;
+    // Un élément personnel SANS PROPRIÉTAIRE (compte supprimé, reprise de données) n'apparaissait dans aucune
+    // corbeille : ni restaurable, ni destructible (audit Drive du 24/11, A9). Il figure dans celle du Super Admin.
+    const proprietaire = user.role === "SUPER_ADMIN" ? { OR: [{ ownerId: user.id }, { ownerId: null }] } : { ownerId: user.id };
     const where = spaceId
       ? { spaceId, isTrashed: true, OR: [{ parentId: null }, { parent: { isTrashed: false } }] }
-      : { ownerId: user.id, spaceId: null, isTrashed: true, OR: [{ parentId: null }, { parent: { isTrashed: false } }] };
+      : { AND: [proprietaire, { OR: [{ parentId: null }, { parent: { isTrashed: false } }] }], spaceId: null, isTrashed: true };
     const nodes = (await prisma.driveNode.findMany({ where, ...nodeArgs(user.id) })) as RawNode[];
     const inherited = spaceId ? spaceManage : true;
     return { folder: null, breadcrumb: [], nodes: nodes.map((n) => toRow(user, n, inherited)), level: inherited ? "EDIT" : "VIEW", trash: true, space };

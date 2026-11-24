@@ -76,6 +76,11 @@ services:
           property: connectionString
       - key: AUTH_SECRET
         generateValue: true
+      # LA CLÉ DES FICHIERS — la même sur les trois services ; voir le commentaire du service adventum-ia.
+      - key: DRIVE_ENCRYPTION_KEY
+        sync: false
+      - key: DRIVE_ENCRYPTION_KEYS
+        sync: false
       - key: AUTH_TRUST_HOST
         value: "true"
       # LES DEUX BATTENT (décision 0019, « cliquez Sync, c'est tout ») : le bail par tâche (table `TacheDeFond`) fait
@@ -179,10 +184,13 @@ services:
     buildCommand: npm ci && npx prisma generate && npm run build:render
     startCommand: npx next start -p $PORT
     envVars:
-      # LA CLÉ DES FICHIERS (31/10/2026) : le Drive, les contrats et pièces sont CHIFFRÉS avec DRIVE_ENCRYPTION_KEY, à défaut
-      # NEXTAUTH_SECRET, à défaut AUTH_SECRET (`src/lib/drive-storage.ts`). Si le web porte l'une des deux premières, la
-      # recopier ICI À L'IDENTIQUE — sinon tout fichier ouvert depuis ce service est illisible (« HTTP ERROR 500 »).
+      # LA CLÉ DES FICHIERS (audit Drive du 24/11/2026) : le Drive, les contrats et pièces sont CHIFFRÉS avec
+      # DRIVE_ENCRYPTION_KEY, OBLIGATOIRE en production et IDENTIQUE sur les trois services (plus de repli sur
+      # NEXTAUTH_SECRET/AUTH_SECRET). DRIVE_ENCRYPTION_KEYS : les anciennes clés, pour lire seulement (rotation).
+      # Procédure : docs/readme/37-sauvegardes-restauration.md, « Fichiers du bucket et clé de chiffrement ».
       - key: DRIVE_ENCRYPTION_KEY
+        sync: false
+      - key: DRIVE_ENCRYPTION_KEYS
         sync: false
       - key: NEXTAUTH_SECRET
         sync: false
@@ -269,10 +277,13 @@ services:
     dockerfilePath: ./Dockerfile.worker
     dockerContext: .
     envVars:
-      # LA CLÉ DES FICHIERS (31/10/2026) : le Drive, les contrats et pièces sont CHIFFRÉS avec DRIVE_ENCRYPTION_KEY, à défaut
-      # NEXTAUTH_SECRET, à défaut AUTH_SECRET (`src/lib/drive-storage.ts`). Si le web porte l'une des deux premières, la
-      # recopier ICI À L'IDENTIQUE — sinon tout fichier ouvert depuis ce service est illisible (« HTTP ERROR 500 »).
+      # LA CLÉ DES FICHIERS (audit Drive du 24/11/2026) : le Drive, les contrats et pièces sont CHIFFRÉS avec
+      # DRIVE_ENCRYPTION_KEY, OBLIGATOIRE en production et IDENTIQUE sur les trois services (plus de repli sur
+      # NEXTAUTH_SECRET/AUTH_SECRET). DRIVE_ENCRYPTION_KEYS : les anciennes clés, pour lire seulement (rotation).
+      # Procédure : docs/readme/37-sauvegardes-restauration.md, « Fichiers du bucket et clé de chiffrement ».
       - key: DRIVE_ENCRYPTION_KEY
+        sync: false
+      - key: DRIVE_ENCRYPTION_KEYS
         sync: false
       - key: NEXTAUTH_SECRET
         sync: false

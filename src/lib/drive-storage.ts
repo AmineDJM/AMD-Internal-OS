@@ -8,11 +8,13 @@ import { Prisma } from "@prisma/client";
 import { decider, compresserFichierSiUtile, decompresser } from "./compression/flux";
 import { codecConnu } from "./compression/politique";
 import { prisma } from "./prisma";
-import { sqlAucuneColonneNeLeTient, sqlBlobsCitesEnJson } from "./storage/blob-refs";
+import { sqlAucuneColonneNeLeTient, sqlAucunJsonNeLeCite, sqlBlobsCitesEnJson } from "./storage/blob-refs";
+import { cleParIdentifiant, ErreurCleDrive, trousseauCourant, type CleDrive } from "./storage/cle-drive";
+import { refusEcritureCle } from "./storage/cle-drive-empreinte";
 import {
   objectStorageConfigured, putObject, putObjectStream, getObject, deleteObject, MULTIPART_THRESHOLD_BYTES,
 } from "./storage/object-storage";
-import { sansBloquer } from "@/lib/journal";
+import { attendu, sansBloquer } from "@/lib/journal";
 
 /**
  * Drive blob backend — content-addressed, encrypted at rest.
@@ -26,16 +28,24 @@ import { sansBloquer } from "@/lib/journal";
  * blob existant sans `storageKey` est lu depuis la colonne `data`. Point unique touchant les octets.
  */
 
-function masterKey(): Buffer {
-  const explicit = process.env.DRIVE_ENCRYPTION_KEY;
-  if (explicit) {
-    const buf = Buffer.from(explicit, explicit.length === 64 ? "hex" : "base64");
-    if (buf.length === 32) return buf;
-  }
-  // Fallback: derive a stable 32-byte key from the auth secret (always present).
-  const secret = process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET ?? "amd-internal-os";
-  return crypto.createHash("sha256").update(secret).digest();
+/**
+ * La clé qui chiffre une ÉCRITURE (`storage/cle-drive.ts`) : une clé mal formée, ou absente en production,
+ * lève une erreur qui dit le remède — plus de repli silencieux sur une clé que les autres services n'ont pas.
+ * En production, un service dont la clé diverge de la référence commune refuse d'écrire.
+ */
+function cleEcriture(): CleDrive {
+  const refus = refusEcritureCle();
+  if (refus) throw new ErreurCleDrive(refus);
+  return trousseauCourant().active;
 }
+
+/**
+ * Préfixe de l'empreinte d'un blob EN COURS D'ÉCRITURE par tranches (audit Drive du 24/11, A7). La ligne
+ * existe avant ses tranches ; sous sa vraie empreinte, un dépôt concurrent du même contenu l'adoptait, et
+ * l'échec d'une tranche effaçait alors la ligne adoptée. Sous ce préfixe, personne ne la trouve : elle ne
+ * prend son empreinte qu'une fois complète (`finaliserEcriture`).
+ */
+const EN_ECRITURE = "ecriture:";
 
 export function sha256(buf: Buffer): string {
   return crypto.createHash("sha256").update(buf).digest("hex");
@@ -68,10 +78,12 @@ function refuserSiTropGros(size: number): void {
  * effacement passer entre les deux — le dépôt recevait l'identifiant d'un blob effacé, et la
  * fiche créée ensuite tombait sur une erreur de clé étrangère brute (constat 4).
  */
-async function reemployer(hash: string): Promise<PutBlobResult | null> {
+async function reemployer(hash: string, keyId: string): Promise<PutBlobResult | null> {
+  // Seulement un blob de la MÊME clé (A2) : un blob d'avant (clé inconnue) ou d'une autre clé n'est jamais
+  // resservi — c'est ainsi qu'un redépôt « pour réparer » rendait le même fichier illisible.
   const rows = await prisma.$queryRaw<{ id: string; size: number }[]>`
     UPDATE "FileBlob" SET "refCount" = "refCount" + 1, "touchedAt" = now()
-    WHERE sha256 = ${hash} RETURNING id, size`;
+    WHERE sha256 = ${hash} AND "keyId" = ${keyId} RETURNING id, size`;
   const r = rows[0];
   return r ? { blobId: r.id, sha256: hash, size: r.size, deduplicated: true } : null;
 }
@@ -102,8 +114,8 @@ const blobChunkBytes = () => {
 };
 
 /** Chiffre le clair en UN buffer `ciphertext || tag` (petits fichiers / stockage objet). */
-function encryptWhole(plain: Buffer, iv: Buffer): Buffer {
-  const cipher = crypto.createCipheriv("aes-256-gcm", masterKey(), iv);
+function encryptWhole(plain: Buffer, iv: Buffer, cle: CleDrive): Buffer {
+  const cipher = crypto.createCipheriv("aes-256-gcm", cle.cle, iv);
   const enc = Buffer.concat([cipher.update(plain), cipher.final()]);
   return Buffer.concat([enc, cipher.getAuthTag()]);
 }
@@ -115,8 +127,8 @@ function encryptWhole(plain: Buffer, iv: Buffer): Buffer {
  *
  * Le fichier n'est jamais tenu entier en mémoire, ni en clair ni chiffré.
  */
-async function* encryptFileStream(path: string, iv: Buffer): AsyncGenerator<Buffer> {
-  const cipher = crypto.createCipheriv("aes-256-gcm", masterKey(), iv);
+async function* encryptFileStream(path: string, iv: Buffer, cle: CleDrive): AsyncGenerator<Buffer> {
+  const cipher = crypto.createCipheriv("aes-256-gcm", cle.cle, iv);
   for await (const chunk of createReadStream(path, { highWaterMark: 8 * 1024 * 1024 })) {
     const enc = cipher.update(chunk as Buffer);
     if (enc.length > 0) yield enc;
@@ -170,7 +182,7 @@ function isUniqueSha256Violation(err: unknown): boolean {
 }
 
 async function createOrAdoptBlob(
-  data: Parameters<typeof prisma.fileBlob.create>[0]["data"],
+  data: Parameters<typeof prisma.fileBlob.create>[0]["data"] & { keyId: string },
   hash: string,
   size: number,
 ): Promise<PutBlobResult> {
@@ -180,7 +192,7 @@ async function createOrAdoptBlob(
     return { blobId: blob.id, sha256: hash, size, deduplicated: false, storedSize: stocke ?? size };
   } catch (err) {
     if (!isUniqueSha256Violation(err)) throw err;
-    const winner = await reemployer(hash);
+    const winner = await reemployer(hash, data.keyId);
     if (!winner) throw err;
     // L'objet que CETTE écriture avait poussé n'appartient à personne : la ligne gagnante a le sien.
     const own = (data as { storageKey?: string | null }).storageKey;
@@ -191,8 +203,9 @@ async function createOrAdoptBlob(
 
 /** Store bytes (encrypted, deduplicated). Increments the ref-count on reuse. */
 export async function putBlob(plain: Buffer): Promise<PutBlobResult> {
+  const cle = cleEcriture();
   const hash = sha256(plain);
-  const existing = await reemployer(hash);
+  const existing = await reemployer(hash, cle.id);
   if (existing) return existing;
   const iv = crypto.randomBytes(12);
 
@@ -208,7 +221,7 @@ export async function putBlob(plain: Buffer): Promise<PutBlobResult> {
   if (objectStorageConfigured()) {
     const key = blobKey(hash);
     // contenu CHIFFRÉ dans le bucket — il ne voit jamais le clair
-    const encrypted = encryptWhole(contenu, iv);
+    const encrypted = encryptWhole(contenu, iv, cle);
     try {
       // Gros contenu → envoi EN PARTIES PARALLÈLES. Un PUT unique de 300 Mo attend un seul flux du
       // début à la fin ; quatre parties en vol saturent la liaison. Le découpage ne recopie rien
@@ -219,38 +232,79 @@ export async function putBlob(plain: Buffer): Promise<PutBlobResult> {
         await putObject(key, encrypted);
       }
     } catch (err) { throw storageFailure(err); }
-    return createOrAdoptBlob({ sha256: hash, size: plain.length, iv, data: null, storageKey: key, refCount: 1, ...meta }, hash, plain.length);
+    return createOrAdoptBlob({ sha256: hash, size: plain.length, iv, data: null, storageKey: key, refCount: 1, keyId: cle.id, ...meta }, hash, plain.length);
   }
 
   // Base, gros fichier → écriture EN TRANCHES (mémoire bornée à une tranche, pas d'hex géant).
-  if (contenu.length > blobChunkBytes()) return putBlobChunked(contenu, plain.length, hash, iv, meta);
+  if (contenu.length > blobChunkBytes()) {
+    return ecrireEnTranches(hash, plain.length, iv, cle, meta, async function* (step) {
+      for (let off = 0; off < contenu.length; off += step) yield contenu.subarray(off, Math.min(off + step, contenu.length));
+    });
+  }
 
   // Base, petit fichier → une seule valeur bytea (chemin historique, rétrocompatible).
-  return createOrAdoptBlob({ sha256: hash, size: plain.length, iv, data: encryptWhole(contenu, iv), refCount: 1, ...meta }, hash, plain.length);
+  return createOrAdoptBlob({ sha256: hash, size: plain.length, iv, data: encryptWhole(contenu, iv, cle), refCount: 1, keyId: cle.id, ...meta }, hash, plain.length);
 }
 
-/** Écrit le contenu chiffré en tranches ordonnées (streaming du chiffrement → mémoire bornée). */
-async function putBlobChunked(plain: Buffer, tailleClair: number, hash: string, iv: Buffer, meta: MetaCompression = {}): Promise<PutBlobResult> {
-  // `plain` = le contenu À STOCKER (le clair, ou le clair compressé) ; `tailleClair` = ce que dit `size`.
-  const created = await createOrAdoptBlob({ sha256: hash, size: tailleClair, iv, data: null, refCount: 1, ...meta }, hash, tailleClair);
-  // Le contenu venait d'être écrit par un autre appel : ses tranches sont (ou seront) les siennes.
-  if (created.deduplicated) return created;
-  const blob = { id: created.blobId };
+/**
+ * Écrit un contenu chiffré EN TRANCHES ordonnées sous une ligne EN COURS D'ÉCRITURE (A7), puis lui donne
+ * son empreinte. `morceaux` rend le contenu À STOCKER (le clair, ou le clair compressé) ; `tailleClair`
+ * est ce que dit `size`. Un échec n'efface que la ligne de CETTE écriture, et seulement si personne ne
+ * l'a prise (`refCount` = 1) — elle n'était trouvable par personne, mais la garde ne coûte rien.
+ */
+async function ecrireEnTranches(
+  hash: string, tailleClair: number, iv: Buffer, cle: CleDrive, meta: MetaCompression,
+  morceaux: (step: number) => AsyncIterable<Buffer>, tailleAttendue?: number,
+): Promise<PutBlobResult> {
+  const enEcriture = `${EN_ECRITURE}${hash}:${crypto.randomBytes(6).toString("hex")}`;
+  const blob = await prisma.fileBlob.create({
+    data: { sha256: enEcriture, size: tailleClair, iv, data: null, refCount: 1, keyId: cle.id, ...meta }, select: { id: true },
+  });
   try {
-    const cipher = crypto.createCipheriv("aes-256-gcm", masterKey(), iv);
-    const step = blobChunkBytes();
+    const cipher = crypto.createCipheriv("aes-256-gcm", cle.cle, iv);
     let idx = 0;
-    for (let off = 0; off < plain.length; off += step) {
-      const enc = cipher.update(plain.subarray(off, Math.min(off + step, plain.length)));
+    let lu = 0;
+    // Les tranches sont recollées à la lecture dans l'ordre `idx` : leurs tailles respectives
+    // n'ont aucune importance, seul l'ordre compte.
+    for await (const morceau of morceaux(blobChunkBytes())) {
+      lu += morceau.length;
+      const enc = cipher.update(morceau);
       if (enc.length > 0) await prisma.fileBlobChunk.create({ data: { blobId: blob.id, idx: idx++, data: enc } });
     }
+    if (tailleAttendue !== undefined && lu !== tailleAttendue) throw new Error(`Fichier modifié pendant la lecture (${lu} ≠ ${tailleAttendue}).`);
     // Dernière tranche : reliquat éventuel + tag d'authentification (16 o). Concat des tranches = ciphertext || tag.
     await prisma.fileBlobChunk.create({ data: { blobId: blob.id, idx: idx++, data: Buffer.concat([cipher.final(), cipher.getAuthTag()]) } });
-    return { blobId: blob.id, sha256: hash, size: tailleClair, deduplicated: false, storedSize: meta.storedSize ?? tailleClair };
   } catch (err) {
-    await prisma.fileBlob.delete({ where: { id: blob.id } }).catch(sansBloquer("drive-storage.putBlobChunked.fileBlob")); // cascade → supprime les tranches partielles
+    await effacerEcritureAbandonnee(blob.id);
     throw err;
   }
+  return finaliserEcriture(blob.id, hash, cle.id, { blobId: blob.id, sha256: hash, size: tailleClair, deduplicated: false, storedSize: meta.storedSize ?? tailleClair });
+}
+
+/** Efface une écriture abandonnée — jamais une ligne qu'un autre détenteur aurait prise (cascade → tranches). */
+async function effacerEcritureAbandonnee(blobId: string): Promise<void> {
+  await prisma.$executeRaw`DELETE FROM "FileBlob" WHERE id = ${blobId} AND "refCount" = 1`
+    .catch(sansBloquer("drive-storage.effacerEcritureAbandonnee"));
+}
+
+/**
+ * Donne son empreinte à un blob complet. Si le MÊME contenu a été terminé entre-temps par un autre dépôt
+ * (index unique), on prend une référence sur celui-là et l'on efface sa propre copie.
+ */
+async function finaliserEcriture(blobId: string, hash: string, keyId: string, propre: PutBlobResult): Promise<PutBlobResult> {
+  for (let essai = 0; essai < 3; essai += 1) {
+    try {
+      await prisma.fileBlob.update({ where: { id: blobId }, data: { sha256: hash, touchedAt: new Date() } });
+      return propre;
+    } catch (err) {
+      if (!isUniqueSha256Violation(err)) { await effacerEcritureAbandonnee(blobId); throw err; }
+      const gagnant = await reemployer(hash, keyId);
+      if (gagnant) { await effacerEcritureAbandonnee(blobId); return gagnant; }
+      // Le gagnant vient d'être libéré : la place est de nouveau libre, on retente.
+    }
+  }
+  await effacerEcritureAbandonnee(blobId);
+  throw new Error("Le fichier n'a pas pu être enregistré (écritures simultanées du même contenu). Réessayez.");
 }
 
 /** SHA-256 d'un fichier lu EN FLUX (jamais chargé entier en mémoire). */
@@ -269,8 +323,9 @@ export async function sha256File(path: string): Promise<string> {
  * l'assemblage d'un upload) : la déduplication se décide alors SANS relire le fichier du tout.
  */
 export async function putBlobFromFile(path: string, opts: { sha256?: string } = {}): Promise<PutBlobResult> {
+  const cle = cleEcriture();
   const hash = opts.sha256 || (await sha256File(path));
-  const existing = await reemployer(hash);
+  const existing = await reemployer(hash, cle.id);
   if (existing) return existing;
   const { size } = await stat(path);
   refuserSiTropGros(size);
@@ -294,48 +349,69 @@ export async function putBlobFromFile(path: string, opts: { sha256?: string } = 
       try {
         if (aStocker <= MULTIPART_THRESHOLD_BYTES) {
           // Petit fichier : un PUT simple reste plus rapide qu'un téléversement en parties.
-          await putObject(key, encryptWhole(await readFile(source), iv));
+          await putObject(key, encryptWhole(await readFile(source), iv, cle));
         } else {
-          await putObjectStream(key, encryptFileStream(source, iv));
+          await putObjectStream(key, encryptFileStream(source, iv, cle));
         }
       } catch (err) {
         throw storageFailure(err);
       }
-      return await createOrAdoptBlob({ sha256: hash, size, iv, data: null, storageKey: key, refCount: 1, ...meta }, hash, size);
+      return await createOrAdoptBlob({ sha256: hash, size, iv, data: null, storageKey: key, refCount: 1, keyId: cle.id, ...meta }, hash, size);
     }
 
-    const iv = crypto.randomBytes(12);
-    const created = await createOrAdoptBlob({ sha256: hash, size, iv, data: null, refCount: 1, ...meta }, hash, size);
-    // Le contenu venait d'être écrit par un autre appel : ses tranches sont (ou seront) les siennes.
-    if (created.deduplicated) return created;
-    const blob = { id: created.blobId };
-    try {
-      const cipher = crypto.createCipheriv("aes-256-gcm", masterKey(), iv);
-      let idx = 0;
-      let read = 0;
-      // Les tranches sont recollées à la lecture dans l'ordre `idx` : leurs tailles respectives
-      // n'ont aucune importance, seul l'ordre compte.
-      for await (const chunk of createReadStream(source, { highWaterMark: blobChunkBytes() })) {
-        const plain = chunk as Buffer;
-        read += plain.length;
-        const enc = cipher.update(plain);
-        if (enc.length > 0) await prisma.fileBlobChunk.create({ data: { blobId: blob.id, idx: idx++, data: enc } });
-      }
-      if (read !== aStocker) throw new Error(`Fichier modifié pendant la lecture (${read} ≠ ${aStocker}).`);
-      await prisma.fileBlobChunk.create({ data: { blobId: blob.id, idx: idx++, data: Buffer.concat([cipher.final(), cipher.getAuthTag()]) } });
-      return { blobId: blob.id, sha256: hash, size, deduplicated: false, storedSize: aStocker };
-    } catch (err) {
-      await prisma.fileBlob.delete({ where: { id: blob.id } }).catch(sansBloquer("drive-storage.putBlobFromFile.fileBlob")); // cascade → tranches partielles
-      throw err;
-    }
+    return await ecrireEnTranches(hash, size, crypto.randomBytes(12), cle, meta, async function* (step) {
+      for await (const chunk of createReadStream(source, { highWaterMark: step })) yield chunk as Buffer;
+    }, aStocker);
   } finally {
     await compresse.resultat?.nettoyer();
   }
 }
 
+/** Déchiffre `ciphertext || tag` ; lève si la clé ne l'authentifie pas. */
+function dechiffrer(cipherBytes: Buffer, iv: Buffer, cle: CleDrive): Buffer {
+  const decipher = crypto.createDecipheriv("aes-256-gcm", cle.cle, iv);
+  decipher.setAuthTag(cipherBytes.subarray(cipherBytes.length - 16));
+  return Buffer.concat([decipher.update(cipherBytes.subarray(0, cipherBytes.length - 16)), decipher.final()]);
+}
+
+/**
+ * QUELLE CLÉ RELIT CE BLOB (A2). Un blob marqué se relit avec SA clé — active ou ancienne du trousseau —,
+ * et s'il n'est pas dans le trousseau, on le dit (plutôt que l'erreur GCM brute). Un blob d'avant (sans
+ * marque) est essayé avec la clé active puis les anciennes ; la première qui l'authentifie est posée
+ * sur la ligne : il redevient un blob comme les autres (réemployable par un dépôt de même clé).
+ */
+async function dechiffrerBlob(blobId: string, keyId: string | null, cipherBytes: Buffer, iv: Buffer): Promise<Buffer> {
+  const t = trousseauCourant();
+  if (keyId) {
+    const cle = cleParIdentifiant(t, keyId);
+    if (!cle) {
+      throw new ErreurCleDrive(
+        `Ce fichier a été chiffré avec une clé que ce service ne possède pas (empreinte ${keyId}). `
+        + "Posez sur ce service la même DRIVE_ENCRYPTION_KEY que les autres, ou ajoutez cette clé à DRIVE_ENCRYPTION_KEYS.",
+      );
+    }
+    return dechiffrer(cipherBytes, iv, cle);
+  }
+  for (const cle of [t.active, ...t.anciennes]) {
+    let clair: Buffer;
+    try { clair = dechiffrer(cipherBytes, iv, cle); } catch { continue; }
+    // Si le même contenu existe déjà sous cette clé (redéposé entre-temps), la marque attend : l'index unique l'interdit.
+    await prisma.$executeRaw`
+      UPDATE "FileBlob" b SET "keyId" = ${cle.id}
+      WHERE b.id = ${blobId} AND b."keyId" IS NULL
+        AND NOT EXISTS (SELECT 1 FROM "FileBlob" o WHERE o.sha256 = b.sha256 AND o."keyId" = ${cle.id})`
+      .catch(attendu("course avec un dépôt du même contenu sous la même clé : la marque attendra la prochaine lecture"));
+    return clair;
+  }
+  throw new ErreurCleDrive(
+    "Fichier illisible avec les clés de ce service : il a sans doute été écrit par un service configuré avec une autre clé. "
+    + "Ajoutez cette clé à DRIVE_ENCRYPTION_KEYS (voir docs/readme/37-sauvegardes-restauration.md).",
+  );
+}
+
 /** Retrieve and decrypt bytes by blob id (objet S3/R2, bytea unique, ou tranches — selon le stockage). */
 export async function getBlob(blobId: string): Promise<Buffer | null> {
-  const blob = await prisma.fileBlob.findUnique({ where: { id: blobId }, select: { iv: true, data: true, storageKey: true, size: true, codec: true, storedSize: true, sha256: true } });
+  const blob = await prisma.fileBlob.findUnique({ where: { id: blobId }, select: { iv: true, data: true, storageKey: true, size: true, codec: true, storedSize: true, sha256: true, keyId: true } });
   if (!blob) return null;
   // Déposé EN DIRECT par le navigateur (gros fichier) : l'objet est en clair dans le bucket,
   // protégé par le chiffrement au repos du fournisseur — un IV vide le signale.
@@ -353,12 +429,7 @@ export async function getBlob(blobId: string): Promise<Buffer | null> {
     if (cipherBytes && (attendu == null || cipherBytes.length !== attendu + 16)) return null;
   }
   if (!cipherBytes) return null;
-  const iv = Buffer.from(blob.iv);
-  const tag = cipherBytes.subarray(cipherBytes.length - 16);
-  const enc = cipherBytes.subarray(0, cipherBytes.length - 16);
-  const decipher = crypto.createDecipheriv("aes-256-gcm", masterKey(), iv);
-  decipher.setAuthTag(tag);
-  const stocke = Buffer.concat([decipher.update(enc), decipher.final()]);
+  const stocke = await dechiffrerBlob(blobId, blob.keyId, cipherBytes, Buffer.from(blob.iv));
   if (!blob.codec) return stocke; // brut : tout fichier d'avant, et tout ce que la mesure juge déjà compressé
   // COMPRIMÉ AU REPOS : on rend EXACTEMENT les octets déposés. Taille ET empreinte sont relues —
   // le chiffrement authentifie ce qui est stocké, pas ce que la décompression en fait.
@@ -388,7 +459,10 @@ export async function infoBlob(blobId: string): Promise<{ sha256: string | null;
  *   • aucune colonne du schéma ne doit encore le désigner — un compteur périmé (une suppression
  *     en cascade ne décrémente rien) ne suffit plus à faire disparaître les octets d'un détenteur
  *     vivant. Le blob reste alors, compteur à zéro, et seule la purge (qui lit aussi le JSON)
- *     peut décider de lui.
+ *     peut décider de lui ;
+ *   • aucun JSON ouvert ne le cite (audit Drive du 24/11, A6) — une entrée de la corbeille du Super
+ *     Admin garde les versions d'un fichier du Drive dans son lot : c'est elle qui les restaurera.
+ *     L'ignorer ici effaçait les octets d'un fichier encore restaurable dès qu'une autre référence tombait.
  */
 export async function releaseBlob(blobId: string): Promise<void> {
   const rows = await prisma.$queryRaw<{ refCount: number }[]>`
@@ -396,7 +470,7 @@ export async function releaseBlob(blobId: string): Promise<void> {
   if (!rows[0] || rows[0].refCount > 0) return;
   const gone = await prisma.$queryRaw<{ storageKey: string | null }[]>(Prisma.sql`
     DELETE FROM "FileBlob" b
-    WHERE b.id = ${blobId} AND b."refCount" <= 0 AND ${sqlAucuneColonneNeLeTient("b")}
+    WHERE b.id = ${blobId} AND b."refCount" <= 0 AND ${sqlAucuneColonneNeLeTient("b")} AND ${sqlAucunJsonNeLeCite("b")}
     RETURNING b."storageKey"`);
   if (gone[0]?.storageKey) await deleteObject(gone[0].storageKey); // ne lève jamais
 }

@@ -7035,7 +7035,7 @@ model DriveSpace {
 /// Contenu binaire chiffré (AES-256-GCM), dédupliqué par empreinte du clair (SHA-256).
 model FileBlob {
   id         String          @id @default(cuid())
-  sha256     String          @unique
+  sha256     String
   size       Float // taille du CLAIR en octets (Float : exact jusqu'à 9 Po ; un objet envoyé directement au bucket peut dépasser 2 Go)
   /// COMPRESSION SANS PERTE AU REPOS (§118.214). Nul = octets bruts (tout fichier d'avant, et tout
   /// ce que la mesure juge déjà compressé) ; « br » = le clair est compressé en brotli AVANT d'être
@@ -7051,8 +7051,14 @@ model FileBlob {
   /// Dernière prise par un détenteur (création OU réemploi) : la purge des orphelins n'efface
   /// jamais un blob touché depuis moins d'une heure — sa fiche est peut-être en train de s'écrire.
   touchedAt  DateTime        @default(now())
+  /// Empreinte courte (HMAC) de la clé qui a chiffré ce blob (audit Drive du 24/11, A2). Nulle : blob
+  /// d'avant (posée à sa première lecture réussie) ou dépôt direct non chiffré par l'application. Un
+  /// dépôt ne réemploie JAMAIS un blob d'une autre clé : la déduplication se fait par (sha256, keyId).
+  keyId      String?
   versions   FileVersion[]
   chunks     FileBlobChunk[] // gros fichiers : contenu chiffré découpé en TRANCHES ordonnées (mémoire bornée)
+
+  @@unique([sha256, keyId])
 }
 
 /// Tranche de contenu chiffré d'un gros FileBlob (data=null). Concaténées dans l'ordre `idx`, elles
@@ -10403,6 +10409,9 @@ model AppSetting {
   maxDriveUploadMb               Int       @default(10240) // fichiers du Drive (10 Go ; au-delà de 2 Go : envoi direct au bucket)
   driveCapacityGb                Int       @default(100) // capacité globale du Drive (modifiable Super Admin)
   driveUserQuotaGb               Int       @default(10) // quota par utilisateur (modifiable Super Admin)
+  /// Empreinte de la clé de chiffrement des fichiers, posée au premier démarrage (audit Drive du 24/11, A2) : un
+  /// service qui démarre avec une autre clé refuse d'écrire (et le dit dans /api/health).
+  driveKeyFingerprint            String?
   // Budget total au-dessus des enveloppes : FIXED (montant figé) ou FLEXIBLE
   // (= somme des enveloppes actives). Réglé par le Super Admin.
   budgetTotalMode                String    @default("FLEXIBLE")
