@@ -93,7 +93,7 @@ export async function dossierRegulatory(nom: string): Promise<string> {
   if (deja) return deja.id;
   return (await db().regulatoryProduct.create({
     data: {
-      dci: `${P} ${nom.toUpperCase()}`, brandName: `${P} ${nom}`, reference: `${P}REG-${++seq}`, companyId: graine().societeId,
+      dci: `${P} ${nom.toUpperCase()}`, brandName: `${P} ${nom}`, reference: `${P}REG-${slugFichier(nom)}`, companyId: graine().societeId,
       workflow: { presub_ans: { status: "DONE", outcome: "FAVORABLE" } },
     },
   })).id;

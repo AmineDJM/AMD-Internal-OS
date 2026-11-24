@@ -18,8 +18,8 @@ test.beforeAll(async () => {
   salarieId = deja?.id ?? (await db().employee.create({
     data: { fullName: SALARIE, companyId: g.societeId, departmentId: g.departements.OPERATIONS, position: "Délégué médical", hireDate: new Date("2024-03-01") },
   })).id;
-  const kamSalarie = await db().employee.findFirst({ where: { userId: g.comptes.superviseur }, select: { id: true } });
-  if (kamSalarie) await db().employee.update({ where: { id: salarieId }, data: { managerId: kamSalarie.id } });
+  const superviseurSalarie = await db().employee.findFirst({ where: { userId: g.comptes.superviseur }, select: { id: true } });
+  if (superviseurSalarie) await db().employee.update({ where: { id: salarieId }, data: { managerId: superviseurSalarie.id } });
 });
 test.afterAll(async () => { await fermer(); });
 

@@ -25,8 +25,8 @@ test.beforeAll(async () => {
     data: {
       name: NOM, city: "Oran", companyId: g.societeId, businessUnitId: g.buId, requesterId: g.comptes.kam, createdById: g.comptes.kam,
       requestStatus: "PRELIMINARY_APPROVED", circuitAchatAt: new Date(),
-      startDate: new Date(Date.now() + 30 * 86_400_000), endDate: new Date(Date.now() + 32 * 86_400_000),
-    } as never,
+      date: new Date(Date.now() + 30 * 86_400_000), endDate: new Date(Date.now() + 32 * 86_400_000),
+    },
   })).id;
 });
 test.afterAll(async () => { await fermer(); });

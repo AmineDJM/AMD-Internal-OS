@@ -14,7 +14,7 @@ test.beforeAll(async () => {
   const g = graine();
   const deja = await db().congressNational.findFirst({ where: { name: NOM }, select: { id: true } });
   id = deja?.id ?? (await db().congressNational.create({
-    data: { name: NOM, city: "Blida", companyId: g.societeId, businessUnitId: g.buId, requesterId: g.comptes.kam, createdById: g.comptes.kam } as never,
+    data: { name: NOM, city: "Blida", companyId: g.societeId, businessUnitId: g.buId, requesterId: g.comptes.kam, createdById: g.comptes.kam },
   })).id;
 });
 test.afterAll(async () => { await fermer(); });
