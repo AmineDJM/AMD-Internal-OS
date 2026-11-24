@@ -186,6 +186,11 @@ export const ACTIONS_HUMAINES: Readonly<Record<string, string>> = {
     + "✓ sur Annuaires › Médecins en double",
   "medical-directory-crud-actions:ecarterFusionMedecin":
     "la décision du Super Admin sur deux fiches médecins en double — elle s'écarte d'un clic ✗ sur Annuaires › Médecins en double",
+  // La SUPPRESSION DÉFINITIVE d'une demande Ad & Pro (Super Admin, 24/11/2026) : irréversible, ordres payés compris — un
+  // modèle ne la déclenche jamais, même sur l'ordre d'une personne qui en a le droit.
+  "ad-pro-suppression-definitive-actions:supprimerDefinitivementDemandeAdPro":
+    "la destruction définitive d'une demande Ad & Pro par le Super Admin — irréversible : elle se fait devant son aperçu chiffré, "
+    + "la référence retapée à la main, depuis la fiche de la demande (menu ⋯, « Supprimer définitivement »)",
 };
 
 /**

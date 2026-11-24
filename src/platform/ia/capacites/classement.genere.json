@@ -965,6 +965,25 @@
   "annulation": "retour",
   "appelable": true
  },
+ "ad-pro-suppression-definitive-actions:apercuSuppressionDefinitiveAdPro": {
+  "risque": "R0",
+  "familles": [
+   "AD_PRO"
+  ],
+  "simulable": "oui",
+  "annulation": "aucune",
+  "appelable": true
+ },
+ "ad-pro-suppression-definitive-actions:supprimerDefinitivementDemandeAdPro": {
+  "risque": "R4",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "compensation",
+  "appelable": false
+ },
  "ad-pro-transfer-actions:transferAdProRequest": {
   "risque": "R2",
   "familles": [

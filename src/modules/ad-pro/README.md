@@ -19,7 +19,11 @@ ses pièces, ses cases, ses devis). Lit `referentiels` (double écriture des per
   (une clé, six morceaux : `parc.ts` les déclare ensemble) ; `care-actions` → `actions-prise-en-charge{,-logistique,-chiffrage,-achats}.ts` ;
   `sponsoring-actions`, `congress-request-actions` (`actions-congres`), `congress-beneficiary-actions`, `event-actions`
   (`actions-evenements`), `ad-pro-{centre,conseil,discussion,edit,medecins,other,pieces,postes-luna,transfer}-actions`,
-  `ad-pro-rattacher-legal`.
+  `ad-pro-rattacher-legal`, `ad-pro-suppression-definitive-actions` (`actions-suppression-definitive.ts`).
+- **Suppression DÉFINITIVE** (Super Admin réel seul, 24/11/2026) : menu ⋯ de la fiche → aperçu chiffré → référence retapée ;
+  la demande et TOUT ce qui lui est lié (ordres payés et écritures de règlement compris) partent dans une transaction, une
+  ligne d'audit reste. L'unique exception aux invariants d'argent : périmètre `lib/suppression/destruction.ts` (carte
+  `definitive.ts`, cliquet `definitive.test.ts`), règles `domaine/suppression-definitive.ts`, banc `suppression-definitive-flow.test.ts`.
 - **Tables** : voir l'en-tête de `api.ts` (demandes, postes, prise en charge, portes).
 - **Circuit d'achat des prises en charge** (24/11/2026, migration `20270246600000_pec_circuit_achat`) : chiffrage par
   l'assistante (`CareChiffrage`, prix historisés `CarePrixHistorique`), validation de la Direction Marketing par professionnel,

@@ -165,6 +165,11 @@ export interface Inventaire {
   liensTete: { champ: string; valeur: string }[];
   /** Ce qui interdit la suppression — vide : rien. */
   bloquants: string[];
+  /**
+   * LES FAITS QUI ONT QUITTÉ L'ERP (`faitIrreversible`), nommés. La corbeille les compte parmi les `bloquants` ; la
+   * suppression DÉFINITIVE du Super Admin (`definitive.ts`), elle, passe outre — et les montre dans son aperçu.
+   */
+  faits: string[];
   /** « 2 postes », « 1 déclaration d'information médicale »… — hors la tête. */
   resume: string[];
 }
@@ -172,20 +177,47 @@ export interface Inventaire {
 const cle = (modele: string, id: string) => `${modele}:${id}`;
 
 /**
+ * CE QUE LA SUPPRESSION DÉFINITIVE AJOUTE au lot de la corbeille (`definitive.ts`) — vide pour la corbeille, qui ne
+ * change pas. Trois réglages, et chacun répond à un cas que la corbeille refuse au lieu de le suivre :
+ *   • `suites` : des liens directs de plus, suivis en aval (l'écriture de trésorerie qui a réglé l'ordre) ;
+ *   • `retours` : des liens suivis À REBOURS (le dossier compagnon d'un ordre, la contre-passation d'une écriture) ;
+ *   • `exclus` : des lignes qui n'entrent JAMAIS dans le lot (`Modele:id`) — une pièce Legal partagée avec autre chose.
+ * Et `faitsBloquent` à faux : un fait qui a quitté l'ERP est nommé (`faits`), il n'arrête plus rien ; `recreer: false` :
+ * rien ne sera recréé, l'ordre de recréation n'est plus une condition (seul compte l'ordre de suppression, enfants d'abord).
+ */
+export interface OptionsInventaire {
+  suites?: readonly { modele: string; champ: string; cible: string }[];
+  retours?: readonly { modele: string; champ: string; cible: string; ou?: Record<string, unknown> }[];
+  exclus?: ReadonlySet<string>;
+  faitsBloquent?: boolean;
+  recreer?: boolean;
+}
+
+/** `Modele:id` — la clé d'une ligne du lot, celle que lit `OptionsInventaire.exclus`. */
+export const cleDeLigne = cle;
+
+/** La clé primaire lue sur une ligne — `id`, ou le couple d'une clé composée. */
+export function identiteDe(modele: string, row: Record<string, unknown>): string {
+  return identite(modele, row);
+}
+
+/**
  * TOUT ce qui partirait avec cette ligne — sans rien écrire. Sert l'aperçu (ce que la personne
  * lit AVANT de confirmer, §118.53) et la suppression elle-même : les deux lisent le même
  * inventaire, sinon l'aperçu annoncerait un périmètre que la suppression dépasserait.
  */
-export async function inventorier(modeleTete: string, idTete: string): Promise<Inventaire | null> {
+export async function inventorier(modeleTete: string, idTete: string, opts: OptionsInventaire = {}): Promise<Inventaire | null> {
   const tete = await d(prisma, modeleTete).findUnique({ where: { id: idTete } });
   if (!tete) return null;
+  const suites = [...LIENS_DIRECTS, ...(opts.suites ?? [])];
+  const faitsBloquent = opts.faitsBloquent ?? true;
 
   const vus = new Map<string, Ligne>();
   const ordre: Ligne[] = [];
   const ajouter = (modele: string, row: Record<string, unknown>): Ligne | null => {
     const id = identite(modele, row);
     const k = cle(modele, id);
-    if (vus.has(k)) return null;
+    if (vus.has(k) || (ordre.length > 0 && opts.exclus?.has(k))) return null;
     const l = { modele, id, donnees: row };
     vus.set(k, l);
     ordre.push(l);
@@ -221,12 +253,20 @@ export async function inventorier(modeleTete: string, idTete: string): Promise<I
         }
       }
       // 3. Les liens directs vers ce qu'une branche a créé en aval.
-      for (const lien of LIENS_DIRECTS) {
+      for (const lien of suites) {
         if (lien.modele !== modele) continue;
         const cibles = lignes.map((l) => l.donnees[lien.champ]).filter((x): x is string => typeof x === "string" && x.length > 0);
         if (cibles.length === 0) continue;
         for (const row of await d(prisma, lien.cible).findMany({ where: { id: { in: cibles } } })) {
           const n = ajouter(lien.cible, row);
+          if (n) suivante.push(n);
+        }
+      }
+      // 4. Les liens suivis à rebours (suppression définitive seulement) : ce qui désigne une ligne du lot et n'existe que pour elle.
+      for (const lien of opts.retours ?? []) {
+        if (lien.cible !== modele) continue;
+        for (const row of await d(prisma, lien.modele).findMany({ where: { ...(lien.ou ?? {}), [lien.champ]: { in: ids } } })) {
+          const n = ajouter(lien.modele, row);
           if (n) suivante.push(n);
         }
       }
@@ -237,14 +277,16 @@ export async function inventorier(modeleTete: string, idTete: string): Promise<I
   const bloquants: string[] = [];
   if (vus.size > MAX_LIGNES) {
     bloquants.push(`plus de ${MAX_LIGNES} éléments liés : une suppression de cette taille ne se fait pas d'un seul geste`);
-    return { lignes: ordre, documents: [], commentaires: [], liensExternes: [], liensTete: [], bloquants, resume: [] };
+    return { lignes: ordre, documents: [], commentaires: [], liensExternes: [], liensTete: [], bloquants, faits: [], resume: [] };
   }
 
   // ─── LES FAITS QUI ONT QUITTÉ L'ERP ─────────────────────────────────────────────────────
+  const faits: string[] = [];
   for (const l of ordre) {
     const fait = faitIrreversible(l.modele, l.donnees);
-    if (fait) bloquants.push(fait);
+    if (fait) faits.push(fait);
   }
+  if (faitsBloquent) bloquants.push(...faits);
 
   // ─── PIÈCES JOINTES ET COMMENTAIRES, de chaque ligne qui a un type d'entité ────────────────
   const documents: Record<string, unknown>[] = [];
@@ -295,7 +337,10 @@ export async function inventorier(modeleTete: string, idTete: string): Promise<I
   // les rétablit à la restauration, comme un lien mis à vide par une clé étrangère. Les RÉFÉRENCES
   // TEXTE (§118.176) se traitent ici de la même façon — et ici SEULEMENT : elles ne font jamais
   // entrer leur ligne dans le lot.
-  for (const lien of [...LIENS_DIRECTS, ...REFERENCES_TEXTE]) {
+  // Une SUITE qui est une clé étrangère (la pièce d'un poste vers sa pièce Legal) est déjà lue plus haut, par le schéma.
+  const estCleEtrangere = (modele: string, champ: string) => RELATIONS.some((r) => r.enfant === modele && r.champ === champ);
+  for (const lien of [...suites, ...REFERENCES_TEXTE]) {
+    if (estCleEtrangere(lien.modele, lien.champ)) continue;
     const cibles = idsParModele.get(lien.cible);
     if (!cibles?.length) continue;
     const select: Record<string, true> = { [lien.champ]: true };
@@ -320,7 +365,8 @@ export async function inventorier(modeleTete: string, idTete: string): Promise<I
   }
   const differes = new Set(liensTete.map((l) => l.champ));
   const lignes = trierParentsDabord(ordre, differes);
-  if (!lignes) bloquants.push("des éléments liés se désignent en boucle — le lot ne saurait pas dans quel ordre les recréer");
+  if (opts.recreer === false) { /* une destruction ne recrée rien : l'ordre de recréation n'est pas une condition */ }
+  else if (!lignes) bloquants.push("des éléments liés se désignent en boucle — le lot ne saurait pas dans quel ordre les recréer");
   // La tête se recrée la PREMIÈRE (elle vit dans `payload`, hors du lot) : si elle dépendait
   // d'une de ses branches, cet ordre ne tiendrait pas — on le dit au lieu de le découvrir à la
   // restauration.
@@ -331,7 +377,7 @@ export async function inventorier(modeleTete: string, idTete: string): Promise<I
   const resume = [...compte].sort((a, b) => b[1] - a[1]).map(([m, n]) => libelleDe(m, n));
   if (documents.length) resume.push(`${documents.length} pièce${documents.length > 1 ? "s" : ""} jointe${documents.length > 1 ? "s" : ""}`);
 
-  return { lignes: lignes ?? ordre, documents, commentaires, liensExternes, liensTete, bloquants: [...new Set(bloquants)], resume };
+  return { lignes: lignes ?? ordre, documents, commentaires, liensExternes, liensTete, bloquants: [...new Set(bloquants)], faits: [...new Set(faits)], resume };
 }
 
 /**

@@ -14,7 +14,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { PageHeader } from "@/components/shared/page-header";
 import { MenuDossier } from "@/components/shared/menu-dossier";
 import type { DocItem } from "@/components/documents/document-list";
-import { AD_PRO_DOC_CATEGORIES, categoriesDuDepotDeLaDemande, canAttachToAdPro, attachHint, breakdown, canEditAdProRequest, isAdProDecided, bilanCloture, etatPostesSponsoring, peutCloturer, quiCloture as quiClotureDe, LIBELLE_QUI_CLOTURE, barreDesEtapes } from "@/modules/ad-pro/partage";
+import { AD_PRO_DOC_CATEGORIES, categoriesDuDepotDeLaDemande, canAttachToAdPro, attachHint, breakdown, canEditAdProRequest, isAdProDecided, bilanCloture, etatPostesSponsoring, peutCloturer, quiCloture as quiClotureDe, LIBELLE_QUI_CLOTURE, barreDesEtapes, refusSuppressionDefinitive } from "@/modules/ad-pro/partage";
 import { onlyofficeConfigured } from "@/lib/onlyoffice";
 import { SPONSORING_STATUS, SPONSORING_NATURE, PRIORITY, ROLE_LABELS } from "@/lib/labels";
 import { WorkflowPanel, WithdrawForm, HistoriqueDuCircuit, type EtapeDeFrise, type StatutDeLaDemande } from "@/components/workflow/workflow-panel";
@@ -25,6 +25,7 @@ import { ThirdPartyButton } from "./third-party-button";
 import { InvolvementConversations } from "@/modules/ad-pro/ecrans/involvement-conversations";
 import { getInvolvementThreads } from "@/lib/queries/involvement";
 import { SupprimerDemandeAdPro } from "@/modules/ad-pro/ecrans/supprimer-demande";
+import { SupprimerDefinitivementDemandeAdPro } from "@/modules/ad-pro/ecrans/supprimer-definitivement";
 import { peutSupprimerUneDemandeAdPro, loadAdProItems, adProBudgetOptions, contexteMaterielStock, postesPourCloture, contextePostes, adProEditValues, requireModuleOuAgences } from "@/modules/ad-pro/api";
 import { promoMaterialOptions } from "@/modules/ad-pro/actions-postes";
 import { AdProItemsPanel } from "@/modules/ad-pro/ecrans/items-panel";
@@ -306,6 +307,7 @@ export default async function SponsoringDetailPage(props: { params: Promise<{ id
             {peutTransferer && <AdProTransferButton from="SPONSORING" sourceId={req.id} title={req.institution} />}
             {peutRetirer && <WithdrawForm entityType="SPONSORING" entityId={req.id} dansUnMenu />}
             <SupprimerDemandeAdPro kind="SPONSORING" id={req.id} name={`${req.reference} — ${req.institution}`} enabled={peutSupprimer} />
+            <SupprimerDefinitivementDemandeAdPro kind="SPONSORING" id={req.id} enabled={!refusSuppressionDefinitive(user)} />
           </MenuDossier>
         )}
       </PageHeader>

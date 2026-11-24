@@ -57,6 +57,7 @@ export const ACTIONS_DES_MODULES: Readonly<Record<string, string | readonly stri
   "ad-pro-postes-fichier-actions": "src/modules/ad-pro/actions-postes-fichier.ts",
   "ad-pro-postes-luna-actions": "src/modules/ad-pro/actions-postes-luna.ts",
   "ad-pro-rattacher-legal": "src/modules/ad-pro/actions-rattacher-legal.ts",
+  "ad-pro-suppression-definitive-actions": "src/modules/ad-pro/actions-suppression-definitive.ts",
   "ad-pro-transfer-actions": "src/modules/ad-pro/actions-transfert.ts",
   "care-actions": ["src/modules/ad-pro/actions-prise-en-charge.ts", "src/modules/ad-pro/actions-prise-en-charge-logistique.ts", "src/modules/ad-pro/actions-prise-en-charge-chiffrage.ts", "src/modules/ad-pro/actions-prise-en-charge-achats.ts"],
   "actualisation-soldes-actions": "src/modules/finances/actions-soldes.ts",

@@ -645,6 +645,13 @@ export function classerExclusionsCircuits(): void {
     + "demande ».", [
     "admin-delete-actions:supprimerDemandeAdPro",
   ]);
+  X("SUPPRIMER DÉFINITIVEMENT UNE DEMANDE AD & PRO (Super Admin, 24/11/2026) — l'unique exception aux invariants d'argent : la "
+    + "demande et tout ce qui lui est lié partent, ordres PAYÉS et écritures de trésorerie compris, sans corbeille. Un geste "
+    + "irréversible ne se délègue pas à un modèle : il exige le Super Admin RÉEL, devant l'APERÇU chiffré de ce qui disparaît, "
+    + "et la référence de la demande RETAPÉE à la main (§118.7, §118.53). Un clic sur la fiche, menu « ⋯ », « Supprimer définitivement ».", [
+    "ad-pro-suppression-definitive-actions:supprimerDefinitivementDemandeAdPro",
+    "ad-pro-suppression-definitive-actions:apercuSuppressionDefinitiveAdPro",
+  ]);
   X("SUPPRIMER UNE PIÈCE LEGAL, OU L'UN DE SES FICHIERS, depuis la fiche de la demande Ad & Pro (§118.209) — « on doit pouvoir "
     + "supprimer les documents dans les demandes ». Adam n'est visible que du Super Admin (§118.153), qui supprime déjà une pièce "
     + "par `delete_record` (même cœur réversible, même refus de ce qui engage la pièce) ; offrir une seconde porte à Adam ne "
