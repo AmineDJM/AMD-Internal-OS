@@ -83,6 +83,12 @@ export interface LigneDelegue extends KamDuPerimetre {
   rapportsEnRetard: number;
   /** Taux réalisé ÷ requis des 6 derniers cycles (le dernier = le cycle en cours, calculé en direct). */
   tendance: (number | null)[];
+  /** Les visites du PLAN ce mois : rapportées / planifiées (`avancementTournee`, le même compte que la tournée). */
+  visites: { faites: number; planifiees: number };
+  /** La dernière fiche de coaching (null : jamais, ou portée « self » qui ne la lit pas). */
+  dernierCoaching: Date | null;
+  /** Aucun praticien dans son panel — le diagnostic se lit à part (`diagnostiquerPanelVide`), seulement quand c'est vrai. */
+  panelVide: boolean;
 }
 
 export interface Pilotage {
@@ -174,6 +180,7 @@ export async function chargerPilotage(input: {
   const planDe = new Map<string, string>();
   for (const p of plans) if (!planDe.has(p.repId)) planDe.set(p.repId, p.id);
 
+  const dernierCoaching = new Map((coachings as { collaboratorId: string; _max: { visitDate: Date | null } }[]).map((c) => [c.collaboratorId, c._max.visitDate]));
   const lignes: LigneDelegue[] = [];
   const panelsSuivis = new Map<string, PraticienPanel[]>();
   let cibles = 0, vues = 0, ciblesAvant = 0, vuesAvant = 0;
@@ -212,6 +219,9 @@ export async function chargerPilotage(input: {
       plan: { etat: etatPlan(t?.statutPlan ?? null), planId: planDe.get(k.repId) ?? null, enRetard: t?.retard.enRetard ?? false },
       rapportsEnRetard: t?.avancement.perdues ?? 0,
       tendance: [...tendance, rr.requis > 0 ? Math.min(1, rr.realise / rr.requis) : null],
+      visites: { faites: t?.avancement.visitees ?? 0, planifiees: t?.avancement.planifiees ?? 0 },
+      dernierCoaching: dernierCoaching.get(k.repId) ?? null,
+      panelVide: praticiens.length === 0,
     });
   }
   const triees = trierParRetard(lignes);
@@ -219,7 +229,6 @@ export async function chargerPilotage(input: {
   // ── À TRAITER ─────────────────────────────────────────────────────────────────────────────
   const plansAValider = triees.filter((l) => l.plan.etat === "A_VALIDER").map((l) => ({ repId: l.repId, nom: l.nom, planId: l.plan.planId }));
   const secteursVacants = scope.mode === "self" ? [] : await secteursSansDelegue(scope, buId, segmentations);
-  const dernierCoaching = new Map((coachings as { collaboratorId: string; _max: { visitDate: Date | null } }[]).map((c) => [c.collaboratorId, c._max.visitDate]));
   const coachingsEnRetard = scope.mode === "self" ? [] : kams
     .filter((k) => coachingEnRetard(dernierCoaching.get(k.repId) ?? null, maintenant))
     .map((k) => ({ repId: k.repId, nom: k.nom, dernier: dernierCoaching.get(k.repId) ?? null }));

@@ -340,6 +340,10 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
   // INTELLIGENCE TERRAIN (console d'administration, Super Admin seul) : une fois par jour, les liens structurels et les
   // scores d'influence se recalculent, et Luna lit les rapports NOUVEAUX depuis le filigrane (liens PROPOSÉS, jamais appliqués).
   { cle: "terrain.influence", executer: analyserInfluenceSiDu },
+  // VISITE MÉDICALE (Super Admin, 11/2026) : l'IA lit les comptes rendus de visite NOUVEAUX — possible cas de
+  // pharmacovigilance, priorité de relecture pour le superviseur — et prévient le délégué et son superviseur. Hors du
+  // chemin de l'enregistrement : le rapport est déjà en base quand elle le lit. Bascule coupée : elle s'abstient.
+  { cle: "terrain.pv-visites", executer: async () => (await import("@/lib/visite-pv-ia")).analyserComptesRendusEnAttente() },
   // Rappels du Chief of Staff : « rappelle-moi mardi à 10 h », « tous les dimanches relance
   // Regulatory » — pop-up au propriétaire, relance du rôle cible s'il y en a un.
   { cle: "assistant.rappels", executer: runAssistantReminders },

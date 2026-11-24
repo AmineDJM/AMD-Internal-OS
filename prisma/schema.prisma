@@ -5570,6 +5570,24 @@ model MedicalVisit {
   notHeldAt     DateTime?
   notHeldById   String?
 
+  /// CE QUE L'IA A LU DANS LE COMPTE RENDU (`visite-pv-ia.ts`, Visite médicale 11/2026) : AUCUN | POSSIBLE | PROBABLE
+  /// (possible cas de pharmacovigilance), la raison, la citation EXACTE du texte, la priorité 0-100 pour le superviseur.
+  /// Nul : pas encore lu (IA coupée, ou en file). L'IA ne crée JAMAIS un cas : elle prévient, un humain signale.
+  pvIa        String?
+  pvIaRaison  String?
+  pvIaExtrait String?
+  prioriteIa  Int?
+  analyseIaLe DateTime?
+
+  /// LA RELECTURE DU SUPERVISEUR (`relireRapportVisite`) : quand, par qui (identifiant sans relation, comme `notHeldById`),
+  /// et son mot au délégué — facultatif, visible par lui. Un rapport relu sort de la file « à relire ».
+  reluLe          DateTime?
+  reluParId       String?
+  reluCommentaire String?
+
+  /// LES SIGNALEMENTS DE PHARMACOVIGILANCE partis de cette visite.
+  casPharmacovigilance PharmacovigilanceCase[]
+
   @@index([delegateId])
   @@index([doctorId])
   @@index([status])
@@ -9289,6 +9307,9 @@ model PharmacovigilanceCase {
   institutionId   String?
   institutionName String
   doctorName      String? // médecin concerné (facultatif, texte)
+  /// LA VISITE d'où part le signalement (Visite médicale 11/2026) — nul : signalé hors visite, ou cas d'avant le lien.
+  visitId         String?
+  visit           MedicalVisit? @relation(fields: [visitId], references: [id], onDelete: SetNull)
   occurredOn      DateTime // date de survenue
   description     String // ce qui s'est passé
   patientAge      Int?
@@ -9314,6 +9335,7 @@ model PharmacovigilanceCase {
   @@index([status])
   @@index([occurredOn])
   @@index([promoProductId])
+  @@index([visitId])
 }
 
 /// Une personne ajoutée à l'échange d'un cas : elle lit le cas et prend part à la conversation.
@@ -9748,6 +9770,9 @@ model AiSetting {
   /// OCR « VISION » des conversions (décision 0019) : une page scannée mal lue par tesseract (arabe vocalisé, scan
   /// dégradé) transcrite par le modèle de vision — jamais une pièce confidentielle, du coffre ou d'un dossier RH. COUPÉ.
   ocrVisionEnabled       Boolean  @default(false)
+  /// L'IA lit le compte rendu d'une visite : possible cas de pharmacovigilance, priorité pour le superviseur. COUPÉE par
+  /// défaut — chaque compte rendu lu est un appel au fournisseur ; elle prévient, elle ne signale jamais à la place d'un humain.
+  visitePvDetectionEnabled Boolean @default(false)
   /// Son plafond de dépense, en dollars, par mois civil (somme des appels journalisés au rôle « ocr »).
   ocrVisionPlafondUsd    Decimal  @default(20) @db.Decimal(10, 2)
   updatedAt              DateTime @updatedAt

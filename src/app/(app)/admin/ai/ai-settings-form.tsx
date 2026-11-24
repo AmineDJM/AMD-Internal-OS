@@ -20,6 +20,7 @@ export interface AiSettings {
   lecturePiecesEnabled: boolean;
   conseilPiecesEnabled: boolean;
   ocrVisionEnabled: boolean;
+  visitePvDetectionEnabled: boolean;
 }
 
 type FeatureKey = Exclude<keyof AiSettings, "masterEnabled">;
@@ -34,6 +35,7 @@ const FEATURES: { key: FeatureKey; label: string; desc: string }[] = [
   { key: "siteWebAiEnabled", label: "Rédaction du site (articles et offres)", desc: "« Rédiger avec l'IA » : un brouillon d'article ou d'offre d'emploi, relu et publié par une personne." },
   { key: "lecturePiecesEnabled", label: "Lecture des pièces commerciales (lignes par l'IA)", desc: "Devis, bons de commande et factures déposés : l'IA propose les lignes, une personne les confirme une à une. Chaque pièce lue est un appel payant au fournisseur d'IA, une seule fois par fichier ; une pièce confidentielle n'est jamais envoyée. Coupée (le réglage par défaut), la lecture locale — texte du fichier, OCR sur ce serveur, en-tête et totaux — continue sans rien envoyer ni rien coûter." },
   { key: "ocrVisionEnabled", label: "OCR vision des conversions (pages scannées difficiles)", desc: "Une page scannée que la lecture locale (tesseract) lit mal — arabe vocalisé, scan dégradé — est transcrite par le modèle de vision de l'Assistant IA, au nom de la personne qui convertit, puis vérifiée contre la lecture locale. Jamais une pièce confidentielle, du coffre (identité, paie, RIB), un contrat ou une pièce d'un dossier RH : la lecture locale reste et l'écran dit pourquoi. Chaque page est un appel payant, sous le plafond mensuel ci-dessous. Coupé par défaut." },
+  { key: "visitePvDetectionEnabled", label: "Visite médicale — pharmacovigilance dans les comptes rendus", desc: "Après chaque rapport de visite, l'IA lit le compte rendu : y a-t-il peut-être un effet indésirable (aucun, possible, probable), pourquoi, avec la phrase exacte du délégué — et quelle priorité pour la relecture du superviseur. Si c'est possible ou probable, le délégué et son superviseur sont prévenus ; l'IA ne signale jamais un cas elle-même, une personne le fait. Chaque compte rendu lu est un appel au fournisseur d'IA. Coupée par défaut." },
   { key: "conseilPiecesEnabled", label: "Luna — conseil de rangement des pièces Ad & Pro", desc: "Après un dépôt sur une demande Ad & Pro, Luna lit la pièce et dit si elle est au bon endroit (Détails de la demande, ou la bonne case du bon poste) ; sinon il conseille où la mettre. Il n'écrit ni ne déplace rien. Chaque pièce lue est un appel au fournisseur d'IA ; une pièce confidentielle n'est jamais envoyée." },
 ];
 

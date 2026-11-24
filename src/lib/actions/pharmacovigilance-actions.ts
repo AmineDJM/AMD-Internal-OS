@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
-import { rolesWithModule, type SessionUser } from "@/lib/rbac";
+import { hasGlobalView, rolesWithModule, type SessionUser } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
@@ -16,6 +16,7 @@ import {
   PREFIXE_REFERENCE_PV, STATUT_PV, estGravitePv, estStatutPv, lecteurDuCasPv, lireAgePv, refusEnquetePv, refusTransitionPv,
 } from "@/lib/pharmacovigilance/regles";
 import { sansBloquer } from "@/lib/journal";
+import { encadrantDuDelegue } from "@/lib/queries/equipe-delegue";
 
 /**
  * PHARMACOVIGILANCE — actions serveur (Direction, 06/10).
@@ -128,6 +129,19 @@ export async function signalerCasPv(formData: FormData): Promise<ActionResult> {
   const patientAge = lireAgePv(ageBrut);
   if (ageBrut && patientAge === null) return { ok: false, error: "L'âge du patient doit être un nombre entre 0 et 120." };
 
+  // LA VISITE D'OÙ PART LE SIGNALEMENT (Visite médicale 11/2026) — relue ici : un identifiant posté ne rattache pas un cas
+  // à la visite d'un autre délégué. Son encadrant (superviseur de BU, sinon N+1) entre dans l'échange : il relit ce rapport.
+  const visitId = fdStr(formData, "visitId");
+  let encadrantId: string | null = null;
+  if (visitId) {
+    const visite = await prisma.medicalVisit.findUnique({ where: { id: visitId }, select: { delegateId: true } });
+    if (!visite) return { ok: false, error: "Cette visite n'existe plus : signalez sans la rattacher, ou rouvrez le lien depuis le compte rendu." };
+    if (visite.delegateId !== user.id && !hasGlobalView(user)) {
+      return { ok: false, error: "Cette visite n'est pas la vôtre : on rattache un signalement à SA visite. Signalez sans rattacher." };
+    }
+    encadrantId = visite.delegateId ? await encadrantDuDelegue(visite.delegateId).catch(sansBloquer("pharmacovigilance-actions.signalerCasPv.encadrant", null)) : null;
+  }
+
   const cree = await createWithRetry(async () => prisma.pharmacovigilanceCase.create({
     data: {
       reference: await prochaineReference(),
@@ -138,6 +152,7 @@ export async function signalerCasPv(formData: FormData): Promise<ActionResult> {
       institutionId: institutionId ?? null,
       institutionName,
       doctorName: fdStr(formData, "doctorName")?.slice(0, 200) ?? null,
+      visitId: visitId ?? null,
       occurredOn,
       description: description.slice(0, 10000),
       patientAge,
@@ -146,6 +161,10 @@ export async function signalerCasPv(formData: FormData): Promise<ActionResult> {
     },
     select: { id: true, reference: true },
   }));
+  if (encadrantId && encadrantId !== user.id) {
+    await prisma.pharmacovigilanceParticipant.create({ data: { caseId: cree.id, userId: encadrantId, addedById: user.id } })
+      .catch(sansBloquer("pharmacovigilance-actions.signalerCasPv.encadrant"));
+  }
 
   // LES PIÈCES (photos, comptes rendus) : un fichier refusé ne défait pas le signalement — il est dit.
   const fichiers = formData.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
@@ -167,7 +186,7 @@ export async function signalerCasPv(formData: FormData): Promise<ActionResult> {
   }).catch(sansBloquer("pharmacovigilance-actions.signalerCasPv.notifyRoles"));
   await recordAudit({
     actorId: user.id, action: "CREATE", module: MODULE_AUDIT, entityType: "PHARMACOVIGILANCE_CASE", entityId: cree.id,
-    summary: `Cas ${cree.reference} signalé — ${productLabel} · ${institutionName}`,
+    summary: `Cas ${cree.reference} signalé — ${productLabel} · ${institutionName}${visitId ? " (rattaché à sa visite)" : ""}`,
   });
   revaliderCas(cree.id);
   return {

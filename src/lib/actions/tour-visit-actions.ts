@@ -41,6 +41,10 @@ const MODULE = "MEDICAL" as const;
 const PATH_JOURNEE = "/medical/ma-journee";
 const PATH_TOURNEE = "/medical/plan-de-tournee";
 const PATH_STOCK = CHEMIN_STOCK_PROMO;
+const LECTURES_A_REFAIRE = {
+  pvIa: null, pvIaRaison: null, pvIaExtrait: null, prioriteIa: null, analyseIaLe: null,
+  reluLe: null, reluParId: null, reluCommentaire: null,
+} as const;
 
 /** Le KAM peut-il écrire sur cette visite ? Lui, ou une supervision qui la couvre. */
 async function peutRapporter(
@@ -73,7 +77,7 @@ export async function rapporterVisite(formData: FormData): Promise<ActionResult>
   const visite = await prisma.medicalVisit.findUnique({
     where: { id: visitId },
     select: {
-      id: true, date: true, status: true, delegateId: true, doctorId: true, tourPlanId: true, origin: true,
+      id: true, date: true, status: true, delegateId: true, doctorId: true, tourPlanId: true, origin: true, report: true,
       doctor: { select: { name: true } },
       _count: { select: { productLinks: true, messageLinks: true } },
     },
@@ -170,6 +174,9 @@ export async function rapporterVisite(formData: FormData): Promise<ActionResult>
           // exploitable est dans les liens.
           presentedProducts: produits.map((p) => p.canonicalName).join(", ") || null,
           updatedById: user.id,
+          // UN COMPTE RENDU RÉÉCRIT SE RELIT (Visite médicale 11/2026) : la lecture de l'IA et la relecture du superviseur
+          // portaient sur l'ancien texte. La tâche de fond `terrain.pv-visites` le reprend ; rien ne part d'ici.
+          ...(visite.report === contenu ? {} : LECTURES_A_REFAIRE),
         },
       });
       // Les liens sont REMPLACÉS : corriger un rapport dans sa fenêtre doit pouvoir retirer un

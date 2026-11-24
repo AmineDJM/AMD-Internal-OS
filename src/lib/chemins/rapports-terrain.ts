@@ -45,9 +45,23 @@ export function lienCasPvKam(id: string): string {
 }
 
 /**
- * Le formulaire de signalement — prérempli avec le praticien quand on vient de SA cellule du planning
- * (le serveur relit la fiche dans le périmètre de la personne : l'adresse ne porte qu'un identifiant).
+ * Le formulaire de signalement — prérempli avec le praticien quand on vient de SA cellule du planning, et rattaché à la
+ * VISITE quand on vient de son compte rendu (Visite médicale 11/2026 : la date, le médecin et la phrase que l'IA a
+ * relevée arrivent préremplis). Le serveur relit la fiche et la visite dans le périmètre de la personne : l'adresse ne
+ * porte que des identifiants, jamais un texte qu'on pourrait forger.
  */
-export function lienSignalerPv(praticienId?: string | null): string {
-  return praticienId ? `${CHEMIN_PV_KAM}/nouveau?praticien=${encodeURIComponent(praticienId)}` : `${CHEMIN_PV_KAM}/nouveau`;
+export function lienSignalerPv(praticienId?: string | null, visiteId?: string | null): string {
+  const q = [
+    praticienId ? `praticien=${encodeURIComponent(praticienId)}` : null,
+    visiteId ? `visite=${encodeURIComponent(visiteId)}` : null,
+  ].filter(Boolean).join("&");
+  return q ? `${CHEMIN_PV_KAM}/nouveau?${q}` : `${CHEMIN_PV_KAM}/nouveau`;
+}
+
+/**
+ * RELIRE UN RAPPORT DE VISITE — le panneau de relecture de « Mon équipe terrain » (Force de vente › Pilotage), ouvert
+ * par l'adresse : c'est le lien de la notification « rapport à relire en priorité ».
+ */
+export function lienRelireRapport(visiteId: string): string {
+  return `/planning?relire=${encodeURIComponent(visiteId)}`;
 }

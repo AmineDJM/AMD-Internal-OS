@@ -430,6 +430,12 @@ export function classerExclusionsAttestations(): void {
     "tour-visit-actions:direVisiteNonTenue",
   ]);
 
+  X("RELIRE LE RAPPORT D'UNE VISITE (Visite médicale, Super Admin 11/2026) — le superviseur atteste « j'ai lu ce compte "
+    + "rendu » et peut laisser un mot au délégué ; le rapport sort de sa file. Une attestation de lecture signée de son nom "
+    + "(§118.15) : laisser un modèle la poser ferait sortir de la file un rapport — peut-être un cas de pharmacovigilance — "
+    + "que personne n'a lu. Un clic dans Force de vente › Pilotage (Mon équipe terrain).", [
+    "relecture-visite-actions:relireRapportVisite",
+  ]);
   X("SUPPRIMER UN PLAN DE TOURNÉE EN BROUILLON (Direction, 10/2026) — retire le plan et ses visites planifiées sans rapport ; "
     + "refusé dès qu'une visite a été rapportée. Un geste destructif, en deux clics sur « Mes plans de tournée » (confirmation "
     + "explicite) : pas un geste de conversation.", [

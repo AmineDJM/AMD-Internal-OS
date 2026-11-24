@@ -6,8 +6,10 @@ import { FIELD_REPORT_STATUS } from "@/lib/labels";
 import { platformScope, predicatEntitePermise } from "@/lib/company";
 import { peutSupprimerLeRapport, viewsAllReports } from "@/lib/queries/field-reports";
 import { clauseCasPvVisibles, signaleDesCasPv, voitTousLesCasPv } from "@/lib/pharmacovigilance/acces";
-import { STATUT_PV, estStatutPv } from "@/lib/pharmacovigilance/regles";
-import { lienCasPvKam, lienRapportTerrain } from "@/lib/chemins/rapports-terrain";
+import { STATUT_PV, estStatutPv, lecteurDuCasPv } from "@/lib/pharmacovigilance/regles";
+import { lecteurPv } from "@/lib/pharmacovigilance/acces";
+import { lienCasPvKam, lienRapportTerrain, lienSignalerPv } from "@/lib/chemins/rapports-terrain";
+import { LIBELLE_PV, appelleUnHumain, estNiveauPv } from "@/lib/sfe/rapport-visite";
 import { sansBloquer } from "@/lib/journal";
 import { plier } from "@/lib/utils";
 
@@ -66,6 +68,12 @@ export interface LigneRapport {
   libelleLien: string | null;
   /** Le compte rendu vocal (`FieldReport`) que l'on peut supprimer depuis la feuille — la règle de l'action. */
   suppression: { id: string; nom: string } | null;
+  /** VISITE : la relecture du superviseur — son nom, le jour (ISO), son mot au délégué. */
+  relecture?: { par: string | null; le: string; commentaire: string | null } | null;
+  /** VISITE : les signalements de pharmacovigilance rattachés — le lien seulement pour qui lit le cas. */
+  casPv?: { reference: string; lien: string | null }[];
+  /** VISITE : ce que l'IA a relevé dans le compte rendu (possible / probable) ; `signaler` pour le délégué sans cas lié. */
+  alertePv?: { libelle: string; raison: string | null; extrait: string | null; signaler: string | null } | null;
 }
 
 export interface FiltresRapports {
@@ -134,6 +142,9 @@ export async function chargerListeRapports(user: SessionUser, filtres: FiltresRa
         productLinks: { select: { product: { select: { canonicalName: true } } } },
         messageLinks: { select: { message: { select: { title: true } } } },
         fieldReports: { select: { id: true }, take: 1, orderBy: { createdAt: "asc" } },
+        delegateId: true, doctorId: true, pvIa: true, pvIaRaison: true, pvIaExtrait: true,
+        reluLe: true, reluParId: true, reluCommentaire: true,
+        casPharmacovigilance: { select: { id: true, reference: true, reporterId: true, participants: { select: { userId: true } } } },
       },
     }),
     prisma.fieldReport.findMany({
@@ -168,6 +179,15 @@ export async function chargerListeRapports(user: SessionUser, filtres: FiltresRa
       : [],
   );
 
+  const relecteurs = new Map(
+    visites.some((v) => v.reluParId)
+      ? (await prisma.user.findMany({ where: { id: { in: [...new Set(visites.flatMap((v) => (v.reluParId ? [v.reluParId] : [])))] } }, select: { id: true, name: true } }))
+          .map((u) => [u.id, u.name] as const)
+      : [],
+  );
+  const lecteur = lecteurPv(user);
+  const signale = signaleDesCasPv(user);
+
   type Brute = Omit<LigneRapport, "typeLibelle">;
   const brutes: Brute[] = [
     ...visites.map((v): Brute => ({
@@ -189,6 +209,16 @@ export async function chargerListeRapports(user: SessionUser, filtres: FiltresRa
       lien: v.fieldReports[0] ? lienRapportTerrain(v.fieldReports[0].id) : null,
       libelleLien: v.fieldReports[0] ? "Écouter / relire le vocal" : null,
       suppression: null,
+      relecture: v.reluLe ? { par: v.reluParId ? relecteurs.get(v.reluParId) ?? null : null, le: v.reluLe.toISOString(), commentaire: v.reluCommentaire } : null,
+      casPv: v.casPharmacovigilance.map((c) => ({ reference: c.reference, lien: lecteurDuCasPv(lecteur, c) ? lienCasPvKam(c.id) : null })),
+      // L'IA PRÉVIENT, ELLE NE SIGNALE PAS : le lien « Signaler » n'est offert qu'au délégué de la visite, tant qu'aucun cas
+      // n'y est rattaché.
+      alertePv: appelleUnHumain(v.pvIa) && estNiveauPv(v.pvIa)
+        ? {
+            libelle: LIBELLE_PV[v.pvIa], raison: v.pvIaRaison, extrait: v.pvIaExtrait,
+            signaler: signale && v.delegateId === user.id && v.casPharmacovigilance.length === 0 ? lienSignalerPv(v.doctorId, v.id) : null,
+          }
+        : null,
     })),
     ...comptesRendus.map((r): Brute => {
       const professionnel = r.doctor?.name ?? r.doctorName;

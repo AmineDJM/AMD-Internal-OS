@@ -77,6 +77,14 @@ export async function FicheCasPv({ user, id, retour, base }: {
   // LE PRODUIT MÈNE À SA FICHE PRODUITS 360 — son canonique, ou celui du produit de BU choisi au signalement.
   const produitId = cas.productId ?? (cas.promoProductId ? (await prisma.promoProduct.findUnique({ where: { id: cas.promoProductId }, select: { productId: true } }))?.productId ?? null : null);
   const lienProduit = produitId && userCan(user, "PRODUCTS", "VIEW") ? `/produits/${produitId}` : null;
+  // LA VISITE D'OÙ PART LE CAS (Visite médicale 11/2026) : son compte rendu se lit ici — qui lit le cas lit ce que le
+  // délégué a écrit ce jour-là, sans avoir à le chercher.
+  const visite = cas.visitId
+    ? await prisma.medicalVisit.findUnique({
+        where: { id: cas.visitId },
+        select: { date: true, report: true, doctor: { select: { name: true } }, delegate: { select: { name: true } } },
+      })
+    : null;
 
   return (
     <div className="space-y-5">
@@ -121,6 +129,11 @@ export async function FicheCasPv({ user, id, retour, base }: {
               <Info label="Date de survenue">{formatDate(cas.occurredOn)}</Info>
               <Info label="Signalé le">{formatDateTime(cas.createdAt)}</Info>
               {cas.doctorName && <Info label="Médecin">{cas.doctorName}</Info>}
+              {visite && (
+                <Info label="Visite liée">
+                  {formatDate(visite.date)}{visite.doctor?.name ? ` — ${visite.doctor.name}` : ""}{visite.delegate?.name ? ` (${visite.delegate.name})` : ""}
+                </Info>
+              )}
               <Info label="Gravité">
                 {cas.severity ? <StatusBadge map={GRAVITE_PV} value={cas.severity} dot={false} /> : <span className="text-muted-foreground">Non précisée</span>}
               </Info>
@@ -133,6 +146,12 @@ export async function FicheCasPv({ user, id, retour, base }: {
                 <p className="text-xs text-muted-foreground">Ce qui s&apos;est passé</p>
                 <p className="mt-0.5 whitespace-pre-wrap">{cas.description}</p>
               </div>
+              {visite?.report && (
+                <details className="min-w-0 rounded-lg bg-secondary/40 px-3 py-2 sm:col-span-2">
+                  <summary className="cursor-pointer text-xs text-muted-foreground">Compte rendu de la visite liée</summary>
+                  <p className="mt-1 whitespace-pre-wrap [overflow-wrap:anywhere]">{visite.report}</p>
+                </details>
+              )}
             </CardContent>
           </Card>
 

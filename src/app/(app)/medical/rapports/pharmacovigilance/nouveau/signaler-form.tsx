@@ -22,8 +22,11 @@ export function SignalerCasForm({ produits, etablissements, aujourdhui, initial 
   produits: { id: string; nom: string; bu: string | null; mien: boolean }[];
   etablissements: { id: string; nom: string; lieu: string | null }[];
   aujourdhui: string;
-  /** Le praticien touché dans le planning : son nom et son établissement arrivent préremplis (relus par le serveur). */
-  initial?: { doctorName: string; institutionId: string };
+  /**
+   * Le praticien touché dans le planning : son nom et son établissement arrivent préremplis (relus par le serveur). Venu
+   * du compte rendu d'une visite : la visite à rattacher, sa date, et la phrase relevée comme début de description.
+   */
+  initial?: { doctorName: string; institutionId: string; visitId?: string; occurredOn?: string; description?: string };
 }) {
   const router = useRouter();
   const [qProduit, setQProduit] = React.useState("");
@@ -72,6 +75,7 @@ export function SignalerCasForm({ produits, etablissements, aujourdhui, initial 
 
   return (
     <form onSubmit={envoyer} className="surface space-y-5 p-4 sm:p-5">
+      {initial?.visitId && <input type="hidden" name="visitId" value={initial.visitId} />}
       <div className={champ}>
         <label className={libelle} htmlFor="pv-produit">Produit concerné *</label>
         <Input type="search" enterKeyHint="search" autoComplete="off" value={qProduit} onChange={(e) => setQProduit(e.target.value)} placeholder="Rechercher un produit…" aria-label="Rechercher un produit" />
@@ -106,7 +110,7 @@ export function SignalerCasForm({ produits, etablissements, aujourdhui, initial 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className={champ}>
           <label className={libelle} htmlFor="pv-date">Date de survenue *</label>
-          <Input id="pv-date" type="date" name="occurredOn" defaultValue={aujourdhui} max={aujourdhui} required />
+          <Input id="pv-date" type="date" name="occurredOn" defaultValue={initial?.occurredOn ?? aujourdhui} max={aujourdhui} required />
         </div>
         <div className={champ}>
           <label className={libelle} htmlFor="pv-gravite">Gravité</label>
@@ -120,7 +124,7 @@ export function SignalerCasForm({ produits, etablissements, aujourdhui, initial 
       <div className={champ}>
         <label className={libelle} htmlFor="pv-description">Ce qui s&apos;est passé *</label>
         <Textarea
-          id="pv-description" name="description" required minLength={10} className="min-h-[140px]"
+          id="pv-description" name="description" required minLength={10} className="min-h-[140px]" defaultValue={initial?.description ?? ""}
           placeholder="L'événement observé, quand il est apparu après la prise, la posologie, l'évolution, ce qui a été fait…"
         />
       </div>
