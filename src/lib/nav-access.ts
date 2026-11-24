@@ -8,7 +8,6 @@ import { featureEnabled } from "@/lib/features";
 import { loadReportingLine } from "@/lib/departments";
 import { managesAnyone } from "@/modules/rh/partage";
 import { prisma } from "@/lib/prisma";
-import { estDirecteurDesOperations } from "@/lib/suppression/delegation";
 import { voitTousLesCasPv } from "@/lib/pharmacovigilance/acces";
 import { sansBloquer } from "@/lib/journal";
 import { voitDesRecettes } from "@/modules/recettes/api";
@@ -29,7 +28,7 @@ import { voitDesRecettes } from "@/modules/recettes/api";
  *   1. les modules ACCESSIBLES à la personne (RBAC) ;
  *   2. moins les modules MASQUÉS par l'administration (sauf pour le Super Admin, qui doit
  *      pouvoir vérifier ce qu'il vient d'éteindre) ;
- *   3. moins les entrées dont la GARDE supplémentaire est fermée (analyse CTD, pipeline, paie) ;
+ *   3. moins les entrées dont la GARDE supplémentaire est fermée (analyse CTD, pipeline, Mon équipe) ;
  *   4. pour une entrée à onglets, moins les onglets sans droit ou sans drapeau de nouveauté —
  *      et l'entrée disparaît s'il n'en reste aucun.
  *
@@ -94,10 +93,6 @@ export async function navigationFor(user: SessionUser): Promise<NavItem[]> {
     // ouvre une page vide n'est pas neutre : on la clique, on ne comprend pas, et on finit par
     // demander à l'administrateur ce qui ne marche pas.
     pipeline: seesLockedRegulatory(user),
-    // La PAIE se lit avec le droit de TENIR les RH, pas seulement de les consulter : sa page
-    // renvoie vers /rh sans ce droit. Même règle ici, pour que l'entrée n'existe pas plutôt que
-    // de rebondir — un directeur des opérations n'a rien à faire dans la masse salariale.
-    payroll: userCan(user, "RH", "UPDATE"),
     // « MON ÉQUIPE » n'apparaît qu'à qui encadre RÉELLEMENT quelqu'un. Le module est ouvert à
     // tous (encadrer est un fait d'organigramme, pas un rôle), mais l'entrée n'a de sens que
     // pour celui qui a des N-1 : sans eux, l'écran est vide, on le clique, on ne comprend pas,
@@ -107,8 +102,9 @@ export async function navigationFor(user: SessionUser): Promise<NavItem[]> {
     // tout le monde ; c'est CE prédicat — le même que l'écran, les actions, les outils et le
     // moteur — qui décide de l'entrée. Une entrée que la page refuserait n'est pas envoyée.
     adamMissions: peutPiloterMissionsAdam(user),
-    // LA CORBEILLE DE SES MODULES — au directeur des opérations (le Super Admin a la sienne dans l'Administration).
-    corbeilleOps: user.role !== "SUPER_ADMIN" && estDirecteurDesOperations(user),
+    // LA CORBEILLE DE SES MODULES — la clé `CORBEILLE` (console) décide ; cette garde ne fait que retirer l'entrée au Super
+    // Admin, qui a la sienne dans la Console d'Administration (la page l'y renvoie).
+    corbeilleOps: user.role !== "SUPER_ADMIN",
     // ADAM (assistant + chief of staff) : le Super Admin seul (§118.153). La palette suit le menu.
     adam: peutVoirAdam(user),
     // LA BOÎTE DE PHARMACOVIGILANCE (Direction, 06/10) : à qui REÇOIT les cas (portée TOUT). Le KAM qui signale lit
@@ -116,10 +112,9 @@ export async function navigationFor(user: SessionUser): Promise<NavItem[]> {
     pharmacovigilance: voitTousLesCasPv(user),
     // LES RECETTES (J10) : le module `RECETTES` (lot R1, console) PUIS la Direction, un responsable de processus, ou qui voit le circuit d'une recette.
     recettes: await voitDesRecettes(user).catch(sansBloquer("nav-access.navigationFor.voitDesRecettes", false)),
-    // LE PARCOURS AGENCE (15/11/2026) : la file de l'assistante (et de la Direction Marketing qui la suit), celle de
-    // l'information médicale, et « Ma signature » pour qui signe des bons de commande en ligne.
-    agences: hasRole(user, "DIRECTION_ASSISTANT") || hasRole(user, "PRODUCT_MANAGER") || hasRole(user, "SUPER_ADMIN"),
-    conformite: hasRole(user, "MEDICAL_INFO_PHARMACIST") || hasRole(user, "SUPER_ADMIN"),
+    // LE PARCOURS AGENCE (15/11/2026) : « Ma signature » pour qui signe des bons de commande en ligne. La file
+    // « Prospection d'agences » et les « Contrôles de conformité » ont chacun leur clé (24/11/2026) : l'entrée suit le
+    // module, réglé dans la console, et non plus une liste de rôles.
     signatureEnLigne: hasRole(user, "PRODUCT_MANAGER") || hasRole(user, "SUPER_ADMIN") || userCan(user, "PURCHASE_ORDERS", "UPDATE"),
   };
 
@@ -153,6 +148,13 @@ export async function navigationFor(user: SessionUser): Promise<NavItem[]> {
     // MISE DE CÔTÉ (`masque`) : pour tout le monde, Super Admin compris — la route reste servie, l'entrée ne s'affiche plus.
     if (n.masque) return acc;
     if (n.gate && !gateOpen[n.gate]) return acc;
+    // UN GROUPE SANS ÉCRAN (Finances, 24/11/2026) : il n'existe que par ses enfants ouverts, et mène au premier — le module
+    // du parent seul ne l'ouvre pas, sinon l'entrée redirigerait vers un écran fermé.
+    if (n.sansEcran) {
+      const ouverts = (n.children ?? []).filter((c) => (!c.gate || gateOpen[c.gate]) && moduleOuvert(c));
+      if (ouverts.length > 0) acc.push({ ...n, href: ouverts[0].href, children: ouverts });
+      return acc;
+    }
     const kids = allowedChildren(n);
     if (!n.tabs) {
       if (moduleOuvert(n)) acc.push(kids.length ? { ...n, children: kids } : { ...n, children: undefined });

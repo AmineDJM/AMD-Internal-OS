@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { groupIntoPoles, itemsOfGroup, poleOfPath, aliasMatches, ongletActif, POLE_OPEN_THRESHOLD, NAV_POLES } from "./navigation";
-import { EVENTS_TABS, NAVIGATION, STOCK_PROMO_TABS, type NavItem } from "./labels";
+import { EVENTS_TABS, NAVIGATION, STOCK_PROMO_TABS, firstAccessibleHref, type NavItem } from "./labels";
 import { CHEMIN_CATALOGUE_PROMO, CHEMIN_STOCK_PROMO } from "./chemins/stock-promo";
 import { MODULES } from "./rbac";
 import { CHEMIN_BONS_DE_COMMANDE } from "@/lib/chemins/bons-de-commande";
@@ -104,13 +104,15 @@ describe("pôles — projection du RBAC, jamais une source de droit", () => {
    * du pôle suit le fil du produit : terrain, montage, marchés, ventes, puis la chaîne physique, la consommation et les
    * retours. Seul le RANGEMENT change : chaque entrée suit toujours SON module.
    */
-  it("Stocks et Logistique sont dans Operations & Sales, après les marchés ; plus de pôle Supply Chain", () => {
+  it("Stocks est dans Operations & Sales, après les marchés ; plus de pôle Supply Chain ; plus d'entrée Logistique", () => {
     expect(NAV_POLES.map((p) => p.key as string)).not.toContain("SUPPLY_CHAIN");
     const ops = groupIntoPoles(accessible([...MODULES])).find((p) => p.key === "OPERATIONS_SALES")!.children.map((c) => c.label);
     const i = (l: string) => ops.indexOf(l);
-    for (const l of ["Stocks", "Logistique"]) expect(ops, l).toContain(l);
+    expect(ops).toContain("Stocks");
     expect(i("Stocks")).toBeGreaterThan(i("Marchés PCH"));
-    expect(i("Logistique")).toBe(i("Stocks") + 1);
+    // LOGISTIQUE : module RETIRÉ du service (`modules-retired.ts`) — son entrée, qui ne s'affichait pour personne, est
+    // sortie du menu (24/11/2026). Une entrée morte au catalogue ressortait dans la console et les audits.
+    expect(NAVIGATION.some((n) => n.module === "LOGISTICS" || n.href === "/logistics")).toBe(false);
     // Le rangement n'ouvre rien : sans STOCKS, pas d'entrée Stocks.
     expect(groupIntoPoles(accessible(["PCH"])).flatMap((p) => p.children.map((c) => c.label))).not.toContain("Stocks");
     expect(NAVIGATION.some((n) => n.href === "/retours-reclamations")).toBe(false);
@@ -159,7 +161,8 @@ describe("pôles — projection du RBAC, jamais une source de droit", () => {
     const rh = NAVIGATION.find((n) => n.href === "/rh")!;
     // LES SOUS-MODULES RH (Direction, 06/10 ; le Recrutement les rejoint le 07/10) : chacun son module, réglable dans la console.
     expect(rh.children?.map((c) => c.href)).toEqual(["/rh/equipe", "/rh/demandes", "/recrutement", "/formations", "/rh/paie"]);
-    expect(rh.children?.map((c) => c.module)).toEqual(["EMPLOYEES", "HR_REQUESTS", "RECRUITMENT", "TRAINING", "RH"]);
+    // La PAIE a sa clé depuis le 24/11/2026 (`PAIE`, réglée dans la console ; par défaut qui modifie les RH).
+    expect(rh.children?.map((c) => c.module)).toEqual(["EMPLOYEES", "HR_REQUESTS", "RECRUITMENT", "TRAINING", "PAIE"]);
     // Le recrutement a QUITTÉ « Mon Équipe » : une entrée simple, sans sous-menu ni chemin du recrutement.
     const equipe = NAVIGATION.find((n) => n.href === "/mon-equipe")!;
     expect(equipe.children ?? []).toEqual([]);
@@ -248,7 +251,7 @@ describe("poleOfPath — le tiroir de la page courante s'ouvre tout seul", () =>
     expect(poleOfPath(poles, "/pch/abc123")).toBe("OPERATIONS_SALES");
     expect(poleOfPath(poles, "/business-units/secteurs")).toBe("OPERATIONS_SALES");
     expect(poleOfPath(poles, "/site-web")).toBe("MARKETING");
-    expect(poleOfPath(poles, "/logistics")).toBe("OPERATIONS_SALES");
+    expect(poleOfPath(poles, "/logistics")).toBeNull(); // Logistique : retirée du service et du menu (24/11/2026)
     expect(poleOfPath(poles, "/stocks/demandes")).toBe("OPERATIONS_SALES");
     expect(poleOfPath(poles, "/moyens-generaux")).toBe("ADMINISTRATION");
   });
@@ -305,7 +308,7 @@ describe("aucune route n'a changé — les liens historiques restent valides", (
     for (const expected of [
       "/regulatory", "/regulatory/enregistrement", "/moyens-generaux", "/finances", "/rh",
       "/budgets", "/sales", "/medical", "/planning", "/field-reports", "/sponsoring",
-      "/information-medicale", "/pch", "/logistics", "/stocks",
+      "/information-medicale", "/pch", "/stocks",
       // BUSINESS_DEVELOPMENT est retiré du service et sa racine n'a plus d'entrée : c'est
       // « Projets », le sous-module qui lui survit, qui porte désormais le pôle
       // (`modules-retired.ts`, SOUS_MODULES_MAINTENUS).
@@ -325,13 +328,18 @@ describe("aucune route n'a changé — les liens historiques restent valides", (
   });
 });
 
-describe("Finances — deux écrans, et cliquer le module conduit au travail", () => {
+describe("Finances — trois écrans, et cliquer le module conduit au travail", () => {
   const finances = NAVIGATION.find((n) => n.label === "Finances");
 
-  it("CLIQUER « FINANCES » MÈNE À « BANQUE & PAIEMENTS »", () => {
+  it("CLIQUER « FINANCES » MÈNE AU PREMIER ÉCRAN OUVERT — le groupe n'a pas d'écran à lui", () => {
     // Le tableau de bord ne portait aucun geste : on y regardait, puis on allait travailler
     // ailleurs. L'entrée parente ne doit donc pas ouvrir une page d'accueil qu'il faut quitter.
-    expect(finances?.href).toBe("/finances/paiements-a-faire");
+    // Depuis le 24/11/2026, chaque écran a sa clé : le groupe mène au premier ouvert (`sansEcran`, `nav-access.ts`), et
+    // `firstAccessibleHref` ne propose jamais le lien du groupe lui-même.
+    expect(finances?.sansEcran).toBe(true);
+    expect(finances?.children?.map((c) => c.module)).toEqual(["FINANCES_BANQUE", "FINANCES_COMPTABILITE", "FINANCES_DOUBLONS"]);
+    expect(firstAccessibleHref((m) => m === "FINANCES" || m === "FINANCES_COMPTABILITE")).toBe("/finances/comptabilite");
+    expect(firstAccessibleHref((m) => m === "FINANCES")).toBeNull();
   });
 
   it("LE « DASHBOARD » N'EST PLUS UN SOUS-MODULE, et ceux qui restent sont nommés", () => {

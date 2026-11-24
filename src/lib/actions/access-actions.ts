@@ -12,6 +12,7 @@ import { clearAttempts } from "@/lib/login-throttle";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { refusAdministration, type GesteAdministration } from "@/lib/admin/garde-comptes";
 import { ANNUAIRES_ACCORDABLES, lireSections } from "@/lib/annuaires/acces";
+import { isRetiredModule } from "@/lib/modules-retired";
 
 /** Only a Super Admin (ADMIN/UPDATE) may manage accounts & access. */
 async function requireAdmin() {
@@ -69,6 +70,8 @@ export async function saveAccessMatrix(formData: FormData): Promise<ActionResult
   if (refus) return { ok: false, error: refus };
 
   for (const module of MODULES) {
+    // Un module retiré n'est plus présenté (fiche de la personne) : on ne réécrit pas ce que l'écran n'a pas montré.
+    if (isRetiredModule(module)) continue;
     const mode = fdStr(formData, `mode_${module}`) ?? "DEFAULT";
     if (mode === "DEFAULT") {
       await prisma.userAccess.deleteMany({ where: { userId, module } });
@@ -116,6 +119,8 @@ export async function saveModuleAccess(formData: FormData): Promise<ActionResult
   if (!admin) return { ok: false, error: "Réservé au Super Admin." };
   const module = fdStr(formData, "module") as Module | null;
   if (!module || !MODULES.includes(module)) return { ok: false, error: "Module manquant." };
+  // Un module RETIRÉ du service n'ouvre rien à personne (`modules-retired.ts`) : y écrire des accès laisserait croire le contraire.
+  if (isRetiredModule(module)) return { ok: false, error: "Ce module est retiré du service : ses accès ne se règlent plus. Rien n'a été enregistré." };
   const userIds = formData.getAll("userId").map(String).filter(Boolean);
   const supported = supportedActions(module);
   // TOUT OU RIEN : une seule cible refusée fait tomber l'enregistrement, jamais seulement sa ligne.

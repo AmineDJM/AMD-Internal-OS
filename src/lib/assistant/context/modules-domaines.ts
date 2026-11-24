@@ -109,6 +109,11 @@ export const SERVICE_DU_MODULE: Record<CleModule, ServiceDuModule> = {
   // Campagne budgétaire (10/2026) — propositions des pôles, revue, arbitrage. Aucun outil d'Adam : gestes d'écran.
   BUDGET_CAMPAIGN: { domaines: ["FINANCE"], mots: ["campagne budgetaire", "budget 2027", "budgets 2027", "proposition budgetaire", "arbitrage budgetaire"] },
   FINANCES: { domaines: ["FINANCE"] },
+  // Les trois écrans des Finances et la Paie (24/11/2026) : servis par les mêmes outils que leur module d'origine.
+  FINANCES_BANQUE: { domaines: ["FINANCE"] },
+  FINANCES_COMPTABILITE: { domaines: ["FINANCE"] },
+  FINANCES_DOUBLONS: { domaines: ["FINANCE"] },
+  PAIE: { domaines: ["HR"] },
   RH: { domaines: ["HR"] },
   RECRUITMENT: { domaines: ["HR"] },
   EMPLOYEES: { domaines: ["HR"], mots: ["employes", "equipe", "consultants", "departements", "fiche salarie"] },
@@ -120,6 +125,11 @@ export const SERVICE_DU_MODULE: Record<CleModule, ServiceDuModule> = {
   // Direction artistique (10/2026) — papeterie par entité. Aucun outil d'Adam : gestes d'écran.
   ART_DIRECTION: { domaines: ["DRIVE"], mots: ["direction artistique", "papier en-tete", "papier entete", "modele de bon de commande", "charte graphique"] },
   // Recettes (J10, lot R1) — les procédures validées : l'outil `recette_pour` les sert, sous le module.
+  // Des PORTES d'écran (24/11/2026) : le parcours agence est servi par les outils d'Ad & Pro, les contrôles de conformité par
+  // ceux de l'information médicale. La corbeille n'a aucun outil : restaurer est un geste d'écran.
+  PROSPECTION_AGENCES: { domaines: ["MISSION", "FINANCE"] },
+  CONTROLES_CONFORMITE: { domaines: ["REGULATORY"] },
+  CORBEILLE: { domaines: [] },
   RECETTES: { domaines: ["MISSION"], mots: ["recettes de la maison", "comment on fait chez nous", "procedure validee"], outils: [] },
   ADMIN: { domaines: ["ADMIN"] },
   PCH: { domaines: ["REGULATORY"], outils: ["pch_operation", "pch_market_status"] },

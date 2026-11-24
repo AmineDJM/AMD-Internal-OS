@@ -90,7 +90,7 @@ export default async function MarketingCockpitPage(
           {base.strategie && userCan(user, "SEGMENTATION", "VIEW") && <MenuLien href={`/segmentation?s=${base.strategie.id}`}>Segmentation de la BU</MenuLien>}
           <MenuLien href={`/business-units/${bu.id}`}>Cockpit de la BU</MenuLien>
           {peutGererSpecialites(user, "VIEW") && <MenuLien href="/annuaires/specialites">Spécialités (Annuaires)</MenuLien>}
-          {voitMarche && <MenuLien href="/business-development/marche">Intelligence marché</MenuLien>}
+          {voitMarche && <MenuLien href="/explorateur-produits">Explorateur produits</MenuLien>}
         </MenuDossier>
       </PageHeader>
 

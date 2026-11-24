@@ -1,7 +1,7 @@
 "use server";
 
 import { requireUser } from "@/lib/session";
-import { peutVoirAdam, REFUS_ADAM } from "@/lib/rbac";
+import { ouvreLeBureauAdam, REFUS_BUREAU_ADAM } from "@/lib/rbac";
 import { decideValidation } from "@/lib/actions/validation-actions";
 import { decidePayment } from "@/modules/finances/actions-centre";
 import { deciderAccordMission, fournirElementMission } from "@/lib/actions/mission-runtime-actions";
@@ -23,9 +23,9 @@ export interface ResultatGeste { ok: boolean; message: string }
  */
 export async function agirSurCarte(geste: Geste, saisie?: string | null): Promise<ResultatGeste> {
   const user = await requireUser();
-  // La boîte de décision est un écran d'Adam, réservé au Super Admin (§118.153). Les mêmes
-  // décisions restent ouvertes à chacun depuis l'écran de leur module — rien n'est retiré.
-  if (!peutVoirAdam(user)) return { ok: false, message: REFUS_ADAM };
+  // La boîte de décision est un onglet du bureau d'Adam : sa clé (`CHIEF_OF_STAFF`, console — Super Admin seul par défaut).
+  // Les mêmes décisions restent ouvertes à chacun depuis l'écran de leur module — rien n'est retiré.
+  if (!ouvreLeBureauAdam(user)) return { ok: false, message: REFUS_BUREAU_ADAM };
   if (!estGesteValide(geste)) return { ok: false, message: "Geste inconnu : rien n'a été fait." };
   const texte = (saisie ?? "").trim().slice(0, 2000);
 

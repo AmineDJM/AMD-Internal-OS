@@ -14,16 +14,38 @@
  *
  * ── QUI Y SIÈGE ─────────────────────────────────────────────────────────────────────────────
  *
- * Le **Directeur Général** et le **Super Admin**. Pas le PDG : le centre de PAIEMENT est le sien,
- * et donner les deux à la même personne referait l'écran fourre-tout qu'on vient de découper.
- * C'est une décision d'organisation, écrite ici pour qu'on sache qu'elle a été prise.
+ * Par DÉFAUT, le **Directeur Général** et le **Super Admin**. Pas le PDG : le centre de PAIEMENT est
+ * le sien, et donner les deux à la même personne referait l'écran fourre-tout qu'on vient de découper.
+ * C'est une décision d'organisation ; depuis le 24/11/2026, la console la règle personne par personne
+ * (`ouvreLeCentreDeValidations`).
  *
  * Module PUR — testé, sans base ni session : cette règle décide de qui voit passer les décisions
  * de toute l'entreprise, elle doit pouvoir se lire sans rien exécuter.
  */
 
-/** Siège au centre de validations : le Directeur Général et le Super Admin, personne d'autre. */
-export function sitsOnValidationCentre(user: { role: string }): boolean {
+import { accesOuvertParLaConsole, type AccesStructurel } from "@/lib/rbac/acces-structurel";
+
+/**
+ * QUI OUVRE LE CENTRE DE VALIDATIONS — la clé `VALIDATION_CENTRE` en « Voir », telle que la console la règle, et elle seule
+ * (Super Admin, 24/11/2026). C'est LA définition de « avoir accès au Centre de validations » : l'écran, le réglage du seuil
+ * des bons de commande et le visa d'un document Legal la lisent, et toute règle qui dira demain « les personnes qui ont accès
+ * au Centre de validations » (la décision des BV Regulatory) doit la lire aussi — jamais une liste de rôles recopiée.
+ *
+ * Hier, la règle était DOUBLE : le module (`requireModule`) ET le rôle principal (Directeur Général ou Super Admin). Accorder
+ * le module à quelqu'un dans Administration › Accès lui donnait une entrée de menu menant à une page introuvable ; c'était la
+ * console qui mentait. Le DÉFAUT reproduit exactement hier — `VALIDATION_CENTRE` est au Directeur Général et au Super Admin
+ * (`PERMISSIONS`) ; la migration `modules_configurables` bloque le module à qui le tenait sans y entrer (un « autre rôle » de
+ * DG, un accès coché qui n'ouvrait rien). Ensuite : accorder ouvre, bloquer ferme — un DG bloqué ne l'ouvre plus.
+ *
+ * Le geste est « Voir » : le centre ne montre que ce qui est ADRESSÉ à la personne, et chaque décision reste celle du
+ * validateur nommé de l'étape — ouvrir le centre ne donne aucun droit de trancher pour autrui. Un geste PRÊTÉ par un intérim
+ * ne compte pas (le centre n'est jamais délégué, `hr/stand-in.ts`).
+ *
+ * Sans accès résolu (règle appelée avec un simple `{ role }`), on lit le défaut : le Directeur Général et le Super Admin.
+ */
+export function ouvreLeCentreDeValidations(user: { role: string; access?: AccesStructurel }): boolean {
+  const parLaConsole = accesOuvertParLaConsole(user.access, "VALIDATION_CENTRE", "VIEW");
+  if (parLaConsole !== null) return parLaConsole;
   return user.role === "SUPER_ADMIN" || user.role === "GENERAL_MANAGER";
 }
 

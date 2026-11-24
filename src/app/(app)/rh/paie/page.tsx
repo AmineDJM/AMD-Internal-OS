@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { requireModule } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
@@ -27,8 +26,9 @@ export const dynamic = "force-dynamic";
  */
 export default async function PaiePage(props: { searchParams: Promise<{ year?: string }> }) {
   const searchParams = await props.searchParams;
-  const user = await requireModule("RH");
-  if (!userCan(user, "RH", "UPDATE")) redirect("/mon-dossier");
+  // LA PORTE DE L'ÉCRAN EST SA CLÉ, `PAIE` (24/11/2026) — par défaut qui MODIFIE les RH, la garde d'hier ; réglée ensuite
+  // personne par personne dans la console. SAISIR (salaires, virements, avances) reste au droit des RH : chaque action le relit.
+  const user = await requireModule("PAIE");
 
   const year = Math.min(2100, Math.max(2020, Number(searchParams.year) || new Date().getFullYear()));
 

@@ -9,7 +9,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAu
 
 import { prisma } from "@/lib/prisma";
 import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
-import { getAccess, peutVoirAdam, REFUS_ADAM, type SessionUser } from "@/lib/rbac";
+import { getAccess, peutVoirAdam, REFUS_ADAM, REFUS_BUREAU_ADAM, type SessionUser } from "@/lib/rbac";
 import { executeAssistantAction, assistantChat } from "@/lib/actions/assistant-actions";
 import { setAdamMailPolicy } from "@/lib/actions/adam-settings-actions";
 import { agirSurCarte } from "@/platform/in-process/inbox/actions";
@@ -66,25 +66,26 @@ describe("les portes d'Adam lisent la règle (points d'appel, §118.49)", () => 
     const assistant = sansCommentaires(lire("src/app/(app)/assistant/page.tsx"));
     const garde = assistant.indexOf("if (!peutUtiliserAssistantIA(user)) notFound();");
     expect(garde, "/assistant doit refuser qui n'a pas l'Assistant IA").toBeGreaterThan(0);
-    // La règle d'Adam n'y ouvre RIEN : elle ne décide que des onglets de l'ex-« My Chief of Staff », au Super Admin seul
-    // (02/11/2026) — c'est sa SEULE occurrence.
-    expect(assistant.match(/peutVoirAdam\(/g)?.length ?? 0).toBe(1);
-    expect(assistant).toContain("{peutVoirAdam(user) ? <OngletsAdam /> : null}");
+    // La règle d'Adam n'y ouvre RIEN. Les onglets de l'ex-« My Chief of Staff » suivent la clé du bureau (`CHIEF_OF_STAFF`,
+    // `ouvreLeBureauAdam`, 24/11/2026 — Super Admin seul par défaut) : c'est la SEULE règle lue en plus de l'Assistant IA.
+    expect(assistant.match(/peutVoirAdam\(/g)?.length ?? 0).toBe(0);
+    expect(assistant).toContain("{ouvreLeBureauAdam(user) ? <OngletsAdam /> : null}");
     // Le brief est payé par un modèle : s'il est chargé, c'est APRÈS la garde. L'interface actuelle
     // n'en charge pas — la garde reste exigée, l'ordre n'a alors rien à protéger.
     const brief = assistant.indexOf("getDailyBrief(");
     if (brief >= 0) expect(garde, "la garde passe AVANT le brief (payé par un modèle)").toBeLessThan(brief);
-    // Le bureau a déménagé dans l'onglet « Bureau d'Adam » (02/11/2026) : sa garde l'a suivi, et son segment a la sienne.
-    expect(sansCommentaires(lire("src/app/(app)/adam/bureau/page.tsx"))).toContain("if (!peutVoirAdam(user)) notFound();");
-    expect(sansCommentaires(lire("src/app/(app)/adam/layout.tsx")).indexOf("await exigerAdamVisible();")).toBeGreaterThan(0);
+    // Le bureau a déménagé dans l'onglet « Bureau d'Adam » (02/11/2026) : sa garde l'a suivi, et son segment a la sienne —
+    // la clé du bureau depuis le 24/11/2026 (`ouvreLeBureauAdam`, `exigerBureauAdam`).
+    expect(sansCommentaires(lire("src/app/(app)/adam/bureau/page.tsx"))).toContain("if (!ouvreLeBureauAdam(user)) notFound();");
+    expect(sansCommentaires(lire("src/app/(app)/adam/layout.tsx")).indexOf("await exigerBureauAdam();")).toBeGreaterThan(0);
     // Le SEGMENT passe par la porte du PONT (la règle lue en direct coûtait deux franchissements
     // de frontière) : on exige l'APPEL dans le gabarit ET la garde dans la porte — vérifier l'un
     // sans l'autre ne prouverait rien (§118.49).
     const gabarit = sansCommentaires(lire("src/app/(app)/chief-of-staff/layout.tsx"));
-    expect(gabarit.indexOf("await exigerAdamVisible();"), "le gabarit appelle la porte AVANT de rendre").toBeGreaterThan(0);
-    expect(gabarit.indexOf("await exigerAdamVisible();")).toBeLessThan(gabarit.indexOf("{children}"));
+    expect(gabarit.indexOf("await exigerBureauAdam();"), "le gabarit appelle la porte AVANT de rendre").toBeGreaterThan(0);
+    expect(gabarit.indexOf("await exigerBureauAdam();")).toBeLessThan(gabarit.indexOf("{children}"));
     const porte = sansCommentaires(lire("src/platform/in-process/visibilite-adam.ts"));
-    expect(porte).toMatch(/export async function exigerAdamVisible\(\) \{\s*const user = await requireUser\(\);\s*if \(!peutVoirAdam\(user\)\) notFound\(\);/);
+    expect(porte).toMatch(/export async function exigerBureauAdam\(\) \{\s*const user = await requireUser\(\);\s*if \(!ouvreLeBureauAdam\(user\)\) notFound\(\);/);
   });
 
   it("les routes d'API de la conversation et de la dictée répondent 403", () => {
@@ -130,13 +131,16 @@ describe("les portes d'Adam lisent la règle (points d'appel, §118.49)", () => 
     expect(sansGarde).toEqual([...REDUCTEURS].sort());
   });
 
-  it("les réglages d'Adam et sa boîte de décision exigent la même règle", () => {
+  it("les réglages d'Adam et sa boîte de décision exigent la clé du bureau (24/11/2026)", () => {
+    // Le bureau s'ouvre par sa clé (`CHIEF_OF_STAFF`, `ouvreLeBureauAdam`) — plus par le rôle Super Admin. Les RÉGLAGES
+    // relisent en plus la vue globale, exactement comme leur écran (brancher l'identité de communication de la direction) :
+    // une action serveur s'appelle sans passer par l'écran, elle ne doit pas être plus large que lui.
     const reglages = sansCommentaires(lire("src/lib/actions/adam-settings-actions.ts"));
     const garde = reglages.slice(reglages.indexOf("async function requireChief"), reglages.indexOf("export async function setAdamMailPolicy"));
-    expect(garde).toContain("if (!peutVoirAdam(user)) return { error: REFUS_ADAM, user: null };");
-    expect(reglages, "l'ancienne porte (vue globale) ne doit pas survivre à côté").not.toContain("hasGlobalView");
+    expect(garde).toContain("if (!ouvreLeBureauAdam(user) || !hasGlobalView(user)) return { error: REFUS_BUREAU_ADAM, user: null };");
+    expect(sansCommentaires(lire("src/app/(app)/adam/reglages/page.tsx")), "l'écran lit la même vue globale").toContain("if (!hasGlobalView(user))");
     const boite = sansCommentaires(lire("src/platform/in-process/inbox/actions.ts"));
-    const i = boite.indexOf("if (!peutVoirAdam(user)) return { ok: false, message: REFUS_ADAM };");
+    const i = boite.indexOf("if (!ouvreLeBureauAdam(user)) return { ok: false, message: REFUS_BUREAU_ADAM };");
     expect(i).toBeGreaterThan(0);
     expect(i, "la règle passe AVANT tout geste").toBeLessThan(boite.indexOf("estGesteValide(geste)"));
   });
@@ -204,7 +208,7 @@ suite("les actions serveur d'Adam, appelées sans passer par l'écran", () => {
 
   it("la boîte de décision : refusée à la Direction ; le Super Admin atteint la validation du geste", async () => {
     ACTOR = await acteur(u.dir, "DIRECTION");
-    expect(await agirSurCarte({ kind: "__inconnu__" } as never)).toEqual({ ok: false, message: REFUS_ADAM });
+    expect(await agirSurCarte({ kind: "__inconnu__" } as never)).toEqual({ ok: false, message: REFUS_BUREAU_ADAM });
     ACTOR = await acteur(u.sa, "SUPER_ADMIN");
     expect((await agirSurCarte({ kind: "__inconnu__" } as never)).message).toMatch(/Geste inconnu/);
   });
@@ -212,7 +216,7 @@ suite("les actions serveur d'Adam, appelées sans passer par l'écran", () => {
   it("les réglages : refusés à la Direction ; le Super Admin passe (politique INCHANGÉE — rien n'est écrit)", async () => {
     const actuelle = (await getCommunicationPolicy()).mailSendPolicy;
     ACTOR = await acteur(u.dir, "DIRECTION");
-    expect(await setAdamMailPolicy(actuelle)).toEqual({ ok: false, error: REFUS_ADAM });
+    expect(await setAdamMailPolicy(actuelle)).toEqual({ ok: false, error: REFUS_BUREAU_ADAM });
     ACTOR = await acteur(u.sa, "SUPER_ADMIN");
     expect(await setAdamMailPolicy(actuelle)).toEqual({ ok: true });
     expect((await getCommunicationPolicy()).mailSendPolicy).toBe(actuelle);

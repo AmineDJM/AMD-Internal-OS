@@ -26,11 +26,12 @@ export const PERMISSIONS: Record<UserRole, RoleMatrix> = {
     // Le stock promotionnel (§118.164) : la Direction des opérations a la vue globale ET la gestion
     // du matériel de ses équipes. La règle (`promo/stock-acces.ts`) dit lesquelles.
     PROMO_STOCK: CONTRIBUTE,
-    // Le CENTRE DE PAIEMENT : le PDG y siège avec le Directeur Général et le Super Admin
-    // (règle sitsOnPaymentCentre, lib/payments/authorization.ts).
+    // Le CENTRE DE PAIEMENT : le PDG y siège avec le Directeur Général et le Super Admin. Depuis le 24/11/2026, siéger,
+    // c'est avoir ce module (`sitsOnPaymentCentre`) : la console l'accorde ou le bloque personne par personne.
     PAYMENT_CENTRE: MANAGE,
-    // « My Chief of Staff » — l'interface exécutive, même cercle que le centre de paiement.
-    CHIEF_OF_STAFF: MANAGE,
+    // « My Chief of Staff » (le bureau d'Adam, onglets Boîte / Réglages / Bureau) N'EST PLUS dans ses défauts (24/11/2026) :
+    // les onglets exigeaient en plus le rôle Super Admin, si bien que la Direction portait une clé qui n'ouvrait rien. La
+    // clé seule décide désormais (`ouvreLeBureauAdam`) ; par défaut, le Super Admin seul — l'état d'hier.
     VALIDATIONS: [...VALIDATION_USER, "VALIDATE"], DIRECTIVES: MANAGE, SUPPORT: MANAGE, DOSSIERS: MANAGE,
     NOTIFICATIONS: ["VIEW"],
     // Le SITE PUBLIC (§118.158) : les articles de blog et l'état de la publication.
@@ -71,10 +72,10 @@ export const PERMISSIONS: Record<UserRole, RoleMatrix> = {
     VALIDATION_CENTRE: MANAGE,
     // LE CENTRE DE VALIDATION AD & PRO — décision de la Direction (09/2026). Le Directeur
     // Général y arbitre les demandes au-dessus du seuil et RÈGLE ce seuil. Le siège réel est la
-    // règle pure `siegeAuCentreAdPro` : le module ouvre la porte, la règle dit qui s'assied.
+    // règle `siegeAuCentreAdPro`, qui lit ce module depuis le 24/11/2026 : la console l'accorde ou le bloque.
     AD_PRO_CENTRE: MANAGE,
     // LE CENTRE DE PAIEMENT « Direction Générale » (Direction, 27/10) : le DG y siège avec le PDG et le
-    // Super Admin — la règle `sitsOnPaymentCentre` (lib/payments/authorization.ts) dit qui s'assied.
+    // Super Admin — siéger, c'est avoir ce module (`sitsOnPaymentCentre`, réglé dans la console depuis le 24/11/2026).
     PAYMENT_CENTRE: MANAGE,
     NOTIFICATIONS: ["VIEW"],
     // Le SITE PUBLIC (§118.158) — tous les pouvoirs métier, la communication de l'entreprise comprise.
@@ -533,4 +534,51 @@ for (const [role, actions] of Object.entries(ART_DIRECTION_PAR_DEFAUT) as [UserR
 const RECETTES_PAR_DEFAUT: Action[] = ["VIEW", "VALIDATE"];
 for (const role of Object.keys(PERMISSIONS) as UserRole[]) {
   if (!PERMISSIONS[role].RECETTES) PERMISSIONS[role].RECETTES = role === "DIRECTION" ? ["VIEW", "UPDATE", "VALIDATE"] : [...RECETTES_PAR_DEFAUT];
+}
+
+/**
+ * LES TROIS ÉCRANS DES FINANCES PAR DÉFAUT (Super Admin, 24/11/2026) — les mêmes personnes qu'hier, avec les mêmes gestes :
+ * chaque rôle qui tenait `FINANCES` reçoit, sur Banque & paiements, Comptabilité et Doublons de factures, EXACTEMENT ses gestes
+ * de `FINANCES` (les trois écrans vivaient sous cette clé). Les accès personnalisés ou bloqués déjà posés sur `FINANCES` sont
+ * recopiés par la migration `modules_configurables`. Ce n'est qu'un DÉFAUT : la console règle ensuite chaque écran personne par
+ * personne, indépendamment des deux autres et du métier Finances transverse.
+ *
+ * « Examiner » un groupe de doublons demandait `FINANCES` Modifier OU la vue globale (`hasGlobalView`) : la vue globale est
+ * celle du Super Admin et de la Direction, qui ont tous deux Modifier sur `FINANCES` par défaut — la copie le leur donne déjà.
+ */
+const ECRANS_FINANCES: Module[] = ["FINANCES_BANQUE", "FINANCES_COMPTABILITE", "FINANCES_DOUBLONS"];
+for (const role of Object.keys(PERMISSIONS) as UserRole[]) {
+  if (role === "SUPER_ADMIN") continue;
+  const matrice = PERMISSIONS[role];
+  const finances = matrice.FINANCES;
+  if (!finances) continue;
+  for (const m of ECRANS_FINANCES) if (!matrice[m]) matrice[m] = [...finances];
+  if (role === "DIRECTION" && !matrice.FINANCES_DOUBLONS!.includes("UPDATE")) matrice.FINANCES_DOUBLONS!.push("UPDATE");
+}
+
+/**
+ * LES ÉCRANS QUI S'OUVRAIENT PAR UN RÔLE CODÉ EN DUR (Super Admin, 24/11/2026) — leur défaut reproduit la règle d'hier, et la
+ * console règle ensuite chacun personne par personne. La clé n'ouvre que l'ÉCRAN (« Voir ») : les gestes du métier gardent leur
+ * règle, lue dans l'écran (le rôle de l'assistante ou de la Direction Marketing dans le parcours agence, la décision du
+ * pharmacien responsable sur un contrôle, le droit « Modifier » des RH pour saisir la paie, le droit de supprimer d'un module
+ * pour en restaurer une pièce).
+ *   • Prospection d'agences : l'assistante de direction et la Direction Marketing (`fileAgences`) ;
+ *   • Contrôles de conformité : le pharmacien responsable (l'entrée de menu) et la Direction Marketing (qui ouvrait la page par
+ *     son adresse, `fileConformite`) ;
+ *   • Paie : qui MODIFIE les RH — la garde d'hier de l'entrée et de la page ;
+ *   • Corbeille : les deux rôles du directeur des opérations (`estDirecteurDesOperations`).
+ * Le Super Admin a tous les modules ; le rôle secondaire s'y cumule comme partout (`accesAttribue`).
+ */
+const ECRANS_PAR_ROLE: Partial<Record<Module, readonly UserRole[]>> = {
+  PROSPECTION_AGENCES: ["DIRECTION_ASSISTANT", "PRODUCT_MANAGER"],
+  CONTROLES_CONFORMITE: ["MEDICAL_INFO_PHARMACIST", "PRODUCT_MANAGER"],
+  CORBEILLE: ["DIRECTION", "OPERATIONS_DIRECTOR"],
+};
+for (const [module, roles] of Object.entries(ECRANS_PAR_ROLE) as [Module, readonly UserRole[]][]) {
+  for (const role of roles) if (!PERMISSIONS[role][module]) PERMISSIONS[role][module] = ["VIEW"];
+}
+for (const role of Object.keys(PERMISSIONS) as UserRole[]) {
+  if (role === "SUPER_ADMIN") continue;
+  const matrice = PERMISSIONS[role];
+  if (matrice.RH?.includes("UPDATE") && !matrice.PAIE) matrice.PAIE = ["VIEW"];
 }

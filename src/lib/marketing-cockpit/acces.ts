@@ -5,14 +5,17 @@ import { peutEcrireMessagesPromo } from "@/lib/sfe/tournee";
  * QUI VOIT QUOI DANS LE MARKETING COCKPIT — des règles nommées, lues par l'onglet (`nav-tabs.ts`), la page et les
  * tuiles. La porte du cockpit reste le module `MARKETING_COCKPIT` ; ces règles s'y AJOUTENT, elles n'élargissent rien.
  *
- *   • LE MARCHÉ (IQVIA, PCH, Nomenclature) : à qui l'a DÉJÀ — la porte de Business Development › Intelligence marché
- *     (`requireModule("BUSINESS_DEVELOPMENT")`). Décision de la Direction (07/10) : on n'élargit pas l'accès au marché ;
- *     les autres ne voient ni l'onglet ni la tuile (pas d'aguiche).
+ *   • LE MARCHÉ (IQVIA, PCH, Nomenclature) : à qui l'a DÉJÀ — la porte de l'Explorateur produits (`PRODUCT_EXPLORER`),
+ *     qui lit les mêmes fichiers (`lib/market/data`). Décision de la Direction (07/10) : on n'élargit pas l'accès au marché ;
+ *     les autres ne voient ni l'onglet ni la tuile (pas d'aguiche). La porte était Business Development › Intelligence
+ *     marché : ce module est RETIRÉ du service (`modules-retired.ts`), `userCan` y répond non pour tout le monde, et
+ *     l'onglet était mort pour tous, Super Admin compris (24/11/2026). L'Explorateur est la clé VIVANTE qui gouverne ces
+ *     données : qui y lit le marché le lit aussi dans le cockpit, et la console l'ouvre ou le ferme aux deux endroits.
  *   • L'ARGENT (engagé Ad & Pro, enveloppe) : à qui lit Budget Marketing, les Budgets ou Ad & Pro — les montants ne s'ouvrent pas par le
  *     seul cockpit, que la Force de vente reçoit aussi par défaut.
  */
 export function peutVoirMarcheCockpit(user: SessionUser): boolean {
-  return userCan(user, "BUSINESS_DEVELOPMENT", "VIEW");
+  return userCan(user, "PRODUCT_EXPLORER", "VIEW");
 }
 
 export function peutVoirArgentCockpit(user: SessionUser): boolean {

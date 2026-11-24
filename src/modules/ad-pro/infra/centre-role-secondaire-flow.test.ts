@@ -12,7 +12,7 @@ vi.mock("@/lib/settings", async (importOriginal) => {
 
 import { prisma } from "@/lib/prisma";
 import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
-import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
+import { accesAttribue, getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { siegeAuCentreAdPro } from "../domaine/centre";
 import { addAdProItem, submitAdProItem, requestAdProItemOrder, approveAdProItemOrder } from "../actions-postes";
 import { decideAdProItem } from "../actions-postes-decision";
@@ -100,7 +100,13 @@ suite("centre de validation Ad & Pro — le DG en rôle secondaire vise un BC", 
     expect((await prisma.adProItem.findUniqueOrThrow({ where: { id } })).orderStage).toBe("REQUESTED");
 
     // Le témoin : la même casquette principale, SANS le rôle secondaire, est refusée.
-    const sansSecond = { ...(await acteur(dgSecondId)), secondaryRole: null };
+    // Depuis le 24/11/2026, le siège est la clé `AD_PRO_CENTRE` de l'accès RÉSOLU : le témoin recalcule son accès sans
+    // l'« autre rôle » (ce que `getAccess` rendrait si on le lui retirait), au lieu de ne retirer que l'étiquette.
+    const avecSecond = await acteur(dgSecondId);
+    const sansSecond = {
+      ...avecSecond, secondaryRole: null,
+      access: { ...avecSecond.access, secondaryRole: null, modules: accesAttribue(avecSecond.role, null, []).modules },
+    };
     expect(siegeAuCentreAdPro(sansSecond)).toBe(false);
     ACTOR = sansSecond;
     const refus = await approveAdProItemOrder(undefined, fd({ id, decision: "APPROVE" }));

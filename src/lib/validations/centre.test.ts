@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { centreCounters, centreValidatorFrom, sitsOnValidationCentre, sortForCentre, type CentreValidationLike } from "./centre";
+import { centreCounters, centreValidatorFrom, ouvreLeCentreDeValidations, sortForCentre, type CentreValidationLike } from "./centre";
+import { accesAttribue, PERMISSIONS } from "@/lib/rbac";
+import type { UserRole } from "@prisma/client";
 
 const J = 86_400_000;
 const MAINTENANT = new Date("2026-09-10T09:00:00Z");
@@ -9,18 +11,43 @@ const dans = (n: number) => new Date(MAINTENANT.getTime() + n * J).toISOString()
 const ligne = (p: Partial<CentreValidationLike>): CentreValidationLike =>
   ({ actionable: true, deadline: null, createdAt: il_y_a(1), ...p });
 
-describe("qui siège au centre de validations", () => {
-  it("le Directeur Général et le Super Admin, personne d'autre", () => {
-    expect(sitsOnValidationCentre({ role: "GENERAL_MANAGER" })).toBe(true);
-    expect(sitsOnValidationCentre({ role: "SUPER_ADMIN" })).toBe(true);
+/** L'accès résolu (rôle, « autre rôle », console) tel que `getAccess` le pose — sans base. */
+const acces = (role: UserRole, secondaryRole: UserRole | null = null, lignes: Parameters<typeof accesAttribue>[2] = []) =>
+  ({ role, access: { modules: accesAttribue(role, secondaryRole, lignes).modules } });
+const ligneConsole = (canView: boolean) => ({
+  module: "VALIDATION_CENTRE", canView, canCreate: false, canUpdate: false, canDelete: false, canValidate: false,
+  canExport: false, canUpload: false, scope: "ALL" as const, sections: [] as string[],
+});
+
+describe("qui ouvre le centre de validations — la clé VALIDATION_CENTRE, et elle seule (24/11/2026)", () => {
+  it("PAR DÉFAUT : le Directeur Général et le Super Admin, personne d'autre — l'état d'hier", () => {
+    expect(PERMISSIONS.GENERAL_MANAGER.VALIDATION_CENTRE).toBeTruthy();
+    expect(ouvreLeCentreDeValidations(acces("GENERAL_MANAGER"))).toBe(true);
+    expect(ouvreLeCentreDeValidations(acces("SUPER_ADMIN"))).toBe(true);
+    // PAS le PDG : le centre de PAIEMENT est le sien — donner les deux à la même personne referait l'écran fourre-tout.
+    for (const r of ["DIRECTION", "OPERATIONS_DIRECTOR", "FINANCE_BUDGET_MANAGER", "VIEWER"] as UserRole[]) {
+      expect(ouvreLeCentreDeValidations(acces(r)), r).toBe(false);
+    }
   });
 
-  it("PAS le PDG : le centre de PAIEMENT est le sien", () => {
-    // Donner les deux à la même personne referait l'écran fourre-tout qu'on vient de découper.
-    expect(sitsOnValidationCentre({ role: "DIRECTION" })).toBe(false);
-    expect(sitsOnValidationCentre({ role: "OPERATIONS_DIRECTOR" })).toBe(false);
-    expect(sitsOnValidationCentre({ role: "FINANCE_BUDGET_MANAGER" })).toBe(false);
-    expect(sitsOnValidationCentre({ role: "VIEWER" })).toBe(false);
+  it("ACCORDER OUVRE : un utilisateur sans rôle de direction à qui la console donne le module l'ouvre réellement", () => {
+    // Hier : le module coché ouvrait une entrée de menu menant à une page introuvable (rôle principal exigé en plus).
+    expect(ouvreLeCentreDeValidations(acces("REGULATORY_ASSISTANT", null, [ligneConsole(true)]))).toBe(true);
+  });
+
+  it("BLOQUER FERME : un Directeur Général bloqué ne l'ouvre plus", () => {
+    expect(ouvreLeCentreDeValidations(acces("GENERAL_MANAGER", null, [ligneConsole(false)]))).toBe(false);
+  });
+
+  it("un geste PRÊTÉ par un intérim ne compte pas — le centre ne se délègue pas", () => {
+    const u = acces("GENERAL_MANAGER");
+    const prete = { ...u, access: { ...u.access, pretes: new Map([["VALIDATION_CENTRE", new Set(["VIEW"])]]) } };
+    expect(ouvreLeCentreDeValidations(prete)).toBe(false);
+  });
+
+  it("sans accès résolu (simple `{ role }`), le défaut du rôle", () => {
+    expect(ouvreLeCentreDeValidations({ role: "GENERAL_MANAGER" })).toBe(true);
+    expect(ouvreLeCentreDeValidations({ role: "DIRECTION" })).toBe(false);
   });
 });
 

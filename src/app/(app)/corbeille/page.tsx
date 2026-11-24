@@ -5,7 +5,8 @@ import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { TrashList, type TrashItem } from "@/app/(app)/admin/corbeille/trash-list";
 import { DELETABLE_KINDS } from "@/lib/admin-delete-registry";
-import { estDirecteurDesOperations, typesDeCorbeillePermis } from "@/lib/suppression/delegation";
+import { typesDeCorbeillePermis } from "@/lib/suppression/delegation";
+import { userCan } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,8 @@ export const dynamic = "force-dynamic";
 export default async function CorbeilleDesModulesPage() {
   const user = await requireUser();
   if (user.role === "SUPER_ADMIN") redirect("/admin/corbeille");
-  if (!estDirecteurDesOperations(user)) redirect("/mon-espace");
+  // LA CLÉ DE L'ÉCRAN, `CORBEILLE` (24/11/2026) : par défaut le directeur des opérations, réglée ensuite dans la console.
+  if (!userCan(user, "CORBEILLE", "VIEW")) redirect("/mon-espace");
 
   const permis = typesDeCorbeillePermis(user, DELETABLE_KINDS);
   const rows = permis.length

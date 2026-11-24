@@ -10,7 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { DEFAULT_APP_SETTINGS } from "@/lib/settings";
 import { reaiguillerSurChangementDeSeuil, CHEMIN_BC_A_SIGNER } from "@/lib/bons-de-commande/aiguillage";
-import { sitsOnValidationCentre } from "@/lib/validations/centre";
+import { ouvreLeCentreDeValidations } from "@/lib/validations/centre";
 import type { CentreBC } from "@/lib/bons-de-commande/regle";
 import { fdNum, type ActionResult } from "@/lib/actions/types";
 import { CHEMIN_APERCU_RAPPORTS, CHEMIN_RAPPORTS_TERRAIN } from "@/lib/chemins/rapports-terrain";
@@ -126,7 +126,7 @@ export async function setBcValidationThreshold(formData: FormData): Promise<Acti
  */
 export async function setBcValidationThresholdCentre(formData: FormData): Promise<ActionResult> {
   const admin = await requireUser();
-  if (!sitsOnValidationCentre(admin)) return { ok: false, error: "Réservé aux sièges du centre de validations (Directeur Général, Super Admin)." };
+  if (!ouvreLeCentreDeValidations(admin)) return { ok: false, error: "Réservé aux personnes qui ont accès au Centre de validations — un Super Admin l'ouvre dans Administration › Accès." };
   return reglerSeuilBC(admin.id, fdNum(formData, "bcValidationThresholdCentre"), "VALIDATION");
 }
 

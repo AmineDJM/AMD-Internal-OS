@@ -7,7 +7,7 @@
 import type { Action, Module } from "../rbac/modules";
 import { CHEMIN_STOCK_PROMO } from "../chemins/stock-promo";
 import { CHEMIN_BONS_DE_COMMANDE } from "../chemins/bons-de-commande";
-import { AGENDA_TABS, ADMIN_TABS, ANNUAIRES_TABS, BRAIN_TABS, BUDGET_MARKETING_TABS, BUDGET_OPERATIONS_TABS, BUDGET_REGULATORY_TABS, BUDGET_TABS, BUSINESS_UNITS_TABS, DOCS_TABS, EVENTS_TABS, MARKETING_COCKPIT_TABS, MEDICAL_TABS, SALES_PLANNING_TABS, SITE_WEB_TABS, STOCK_PROMO_TABS, VENTES_PCH_TABS, WORKSPACE_TABS, type NavTab } from "./onglets";
+import { ADAM_TABS, AGENDA_TABS, ADMIN_TABS, ANNUAIRES_TABS, BRAIN_TABS, BUDGET_MARKETING_TABS, BUDGET_OPERATIONS_TABS, BUDGET_REGULATORY_TABS, BUDGET_TABS, BUSINESS_UNITS_TABS, DOCS_TABS, EVENTS_TABS, MARKETING_COCKPIT_TABS, MEDICAL_TABS, SALES_PLANNING_TABS, SITE_WEB_TABS, STOCK_PROMO_TABS, VENTES_PCH_TABS, WORKSPACE_TABS, type NavTab } from "./onglets";
 
 /** Navigation metadata: maps a sidebar entry to a module + route + icon name. */
 export interface NavItem {
@@ -28,7 +28,7 @@ export interface NavItem {
    * envoyé qu'au Super Admin (`peutPiloterMissionsAdam`, §118.136) — le module WORKSPACE est à
    * tout le monde, la règle n'est pas un module.
    */
-  gate?: "regEnrollment" | "pipeline" | "payroll" | "myTeam" | "adamMissions" | "adam" | "corbeilleOps" | "pharmacovigilance" | "recettes" | "agences" | "conformite" | "signatureEnLigne";
+  gate?: "regEnrollment" | "pipeline" | "myTeam" | "adamMissions" | "adam" | "corbeilleOps" | "pharmacovigilance" | "recettes" | "signatureEnLigne";
   /**
    * Entrée fusionnée : plusieurs sous-modules présentés en onglets sur la page.
    * L'entrée est visible si l'utilisateur a accès à **au moins un** onglet, et son
@@ -53,6 +53,12 @@ export interface NavItem {
    * ouvert, même sans le module du parent — elle mène alors au premier enfant ouvert.
    */
   groupe?: boolean;
+  /**
+   * UN GROUPE SANS ÉCRAN PROPRE (Finances, 24/11/2026) : son lien n'est qu'une redirection vers un enfant. Il ne s'affiche
+   * QUE par ses enfants ouverts — le module du parent seul ne l'ouvre pas, sinon il mènerait à un écran fermé — et mène
+   * toujours au premier d'entre eux.
+   */
+  sansEcran?: boolean;
   /** Préfixes de chemin additionnels qui activent l'entrée (pour les entrées fusionnées). */
   match?: string[];
   /**
@@ -86,8 +92,15 @@ export const MODULE_LABELS: Record<Module, string> = {
   BUDGET_MARKETING: "Budget Marketing",
   BUDGET_REGULATORY: "Budget Regulatory",
   BUDGET_OPERATIONS: "Budget Operations & Sales",
-  FINANCES: "Finances",
+  // « FINANCES » ne nomme plus un écran (24/11/2026) : ses trois écrans ont chacun leur clé, et il garde le métier
+  // TRANSVERSE — factures dans Legal, bons de commande, demandes de paiement, ordres vus depuis une fiche, recherche. Le
+  // libellé le dit, pour qu'on ne le coche pas en croyant ouvrir la banque.
+  FINANCES: "Finances (transverse)",
+  FINANCES_BANQUE: "Banque & paiements",
+  FINANCES_COMPTABILITE: "Comptabilité",
+  FINANCES_DOUBLONS: "Doublons de factures",
   RH: "Ressources humaines",
+  PAIE: "Paie",
   CONGRESS_INTERNATIONAL: "Prises en charge Internationales",
   CONGRESS_NATIONAL: "Prises en charge Nationales",
   EVENTS: "Événements",
@@ -163,6 +176,9 @@ export const MODULE_LABELS: Record<Module, string> = {
   BUDGET_CAMPAIGN: "Campagne budgétaire",
   ART_DIRECTION: "Direction artistique",
   RECETTES: "Recettes",
+  PROSPECTION_AGENCES: "Prospection d'agences",
+  CONTROLES_CONFORMITE: "Contrôles de conformité",
+  CORBEILLE: "Corbeille",
 };
 
 /**
@@ -188,7 +204,9 @@ export const NAVIGATION: NavItem[] = [
   // ADAM — l'assistant de tous (Direction, 02/11/2026 : « l'assistant IA de la plateforme, c'est Adam »). Module
   // `ASSISTANT_IA` : le Super Admin l'a, et l'ouvre à qui il veut dans Administration › Accès. L'entrée suit le module.
   // `/chief-of-staff` y mène le Super Admin (onglets Boîte de réception, Réglages et Bureau d'Adam).
-  { module: "ASSISTANT_IA", label: "Adam", href: "/assistant", icon: "Sparkles", group: "Pilotage", match: ["/adam"] },
+  // LES ONGLETS DU BUREAU suivent leur clé (`CHIEF_OF_STAFF`, 24/11/2026) : l'entrée s'affiche à qui a Adam OU le bureau, et
+  // mène au premier onglet ouvert — accorder le bureau seul dans la console doit mener quelque part.
+  { module: "ASSISTANT_IA", label: "Adam", href: "/assistant", icon: "Sparkles", group: "Pilotage", tabs: ADAM_TABS, match: ["/adam"] },
   // LES RECETTES (J10, décision 0028) : le savoir-faire de la maison, tiré des circuits réels. MODULE du contrôle d'accès
   // (`RECETTES`, lot R1) : l'entrée suit le module (console, masquage) ET la garde `recettes` (`nav-access.ts`) — la
   // Direction, un responsable de processus, ou qui voit un circuit qui a une recette (jamais une page vide).
@@ -245,9 +263,9 @@ export const NAVIGATION: NavItem[] = [
   // ouvrir ni fermer un écran à quiconque, et c'est vérifié (`navigation.test.ts`).
   { module: "MEDICAL_INFO", label: "Information médicale", href: "/information-medicale", icon: "ShieldPlus", group: "Pôles", pole: "REGULATORY" },
   // LES BAT À CONTRÔLER (parcours agence, 15/11/2026) — la file de l'information médicale, avant impression.
-  { module: "MEDICAL_INFO", label: "Contrôles de conformité", href: "/information-medicale/conformite", icon: "FileCheck2", group: "Pôles", pole: "REGULATORY", gate: "conformite" },
+  { module: "CONTROLES_CONFORMITE", label: "Contrôles de conformité", href: "/information-medicale/conformite", icon: "FileCheck2", group: "Pôles", pole: "REGULATORY" },
   // LA PROSPECTION D'AGENCES (parcours agence, 15/11/2026) — la file de l'assistante de direction ; la Direction Marketing y suit tout.
-  { module: "WORKSPACE", label: "Prospection d'agences", href: "/agences", icon: "Building2", group: "Pôles", pole: "MARKETING", gate: "agences" },
+  { module: "PROSPECTION_AGENCES", label: "Prospection d'agences", href: "/agences", icon: "Building2", group: "Pôles", pole: "MARKETING" },
   // PHARMACOVIGILANCE (Direction, 06/10) — la boîte de réception des cas signalés par les KAM. GARDE
   // `pharmacovigilance` : l'entrée ne s'affiche qu'à qui reçoit les cas (portée TOUT) ; le KAM, qui ne lit que ses
   // signalements, les retrouve dans les Rapports terrain — il n'a rien à faire dans le pôle Regulatory.
@@ -293,18 +311,24 @@ export const NAVIGATION: NavItem[] = [
   // écran. Le solde de la banque a rejoint « Banque & paiements », là où l'on décide ce qu'on
   // paie ; le cockpit du DAF a rejoint la Comptabilité, là où il devient des écritures.
   //
-  // L'ENTRÉE PARENTE MÈNE DONC À « Banque & paiements » : cliquer « Finances » ne doit pas
-  // conduire à une page d'accueil vide qu'il faut quitter aussitôt. `/finances` reste dans le
-  // `match` — l'adresse survit par une redirection, et le menu ne doit pas se désélectionner
-  // pour ceux qui arrivent par un lien ou un favori.
+  // L'ENTRÉE PARENTE N'A PAS D'ÉCRAN : cliquer « Finances » ne doit pas conduire à une page d'accueil vide qu'il faut
+  // quitter aussitôt. C'est un GROUPE SANS ÉCRAN (`sansEcran`) : il s'affiche dès qu'UN de ses trois écrans est ouvert, et
+  // mène au premier d'entre eux. `/finances` survit par une redirection vers le premier écran ouvert — des liens et des
+  // favoris y mènent encore.
+  //
+  // CHAQUE ÉCRAN A SA CLÉ (Super Admin, 24/11/2026 : « je peux donner ou révoquer l'accès à tout module affiché, y compris
+  // Doublons de factures, Comptabilité, Banque & paiements ») : bloquer les Doublons à quelqu'un lui laisse la banque. La
+  // clé `FINANCES` du parent n'ouvre plus aucun des trois : elle garde le métier transverse (rbac/modules.ts).
   {
-    module: "FINANCES", label: "Finances", href: "/finances/paiements-a-faire", icon: "Landmark", group: "Pôles", pole: "ADMINISTRATION",
-    match: ["/finances", "/finances/comptabilite", "/finances/doublons-factures"],
+    module: "FINANCES", label: "Finances", href: "/finances", icon: "Landmark", group: "Pôles", pole: "ADMINISTRATION",
+    groupe: true, sansEcran: true,
+    match: ["/finances"],
     children: [
-      { module: "FINANCES", label: "Banque & paiements", href: "/finances/paiements-a-faire", icon: "Banknote", group: "Pôles", pole: "ADMINISTRATION" },
-      { module: "FINANCES", label: "Comptabilité", href: "/finances/comptabilite", icon: "BookOpen", group: "Pôles", pole: "ADMINISTRATION" },
-      // LE RECENSEMENT DES DOUBLONS DE FACTURES (Direction, 14/10/2026) — lecture seule, droit Finances VIEW.
-      { module: "FINANCES", label: "Doublons de factures", href: "/finances/doublons-factures", icon: "Copy", group: "Pôles", pole: "ADMINISTRATION" },
+      // La TRÉSORERIE (l'ancienne page, la demande d'actualisation des soldes) vit avec la banque.
+      { module: "FINANCES_BANQUE", label: "Banque & paiements", href: "/finances/paiements-a-faire", icon: "Banknote", group: "Pôles", pole: "ADMINISTRATION", match: ["/finances/actualisation-soldes", "/finances/ordres-de-depense"] },
+      { module: "FINANCES_COMPTABILITE", label: "Comptabilité", href: "/finances/comptabilite", icon: "BookOpen", group: "Pôles", pole: "ADMINISTRATION" },
+      // LE RECENSEMENT DES DOUBLONS DE FACTURES (Direction, 14/10/2026) — lecture ; « Modifier » marque un groupe examiné.
+      { module: "FINANCES_DOUBLONS", label: "Doublons de factures", href: "/finances/doublons-factures", icon: "Copy", group: "Pôles", pole: "ADMINISTRATION" },
     ],
   },
   // LES BONS DE COMMANDE — un module À PART (décision de la Direction, 01/10/2026, §118.176).
@@ -337,8 +361,8 @@ export const NAVIGATION: NavItem[] = [
   // Les écrans /validations/paiements restent servis — on y arrive par le bouton et les liens.
   // LA PAIE EST UN SOUS-MODULE DES RH, pas un onglet de plus. Elle n'a pas la même
   // audience que le reste du module : les congés, l'équipe et les départements se lisent
-  // largement, la paie ne s'ouvre qu'à qui TIENT les RH (`gate: "payroll"` = droit de mise à
-  // jour). Un onglet l'aurait affichée à tout le monde pour la refuser au clic ; en enfant,
+  // largement, la paie ne s'ouvre qu'à qui en a la clé (`PAIE`, console — par défaut qui MODIFIE les RH, la garde
+  // d'hier, 24/11/2026). Un onglet l'aurait affichée à tout le monde pour la refuser au clic ; en enfant,
   // elle se déplie par la flèche — sur ordinateur comme sur mobile — et n'apparaît qu'à ceux
   // qui peuvent l'ouvrir. Elle reste servie par sa propre route, gardée par sa propre page.
   {
@@ -353,7 +377,7 @@ export const NAVIGATION: NavItem[] = [
       // remonte jusqu'au DG, puis les RH publient et diffusent. Ses accès se règlent dans la console, comme les autres.
       { module: "RECRUITMENT", label: "Recrutement", href: "/recrutement", icon: "UserPlus", group: "Pôles", pole: "ADMINISTRATION", match: ["/recrutement"] },
       { module: "TRAINING", label: "Formations", href: "/formations", icon: "GraduationCap", group: "Pôles", pole: "ADMINISTRATION" },
-      { module: "RH", label: "Paie", href: "/rh/paie", icon: "Banknote", group: "Pôles", pole: "ADMINISTRATION", gate: "payroll" },
+      { module: "PAIE", label: "Paie", href: "/rh/paie", icon: "Banknote", group: "Pôles", pole: "ADMINISTRATION" },
     ],
   },
   // LEGAL — les engagements de la société : contrats, bons de commande, assurances, baux. Le
@@ -436,10 +460,9 @@ export const NAVIGATION: NavItem[] = [
   { module: "PCH_VENTES", label: "Ventes PCH", href: "/sales", icon: "TrendingUp", group: "Pôles", pole: "OPERATIONS_SALES", tabs: VENTES_PCH_TABS, match: ["/sales"] },
   // LA CHAÎNE PHYSIQUE REJOINT LE PÔLE (Direction, 08/10 : « Stocks et Logistique rejoignent Operations & Sales ») — le
   // pôle « Supply Chain & Logistics » disparaît. Stocks : la chaîne Adventum + PCH central + hôpitaux, par BU.
-  // Logistique : son module reste RETIRÉ du service (`modules-retired.ts`) — l'entrée est rangée ici, et ne s'affiche
-  // pour personne tant que le retrait n'est pas levé.
+  // Logistique : son module est RETIRÉ du service (`modules-retired.ts`) — son entrée, qui ne s'affichait pour personne, a
+  // été retirée du menu (24/11/2026) ; la rétablir ici le jour où le retrait serait levé.
   { module: "STOCKS", label: "Stocks", href: "/stocks", icon: "Boxes", group: "Pôles", pole: "OPERATIONS_SALES" },
-  { module: "LOGISTICS", label: "Logistique", href: "/logistics", icon: "Truck", group: "Pôles", pole: "OPERATIONS_SALES" },
   // CONSUMPTION INTELLIGENCE n'a PLUS d'entrée de menu (Direction, 08/10 : « supprime ce module Consommation ou masque-le
   // de ma vue »). Seule l'ENTRÉE part : les écrans `/consommation`, leurs données et le module `CONSUMPTION` restent — ils
   // nourrissent l'affinité de la segmentation et la fiche Produits 360, qui y mènent encore par leurs liens.
@@ -490,11 +513,12 @@ export const NAVIGATION: NavItem[] = [
   // L'ENTREPRISE est un pôle métier (Moyens généraux / Finances / RH / Budgets). Les
   // confondre, c'est envoyer un directeur financier dans les réglages techniques.
   { module: "ADMIN", label: "Console d'Administration", href: "/admin", icon: "Settings", group: "Système", tabs: ADMIN_TABS },
-  // LA CORBEILLE DE SES MODULES — le directeur des opérations y récupère ce qui a été supprimé chez lui (06/10).
-  // Le module WORKSPACE est à tout le monde : c'est la garde `corbeilleOps` qui ouvre l'entrée.
+  // LA CORBEILLE DE SES MODULES — le directeur des opérations y récupère ce qui a été supprimé chez lui (06/10). Sa clé,
+  // `CORBEILLE` (console, 24/11/2026) ; la garde `corbeilleOps` ne fait que retirer l'entrée au Super Admin, qui a la
+  // sienne dans la Console d'Administration (la page l'y renvoie).
   // MA SIGNATURE (15/11/2026) — à qui signe des bons de commande en ligne : sa signature, son cachet, son code.
   { module: "WORKSPACE", label: "Ma signature", href: "/mon-espace/signature", icon: "FilePen", group: "Système", gate: "signatureEnLigne" },
-  { module: "WORKSPACE", label: "Corbeille", href: "/corbeille", icon: "Trash2", group: "Système", gate: "corbeilleOps" },
+  { module: "CORBEILLE", label: "Corbeille", href: "/corbeille", icon: "Trash2", group: "Système", gate: "corbeilleOps" },
 ];
 
 /**
@@ -543,6 +567,12 @@ export function moduleForPath(path: string): Module | null {
     if (n.tabs) for (const t of n.tabs) consider(t.href, t.module);
     consider(n.href, n.module);
     for (const m of n.match ?? []) consider(m, n.module);
+    // UN SOUS-MODULE A SA CLÉ (24/11/2026) : `/finances/comptabilite` appartient à la Comptabilité, pas au groupe Finances —
+    // le préfixe le plus long gagne, comme pour un onglet.
+    for (const c of n.children ?? []) {
+      consider(c.href, c.module);
+      for (const m of c.match ?? []) consider(m, c.module);
+    }
   }
   return bestModule;
 }
@@ -553,6 +583,10 @@ export function firstAccessibleHref(canView: (module: Module) => boolean): strin
     if (n.tabs) {
       const t = n.tabs.find((tab) => canView(tab.module));
       if (t) return t.href;
+    } else if (n.sansEcran) {
+      // Un groupe sans écran ne mène qu'à ses enfants : son propre lien redirigerait vers un écran peut-être fermé.
+      const c = (n.children ?? []).find((k) => canView(k.module));
+      if (c) return c.href;
     } else if (canView(n.module)) {
       return n.href;
     }

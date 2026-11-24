@@ -88,6 +88,9 @@ export function ModuleAccessGrid({
   const [search, setSearch] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
+  // LE REFUS SE DIT (24/11/2026) : l'écran affichait « Enregistré » quoi que réponde le serveur — un refus (cible protégée,
+  // module retiré, session expirée) passait pour un succès, et l'on croyait avoir donné un accès qui n'existait pas.
+  const [erreur, setErreur] = React.useState<string | null>(null);
 
   // (Re)charge les états du module sélectionné.
   React.useEffect(() => {
@@ -136,7 +139,13 @@ export function ModuleAccessGrid({
             if (module === MODULE_ANNUAIRES) for (const c of r.sections ?? []) fd.set(`sect_${u.id}_${c}`, "on");
           }
         }
-        await saveModuleAccess(fd);
+        setErreur(null);
+        const r = await saveModuleAccess(fd).catch(() => ({ ok: false as const, error: "L'enregistrement n'a pas abouti (réseau ou session) : rechargez la page et recommencez." }));
+        if (!r.ok) {
+          setSaving(false);
+          setErreur(r.error ?? "Accès non enregistrés.");
+          return;
+        }
         // LES ACCÈS AU PIPELINE partent par leur propre action : ce sont des réglages
         // d'instance, pas des droits de module. Les rôles déjà accordés sont REJOUÉS —
         // cet écran règle les personnes, il ne doit pas effacer ce qui vient des rôles.
@@ -150,7 +159,12 @@ export function ModuleAccessGrid({
             if (p.view && !p.viewViaRole) pfd.append("viewerUserIds", u.id);
             if (p.manage && !p.manageViaRole) pfd.append("managerUserIds", u.id);
           }
-          await setPipelineAccess(pfd);
+          const rp = await setPipelineAccess(pfd).catch(() => ({ ok: false as const, error: "L'enregistrement des accès au pipeline n'a pas abouti : rechargez la page et recommencez." }));
+          if (!rp.ok) {
+            setSaving(false);
+            setErreur(`Accès au module enregistrés, mais pas ceux du pipeline : ${rp.error ?? "refusé."}`);
+            return;
+          }
         }
         setSaving(false);
         setSaved(true);
@@ -339,6 +353,10 @@ export function ModuleAccessGrid({
           </TableBody>
         </Table>
       </div>
+
+      {erreur && (
+        <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{erreur}</p>
+      )}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs leading-6 text-muted-foreground">

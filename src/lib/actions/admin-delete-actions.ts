@@ -23,7 +23,7 @@ import { peutSupprimerUneDemandeAdPro } from "@/modules/ad-pro/api";
 import { estDemandeAdProSupprimable, REFUS_SUPPRESSION_AD_PRO } from "@/modules/ad-pro/partage";
 import { peutSupprimerUnRapportTerrain } from "@/lib/queries/field-reports";
 import { peutSupprimerUneDemandePaiement } from "@/modules/finances/api";
-import { corbeillePermise, estDirecteurDesOperations, suppressionPermise } from "@/lib/suppression/delegation";
+import { corbeillePermise, suppressionPermise } from "@/lib/suppression/delegation";
 import { sansBloquer } from "@/lib/journal";
 import { CHEMIN_PV_KAM } from "@/lib/chemins/rapports-terrain";
 
@@ -168,9 +168,9 @@ export async function supprimerDemandeAdPro(formData: FormData): Promise<DeleteR
  */
 export async function restoreDeletedRecord(formData: FormData): Promise<DeleteResult> {
   const user = await requireUser();
-  // Le Super Admin, ou le DIRECTEUR DES OPÉRATIONS pour ce qui relève de ses modules (Direction, 06/10) — la règle
-  // vit dans `suppression/delegation.ts`, lue aussi par l'écran de la corbeille.
-  if (user.role !== "SUPER_ADMIN" && !estDirecteurDesOperations(user)) return { ok: false, error: "Réservé au Super Admin." };
+  // Le Super Admin, ou qui tient la Corbeille (`CORBEILLE`, console — par défaut le directeur des opérations, 06/10 et
+  // 24/11/2026) pour ce qui relève de ses modules — la règle vit dans `suppression/delegation.ts`, lue aussi par l'écran.
+  if (user.role !== "SUPER_ADMIN" && !userCan(user, "CORBEILLE", "VIEW")) return { ok: false, error: "Réservé au Super Admin et à qui tient la Corbeille — un Super Admin l'ouvre dans Administration › Accès." };
   const recId = String(formData.get("id") ?? "");
   const rec = await prisma.deletedRecord.findUnique({ where: { id: recId } });
   if (!rec || rec.restoredAt || rec.purgedAt) return { ok: false, error: "Entrée introuvable ou déjà traitée." };

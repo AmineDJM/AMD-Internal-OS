@@ -46,7 +46,7 @@ import { porteDuBC, origineDuBC, centreVouluDuBC } from "@/lib/bons-de-commande/
 import { blocageParLeBC, reserveEtapeBC } from "@/lib/bons-de-commande/regle";
 import { REFUS_FACTURE_EMISE_AU_REGLEMENT, peutDaterLeReglement, refusFactureDePoste } from "@/modules/finances/partage";
 import { siegeAuCentreAdPro } from "@/modules/ad-pro/partage";
-import { sitsOnValidationCentre } from "@/lib/validations/centre";
+import { ouvreLeCentreDeValidations } from "@/lib/validations/centre";
 import { BonDeCommandeGate } from "./bc-gate";
 import { HistoriqueAnnulable } from "@/modules/assistant-ia/ecrans/barre-annulation";
 import { etatDuBC } from "@/lib/bons-de-commande/etat";
@@ -300,7 +300,7 @@ export default async function LegalDocumentPage(
   // la fiche ne peut pas annoncer le centre Ad & Pro pour un BC que la règle envoie ailleurs (§118.150).
   const centreAttendu = origine ? await centreVouluDuBC(origine) : "VALIDATION";
   const centreDeLaPorte = porte?.centre ?? centreAttendu;
-  const siegeAuCentre = centreDeLaPorte === "AD_PRO" ? siegeAuCentreAdPro(user) : sitsOnValidationCentre(user);
+  const siegeAuCentre = centreDeLaPorte === "AD_PRO" ? siegeAuCentreAdPro(user) : ouvreLeCentreDeValidations(user);
 
   // « VIENT D'ÊTRE ÉMISE » (§118.209) : l'adresse du composeur porte `?emis=1`, et on n'y croit que si la pièce a
   // bien été émise il y a moins d'un quart d'heure — un favori ou un lien partagé ne doit pas annoncer « émis » d'une

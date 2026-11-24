@@ -29,13 +29,10 @@ export interface SeatCandidate {
  *
  * ── POURQUOI CET ÉCRAN EXISTE À CÔTÉ DE LA GRILLE DES MODULES ────────────────────────────────
  *
- * Parce que la grille NE SUFFISAIT PAS, et le laissait croire. Cocher `PAYMENT_CENTRE` pour
- * quelqu'un n'ouvrait rien : l'écran du centre ne consulte pas ce module, il consulte
- * `sitsOnPaymentCentre`, qui lisait le rôle et lui seul. L'administrateur cochait, la personne
- * trouvait une page vide, et aucun des deux n'avait de quoi comprendre.
- *
- * Le siège nommé est donc une DÉSIGNATION, pas une case : elle porte un nom, un motif, un auteur
- * et une date — parce qu'elle donne le pouvoir d'engager l'argent de la société.
+ * La grille ne suffisait pas, hier : `sitsOnPaymentCentre` lisait le rôle et lui seul. Depuis le
+ * 24/11/2026, il lit le module `PAYMENT_CENTRE` tel que la grille le règle — accorder fait siéger,
+ * bloquer retire le siège. Le siège nommé reste une DÉSIGNATION, pas une case : il porte un nom,
+ * un motif, un auteur et une date — parce qu'il donne le pouvoir d'engager l'argent de la société.
  *
  * ── CE QU'ON MONTRE, ET POURQUOI LES DEUX ENSEMBLE ──────────────────────────────────────────
  *
@@ -68,9 +65,10 @@ export function PaymentCentreSeats({
       <p className="flex items-start gap-2 rounded-lg border border-border bg-secondary/30 px-3 py-2 text-xs">
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
         <span>
-          Le siège donne <strong>exactement une chose</strong> : voir la file des autorisations de paiement et trancher.
-          Aucun autre module, aucune vue globale, aucun droit sur les Finances. Cocher « Centre de paiement » dans la
-          grille des modules ci-dessus <strong>n&apos;y suffit pas</strong> — c&apos;est cette liste qui fait foi.
+          Siéger, c&apos;est avoir le module « Centre de paiement » : voir la file des autorisations de paiement et trancher.
+          Aucun autre module, aucune vue globale, aucun droit sur les Finances. La grille des modules ci-dessus le règle
+          comme les autres — <strong>l&apos;accorder fait siéger, le bloquer retire le siège</strong>, même à qui l&apos;a par
+          son rôle ou par une désignation. La désignation nommée ci-dessous reste le geste motivé et tracé.
         </span>
       </p>
 

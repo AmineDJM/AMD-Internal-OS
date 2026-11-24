@@ -1,3 +1,4 @@
+import { accesOuvertParLaConsole, type AccesStructurel } from "@/lib/rbac/acces-structurel";
 import { AD_PRO_KINDS, type AdProKind } from "./unified";
 
 
@@ -18,7 +19,19 @@ import { AD_PRO_KINDS, type AdProKind } from "./unified";
  */
 const ROLES_CENTRE_AD_PRO: readonly string[] = ["SUPER_ADMIN", "GENERAL_MANAGER"];
 
-export function siegeAuCentreAdPro(user: { role: string; secondaryRole?: string | null }): boolean {
+/**
+ * DEPUIS LE 24/11/2026, LE SIÈGE EST LA CLÉ — `AD_PRO_CENTRE` en « Voir », telle que la console la règle (Super Admin :
+ * « je peux donner ou révoquer l'accès à tout module affiché »). Hier, la liste de rôles ci-dessus s'ajoutait au module :
+ * accorder le centre à quelqu'un menait à une page introuvable, et bloquer le DG lui laissait viser les bons de commande
+ * depuis chaque fiche. Le DÉFAUT reproduit exactement hier (le module est au DG et au Super Admin, rôle principal ou
+ * secondaire) ; ensuite accorder ouvre, bloquer ferme — l'écran, l'arbitrage, le seuil et le visa des BC, d'un seul geste.
+ * Un geste prêté par un intérim ne compte pas : ce siège ne se délègue pas.
+ *
+ * Sans accès résolu (règle appelée avec un simple `{ role }`), on lit le défaut : les rôles ci-dessus.
+ */
+export function siegeAuCentreAdPro(user: { role: string; secondaryRole?: string | null; access?: AccesStructurel }): boolean {
+  const parLaConsole = accesOuvertParLaConsole(user.access, "AD_PRO_CENTRE", "VIEW");
+  if (parLaConsole !== null) return parLaConsole;
   return ROLES_CENTRE_AD_PRO.includes(user.role) || (user.secondaryRole != null && ROLES_CENTRE_AD_PRO.includes(user.secondaryRole));
 }
 
@@ -30,9 +43,9 @@ export function siegeAuCentreAdPro(user: { role: string; secondaryRole?: string 
  * (§118.5, §104.17). Il NOMME qui siège — un refus qui ne dit pas à qui s'adresser fait chercher.
  */
 export const REFUS_CENTRE_AD_PRO =
-  "Le centre de validation Ad & Pro est réservé à la Direction Générale et au Super Admin : "
+  "Le centre de validation Ad & Pro est réservé à qui y a accès — par défaut la Direction Générale et le Super Admin : "
   + "ce sont eux qui arbitrent les demandes au-dessus du seuil et valident tout bon de commande né d'Ad & Pro, "
-  + "et qui règlent ce seuil.";
+  + "et qui règlent ce seuil. Un Super Admin l'ouvre dans Administration › Accès.";
 
 /**
  * LE REFUS D'UN VISA DE BON DE COMMANDE — la même garde, dite pour ce geste-là.

@@ -48,12 +48,18 @@ describe("Marketing cockpit", () => {
     expect(lire("prisma/schema.prisma")).toMatch(/promoMessageAuthorRoles\s+String\[\]\s+@default\(\["PRODUCT_MANAGER"\]\)/);
   });
 
-  it("le marché ne s'élargit pas : la règle est la porte de Business Development, rien d'autre", () => {
+  it("le marché ne s'élargit pas : la règle est la porte VIVANTE des mêmes données — l'Explorateur produits (24/11/2026)", () => {
+    // Business Development est RETIRÉ du service : sa porte répondait non à tout le monde, Super Admin compris, et l'onglet
+    // était mort. L'Explorateur produits lit les mêmes fichiers (`lib/market/data`) : c'est lui qui gouverne ces données.
     const acces = lire("src/lib/marketing-cockpit/acces.ts");
-    expect(acces).toContain('userCan(user, "BUSINESS_DEVELOPMENT", "VIEW")');
-    expect(lire("src/app/(app)/business-development/marche/page.tsx")).toContain('requireModule("BUSINESS_DEVELOPMENT")');
+    expect(acces).toContain('userCan(user, "PRODUCT_EXPLORER", "VIEW")');
+    expect(acces).not.toContain('"BUSINESS_DEVELOPMENT"');
+    expect(lire("src/app/(app)/explorateur-produits/page.tsx")).toContain('requireModule("PRODUCT_EXPLORER")');
+    expect(lire("src/lib/marketing-cockpit/marche.ts")).toContain('from "@/lib/market/data"');
     // La Direction Marketing n'a pas le marché par défaut : elle ne voit ni l'onglet ni la tuile.
-    expect(PERMISSIONS.PRODUCT_MANAGER.BUSINESS_DEVELOPMENT).toBeUndefined();
+    expect(PERMISSIONS.PRODUCT_MANAGER.PRODUCT_EXPLORER).toBeUndefined();
+    // Le Super Admin, si : l'onglet n'est plus mort pour lui.
+    expect(PERMISSIONS.SUPER_ADMIN.PRODUCT_EXPLORER).toContain("VIEW");
   });
 
   it("la page garde sa porte, et les anciennes adresses mènent aux nouvelles", () => {

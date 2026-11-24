@@ -5,6 +5,7 @@ import { requireModule } from "@/lib/session";
 import { AgirCommeButton, ImpersonateButton } from "./impersonate-button";
 import { prisma } from "@/lib/prisma";
 import { PERMISSIONS, defaultScope, MODULES, ACTIONS, type Action, type Module, regulatoryLockWhere } from "@/lib/rbac";
+import { isRetiredModule } from "@/lib/modules-retired";
 import { buildAccessSheet, type PermissionMatrix } from "@/lib/rbac-sheet";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -64,7 +65,8 @@ export default async function AdminUserPage(props: { params: Promise<{ id: strin
   const { hiddenModules } = await getAppSettings().catch(sansBloquer("id-page.AdminUserPage.getAppSettings", { hiddenModules: [] as string[] }));
   const hors = new Set(hiddenModules);
   const overrideMap = new Map(target.access.map((a) => [a.module, a]));
-  const matrixRows: ModuleAccessRow[] = MODULES.map((module) => {
+  // Les modules RETIRÉS du service ne se présentent plus (24/11/2026) : ils n'ouvrent rien, à personne (`modules-retired.ts`).
+  const matrixRows: ModuleAccessRow[] = MODULES.filter((m) => !isRetiredModule(m)).map((module) => {
     const ov = overrideMap.get(module);
     const def = PERMISSIONS[target.role]?.[module] ?? [];
     const roleSummary = def.length

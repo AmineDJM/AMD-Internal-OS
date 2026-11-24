@@ -19,7 +19,7 @@ export default async function RhEntryPage() {
   const user = await requireUser();
   if (userCan(user, "EMPLOYEES", "VIEW")) redirect("/rh/equipe");
   if (userCan(user, "HR_REQUESTS", "VIEW")) redirect("/rh/demandes");
-  if (userCan(user, "RH", "UPDATE")) redirect("/rh/paie");
+  if (userCan(user, "PAIE", "VIEW")) redirect("/rh/paie");
   if (userCan(user, "TRAINING", "VIEW")) redirect("/formations");
   redirect("/mon-dossier");
 }

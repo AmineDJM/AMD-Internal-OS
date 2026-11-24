@@ -25,7 +25,7 @@ export const metadata = { title: "Actualisation des soldes — AMD Internal OS" 
  */
 export default async function ActualisationSoldesPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const user = await requireModule("FINANCES");
+  const user = await requireModule("FINANCES_BANQUE");
   const demande = await prisma.demandeActualisationSoldes.findUnique({
     where: { id: params.id },
     include: {
@@ -66,7 +66,7 @@ export default async function ActualisationSoldesPage(props: { params: Promise<{
   });
   const etat = etatDemande(lignes.map((l) => l.etat));
   const nomEntite = demande.company ? demande.company.shortName || demande.company.name : "Sans entité";
-  const peutRepondre = userCan(user, "FINANCES", "UPDATE") && !demande.termineeLe;
+  const peutRepondre = userCan(user, "FINANCES_BANQUE", "UPDATE") && !demande.termineeLe;
   const demandeLe = demande.createdAt.toLocaleString("fr-FR", { timeZone: "Africa/Algiers", dateStyle: "medium", timeStyle: "short" });
 
   return (

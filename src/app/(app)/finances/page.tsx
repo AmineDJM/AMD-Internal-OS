@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { requireUser, safeLanding } from "@/lib/session";
+import { userCan, type Module } from "@/lib/rbac";
 
 /**
  * LE TABLEAU DE BORD DES FINANCES N'EXISTE PLUS — le module a deux écrans, pas trois.
@@ -24,6 +26,16 @@ import { redirect } from "next/navigation";
  * ceux qui y passaient tous les matins. Une adresse qui meurt fait chercher un écran supprimé et
  * conclure que le module a disparu ; celle-ci conduit là où le travail se fait.
  */
-export default function FinancesPage() {
-  redirect("/finances/paiements-a-faire");
+export default async function FinancesPage() {
+  // LE PREMIER ÉCRAN OUVERT (24/11/2026) : chacun des trois a sa clé — rediriger d'office vers la banque renverrait
+  // à l'accueil, avec un refus, quiconque n'a que la Comptabilité ou les Doublons.
+  const user = await requireUser();
+  const ouvert = ECRANS.find((e) => userCan(user, e.module, "VIEW"));
+  redirect(ouvert?.href ?? safeLanding(user));
 }
+
+const ECRANS: readonly { module: Module; href: string }[] = [
+  { module: "FINANCES_BANQUE", href: "/finances/paiements-a-faire" },
+  { module: "FINANCES_COMPTABILITE", href: "/finances/comptabilite" },
+  { module: "FINANCES_DOUBLONS", href: "/finances/doublons-factures" },
+];

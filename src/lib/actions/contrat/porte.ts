@@ -39,6 +39,9 @@ export function lirePorte(corps: string, constantes: Readonly<Record<string, str
   // (l'action garde exactement les mêmes gardes) : c'est ce que la CARTE de confirmation sait dire
   // à la personne avant qu'elle clique (§118.80, §118.120).
   //
+  // `ouvre…` : les prédicats d'ACCÈS À UN SIÈGE réglé par la console (24/11/2026) — `ouvreLeCentreDeValidations`,
+  // `ouvreLeBureauAdam`. Le centre de validations sortait avec `gardes: []` dès qu'il a quitté son nom en `sits…`.
+  //
   // `allowed…` et `autorise…` sont DÉLIBÉRÉMENT dehors : la même mesure a trouvé
   // `allowedGeneralMeansCategoryIds`, qui rend une LISTE D'IDENTIFIANTS et non un droit. On relève
   // une garde sur un fait, jamais sur un nom plausible (§118.79a) — l'inscrire ferait annoncer une
@@ -48,7 +51,7 @@ export function lirePorte(corps: string, constantes: Readonly<Record<string, str
   // `Number.isNaN(` s'écrivent comme un prédicat de droit, et 37 fiches du parc annonçaient
   // « isFinite » ou « isArray » parmi leurs gardes. Mesuré sur toutes les sources d'actions : aucun
   // prédicat de droit ne s'appelle comme méthode — le point qui précède suffit à les écarter.
-  for (const g of corps.matchAll(/(?<![.\w$])(require[A-Z][A-Za-z]*|assert[A-Z][A-Za-z]*|can[A-Z][A-Za-z]*|has[A-Z][A-Za-z]*|is[A-Z][A-Za-z]*|peut[A-Z][A-Za-z]*|sits[A-Z][A-Za-z]*|siege[A-Z][A-Za-z]*|holds[A-Z][A-Za-z]*)\s*\(/g)) {
+  for (const g of corps.matchAll(/(?<![.\w$])(require[A-Z][A-Za-z]*|assert[A-Z][A-Za-z]*|can[A-Z][A-Za-z]*|has[A-Z][A-Za-z]*|is[A-Z][A-Za-z]*|peut[A-Z][A-Za-z]*|sits[A-Z][A-Za-z]*|siege[A-Z][A-Za-z]*|holds[A-Z][A-Za-z]*|ouvre[A-Z][A-Za-z]*)\s*\(/g)) {
     if (g[1] !== "requireUser") gardes.add(g[1]!);
   }
   return { module, verbe, entite, moduleFr, gardes: [...gardes].sort() };

@@ -90,7 +90,7 @@ export const BASES_PERSONNES_ARGENT: BaseDef[] = [
     raison: "Les demandes de paiement, ordres de dépense, mouvements, comptes de trésorerie et le centre de paiement.",
     sensibilite: "confidentiel",
     ecritPar: "Finances (`src/modules/finances/`, écrans Finances, Centre de paiement, Demandes de paiement)",
-    modules: ["FINANCES", "PAYMENT_CENTRE"],
+    modules: ["FINANCES", "FINANCES_BANQUE", "FINANCES_COMPTABILITE", "FINANCES_DOUBLONS", "PAYMENT_CENTRE"],
     famillesIa: ["BUDGETS"],
     mecanismes: [
       "Centre de paiement : siège réservé (`PaymentCentreSeat`, règle `sitsOnPaymentCentre`)",
