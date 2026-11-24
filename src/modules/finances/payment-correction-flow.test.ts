@@ -62,7 +62,9 @@ const err = (r: { ok: boolean; error?: string }) => (r.ok ? null : r.error ?? ""
  */
 suite("Demande de paiement — se corrige chez son demandeur, et l'ordre suit au centre", () => {
   const u: Record<string, string> = {};
-  const roles: Record<string, SessionUser["role"]> = { req: "MEDICAL_DELEGATE", coll: "MEDICAL_DELEGATE", fin: "FINANCE_BUDGET_MANAGER", dir: "DIRECTION" };
+  const roles: Record<string, SessionUser["role"]> = { req: "MEDICAL_DELEGATE", coll: "MEDICAL_DELEGATE", fin: "FINANCE_BUDGET_MANAGER", dir: "DIRECTION", dg: "GENERAL_MANAGER" };
+  // Le centre de paiement est tenu par la Direction générale (24/11/2026) : c'est le DG qui y décide ; la Direction
+  // (vue globale) ne sert plus qu'à suppléer le demandeur.
   const created: string[] = [];
   const comme = async (k: string) => { ACTOR = await actorFor(u[k]!, roles[k]!); };
 
@@ -102,7 +104,7 @@ suite("Demande de paiement — se corrige chez son demandeur, et l'ordre suit au
     const id = await nouvelle(titre, { transmise: true, montant: opts.montant, payee: opts.payee });
     const req = await prisma.paymentRequest.findUniqueOrThrow({ where: { id }, select: { expenseOrderId: true } });
     if (opts.autorisee) {
-      await comme("dir");
+      await comme("dg");
       expect(err(await decidePayment(form({ id: req.expenseOrderId!, decision: "APPROVE" })))).toBeNull();
     }
     await comme("fin");
@@ -212,7 +214,7 @@ suite("Demande de paiement — se corrige chez son demandeur, et l'ordre suit au
     expect(o.centralDecidedById).toBeNull();
     const msg = await prisma.paymentCentreMessage.findFirstOrThrow({ where: { orderId, decision: null }, orderBy: { createdAt: "desc" } });
     expect(msg.body).toMatch(/^Montant relevé de .* à .* DZD après autorisation \(demande PAY-\d{4}-\d+ corrigée par son demandeur\) — l'autorisation est à redonner\.$/);
-    const notifs = await prisma.notification.count({ where: { userId: u.dir, title: "Paiement à ré-autoriser — montant relevé", body: { contains: o.reference } } });
+    const notifs = await prisma.notification.count({ where: { userId: u.dg, title: "Paiement à ré-autoriser — montant relevé", body: { contains: o.reference } } });
     expect(notifs).toBe(1);
   });
 
@@ -244,7 +246,7 @@ suite("Demande de paiement — se corrige chez son demandeur, et l'ordre suit au
     expect(Number((await demande(regle.id)).amount)).toBe(500_000);
 
     const refuse = await renvoyee("Refusé");
-    await comme("dir");
+    await comme("dg");
     expect(err(await decidePayment(form({ id: refuse.orderId, decision: "REFUSE", body: "budget épuisé" })))).toBeNull();
     expect(err(await corriger("req", { id: refuse.id, amount: "1", note: "x" }))).toMatch(/Le centre de paiement a refusé ce paiement/);
   });
@@ -259,7 +261,7 @@ suite("Demande de paiement — se corrige chez son demandeur, et l'ordre suit au
     const { id, orderId } = await renvoyee("Course centre");
     const r = await pendantLaLecture("ExpenseOrder",
       () => corriger("req", { id, amount: "900000", note: "hausse pendant la décision" }),
-      (tx) => tx.expenseOrder.update({ where: { id: orderId }, data: { centralStatus: "APPROVED", centralDecidedById: u.dir, centralDecidedAt: new Date() } }));
+      (tx) => tx.expenseOrder.update({ where: { id: orderId }, data: { centralStatus: "APPROVED", centralDecidedById: u.dg, centralDecidedAt: new Date() } }));
     expect(err(r)).toBeNull();
     const o = await ordre(orderId);
     expect(Number(o.amount)).toBe(900_000);
@@ -312,7 +314,7 @@ suite("Demande de paiement — se corrige chez son demandeur, et l'ordre suit au
     it("un montant corrigé pendant la lecture se dit, avec les deux chiffres", async () => {
       const { id, orderId } = await renvoyee("Lu montant");
       expect(err(await corriger("req", { id, amount: "700000", note: "hausse" }))).toBeNull();
-      await comme("dir");
+      await comme("dg");
       expect(err(await decidePayment(form({ id: orderId, decision: "APPROVE", montantVu: "500000", beneficiaireVu: "SARL Atlas" }))))
         .toBe(`Le montant de ce paiement a changé pendant que vous lisiez (${(500_000).toLocaleString("fr-FR")} → ${(700_000).toLocaleString("fr-FR")} DZD) : relisez l'ordre avant de décider.`);
       expect((await ordre(orderId)).centralStatus).toBe("AWAITING");
@@ -321,14 +323,14 @@ suite("Demande de paiement — se corrige chez son demandeur, et l'ordre suit au
     it("un bénéficiaire changé pendant la lecture aussi ; la casse ne compte pas", async () => {
       const { id, orderId } = await renvoyee("Lu bénéficiaire");
       expect(err(await corriger("req", { id, payee: "EURL Ziryab", note: "raison sociale" }))).toBeNull();
-      await comme("dir");
+      await comme("dg");
       expect(err(await decidePayment(form({ id: orderId, decision: "APPROVE", montantVu: "500000", beneficiaireVu: "SARL Atlas" })))).toMatch(/Le bénéficiaire de ce paiement a changé/);
       expect(err(await decidePayment(form({ id: orderId, decision: "APPROVE", montantVu: "500000", beneficiaireVu: "eurl  ziryab" })))).toBeNull();
     });
 
     it("TÉMOIN : le montant bouge entre la lecture et l'écriture du centre — la décision n'est pas écrite", async () => {
       const { orderId } = await renvoyee("Écriture centre montant");
-      await comme("dir");
+      await comme("dg");
       const r = await pendantLaLecture("ExpenseOrder",
         () => decidePayment(form({ id: orderId, decision: "APPROVE" })),
         (tx) => tx.expenseOrder.update({ where: { id: orderId }, data: { amount: 900_000 } }));
@@ -339,7 +341,7 @@ suite("Demande de paiement — se corrige chez son demandeur, et l'ordre suit au
 
     it("TÉMOIN : deux sièges tranchent à la même seconde — le second n'écrase pas le premier", async () => {
       const { orderId } = await renvoyee("Deux sièges");
-      await comme("dir");
+      await comme("dg");
       const r = await pendantLaLecture("ExpenseOrder",
         () => decidePayment(form({ id: orderId, decision: "APPROVE" })),
         (tx) => tx.expenseOrder.update({ where: { id: orderId }, data: { centralStatus: "REFUSED" } }));
@@ -349,7 +351,7 @@ suite("Demande de paiement — se corrige chez son demandeur, et l'ordre suit au
 
     it("TÉMOIN : l'ordre est annulé entre la lecture et l'écriture du centre — on n'autorise pas un paiement annulé", async () => {
       const { orderId } = await renvoyee("Écriture centre annulé");
-      await comme("dir");
+      await comme("dg");
       const r = await pendantLaLecture("ExpenseOrder",
         () => decidePayment(form({ id: orderId, decision: "APPROVE" })),
         (tx) => tx.expenseOrder.update({ where: { id: orderId }, data: { status: "CANCELLED" } }));
@@ -359,7 +361,7 @@ suite("Demande de paiement — se corrige chez son demandeur, et l'ordre suit au
 
     it("TÉMOIN : le bénéficiaire bouge entre la lecture et l'écriture du centre — la décision n'est pas écrite", async () => {
       const { orderId } = await renvoyee("Écriture centre bénéficiaire");
-      await comme("dir");
+      await comme("dg");
       const r = await pendantLaLecture("ExpenseOrder",
         () => decidePayment(form({ id: orderId, decision: "APPROVE" })),
         (tx) => tx.expenseOrder.update({ where: { id: orderId }, data: { beneficiary: "EURL Ziryab" } }));

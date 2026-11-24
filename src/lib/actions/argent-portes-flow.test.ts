@@ -69,8 +69,10 @@ suite("Argent : la porte de l'ordre, la séparation des tâches, la réponse au 
     // Un ordre se règle sur SA catégorie budgétaire (`budgetGate`) : on la pose, le banc juge la porte, pas le budget.
     ids.env = (await prisma.budgetEnvelope.create({ data: { name: `${TAG}Env`, modules: ["FINANCES"], periodStart: new Date("2020-01-01"), periodEnd: new Date("2099-12-31"), totalAmount: 1_000_000 } })).id;
     ids.cat = (await prisma.budgetCategoryLine.create({ data: { envelopeId: ids.env, name: `${TAG}Cat`, allocated: 1_000_000 } })).id;
+    // Le siège du centre : le Directeur Général (centre réservé à la Direction générale, 24/11/2026), salarié d'Alpha.
+    const roleDe = { cpt: "COORDINATOR", siege: "GENERAL_MANAGER" } as const;
     for (const qui of ["cpt", "siege"] as const) {
-      const u = await prisma.user.create({ data: { name: `${TAG} ${qui}`, email: `${TAG}${qui}@t.dz`, role: "COORDINATOR", passwordHash: "x" } });
+      const u = await prisma.user.create({ data: { name: `${TAG} ${qui}`, email: `${TAG}${qui}@t.dz`, role: roleDe[qui], passwordHash: "x" } });
       ids[qui] = u.id;
       await prisma.employee.create({ data: { fullName: `${TAG} ${qui}`, companyId: ids.A, userId: u.id, isActive: true } });
     }
@@ -78,9 +80,8 @@ suite("Argent : la porte de l'ordre, la séparation des tâches, la réponse au 
     // Régler est le geste de « Banque & paiements », sa clé depuis le 24/11/2026 (la migration `modules_configurables` la
     // recopie de FINANCES pour les comptes existants).
     await prisma.userAccess.create({ data: { userId: ids.cpt, module: "FINANCES_BANQUE", canView: true, canCreate: true, canUpdate: true, canDelete: true, scope: "ALL" } });
-    await prisma.paymentCentreSeat.create({ data: { userId: ids.siege, note: TAG } });
     for (const qui of ["cpt", "siege"] as const) {
-      acteurs[qui] = { id: ids[qui], name: `${TAG} ${qui}`, email: `${TAG}${qui}@t.dz`, role: "COORDINATOR", secondaryRole: null, access: await getAccess(ids[qui], "COORDINATOR") } as unknown as CurrentUser;
+      acteurs[qui] = { id: ids[qui], name: `${TAG} ${qui}`, email: `${TAG}${qui}@t.dz`, role: roleDe[qui], secondaryRole: null, access: await getAccess(ids[qui], roleDe[qui]) } as unknown as CurrentUser;
     }
   }, 60_000);
 

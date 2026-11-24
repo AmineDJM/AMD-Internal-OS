@@ -68,7 +68,7 @@ suite("Caisse d'avance — dépense atomique, rallonge adressée à qui tranche"
   beforeAll(async () => {
     const mk = (n: string, role: UserRole) => prisma.user.create({ data: { name: `${TAG}${n}`, email: `${TAG}${n}@t.dz`, role, passwordHash: "x" } });
     // Séparation des tâches (ARGENT-06) : l'administrateur remet, le PDG autorise, la comptabilité règle.
-    const [admin, holder, rh, hors, pdg, cpt] = await Promise.all([mk("admin", "SUPER_ADMIN"), mk("assistante", "DIRECTION_ASSISTANT"), mk("rh", "COORDINATOR"), mk("hors", "COORDINATOR"), mk("pdg", "DIRECTION"), mk("cpt", "FINANCE_BUDGET_MANAGER")]);
+    const [admin, holder, rh, hors, pdg, cpt] = await Promise.all([mk("admin", "SUPER_ADMIN"), mk("assistante", "DIRECTION_ASSISTANT"), mk("rh", "COORDINATOR"), mk("hors", "COORDINATOR"), mk("pdg", "GENERAL_MANAGER"), mk("cpt", "FINANCE_BUDGET_MANAGER")]);
     adminId = admin.id; holderId = holder.id; rhId = rh.id; horsId = hors.id; pdgId = pdg.id; comptableId = cpt.id;
     deptId = (await prisma.department.create({ data: { name: `${TAG} Moyens généraux`, code: `${TAG}MG` } })).id;
     SERVICE = deptId;
@@ -86,7 +86,7 @@ suite("Caisse d'avance — dépense atomique, rallonge adressée à qui tranche"
     const ligne = await prisma.pettyCashAllotment.findFirstOrThrow({ where: { departmentId: deptId }, select: { id: true, expenseOrderId: true } });
     // Autorisée par le centre — par le PDG, pas par qui l'a demandée (séparation des tâches, ARGENT-06) —, payée par
     // les Finances, puis confirmée par la caissière : la remise est EN MAIN (Super Admin, 24/11/2026).
-    ACTOR = await actorFor(pdgId, "DIRECTION");
+    ACTOR = await actorFor(pdgId, "GENERAL_MANAGER");
     expect((await decidePayment(form({ id: ligne.expenseOrderId!, decision: "APPROVE" }))).ok).toBe(true);
     ACTOR = await actorFor(comptableId, "FINANCE_BUDGET_MANAGER");
     const payee = await settleExpenseOrder(form({ id: ligne.expenseOrderId! }));

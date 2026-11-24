@@ -97,7 +97,7 @@ suite("K10a — caisse, budgets et paie se défont d'un geste", () => {
     const mk = async (k: string, role: SessionUser["role"]) => {
       u[k] = (await prisma.user.create({ data: { name: `${RUN} ${k}`, email: `${RUN}${k}@t.dz`, role, passwordHash: "x" } })).id;
     };
-    await Promise.all([mk("sa", "SUPER_ADMIN"), mk("pdg", "DIRECTION"), mk("holder", "DIRECTION_ASSISTANT"), mk("fin", "FINANCE_BUDGET_MANAGER")]);
+    await Promise.all([mk("sa", "SUPER_ADMIN"), mk("pdg", "GENERAL_MANAGER"), mk("holder", "DIRECTION_ASSISTANT"), mk("fin", "FINANCE_BUDGET_MANAGER")]);
     soc = (await prisma.company.create({ data: { name: `${RUN} Adventum`, shortName: `${RUN}A` } })).id;
     soc2 = (await prisma.company.create({ data: { name: `${RUN} Pharmagène`, shortName: `${RUN}B` } })).id;
     compte = (await prisma.treasuryAccount.create({ data: { name: `${RUN} Banque`, openingBalance: 1_000_000, openingDate: new Date("2026-01-01"), companyId: soc, principal: true } })).id;
@@ -171,7 +171,7 @@ suite("K10a — caisse, budgets et paie se défont d'un geste", () => {
     const remise = await prisma.pettyCashAllotment.findFirstOrThrow({ where: { departmentId: dept } });
     // Le geste de la remise, RÉTABLI au cas précédent : il se ré-annule (K10b).
     const gesteRemise = await prisma.assistantGesteJournal.findFirstOrThrow({ where: { principalId: u.sa, capaciteId: "petty-cash-actions:allotPettyCash", annuleLe: null }, orderBy: { creeLe: "desc" } });
-    ACTOR = await acteur(u.pdg, "DIRECTION");
+    ACTOR = await acteur(u.pdg, "GENERAL_MANAGER");
     const d = await decidePayment(fd({ id: remise.expenseOrderId!, decision: "APPROVE" }));
     expect(d.ok, d.error).toBe(true);
     // Autorisée, elle part aux Finances, qui la paient ; elle reste à confirmer par le caissier (Super Admin, 24/11/2026).

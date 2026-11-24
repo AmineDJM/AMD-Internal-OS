@@ -70,7 +70,7 @@ const err = (r: { ok: boolean; error?: string }) => (r.ok ? null : r.error ?? ""
  */
 suite("K10a — demandes de paiement, centre, sièges, factures : exécuter puis annuler", () => {
   const u: Record<string, string> = {};
-  const roles: Record<string, SessionUser["role"]> = { req: "MEDICAL_DELEGATE", fin: "FINANCE_BUDGET_MANAGER", dir: "DIRECTION", sa: "SUPER_ADMIN", siege: "VIEWER" };
+  const roles: Record<string, SessionUser["role"]> = { req: "MEDICAL_DELEGATE", fin: "FINANCE_BUDGET_MANAGER", dir: "GENERAL_MANAGER", sa: "SUPER_ADMIN", siege: "VIEWER" };
   const demandes: string[] = [];
   const comme = async (k: string) => {
     const x = await prisma.user.findUniqueOrThrow({ where: { id: u[k]! } });
@@ -255,15 +255,13 @@ suite("K10a — demandes de paiement, centre, sièges, factures : exécuter puis
     expect(d === null || d.status === "CANCELLED", JSON.stringify(r.details)).toBe(true);
   });
 
-  it("SIÈGES : accorder → retiré ; retirer → recréé à l'identique", async () => {
+  it("SIÈGES : on n'en accorde plus (centre réservé à la Direction générale) ; retirer un siège d'hier → recréé à l'identique", async () => {
     await comme("sa");
-    expect(err(await grantPaymentCentreSeat(form({ userId: u.siege!, note: "intérim de la Direction" })))).toBeNull();
-    const siege = await prisma.paymentCentreSeat.findFirstOrThrow({ where: { userId: u.siege! } });
-    expect(bloquants(await annulerDernier())).toEqual([]);
-    expect(await prisma.paymentCentreSeat.findUnique({ where: { id: siege.id } })).toBeNull();
+    expect(err(await grantPaymentCentreSeat(form({ userId: u.siege!, note: "intérim de la Direction" })))).toMatch(/réservé à la Direction générale/);
+    expect(await prisma.paymentCentreSeat.count({ where: { userId: u.siege! } })).toBe(0);
 
-    expect(err(await grantPaymentCentreSeat(form({ userId: u.siege!, note: "intérim de la Direction" })))).toBeNull();
-    const s2 = await prisma.paymentCentreSeat.findFirstOrThrow({ where: { userId: u.siege! } });
+    // Un siège accordé AVANT la décision du 24/11/2026 : il reste en base, et son retrait s'annule comme hier.
+    const s2 = await prisma.paymentCentreSeat.create({ data: { userId: u.siege!, grantedById: u.sa!, note: "intérim de la Direction" } });
     expect(err(await revokePaymentCentreSeat(form({ userId: u.siege!, note: "fin d'intérim" })))).toBeNull();
     expect(await prisma.paymentCentreSeat.findUnique({ where: { id: s2.id } })).toBeNull();
     expect(bloquants(await annulerDernier())).toEqual([]);

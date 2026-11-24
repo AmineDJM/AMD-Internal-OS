@@ -31,25 +31,23 @@ const form = (fields: Record<string, string>): FormData => {
 };
 
 /**
- * LE SIÈGE NOMMÉ, DE BOUT EN BOUT — sur les vraies actions et le vrai `getAccess`.
- *
- * Ce que le module pur ne peut pas prouver : que la désignation ARRIVE jusqu'à la règle. C'est
- * précisément là que les deux gestes précédents échouaient en silence — cocher le module, poser un
- * rôle secondaire — et un test qui n'irait pas de l'action jusqu'à `sitsOnPaymentCentre` laisserait
- * exactement le même trou.
+ * LE SIÈGE NOMMÉ N'OUVRE PLUS RIEN (Super Admin, 24/11/2026 : « centre de paiement : AUCUN siège par pôle — réservé à la
+ * Direction générale »). Sur les vraies actions et le vrai `getAccess` : la désignation est refusée avec son remède, un
+ * siège accordé hier reste en base (on n'efface rien) mais ne fait plus siéger, et son retrait reste au Super Admin.
  */
-suite("Siège nommé au centre de paiement", () => {
-  let adminId = "", cibleId = "", pdgId = "";
+suite("Siège nommé au centre de paiement — fermé, les sièges d'hier neutralisés", () => {
+  let adminId = "", cibleId = "", pdgId = "", dgId = "";
 
   beforeAll(async () => {
     const mk = (suffix: string, role: SessionUser["role"], extra: Record<string, unknown> = {}) =>
       prisma.user.create({ data: { name: `${TAG}${suffix}`, email: `${TAG}${suffix}@t.dz`, role, passwordHash: "x", ...extra } });
-    const [admin, cible, pdg] = await Promise.all([
+    const [admin, cible, pdg, dg] = await Promise.all([
       mk("admin", "SUPER_ADMIN"),
       mk("cible", "FINANCE_BUDGET_MANAGER"),
       mk("pdg", "DIRECTION"),
+      mk("dg", "GENERAL_MANAGER"),
     ]);
-    adminId = admin.id; cibleId = cible.id; pdgId = pdg.id;
+    adminId = admin.id; cibleId = cible.id; pdgId = pdg.id; dgId = dg.id;
   });
 
   afterAll(async () => {
@@ -59,128 +57,52 @@ suite("Siège nommé au centre de paiement", () => {
     await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
-  it("avant toute désignation, la personne ne siège pas", async () => {
-    const cible = await actorFor(cibleId, "FINANCE_BUDGET_MANAGER");
-    expect(sitsOnPaymentCentre(cible)).toBe(false);
+  it("par le rôle : le Directeur Général siège, le PDG non — sur l'accès réellement résolu", async () => {
+    const dg = await actorFor(dgId, "GENERAL_MANAGER");
+    expect(sitsOnPaymentCentre(dg)).toBe(true);
+    expect(dg.access.modules.get("PAYMENT_CENTRE")?.actions.has("VIEW")).toBe(true);
+    const pdg = await actorFor(pdgId, "DIRECTION");
+    expect(sitsOnPaymentCentre(pdg)).toBe(false);
+    expect(pdg.access.modules.has("PAYMENT_CENTRE"), "l'entrée de menu ne s'ouvre plus au PDG").toBe(false);
   });
 
-  it("le MOTIF est obligatoire — un siège sans raison est un siège que personne n'ose retirer", async () => {
+  it("DÉSIGNER est refusé, avec le remède — et rien n'est écrit", async () => {
     ACTOR = await actorFor(adminId, "SUPER_ADMIN");
-    const r = await grantPaymentCentreSeat(form({ userId: cibleId }));
+    const r = await grantPaymentCentreSeat(form({ userId: cibleId, note: "Autorise les paiements pendant l'absence du DG." }));
     expect(r.ok).toBe(false);
-    expect(r.error).toMatch(/POURQUOI/);
+    expect(r.error).toMatch(/réservé à la Direction générale/);
+    expect(r.error).toMatch(/rôle de Directeur Général/);
+    expect(await prisma.paymentCentreSeat.count({ where: { userId: cibleId } })).toBe(0);
   });
 
-  it("désigné : il siège RÉELLEMENT, et le siège n'ajoute QUE le centre", async () => {
-    // On photographie ses modules AVANT, pour que l'assertion porte sur la DIFFÉRENCE. Vérifier
-    // « il n'a pas les RH » ne prouverait rien : son rôle lui en donne peut-être déjà, et le test
-    // passerait ou tomberait pour une raison étrangère au siège.
-    const avant = new Set((await actorFor(cibleId, "FINANCE_BUDGET_MANAGER")).access.modules.keys());
-
-    ACTOR = await actorFor(adminId, "SUPER_ADMIN");
-    const r = await grantPaymentCentreSeat(form({ userId: cibleId, note: "Autorise les paiements pendant l'absence du PDG." }));
-    expect(r.ok).toBe(true);
-
-    // LE CHEMIN COMPLET : action → base → getAccess → règle. C'est ici que les deux gestes
-    // précédents (case du module, rôle secondaire) se cassaient sans le dire.
-    const cible = await actorFor(cibleId, "FINANCE_BUDGET_MANAGER");
-    expect(cible.access.paymentCentreSeat).toBe(true);
-    expect(sitsOnPaymentCentre(cible)).toBe(true);
-    // L'entrée de menu s'ouvre : un droit qu'on ne peut atteindre qu'en connaissant l'URL n'est
-    // pas un droit accordé.
-    expect(cible.access.modules.get("PAYMENT_CENTRE")?.actions.has("VIEW")).toBe(true);
-
-    // LE SIÈGE N'EST PAS UNE PROMOTION : exactement un module de plus, et c'est celui-là.
-    const ajoutes = [...cible.access.modules.keys()].filter((m) => !avant.has(m));
-    expect(ajoutes).toEqual(["PAYMENT_CENTRE"]);
-
-    // La personne est prévenue — un droit reçu sans le savoir n'est pas exercé.
-    const notif = await prisma.notification.findFirst({ where: { userId: cibleId }, orderBy: { createdAt: "desc" } });
-    expect(notif?.title).toMatch(/centre de paiement/i);
-  });
-
-  it("deux fois la même personne : refusé, et le refus le dit", async () => {
-    ACTOR = await actorFor(adminId, "SUPER_ADMIN");
-    const r = await grantPaymentCentreSeat(form({ userId: cibleId, note: "Encore" }));
-    expect(r.ok).toBe(false);
-    expect(r.error).toMatch(/siège déjà/i);
-  });
-
-  it("le PDG n'a pas besoin d'un siège nommé — et on refuse d'en créer un qui ne servirait à rien", async () => {
-    // Un siège en double ferait croire, le jour où on le retire, qu'on a retiré l'accès.
-    ACTOR = await actorFor(adminId, "SUPER_ADMIN");
-    const r = await grantPaymentCentreSeat(form({ userId: pdgId, note: "Doublon" }));
-    expect(r.ok).toBe(false);
-    expect(r.error).toMatch(/par son rôle/i);
-  });
-
-  it("SEUL LE SUPER ADMIN désigne — pas même le PDG, qui siège pourtant", async () => {
-    // Administration reste souveraine et séparée : siéger au centre ne donne pas le droit
-    // d'élargir le centre. Sans cette séparation, le cercle pourrait se coopter lui-même.
-    ACTOR = await actorFor(pdgId, "DIRECTION");
-    const r = await grantPaymentCentreSeat(form({ userId: cibleId, note: "Par le PDG" }));
+  it("SEUL LE SUPER ADMIN touche aux sièges — un autre se voit refuser avant même la règle", async () => {
+    ACTOR = await actorFor(dgId, "GENERAL_MANAGER");
+    const r = await grantPaymentCentreSeat(form({ userId: cibleId, note: "Par le DG" }));
     expect(r.ok).toBe(false);
     expect(r.error).toMatch(/Super Admin/);
   });
 
-  it("retiré : il ne siège plus, et le module se referme", async () => {
-    ACTOR = await actorFor(adminId, "SUPER_ADMIN");
-    const r = await revokePaymentCentreSeat(form({ userId: cibleId }));
-    expect(r.ok).toBe(true);
+  it("un siège accordé HIER reste en base, mais ne fait plus siéger ni n'ouvre le module", async () => {
+    const avant = new Set((await actorFor(cibleId, "FINANCE_BUDGET_MANAGER")).access.modules.keys());
+    await prisma.paymentCentreSeat.create({ data: { userId: cibleId, grantedById: adminId, note: "Intérim du PDG (avant le 24/11/2026)." } });
     const cible = await actorFor(cibleId, "FINANCE_BUDGET_MANAGER");
     expect(sitsOnPaymentCentre(cible)).toBe(false);
-    expect(cible.access.modules.has("PAYMENT_CENTRE")).toBe(false);
+    expect([...cible.access.modules.keys()].filter((m) => !avant.has(m)), "aucun module de plus").toEqual([]);
+    expect(await prisma.paymentCentreSeat.count({ where: { userId: cibleId } }), "rien n'est effacé").toBe(1);
   });
 
-  it("retirer un siège qui n'existe pas se DIT, au lieu de faire semblant", async () => {
+  it("le Super Admin peut retirer un siège d'hier ; l'intéressé (administrateur délégué) non (SA-18)", async () => {
+    const acteur = await actorFor(cibleId, "FINANCE_BUDGET_MANAGER");
+    acteur.access.modules.set("ADMIN", { actions: new Set(["VIEW", "UPDATE"]), scope: "ALL" });
+    ACTOR = acteur;
+    expect((await revokePaymentCentreSeat(form({ userId: cibleId }))).ok).toBe(false);
+    expect(await prisma.paymentCentreSeat.count({ where: { userId: cibleId } })).toBe(1);
+
     ACTOR = await actorFor(adminId, "SUPER_ADMIN");
+    expect((await revokePaymentCentreSeat(form({ userId: cibleId }))).ok).toBe(true);
+    expect(await prisma.paymentCentreSeat.count({ where: { userId: cibleId } })).toBe(0);
     const r = await revokePaymentCentreSeat(form({ userId: cibleId }));
     expect(r.ok).toBe(false);
     expect(r.error).toMatch(/pas de siège/i);
-  });
-
-  it("LE COMPTE SYSTÈME NE SIÈGE PAS — autoriser un décaissement est un geste de personne", async () => {
-    // Sans ce refus, l'interdit d'auto-escalade de `policy/guard.ts` se contournerait par un
-    // humain qui clique : Adam autoriserait alors les paiements qu'il a lui-même préparés.
-    const systeme = await prisma.user.create({
-      data: { name: `${TAG}systeme`, email: `${TAG}systeme@t.dz`, role: "VIEWER", passwordHash: "x", isSystem: true },
-    });
-    ACTOR = await actorFor(adminId, "SUPER_ADMIN");
-    const r = await grantPaymentCentreSeat(form({ userId: systeme.id, note: "Pour Adam" }));
-    expect(r.ok).toBe(false);
-    expect(r.error).toMatch(/compte système/i);
-  });
-
-  it("un compte DÉSACTIVÉ ne siège pas — le siège se réveillerait sans qu'on l'ait redécidé", async () => {
-    const inactif = await prisma.user.create({
-      data: { name: `${TAG}inactif`, email: `${TAG}inactif@t.dz`, role: "VIEWER", passwordHash: "x", isActive: false },
-    });
-    ACTOR = await actorFor(adminId, "SUPER_ADMIN");
-    const r = await grantPaymentCentreSeat(form({ userId: inactif.id, note: "Plus tard" }));
-    expect(r.ok).toBe(false);
-    expect(r.error).toMatch(/désactivé/i);
-  });
-
-  it("un administrateur DÉLÉGUÉ ne se désigne pas lui-même, et ne retire pas son siège (SA-18)", async () => {
-    const delegue = await prisma.user.create({
-      data: { name: `${TAG}delegue`, email: `${TAG}delegue@t.dz`, role: "FINANCE_BUDGET_MANAGER", passwordHash: "x" },
-    });
-    const acteur = await actorFor(delegue.id, "FINANCE_BUDGET_MANAGER");
-    // Le module Administration délégué : il gère les comptes des autres.
-    acteur.access.modules.set("ADMIN", { actions: new Set(["VIEW", "UPDATE"]), scope: "ALL" });
-    ACTOR = acteur;
-
-    const r = await grantPaymentCentreSeat(form({ userId: delegue.id, note: "Je m'accorde le centre." }));
-    expect(r.ok).toBe(false);
-    expect(r.error).toMatch(/propres droits/);
-    expect(await prisma.paymentCentreSeat.count({ where: { userId: delegue.id } })).toBe(0);
-
-    // Posé par le Super Admin, le siège ne se retire pas non plus par l'intéressé.
-    ACTOR = await actorFor(adminId, "SUPER_ADMIN");
-    expect((await grantPaymentCentreSeat(form({ userId: delegue.id, note: "Intérim du PDG." }))).ok).toBe(true);
-    ACTOR = acteur;
-    const retrait = await revokePaymentCentreSeat(form({ userId: delegue.id }));
-    expect(retrait.ok).toBe(false);
-    expect(await prisma.paymentCentreSeat.count({ where: { userId: delegue.id } })).toBe(1);
   });
 });

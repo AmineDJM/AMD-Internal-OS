@@ -75,7 +75,7 @@ suite("Caisse d'avance — payée par les Finances, comptée à la confirmation 
     return allotPettyCash(fd({ departmentId: dMg, holderId: u.caissier, amount }));
   };
   const centre = async (orderId: string, decision: "APPROVE" | "REFUSE", body = "") => {
-    ACTOR = await acteur(u.pdg, "DIRECTION");
+    ACTOR = await acteur(u.pdg, "GENERAL_MANAGER");
     return decidePayment(fd({ id: orderId, decision, body }));
   };
   const payer = async (orderId: string) => {
@@ -102,7 +102,7 @@ suite("Caisse d'avance — payée par les Finances, comptée à la confirmation 
       u[k] = (await prisma.user.create({ data: { name: `${TAG} ${k}`, email: `${TAG}${k}@t.dz`, role, passwordHash: "x" } })).id;
     };
     // TROIS MAINS pour l'argent (séparation des tâches) : l'administration remet, le PDG autorise, les Finances paient.
-    await Promise.all([mk("sa", "SUPER_ADMIN"), mk("pdg", "DIRECTION"), mk("fin", "FINANCE_BUDGET_MANAGER"), mk("caissier", "DIRECTION_ASSISTANT")]);
+    await Promise.all([mk("sa", "SUPER_ADMIN"), mk("pdg", "GENERAL_MANAGER"), mk("fin", "FINANCE_BUDGET_MANAGER"), mk("caissier", "DIRECTION_ASSISTANT")]);
     soc = (await prisma.company.create({ data: { name: `${TAG} Adventum`, shortName: `${TAG}A` } })).id;
     compte = (await prisma.treasuryAccount.create({ data: { name: `${TAG} Banque`, openingBalance: 1_000_000, openingDate: new Date("2026-01-01"), companyId: soc, principal: true } })).id;
     dMg = (await prisma.department.create({ data: { name: `${TAG} Moyens généraux`, code: `${TAG}MG`, companyId: soc } })).id;

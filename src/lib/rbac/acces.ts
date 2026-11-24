@@ -124,11 +124,6 @@ export interface EffectiveAccess {
   pipelineView?: boolean;
   /** PIPELINE — tient-il le CADENAS (ouvrir un dossier = le publier à toute l'entreprise) ? */
   pipelineManage?: boolean;
-  /** CENTRE DE PAIEMENT — a-t-il un SIÈGE NOMMÉ ? Une désignation personnelle, indépendante du
-   *  rôle, qui n'ouvre QUE le centre (voir `PaymentCentreSeat`). Résolu ici pour la même raison
-   *  que le pipeline : `sitsOnPaymentCentre` est SYNCHRONE et appelée partout, elle ne peut pas
-   *  lire la base. Optionnel : les fabriques de test construisent un accès minimal. */
-  paymentCentreSeat?: boolean;
   /**
    * LES INTÉRIMS QUI ÉLARGISSENT CET ACCÈS AUJOURD'HUI (§118.196, lot E4 — audit 360°, M13) — qui l'on
    * remplace, jusqu'à quand, quels modules en viennent réellement. Un droit prêté qui ne se voit nulle
@@ -260,9 +255,9 @@ export function accesAttribue(
  * LES SIÈGES — des modules dont l'ACCÈS vaut pouvoir de décider (24/11/2026) : siéger au centre de paiement, ouvrir le centre
  * de validations ou celui d'Ad & Pro, tenir le bureau d'Adam (`sitsOnPaymentCentre`, `ouvreLeCentreDeValidations`,
  * `siegeAuCentreAdPro`, `ouvreLeBureauAdam`). Ils s'accordent par la console — le rôle, l'« autre rôle », Administration ›
- * Accès — ou par la désignation nommée au centre de paiement, et JAMAIS par un accès implicite qui ne visait qu'à LIRE : une
- * validation en attente qui pointe vers un centre, une base de données ouverte en lecture. (L'intérim ne les prête pas
- * non plus : `hr/stand-in.ts`.)
+ * Accès —, et JAMAIS par un accès implicite qui ne visait qu'à LIRE : une validation en attente qui pointe vers un centre,
+ * une base de données ouverte en lecture. (L'intérim ne les prête pas non plus : `hr/stand-in.ts`.) Le centre de paiement
+ * va plus loin : la console n'y fait plus entrer que la Direction générale (`sitsOnPaymentCentre`, 24/11/2026).
  */
 const SIEGES: ReadonlySet<Module> = new Set<Module>(["PAYMENT_CENTRE", "VALIDATION_CENTRE", "AD_PRO_CENTRE", "CHIEF_OF_STAFF"]);
 
@@ -273,7 +268,7 @@ const SIEGES: ReadonlySet<Module> = new Set<Module>(["PAYMENT_CENTRE", "VALIDATI
  */
 export const getAccess = perRequest(
   async (userId: string, roleHint: UserRole): Promise<EffectiveAccess> => {
-    const [overrides, grants, userRow, pendingValidations, departmentsLed, standIns, appSettings, centreSeat] = await Promise.all([
+    const [overrides, grants, userRow, pendingValidations, departmentsLed, standIns, appSettings] = await Promise.all([
       prisma.userAccess.findMany({ where: { userId } }),
       prisma.rowGrant.findMany({ where: { userId }, select: { entityType: true, entityId: true } }),
       prisma.user.findUnique({ where: { id: userId }, select: { role: true, secondaryRole: true } }),
@@ -293,11 +288,8 @@ export const getAccess = perRequest(
       // `getAppSettings` est lui-même mis en cache par requête et retombe sur ses valeurs par
       // défaut en cas de souci — le doute referme le verrou, il ne l'ouvre pas.
       getAppSettings(),
-      // LE SIÈGE NOMMÉ AU CENTRE DE PAIEMENT. Une désignation PERSONNELLE, accordée une par une
-      // par le Super Admin : elle n'ouvre que le centre, et rien d'autre. On la résout ici parce
-      // que `sitsOnPaymentCentre` est synchrone et appelée depuis l'écran, l'action, l'assistant
-      // et la recherche — lui donner une lecture de base rendrait toute la chaîne asynchrone.
-      prisma.paymentCentreSeat.count({ where: { userId } }).catch(sansBloquer("rbac.paymentCentreSeat", 0)),
+      // (Le SIÈGE NOMMÉ au centre de paiement n'est plus lu : le centre est réservé à la Direction générale — Super
+      // Admin, 24/11/2026. Les désignations restent en base, sans effet : `sitsOnPaymentCentre`.)
     ]);
 
     // Rôle principal résolu EN DIRECT depuis la base : le JWT fige le rôle au login, donc
@@ -401,17 +393,6 @@ export const getAccess = perRequest(
     // sans VALIDATIONS). Sinon `requireModule("VALIDATIONS")` le redirige et la demande
     // qui l'attend reste invisible. On garantit donc au moins la LECTURE de la page.
     if (pendingValidations.length > 0) grantImplicit("VALIDATIONS", ["VIEW"], null);
-
-    // ── LE SIÈGE NOMMÉ OUVRE LE MODULE QU'IL SERT, ET LUI SEUL ──
-    //
-    // Désigner quelqu'un au centre sans lui ouvrir l'entrée de menu produirait exactement le
-    // défaut qu'on corrige : un accès accordé qui ne mène nulle part, et une personne qui doit
-    // connaître l'URL pour exercer un droit qu'on croit lui avoir donné.
-    //
-    // On accorde `PAYMENT_CENTRE` en VUE + VALIDATE, et RIEN d'autre : le siège ne donne pas les
-    // Finances, ni la vue globale, ni un module de plus. Un BLOCAGE explicite de l'administrateur
-    // prime, comme partout ailleurs — sinon on ne pourrait plus retirer le module à quelqu'un.
-    if (centreSeat > 0) grantImplicit("PAYMENT_CENTRE", ["VIEW", "VALIDATE"], "ALL");
 
     // ── LES MOYENS GÉNÉRAUX NE S'OUVRENT PLUS TOUT SEULS ──────────────────────────────────
     //
@@ -651,7 +632,6 @@ export const getAccess = perRequest(
     return {
       modules, rowGrants, secondaryRole, role,
       pipelineView: pipeline.view, pipelineManage: pipeline.manage,
-      paymentCentreSeat: centreSeat > 0,
       interims, pretes,
     };
   },

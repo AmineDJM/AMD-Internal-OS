@@ -155,8 +155,8 @@ suite("Matériel promotionnel — circuit complet (Marketing → Assistante → 
     expect(avant.error).toMatch(/centre de paiement/i);
     expect((await prisma.promoMaterial.findUniqueOrThrow({ where: { id: pmId } })).status).toBe("PAYMENT_INITIATED");
 
-    // Le centre autorise (vrai point d'entrée), puis l'ordre est réglé.
-    ACTOR = await actorFor(dir, "DIRECTION");
+    // Le centre autorise (vrai point d'entrée) — la Direction générale, le DG (24/11/2026) —, puis l'ordre est réglé.
+    ACTOR = await actorFor(dg, "GENERAL_MANAGER");
     expect((await decidePayment(form({ id: orders[0].id, decision: "APPROVE" }))).ok).toBe(true);
     ACTOR = await actorFor(fin, "FINANCE_BUDGET_MANAGER");
     const autorise = await confirmPayment(form({ id: pmId }));

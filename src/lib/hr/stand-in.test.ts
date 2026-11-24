@@ -188,7 +188,10 @@ describe("délégation des droits — jamais plus que ce que l'absent DÉTIENT (
     for (const jamais of ["SALES", "LOGISTICS", "BUSINESS_DEVELOPMENT", "DRIVE", "MESSAGING", "WORKSPACE", "NOTIFICATIONS", "PAYMENT_CENTRE", "MY_TEAM", "DIRECTORIES", "ADMIN"]) {
       expect(m, jamais).not.toContain(jamais);
     }
-    expect(PERMISSIONS.DIRECTION.PAYMENT_CENTRE, "PRÉMISSE : la matrice de la Direction porte le centre").toContain("VIEW");
+    // Le centre de paiement n'est plus dans la matrice de la Direction (24/11/2026) ; il reste un siège, jamais prêté — la
+    // prémisse se lit sur le Directeur Général, qui le porte.
+    expect(modulesPretables(parRole("GENERAL_MANAGER")), "un siège ne se prête pas").not.toContain("PAYMENT_CENTRE");
+    expect(PERMISSIONS.GENERAL_MANAGER.PAYMENT_CENTRE, "PRÉMISSE : la matrice du DG porte le centre").toContain("VIEW");
   });
 
   // La souveraineté du Super Admin ne se prête pas, et un SIÈGE se donne par un rôle ou une

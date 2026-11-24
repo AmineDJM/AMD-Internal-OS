@@ -82,7 +82,7 @@ suite("moyens généraux — une pièce refusée n'écrit aucune dépense", () =
       prisma.user.create({ data: { name: `${TAG}admin`, email: `${TAG}admin@t.dz`, role: "SUPER_ADMIN", passwordHash: "x" } }),
       prisma.user.create({ data: { name: `${TAG}assistante`, email: `${TAG}holder@t.dz`, role: "DIRECTION_ASSISTANT", passwordHash: "x" } }),
       // Séparation des tâches (ARGENT-06) : le PDG autorise, la comptabilité règle.
-      prisma.user.create({ data: { name: `${TAG}pdg`, email: `${TAG}pdg@t.dz`, role: "DIRECTION", passwordHash: "x" } }),
+      prisma.user.create({ data: { name: `${TAG}pdg`, email: `${TAG}pdg@t.dz`, role: "GENERAL_MANAGER", passwordHash: "x" } }),
       prisma.user.create({ data: { name: `${TAG}cpt`, email: `${TAG}cpt@t.dz`, role: "FINANCE_BUDGET_MANAGER", passwordHash: "x" } }),
     ]);
     adminId = admin.id; holderId = holder.id; pdgId = pdg.id; comptableId = cpt.id;
@@ -100,7 +100,7 @@ suite("moyens généraux — une pièce refusée n'écrit aucune dépense", () =
     const ligne = await prisma.pettyCashAllotment.findFirstOrThrow({ where: { departmentId: deptId }, select: { id: true, expenseOrderId: true } });
     // Autorisée par le centre — par le PDG, pas par qui l'a demandée (séparation des tâches, ARGENT-06) —, payée par
     // les Finances, puis confirmée par la caissière : la remise est EN MAIN (Super Admin, 24/11/2026).
-    ACTOR = await actorFor(pdgId, "DIRECTION");
+    ACTOR = await actorFor(pdgId, "GENERAL_MANAGER");
     expect((await decidePayment(form({ id: ligne.expenseOrderId!, decision: "APPROVE" }))).ok).toBe(true);
     ACTOR = await actorFor(comptableId, "FINANCE_BUDGET_MANAGER");
     const payee = await settleExpenseOrder(form({ id: ligne.expenseOrderId! }));

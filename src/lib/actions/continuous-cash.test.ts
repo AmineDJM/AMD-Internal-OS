@@ -74,7 +74,7 @@ suite("Caisse d'avance continue", () => {
     const [admin, holder, pdg, comptable] = await Promise.all([
       prisma.user.create({ data: { name: `${TAG}admin`, email: `${TAG}admin@t.dz`, role: "SUPER_ADMIN", passwordHash: "x" } }),
       prisma.user.create({ data: { name: `${TAG}assistante`, email: `${TAG}holder@t.dz`, role: "DIRECTION_ASSISTANT", passwordHash: "x" } }),
-      prisma.user.create({ data: { name: `${TAG}pdg`, email: `${TAG}pdg@t.dz`, role: "DIRECTION", passwordHash: "x" } }),
+      prisma.user.create({ data: { name: `${TAG}pdg`, email: `${TAG}pdg@t.dz`, role: "GENERAL_MANAGER", passwordHash: "x" } }),
       prisma.user.create({ data: { name: `${TAG}comptable`, email: `${TAG}cpt@t.dz`, role: "FINANCE_BUDGET_MANAGER", passwordHash: "x" } }),
     ]);
     adminId = admin.id; holderId = holder.id; pdgId = pdg.id; comptableId = comptable.id;
@@ -119,7 +119,7 @@ suite("Caisse d'avance continue", () => {
    * rien n'est dans le fond.
    */
   const verserTout = async () => {
-    const [pdg, comptable, caissier] = await Promise.all([actorFor(pdgId, "DIRECTION"), actorFor(comptableId, "FINANCE_BUDGET_MANAGER"), actorFor(holderId, "DIRECTION_ASSISTANT")]);
+    const [pdg, comptable, caissier] = await Promise.all([actorFor(pdgId, "GENERAL_MANAGER"), actorFor(comptableId, "FINANCE_BUDGET_MANAGER"), actorFor(holderId, "DIRECTION_ASSISTANT")]);
     const attente = await prisma.pettyCashAllotment.findMany({
       where: { departmentId: deptId, status: "ALLOTTED", transactionId: null, expenseOrderId: { not: null } },
       select: { id: true, expenseOrderId: true },

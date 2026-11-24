@@ -37,7 +37,7 @@ import { statuerTotalDg } from "@/lib/actions/porte-dg-actions";
 import { pharmacienAssigne } from "@/lib/medical-info";
 import { decidePayment } from "@/modules/finances/actions-centre";
 import { settleExpenseOrder } from "@/modules/finances/actions-depenses";
-import { chargerCentre } from "@/modules/finances/api";
+import { chargerCentre, REFUS_AUTORISER_SON_APPROBATION } from "@/modules/finances/api";
 import { createEvent, submitEventForApproval } from "../actions-evenements";
 import { addAdProItem, submitAdProItem, approveAdProItemOrder } from "../actions-postes";
 import { decideAdProItem, retirerDemandeBC, annulerOrdrePoste } from "../actions-postes-decision";
@@ -93,6 +93,8 @@ const SEUIL_BC = 1_000_000;
 const ROLES = {
   kam: "MEDICAL_DELEGATE", ns: "NATIONAL_SALES", od: "OPERATIONS_DIRECTOR", dm: "PRODUCT_MANAGER",
   ast: "DIRECTION_ASSISTANT", dg: "GENERAL_MANAGER", fin: "FINANCE_BUDGET_MANAGER", pharm: "MEDICAL_INFO_PHARMACIST",
+  // L'autre siège du centre de paiement : quand le DG a validé le total en amont, c'est lui qui autorise (24/11/2026).
+  sa: "SUPER_ADMIN",
 } as const;
 type Qui = keyof typeof ROLES;
 
@@ -816,7 +818,16 @@ suite("Recette de bout en bout — le circuit agence d'un événement, phase par
     const dg = await acteur(u.dg, ROLES.dg);
     expect((await chargerCentre(su(dg), { entite: societe })).idsEntite).toContain(ORDRE.direct);
     ACTOR = dg;
-    expect((await decidePayment(fd({ id: ORDRE.direct, decision: "APPROVE" }))).ok).toBe(true);
+    const parLeDg = await decidePayment(fd({ id: ORDRE.direct, decision: "APPROVE" }));
+    if (tot.ok) expect(parLeDg.ok, msg(parLeDg)).toBe(true);
+    else {
+      // SÉPARATION DES TÂCHES (24/11/2026) : le DG a validé le total en amont — il n'autorise pas ce paiement au centre ;
+      // l'autre membre de la Direction générale, le Super Admin, le fait.
+      expect(parLeDg).toEqual({ ok: false, error: REFUS_AUTORISER_SON_APPROBATION });
+      ACTOR = await acteur(u.sa, ROLES.sa);
+      const parLeSa = await decidePayment(fd({ id: ORDRE.direct, decision: "APPROVE" }));
+      expect(parLeSa.ok, msg(parLeSa)).toBe(true);
+    }
     await comme("fin");
     const s = await settleExpenseOrder(fd({ id: ORDRE.direct }));
     expect(s.ok, msg(s)).toBe(true);

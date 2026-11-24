@@ -66,7 +66,7 @@ suite("L'entité de l'argent", () => {
     const [rh, dem, pdg, cpt] = await Promise.all([
       prisma.user.create({ data: { name: `${TAG}rh`, email: `${TAG}rh@t.dz`, role: "SUPER_ADMIN", passwordHash: "x" } }),
       prisma.user.create({ data: { name: `${TAG}dem`, email: `${TAG}dem@t.dz`, role: "MEDICAL_DELEGATE", passwordHash: "x" } }),
-      prisma.user.create({ data: { name: `${TAG}pdg`, email: `${TAG}pdg@t.dz`, role: "DIRECTION", passwordHash: "x" } }),
+      prisma.user.create({ data: { name: `${TAG}pdg`, email: `${TAG}pdg@t.dz`, role: "GENERAL_MANAGER", passwordHash: "x" } }),
       prisma.user.create({ data: { name: `${TAG}cpt`, email: `${TAG}cpt@t.dz`, role: "FINANCE_BUDGET_MANAGER", passwordHash: "x" } }),
     ]);
     rhId = rh.id; demandeurId = dem.id; pdgId = pdg.id; comptableId = cpt.id;
@@ -170,7 +170,7 @@ suite("L'entité de l'argent", () => {
       const r = await envoyerPaieAuCentre(fd);
       expect(r.ok, r.error).toBe(true);
       const wire = await prisma.payrollWire.findFirstOrThrow({ where: { companyId: phaId, year: 2031, month: 3 } });
-      const [pdg, comptable] = await Promise.all([actorFor(pdgId, "DIRECTION"), actorFor(comptableId, "FINANCE_BUDGET_MANAGER")]);
+      const [pdg, comptable] = await Promise.all([actorFor(pdgId, "GENERAL_MANAGER"), actorFor(comptableId, "FINANCE_BUDGET_MANAGER")]);
       const regler = () => { ACTOR = comptable; const f = new FormData(); f.set("id", wire.expenseOrderId!); return settleExpenseOrder(f); };
 
       // Avant l'autorisation du centre, rien ne bouge — ni le livre, ni la masse.

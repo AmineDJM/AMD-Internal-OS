@@ -11,7 +11,10 @@ import {
   alerteBudget, alerteTresorerie, montantCourt, montantsEtEcarts, phraseHistorique, PREMIER_PAIEMENT,
   type AlerteDecision, type BudgetDecision, type ContexteDecision, type EtapeChaine, type JalonLu, type PieceDecision,
 } from "../../domaine/contexte-decision";
+import { phraseFractionnement, type SignalFractionnement } from "../../domaine/fractionnement";
 import { ordresAvecFacture } from "../facture-ordre";
+import { approbateursEnAmontDesOrdres } from "../approbateurs-amont";
+import { signauxDeFractionnement } from "./fractionnement";
 import { paymentDossierHref } from "../expense-orders";
 
 /**
@@ -259,11 +262,15 @@ export async function contexteDecisionDesOrdres(
   for (const f of fichiersRegistre) if (!fichierDuRegistre.has(f.entityId)) fichierDuRegistre.set(f.entityId, f.id);
 
   // ── Les briques des autres métiers — chacune peut manquer ou tomber sans emporter la fiche ───
-  const [apportsLus, doublons, liens, factures] = await Promise.all([
+  // Les GARDE-FOUS (24/11/2026) : qui a approuvé en amont (séparation des tâches) et le signal « possible fractionnement ».
+  const garde = (o: { id: string; sourceType: string | null; sourceId: string | null }) => ({ id: o.id, sourceType: o.sourceType, sourceId: o.sourceId });
+  const [apportsLus, doublons, liens, factures, enAmont, fractionnements] = await Promise.all([
     Promise.all((briques.apports ?? []).map((b) => essayer(b.nom, manques, new Map<string, ApportContexte>(), () => b.lire(pourBriques)))),
     briques.doublons ? essayer("doublons", manques, new Map<string, string>(), () => briques.doublons!(ordreIds)) : Promise.resolve(new Map<string, string>()),
     briques.liens ? essayer("liens", manques, new Map<string, string | null>(), () => briques.liens!(pourBriques)) : Promise.resolve(new Map<string, string | null>()),
     essayer("factures", manques, null as Set<string> | null, () => ordresAvecFacture(ordres.map((o) => ({ id: o.id, sourceType: o.sourceType, sourceId: o.sourceId })))),
+    essayer("approbations en amont", manques, new Map<string, string[]>(), () => approbateursEnAmontDesOrdres(ordres.map(garde))),
+    essayer("fractionnement", manques, new Map<string, SignalFractionnement>(), () => signauxDeFractionnement(ordreIds)),
   ]);
   const apportDe = (id: string): ApportContexte => {
     const out: ApportContexte = {};
@@ -411,8 +418,10 @@ export async function contexteDecisionDesOrdres(
       alertes.push({ titre: "Sans facture", detail: "la facture est exigée avant le règlement et n'est pas jointe", niveau: "BLOQUANT" });
       pieces.push({ nom: "Facture", present: false, documentId: null });
     }
-    const refusAutoriser = refusSeparationDesTaches("AUTORISER", o, user.id, reglages.separationTachesPaiement, user.role === "SUPER_ADMIN");
-    if (refusAutoriser) alertes.push({ titre: "Demandeur = décideur", detail: refusAutoriser, niveau: "BLOQUANT" });
+    const refusAutoriser = refusSeparationDesTaches("AUTORISER", { ...o, approbateursEnAmont: enAmont.get(o.id) ?? [] }, user.id, reglages.separationTachesPaiement, user.role === "SUPER_ADMIN");
+    if (refusAutoriser) alertes.push({ titre: o.requestedById === user.id ? "Demandeur = décideur" : "Approbateur = décideur", detail: refusAutoriser, niveau: "BLOQUANT" });
+    const fractionnement = fractionnements.get(o.id);
+    if (fractionnement) alertes.push({ titre: "Possible fractionnement", detail: phraseFractionnement(fractionnement), niveau: "ATTENTION" });
     const revision = [...o.centralMessages].reverse().find((m) => !m.decision && /autorisation est à redonner/.test(m.body));
     if (revision) alertes.push({ titre: "Ordre révisé", detail: revision.body, niveau: "ATTENTION" });
     alertes.push(...(apport.alertes ?? []));

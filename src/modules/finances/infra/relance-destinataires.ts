@@ -1,4 +1,3 @@
-import { prisma } from "@/lib/prisma";
 import { notifyRoles, notifyUser } from "@/lib/notify";
 import { CHEMIN_CENTRE_DE_PAIEMENT } from "@/lib/chemins/finances";
 import type { EtatPaiement } from "../domaine/relance-paiement";
@@ -7,7 +6,7 @@ import { ROLES_CENTRE_DE_PAIEMENT } from "../domaine/authorization";
 /**
  * PRÉVENIR QUI A LA MAIN — la seule règle des destinataires d'une relance de paiement, lue par la relance unifiée
  * (`relancerPaiement`) ET par la relance du dossier (`nudgePaymentRequest`) (Direction, 14/10/2026) :
- *   • au CENTRE (le PDG, le Directeur Général, le Super Admin par leur rôle, et les sièges nommés) tant qu'il n'a pas autorisé ;
+ *   • au CENTRE (la Direction générale : le Directeur Général et le Super Admin) tant qu'il n'a pas autorisé ;
  *   • au DEMANDEUR quand le dossier lui a été renvoyé ;
  *   • aux FINANCES sinon (et au destinataire nommé des demandes anciennes).
  * Prévenir les Finances d'un paiement encore au centre leur annonçait un travail qu'elles ne pouvaient pas commencer.
@@ -20,8 +19,6 @@ export async function prevenirQuiALaMain(i: {
   const lienDossier = i.dossierId ? `/validations/paiements/${i.dossierId}` : CHEMIN_CENTRE_DE_PAIEMENT;
   if (i.etat === "CENTRE") {
     await notifyRoles([...ROLES_CENTRE_DE_PAIEMENT], { type: "VALIDATION_REQUIRED", title: i.title, body: i.body, link: CHEMIN_CENTRE_DE_PAIEMENT });
-    const sieges = await prisma.paymentCentreSeat.findMany({ select: { userId: true } });
-    for (const s of sieges) await notifyUser({ userId: s.userId, type: "VALIDATION_REQUIRED", title: i.title, body: i.body, link: CHEMIN_CENTRE_DE_PAIEMENT });
     return "le centre de paiement est prévenu";
   }
   if (i.etat === "DEMANDEUR") {
