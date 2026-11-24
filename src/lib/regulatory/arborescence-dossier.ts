@@ -276,7 +276,8 @@ function parCategorie(d: DepotARanger): string[] | null {
     case "CPP":
     case "ORIGIN_AMM": return [...segments(`${ADMIN1}/Detenteur`), ...segments(d.folder)];
     case "BV_RECEIPT": return [...segments(`${DRAFT1}/Formulaires et fiches`), ...segments(d.folder)];
-    case "REGISTRATION_DECISION": return [...segments(DE_PRIX), ...segments(d.folder)];
+    case "REGISTRATION_DECISION":
+    case "PRICE_ATTESTATION": return [...segments(DE_PRIX), ...segments(d.folder)];
     case "QUERY_RECEIVED": return versReserves(d, cycle, "RECUES");
     case "QUERY_RESPONSE": return versReserves(d, cycle, "REPONSE");
     default: return null;

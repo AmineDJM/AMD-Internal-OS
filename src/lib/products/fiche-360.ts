@@ -11,6 +11,8 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
+import { VALIDITE_ENREGISTREMENT_ANS } from "@/lib/regulatory/validite-enregistrement";
+
 // ─────────────────────────── Le cycle de vie, en frise ───────────────────────────
 
 export const ETAPES_CYCLE = ["ETUDE", "ENREGISTREMENT", "COMMERCIALISE", "FIN_DE_VIE"] as const;
@@ -121,17 +123,25 @@ export function variationPct(courant: number, precedent: number): number | null 
 
 // ─────────────────────────── La décision d'enregistrement ───────────────────────────
 
-/** Validité d'une DE : 5 ans à compter de la signature ; le renouvellement se dépose 180 jours avant (ANPP). */
-export const VALIDITE_DE_ANS = 5;
+/** Validité d'une DE : 5 ans à compter de la signature (`regulatory/validite-enregistrement.ts`) ; le renouvellement se dépose 180 jours avant (ANPP). */
+export const VALIDITE_DE_ANS = VALIDITE_ENREGISTREMENT_ANS;
 export const PREAVIS_RENOUVELLEMENT_JOURS = 180;
 
+/** L'échéance à partir d'une fin de validité CONNUE (confirmée sur le dossier). */
+export function echeanceDeLaFin(fin: Date | string | null | undefined, maintenant: Date): { expiration: Date; depotAvant: Date; joursAvantDepot: number } | null {
+  if (!fin) return null;
+  const expiration = new Date(fin);
+  if (Number.isNaN(expiration.getTime())) return null;
+  const depotAvant = new Date(expiration.getTime() - PREAVIS_RENOUVELLEMENT_JOURS * 86_400_000);
+  return { expiration, depotAvant, joursAvantDepot: Math.floor((depotAvant.getTime() - maintenant.getTime()) / 86_400_000) };
+}
+
+/** L'échéance d'une DE dont on ne connaît que la date de signature : fin = signature + 5 ans. */
 export function echeanceDecision(dateDecision: Date | string | null | undefined, maintenant: Date): { expiration: Date; depotAvant: Date; joursAvantDepot: number } | null {
   if (!dateDecision) return null;
   const d = new Date(dateDecision);
   if (Number.isNaN(d.getTime())) return null;
-  const expiration = new Date(Date.UTC(d.getUTCFullYear() + VALIDITE_DE_ANS, d.getUTCMonth(), d.getUTCDate()));
-  const depotAvant = new Date(expiration.getTime() - PREAVIS_RENOUVELLEMENT_JOURS * 86_400_000);
-  return { expiration, depotAvant, joursAvantDepot: Math.floor((depotAvant.getTime() - maintenant.getTime()) / 86_400_000) };
+  return echeanceDeLaFin(new Date(Date.UTC(d.getUTCFullYear() + VALIDITE_DE_ANS, d.getUTCMonth(), d.getUTCDate())), maintenant);
 }
 
 /** L'échéance de dépôt du renouvellement devient un signal à six mois. */

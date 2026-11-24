@@ -468,6 +468,7 @@ enum DocumentCategory {
   QUERY_RECEIVED
   QUERY_RESPONSE
   REGISTRATION_DECISION
+  PRICE_ATTESTATION // attestation de prix (Regulatory, à l'obtention de la DE)
   PROFORMA
   INVOICE
   PACKING_LIST
@@ -2094,6 +2095,26 @@ model RegulatoryProduct {
   manufacturer           String? // fabricant (obligatoire si variation locale)
   variationDate          DateTime? // date d'effet de la variation
 
+  /// LA VALIDITÉ DE LA DÉCISION D'ENREGISTREMENT (Super Admin, 24/11/2026) — 5 ans. Chaque date dit sa
+  /// SOURCE (`LUE_IA` | `DEDUITE` | `SAISIE`, `regulatory/validite-enregistrement.ts`) : une fin devinée
+  /// (début + 5 ans) ne se lit pas comme une fin imprimée. Le statut (valide / à renouveler / expirée) se
+  /// CALCULE sur la date du jour — un statut écrit serait faux le lendemain.
+  registrationDecisionNumber   String?
+  registrationDecisionDate     DateTime?
+  registrationDecisionSource   String?
+  registrationValidFrom        DateTime?
+  registrationValidFromSource  String?
+  registrationValidUntil       DateTime?
+  registrationValidUntilSource String?
+  registrationConfirmedAt      DateTime?
+  registrationConfirmedById    String?
+  /// Les PROPOSITIONS de l'IA (décision, attestation de prix) en attente d'un clic humain.
+  registrationReading          Json?
+  /// Le dernier palier d'alerte de renouvellement envoyé (12, 6, 1 mois ; 0 = expirée), et la fin
+  /// de validité qu'il visait : une nouvelle décision rouvre les paliers.
+  renewalAlertTier             Int?
+  renewalAlertUntil            DateTime?
+
   /// VERROU — dossier invisible pour toute l'équipe, y compris la Direction. Seul le Super
   /// Admin le voit et peut le déverrouiller (cadenas du tableau). Sert aux portefeuilles
   /// encore confidentiels : le filtre est posé dans `scopeRegulatory`, pas dans l'écran, pour
@@ -2173,6 +2194,7 @@ model RegulatoryProduct {
   @@index([supplierId])
   @@index([isLocked])
   @@index([rangeId])
+  @@index([registrationValidUntil])
 }
 
 // Variation de fabrication : après la DE d'un produit, on peut demander une variation

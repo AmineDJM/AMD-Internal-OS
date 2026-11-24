@@ -1,7 +1,7 @@
 // ⚠️  FICHIER GÉNÉRÉ — ne pas éditer à la main. Voir `npm run actions:contrat`.
 //
 // Chaque entrée est un spécificateur LITTÉRAL : l'empaqueteur les voit tous, et rien n'est
-// chargé avant l'appel. `executer.test.ts` résout les 1382 actions et échoue en
+// chargé avant l'appel. `executer.test.ts` résout les 1374 actions et échoue en
 // nommant celle qui a disparu — c'est le contrôle d'appelant que le compilateur ne fait pas ici.
 
 /** Les exports des morceaux d'une clé découpée, réunis (exports nommés et objet `default` de l'interop CommonJS). */
@@ -88,7 +88,6 @@ export const MODULES_ACTIONS: Readonly<Record<string, () => Promise<Record<strin
   "database-admin-actions": () => import("./database-admin-actions") as unknown as Promise<Record<string, unknown>>,
   "delegate-plan-actions": () => import("./delegate-plan-actions") as unknown as Promise<Record<string, unknown>>,
   "demande-stocks-actions": () => import("./demande-stocks-actions") as unknown as Promise<Record<string, unknown>>,
-  "depart-salarie-actions": () => import("@/modules/rh/actions-depart") as unknown as Promise<Record<string, unknown>>,
   "department-actions": () => import("./department-actions") as unknown as Promise<Record<string, unknown>>,
   "department-budget-actions": () => import("./department-budget-actions") as unknown as Promise<Record<string, unknown>>,
   "direction-artistique-actions": () => import("./direction-artistique-actions") as unknown as Promise<Record<string, unknown>>,
@@ -200,6 +199,7 @@ export const MODULES_ACTIONS: Readonly<Record<string, () => Promise<Record<strin
   "regulatory-drive-actions": () => import("./regulatory-drive-actions") as unknown as Promise<Record<string, unknown>>,
   "regulatory-reminder-actions": () => import("./regulatory-reminder-actions") as unknown as Promise<Record<string, unknown>>,
   "regulatory-timeline-actions": () => import("./regulatory-timeline-actions") as unknown as Promise<Record<string, unknown>>,
+  "regulatory-validite-actions": () => import("./regulatory-validite-actions") as unknown as Promise<Record<string, unknown>>,
   "relance-paiement-actions": () => import("@/modules/finances/actions-relances") as unknown as Promise<Record<string, unknown>>,
   "relecture-visite-actions": () => import("./relecture-visite-actions") as unknown as Promise<Record<string, unknown>>,
   "reminder-actions": () => import("./reminder-actions") as unknown as Promise<Record<string, unknown>>,

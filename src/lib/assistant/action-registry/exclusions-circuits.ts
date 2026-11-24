@@ -176,6 +176,15 @@ export function classerExclusionsCircuits(): void {
     "prix-produit-actions:enregistrerPrixProduit",
     "prix-produit-actions:revenirAuPrixExplorateur",
   ]);
+  X("LA DÉCISION D'ENREGISTREMENT ET L'ATTESTATION DE PRIX D'UN DOSSIER (Super Admin, 24/11/2026) : joindre la pièce, "
+    + "la faire lire par l'IA, puis confirmer d'un clic le numéro, les dates de validité (fin déduite à +5 ans) ou le prix. "
+    + "Des gestes d'écran neufs, décidés devant la pièce et ce que l'IA en a lu, sur la fiche du dossier. Adam est en pause "
+    + "de développement : aucun geste neuf ne lui est ouvert.", [
+    "regulatory-validite-actions:joindrePieceEnregistrement",
+    "regulatory-validite-actions:relirePieceEnregistrement",
+    "regulatory-validite-actions:confirmerValiditeEnregistrement",
+    "regulatory-validite-actions:confirmerPrixAttestation",
+  ]);
   X("BUDGETS DES PÔLES — Budget Marketing, Budget Regulatory, Budget Operations & Sales (Direction, 08/10) : créer, régler "
     + "et retirer une enveloppe de son pôle ; compléter ses catégories d'office (BV 25 % / 75 %, masse salariale par BU) ; "
     + "saisir un BV payé hors circuit ; ranger un BV demandé ou payé dans l'enveloppe. Des gestes d'écran neufs, sur les "

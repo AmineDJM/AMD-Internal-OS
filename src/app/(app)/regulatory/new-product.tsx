@@ -25,14 +25,27 @@ interface UserOption {
 }
 
 /**
+ * UN DOSSIER QUI EN PROLONGE UN AUTRE — le renouvellement d'une décision d'enregistrement (Super Admin, 24/11/2026) :
+ * faute de circuit de renouvellement, le formulaire de création s'ouvre prérempli depuis le produit enregistré.
+ */
+export interface DossierPrerempli {
+  companyId: string | null; molecules: string[]; brandName: string | null; dosage: string | null; dosageUnit: string | null;
+  pharmaceuticalForm: string | null; packaging: string | null; therapeuticClass: string | null; supplierId: string | null;
+  partnerLab: string | null; countryOfOrigin: string | null; category: string; channel: string; manufacturingStatus: string;
+  responsibleId: string | null; assistantId: string | null; deHolder: string | null; comments: string | null;
+}
+
+/**
  * `lockOnCreate` — le MÊME formulaire, ouvert depuis le pipeline : le dossier naît verrouillé,
  * donc à l'étude et invisible de l'équipe. Un second formulaire recopié aurait divergé du
  * premier au premier champ ajouté ; c'est le même, avec une case de plus.
  */
-export function NewProductButton({ users, suppliers, companies, lockOnCreate = false }: { users: UserOption[]; suppliers: { id: string; name: string }[]; companies: { id: string; name: string; shortName: string | null }[]; lockOnCreate?: boolean }) {
+export function NewProductButton({ users, suppliers, companies, lockOnCreate = false, prerempli = null }: { users: UserOption[]; suppliers: { id: string; name: string }[]; companies: { id: string; name: string; shortName: string | null }[]; lockOnCreate?: boolean; prerempli?: DossierPrerempli | null }) {
   const router = useRouter();
   const { rafraichir } = useRafraichir();
-  const [open, setOpen] = React.useState(false);
+  // Prérempli (renouvellement) : le formulaire s'ouvre de lui-même.
+  const [open, setOpen] = React.useState(prerempli !== null);
+  const p = prerempli;
   const [state, formAction] = useActionState<ActionResult | undefined, FormData>(
     createRegulatoryProduct,
     undefined,
@@ -142,28 +155,28 @@ export function NewProductButton({ users, suppliers, companies, lockOnCreate = f
           {lockOnCreate && <input type="hidden" name="lock" value="1" />}
           <input type="hidden" name="ctdFichiers" value={String(ctd.length)} />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <SelectField label="Catégorie" name="category" options={optionsFromMap(REGULATORY_CATEGORY)} defaultValue="MEDICINE" />
-            <SelectField label="Canal (Ville / Hôpital)" name="channel" options={optionsFromMap(PRODUCT_CHANNEL)} defaultValue="BOTH" />
-            <SelectField label="Entité" name="companyId" required options={companies.map((c) => ({ value: c.id, label: c.shortName || c.name }))} placeholder="— Choisir l'entité —" defaultValue={companies.length === 1 ? companies[0].id : ""} />
-            <DciAssociationField onDciChange={setDci} />
-            <TextField label="Nom commercial envisagé" name="brandName" placeholder="Ex. Adventor" className="sm:col-span-2" />
-            <TextField label="Dosage" name="dosage" placeholder="20" />
-            <SelectField label="Unité" name="dosageUnit" options={optionsFromMap(DOSAGE_UNIT)} placeholder="—" />
-            <SelectField label="Forme pharmaceutique" name="pharmaceuticalForm" options={optionsFromMap(PHARMA_FORM)} placeholder="—" />
-            <TextField label="Conditionnement" name="packaging" placeholder="B/30" />
-            <TextField label="Classe thérapeutique" name="therapeuticClass" placeholder="Hypolipémiant" />
-            <SelectField label="Fournisseur" name="supplierId" options={suppliers.map((s) => ({ value: s.id, label: s.name }))} placeholder="— Aucun —" />
-            <TextField label="Laboratoire partenaire (optionnel)" name="partnerLab" placeholder="Ex. Pharma Lab" />
-            <TextField label="Pays d'origine" name="countryOfOrigin" placeholder="Inde" />
-            <SelectField label="Statut de fabrication" name="manufacturingStatus" options={optionsFromMap(MANUFACTURING_STATUS)} defaultValue="IMPORTATION" />
+            <SelectField label="Catégorie" name="category" options={optionsFromMap(REGULATORY_CATEGORY)} defaultValue={p?.category ?? "MEDICINE"} />
+            <SelectField label="Canal (Ville / Hôpital)" name="channel" options={optionsFromMap(PRODUCT_CHANNEL)} defaultValue={p?.channel ?? "BOTH"} />
+            <SelectField label="Entité" name="companyId" required options={companies.map((c) => ({ value: c.id, label: c.shortName || c.name }))} placeholder="— Choisir l'entité —" defaultValue={p?.companyId ?? (companies.length === 1 ? companies[0].id : "")} />
+            <DciAssociationField onDciChange={setDci} defaultMolecules={p?.molecules} />
+            <TextField label="Nom commercial envisagé" name="brandName" placeholder="Ex. Adventor" className="sm:col-span-2" defaultValue={p?.brandName ?? undefined} />
+            <TextField label="Dosage" name="dosage" placeholder="20" defaultValue={p?.dosage ?? undefined} />
+            <SelectField label="Unité" name="dosageUnit" options={optionsFromMap(DOSAGE_UNIT)} placeholder="—" defaultValue={p?.dosageUnit ?? undefined} />
+            <SelectField label="Forme pharmaceutique" name="pharmaceuticalForm" options={optionsFromMap(PHARMA_FORM)} placeholder="—" defaultValue={p?.pharmaceuticalForm ?? undefined} />
+            <TextField label="Conditionnement" name="packaging" placeholder="B/30" defaultValue={p?.packaging ?? undefined} />
+            <TextField label="Classe thérapeutique" name="therapeuticClass" placeholder="Hypolipémiant" defaultValue={p?.therapeuticClass ?? undefined} />
+            <SelectField label="Fournisseur" name="supplierId" options={suppliers.map((s) => ({ value: s.id, label: s.name }))} placeholder="— Aucun —" defaultValue={p?.supplierId ?? undefined} />
+            <TextField label="Laboratoire partenaire (optionnel)" name="partnerLab" placeholder="Ex. Pharma Lab" defaultValue={p?.partnerLab ?? undefined} />
+            <TextField label="Pays d'origine" name="countryOfOrigin" placeholder="Inde" defaultValue={p?.countryOfOrigin ?? undefined} />
+            <SelectField label="Statut de fabrication" name="manufacturingStatus" options={optionsFromMap(MANUFACTURING_STATUS)} defaultValue={p?.manufacturingStatus ?? "IMPORTATION"} />
             <SelectField label="Priorité" name="priority" options={optionsFromMap(PRIORITY)} defaultValue="MEDIUM" />
             <SelectField label="Statut initial" name="status" options={optionsFromMap(REGULATORY_STATUS)} defaultValue="PRE_SUBMISSION" />
-            <SelectField label="Responsable" name="responsibleId" options={userOptions} placeholder="—" />
-            <SelectField label="Assistante assignée" name="assistantId" options={userOptions} placeholder="—" />
+            <SelectField label="Responsable" name="responsibleId" options={userOptions} placeholder="—" defaultValue={p?.responsibleId ?? undefined} />
+            <SelectField label="Assistante assignée" name="assistantId" options={userOptions} placeholder="—" defaultValue={p?.assistantId ?? undefined} />
             <TextField label="Date cible d'enregistrement" name="targetDate" type="date" className="sm:col-span-2" />
-            <TextField label="Détenteur de DE" name="deHolder" placeholder="Titulaire de la décision d'enregistrement" className="sm:col-span-2" />
+            <TextField label="Détenteur de DE" name="deHolder" placeholder="Titulaire de la décision d'enregistrement" className="sm:col-span-2" defaultValue={p?.deHolder ?? undefined} />
           </div>
-          <TextAreaField label="Commentaires" name="comments" placeholder="Notes internes…" />
+          <TextAreaField label="Commentaires" name="comments" placeholder="Notes internes…" defaultValue={p?.comments ?? undefined} />
 
           <CtdALaCreation entrees={ctd} onChange={setCtd} />
           {ctdManquante && <p className="text-xs text-muted-foreground">La CTD initiale est obligatoire pour créer un dossier dans le suivi (au pipeline, elle peut venir plus tard).</p>}

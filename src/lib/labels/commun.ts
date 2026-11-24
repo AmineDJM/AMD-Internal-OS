@@ -61,6 +61,7 @@ export const DOCUMENT_CATEGORY: Record<string, string> = {
   QUERY_RECEIVED: "Réserves reçues (ANPP)",
   QUERY_RESPONSE: "Réponse aux réserves",
   REGISTRATION_DECISION: "Décision d'enregistrement",
+  PRICE_ATTESTATION: "Attestation de prix",
   PROFORMA: "Proforma",
   INVOICE: "Facture / Invoice",
   PACKING_LIST: "Packing list",
