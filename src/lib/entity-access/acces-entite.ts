@@ -415,8 +415,14 @@ export async function canAccessEntity(
     });
     if (!r) return false;
     if (r.requesterId === user.id || r.recipientId === user.id) return true;
-    return user.role === "FINANCE_BUDGET_MANAGER"
-      || userCan(user, "FINANCES", "VALIDATE") || userCan(user, "FINANCES", "UPDATE");
+    if (user.role === "FINANCE_BUDGET_MANAGER" || userCan(user, "FINANCES", "VALIDATE") || userCan(user, "FINANCES", "UPDATE")) return true;
+    // LE CENTRE DE PAIEMENT LIT LE DOSSIER QU'IL AUTORISE (pièces comprises) — un siège nommé n'a pas forcément Finances.
+    // LECTURE SEULE, dans une société qu'il voit : la même règle que l'ordre de dépense ci-dessus.
+    if (action === "VIEW" && sitsOnPaymentCentre(user)) {
+      const d = await prisma.paymentRequest.findUnique({ where: { id: entityId }, select: { companyId: true } });
+      return Boolean(d) && (await entitePermisePourFiche(user.id, d!.companyId));
+    }
+    return false;
   }
 
   // DIRECTIVE : la pièce jointe EST souvent la note (un PDF signé, un formulaire). Elle suit

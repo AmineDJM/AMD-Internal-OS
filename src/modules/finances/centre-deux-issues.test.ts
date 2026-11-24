@@ -19,10 +19,14 @@ const code = (f: string) => lire(f).replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 describe("Centre de paiement — deux issues, partout où on les nomme", () => {
-  it("l'en-tête de l'écran ne promet plus « révision du montant ou argumentation »", () => {
+  it("l'écran ne propose que les deux issues — « Autoriser le paiement » et « Refuser », et rien de la révision", () => {
     const page = code("src/app/(app)/centre-de-paiement/page.tsx");
-    expect(page).not.toMatch(/demander une révision du montant ou une argumentation/i);
-    expect(page).toMatch(/AUTORISE ou REFUSE/);
+    expect(page).not.toMatch(/révision du montant|argumentation/i);
+    const board = code("src/app/(app)/centre-de-paiement/centre-board.tsx");
+    expect(board).toMatch(/Autoriser le paiement/);
+    expect(board).toMatch(/decider\(courant, "APPROVE"\)/);
+    expect(board).toMatch(/decider\(courant, "REFUSE"\)/);
+    expect(board, "le centre ne pose plus de révision ni d'argumentation").not.toMatch(/REQUEST_CHANGES|REQUEST_INFO/);
   });
 
   it("l'action n'accepte que les deux décisions — et ne garde aucune branche morte du montant proposé", () => {

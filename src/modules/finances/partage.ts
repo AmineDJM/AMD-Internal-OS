@@ -32,6 +32,10 @@ export {
   refusFactureDePoste,
 } from "./domaine/chemins-paiement";
 export {
+  alerteCourte, budgetAvantApres, type BudgetDecision, type ContexteDecision, type EtapeChaine, type EtatEtape,
+  type JalonLu, phraseBudget, type PieceDecision, trierFile,
+} from "./domaine/contexte-decision";
+export {
   ecartsDeCorrection, phraseDeCorrection, refusDeCorrection, refusDeRetrait, refusDeSuppression, refusDuChamp,
   type ValeursDemande,
 } from "./domaine/correction-demande";

@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import JSZip from "jszip";
 import { E2E } from "./global-setup";
 import { cliquerDecisif } from "./decisif";
+import { autoriserAuCentre, ligneDuCentre } from "./centre";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -480,11 +481,10 @@ test("6 · paiement du poste DIRECT : pro forma jointe, le PDG autorise au centr
   // LE CENTRE DE PAIEMENT — le PDG autorise.
   await login(page, "pdg");
   await aller(page, "/centre-de-paiement");
-  const ligne = page.locator("li").filter({ hasText: INSTITUTION }).filter({ has: page.getByRole("button", { name: "Autoriser" }) }).first();
+  const ligne = ligneDuCentre(page, INSTITUTION);
   await expect(ligne, "l'ordre du sponsoring est au centre").toBeVisible({ timeout: 20_000 });
   await expect(ligne.getByText(/700\s000,50/).first(), "le centre montre le montant exact").toBeVisible();
-  await ligne.getByRole("button", { name: "Autoriser" }).click();
-  await cliquerDecisif(page.getByRole("dialog").getByRole("button", { name: "Autoriser le paiement" }));
+  await autoriserAuCentre(page, INSTITUTION);
   await expect.poll(async () => (await prisma.expenseOrder.findUniqueOrThrow({ where: { id: ordreId } })).centralStatus).toBe("APPROVED");
   await capture(page, "v1-09-centre-autorise");
 

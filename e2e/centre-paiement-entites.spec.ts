@@ -2,20 +2,18 @@ import { test, expect, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { E2E } from "./global-setup";
-import { cliquerDecisif } from "./decisif";
+import { autoriserAuCentre, ficheDuCentre, ligneDuCentre, ouvrirAuCentre } from "./centre";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LE CENTRE DE PAIEMENT : LES ENTITÉS EN HAUT, TROIS SECTIONS DESSOUS (§118.211) — écrans réels,
- * base réelle, aucun appel de modèle de leur fait.
+ * LE CENTRE DE PAIEMENT : LES SOCIÉTÉS EN HAUT, LA FILE « À DÉCIDER » ET SA FICHE (maquette validée le
+ * 24/11/2026) — écrans réels, base réelle, aucun appel de modèle de leur fait.
  *
- * « Dans l'interface du centre de paiement, on aura les entités en haut, on pourra changer d'entité
- * en haut, et ensuite chaque entité aura trois types de demandes de paiement : Regulatory /
- * Sales & Marketing / Autres. »
- *
- * Les bancs de flux prouvent le chargeur et la règle de classement ; celui-ci prouve que l'ÉCRAN
- * existe, se lit, change d'entité sans recharger la page, tient à 375 px et ne montre jamais la
- * société qu'un siège n'a pas le droit de voir (§118.50). Deux personnes : le Super Admin (voit les
+ * Les trois sections d'autrefois (Regulatory / Sales & Marketing / Autres) ont fait place à UNE file par
+ * société, toutes origines confondues (Super Admin, 24/11/2026). Les bancs de flux prouvent le chargeur
+ * et la fiche ; celui-ci prouve que l'ÉCRAN existe, se lit, change de société sans recharger la page,
+ * tient à 375 px (la file, puis la fiche en plein écran) et ne montre jamais la société qu'un siège n'a
+ * pas le droit de voir (§118.50). Deux personnes : le Super Admin (voit les
  * deux sociétés — le témoin sans lequel « B est cachée » ne prouverait rien) et un siège du centre
  * rattaché à UNE société, sans vue globale (§118.104).
  *
@@ -118,103 +116,80 @@ test.afterAll(async () => {
   await prisma.$disconnect();
 });
 
-test("LES ENTITÉS EN HAUT : une pastille par société avec ses décisions en attente, et trois sections dessous", async ({ page }) => {
+test("LES SOCIÉTÉS EN HAUT : une pastille par société avec ses paiements à décider, et UNE file de toutes les origines", async ({ page }) => {
   await login(page, SA_EMAIL);
-  await aller(page, `/centre-de-paiement?entite=${alphaId}&section=regulatory`);
+  await aller(page, `/centre-de-paiement?entite=${alphaId}`);
   const entites = page.getByRole("navigation", { name: "Entités" });
-  await expect(entites.getByRole("link", { name: new RegExp(ALPHA) })).toBeVisible();
-  await expect(entites.getByRole("link", { name: new RegExp(BETA) })).toBeVisible();
-  // Alpha attend 3 décisions ; la pastille le dit, et celle d'Alpha est l'entité courante.
   await expect(entites.getByRole("link", { name: new RegExp(ALPHA) })).toHaveAttribute("aria-current", "page");
   await expect(entites.getByRole("link", { name: new RegExp(`${ALPHA}\\s*3`) })).toBeVisible();
   await expect(entites.getByRole("link", { name: new RegExp(`${BETA}\\s*2`) })).toBeVisible();
-
-  const sections = page.getByRole("navigation", { name: "Types de demandes de paiement" });
-  for (const nom of ["Regulatory", "Sales & Marketing", "Autres"]) {
-    await expect(sections.getByRole("link", { name: new RegExp(nom.replace("&", "\\&")) })).toBeVisible();
-  }
-  await expect(sections.getByRole("link", { name: /Regulatory/ })).toHaveAttribute("aria-current", "page");
-  // Regulatory d'Alpha : sa taxe, et rien d'autre — ni le sponsoring, ni la paie, ni rien de Beta.
-  await expect(page.getByText(L.aReg).first()).toBeVisible();
-  await expect(page.getByText(L.aSm)).toHaveCount(0);
-  await expect(page.getByText(L.aAu)).toHaveCount(0);
+  // Plus de sections : Regulatory, sponsoring et paie d'Alpha attendent dans la même file — rien de Beta.
+  await expect(page.getByRole("navigation", { name: "Types de demandes de paiement" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: /À décider · 3/ })).toBeVisible();
+  for (const l of [L.aReg, L.aSm, L.aAu]) await expect(ligneDuCentre(page, l)).toBeVisible();
   await expect(page.getByText(L.bReg)).toHaveCount(0);
+  // La fiche du premier de la file est ouverte, avec ses gestes.
+  await expect(ficheDuCentre(page).getByRole("button", { name: "Autoriser le paiement" })).toBeVisible();
 });
 
-test("CHANGER D'ENTITÉ ET DE SECTION se fait EN HAUT, sans recharger la page — chaque section ne montre que ses lignes", async ({ page }) => {
+test("CHANGER DE SOCIÉTÉ se fait EN HAUT, sans recharger la page — la file suit", async ({ page }) => {
   await login(page, SA_EMAIL);
-  await aller(page, `/centre-de-paiement?entite=${alphaId}&section=regulatory`);
+  await aller(page, `/centre-de-paiement?entite=${alphaId}`);
   // Un marqueur posé dans la page : s'il survit, la navigation n'a PAS rechargé le document.
   await page.evaluate(() => { (window as unknown as { __marqueur: string }).__marqueur = "vivant"; });
-
-  await page.getByRole("navigation", { name: "Types de demandes de paiement" }).getByRole("link", { name: /Sales & Marketing/ }).click();
-  await expect(page.getByText(L.aSm).first()).toBeVisible();
-  await expect(page.getByText(L.aReg)).toHaveCount(0);
-
-  await page.getByRole("navigation", { name: "Types de demandes de paiement" }).getByRole("link", { name: /Autres/ }).click();
-  await expect(page.getByText(L.aAu).first()).toBeVisible();
-  await expect(page.getByText(L.aSm)).toHaveCount(0);
-
-  // On passe à Beta : la section regardée est CONSERVÉE (on compare « Autres » d'une société à l'autre).
   await page.getByRole("navigation", { name: "Entités" }).getByRole("link", { name: new RegExp(BETA) }).click();
   await expect(page).toHaveURL(new RegExp(`entite=${betaId}`));
-  await expect(page).toHaveURL(/section=autres/);
-  await expect(page.getByRole("navigation", { name: "Entités" }).getByRole("link", { name: new RegExp(BETA) })).toHaveAttribute("aria-current", "page");
-  await expect(page.getByText(L.aAu)).toHaveCount(0);
-  await page.getByRole("navigation", { name: "Types de demandes de paiement" }).getByRole("link", { name: /Sales & Marketing/ }).click();
-  await expect(page.getByText(L.bSm).first()).toBeVisible();
+  await expect(ligneDuCentre(page, L.bSm)).toBeVisible();
   await expect(page.getByText(L.aSm)).toHaveCount(0);
-
   expect(await page.evaluate(() => (window as unknown as { __marqueur?: string }).__marqueur), "le document n'a pas été rechargé").toBe("vivant");
 });
 
-test("une entité forgée dans l'adresse ne désigne rien : la page s'ouvre sur une entité réelle, sans erreur", async ({ page }) => {
+test("une société forgée dans l'adresse ne désigne rien : la page s'ouvre sur une société réelle, sans erreur", async ({ page }) => {
   await login(page, SA_EMAIL);
   await aller(page, "/centre-de-paiement?entite=n-importe-quoi&section=bidon");
   await expect(page.getByRole("heading", { name: "Centre de paiement" }).first()).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Entités" }).locator('a[aria-current="page"]')).toHaveCount(1);
-  await expect(page.getByRole("navigation", { name: "Types de demandes de paiement" }).locator('a[aria-current="page"]')).toHaveCount(1);
 });
 
 test("SIÈGE RATTACHÉ À UNE SOCIÉTÉ : sa pastille, jamais celle de l'autre — même en la demandant dans l'adresse", async ({ page }) => {
   await login(page, SIEGE_EMAIL);
-  await aller(page, `/centre-de-paiement?entite=${betaId}&section=regulatory`);
+  await aller(page, `/centre-de-paiement?entite=${betaId}`);
   const entites = page.getByRole("navigation", { name: "Entités" });
   await expect(entites.getByRole("link", { name: new RegExp(ALPHA) })).toBeVisible();
   await expect(entites.getByRole("link", { name: new RegExp(BETA) }), "la société Beta ne lui est pas ouverte").toHaveCount(0);
   await expect(page.getByText(L.bReg)).toHaveCount(0);
   await expect(page.getByText(L.bSm)).toHaveCount(0);
-  // Elle tombe sur la sienne.
-  await expect(page.getByText(L.aReg).first()).toBeVisible();
+  // Il tombe sur la sienne.
+  await expect(ligneDuCentre(page, L.aReg)).toBeVisible();
 });
 
-test("LA DÉCISION RESTE LA MÊME : le siège autorise un paiement de sa société, et la base le dit", async ({ page }) => {
+test("LA DÉCISION RESTE LA MÊME : le siège autorise depuis la fiche, la base le dit, et l'ordre quitte la file", async ({ page }) => {
   await login(page, SIEGE_EMAIL);
-  await aller(page, `/centre-de-paiement?entite=${alphaId}&section=sales-marketing`);
-  const ligne = page.locator("li").filter({ hasText: L.aSm }).filter({ has: page.getByRole("button", { name: "Autoriser" }) }).first();
-  await expect(ligne).toBeVisible();
-  await ligne.getByRole("button", { name: "Autoriser" }).click();
-  await cliquerDecisif(page.getByRole("dialog").getByRole("button", { name: "Autoriser le paiement" }));
-  await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 15_000 });
-  const apres = await prisma.expenseOrder.findFirstOrThrow({ where: { label: L.aSm }, select: { centralStatus: true } });
-  expect(apres.centralStatus).toBe("APPROVED");
-  // Le compte en attente de la pastille et de la section suit la décision.
-  await aller(page, `/centre-de-paiement?entite=${alphaId}&section=sales-marketing`);
+  await aller(page, `/centre-de-paiement?entite=${alphaId}`);
+  await autoriserAuCentre(page, L.aSm);
+  await expect.poll(async () => (await prisma.expenseOrder.findFirstOrThrow({ where: { label: L.aSm }, select: { centralStatus: true } })).centralStatus, { timeout: 15_000 }).toBe("APPROVED");
+  // La pastille et la file suivent : décidé, il passe à l'historique (menu ⋯).
+  await aller(page, `/centre-de-paiement?entite=${alphaId}`);
   await expect(page.getByRole("navigation", { name: "Entités" }).getByRole("link", { name: new RegExp(`${ALPHA}\\s*2`) })).toBeVisible();
+  await expect(ligneDuCentre(page, L.aSm)).toHaveCount(0);
+  await page.getByRole("button", { name: /Autres : déjà décidés/ }).click();
+  await page.getByRole("menuitem", { name: /Déjà décidés/ }).click();
+  await expect(page.getByRole("dialog").getByText(L.aSm)).toBeVisible();
 });
 
-test("AU TÉLÉPHONE (375 px) : la barre des entités défile dans son cadre, les trois sections tiennent, la page ne déborde pas", async ({ page }) => {
+test("AU TÉLÉPHONE (375 px) : la file d'abord, la fiche en plein écran au toucher, et la page ne déborde pas", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 });
   await login(page, SA_EMAIL);
-  await aller(page, `/centre-de-paiement?entite=${alphaId}&section=autres`);
+  await aller(page, `/centre-de-paiement?entite=${alphaId}`);
   await sansDebordement(page);
-  const sections = page.getByRole("navigation", { name: "Types de demandes de paiement" });
-  for (const lien of await sections.getByRole("link").all()) {
-    const boite = await lien.boundingBox();
-    expect(boite && boite.x >= 0 && boite.x + boite.width <= 376, "chaque section est entièrement visible à 375 px").toBe(true);
-    expect(boite && boite.height >= 40, "cible tactile de 40 px au moins").toBe(true);
-  }
-  await expect(page.getByText(L.aAu).first()).toBeVisible();
+  await expect(ficheDuCentre(page), "la fiche attend qu'on touche une ligne").toBeHidden();
+  const fiche = await ouvrirAuCentre(page, L.aAu);
+  await expect(fiche.getByRole("button", { name: "Retour à la file" })).toBeVisible();
+  const boite = await fiche.boundingBox();
+  expect(boite && boite.width >= 370, "la fiche occupe tout l'écran").toBe(true);
+  await sansDebordement(page);
+  await fiche.getByRole("button", { name: "Retour à la file" }).click();
+  await expect(ficheDuCentre(page)).toBeHidden();
   await page.getByRole("navigation", { name: "Entités" }).getByRole("link", { name: new RegExp(BETA) }).click();
   await expect(page).toHaveURL(new RegExp(`entite=${betaId}`));
   await sansDebordement(page);

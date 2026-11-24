@@ -430,7 +430,7 @@ export function PaymentDossier({
       {open && !isCompanion && (isRequester || isFinance) && (
         <section className="surface space-y-3 p-3 sm:p-4">
           <h2 className="text-sm font-semibold">Que faire de ce dossier ?</h2>
-          <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Motif / commentaire — obligatoire pour une mise en attente ou un refus." />
+          <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Motif / commentaire — obligatoire pour une mise en attente ou une annulation." />
 
           {/* Au téléphone, chaque geste occupe toute la largeur : aucun ne se cache au bout d'une rangée. */}
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
@@ -495,8 +495,10 @@ export function PaymentDossier({
                 >
                   {busy === "ok" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Bon à payer
                 </BoutonDecisif>
+                {/* « ANNULER LA DEMANDE », plus « Refuser » : ce geste des Finances ANNULE l'ordre non réglé — rien à voir avec
+                    le refus du centre de paiement, qui laisse la demande vivre. Deux gestes, deux noms. */}
                 <BoutonDecisif variant="outline" className="h-11 w-full text-destructive sm:h-10 sm:w-auto" disabled={busy !== null} onClick={() => void run("no", decidePaymentRequest, { id, move: "REJECT", note })}>
-                  {busy === "no" ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />} Refuser
+                  {busy === "no" ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />} Annuler la demande
                 </BoutonDecisif>
               </>
             )}
