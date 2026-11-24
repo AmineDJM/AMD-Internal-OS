@@ -160,7 +160,7 @@ export function DriveTable({
   };
 
   /** « Restaurer » sur toute la sélection (corbeille), ou « Annuler » une mise à la corbeille. */
-  const bulkRestore = async (ids: string[]) => {
+  const bulkRestore = async (ids: readonly string[]) => {
     if (ids.length === 0 || busy) return;
     setBusy(true);
     const fd = new FormData();
