@@ -19,7 +19,7 @@ import {
   hrNature, createLeaveRequest, attachLeaveFiles, revalidateLeaveViews, hrTypeIsLeave, HR_TYPE_TO_LEAVE,
   visibilityLabel, canEditExpenseClaim, expenseAmountError, expenseEditDeadline, expenseEditLabel,
   genererEtRemettreOrdreDeMission, societeDeLOrdreDeMission, estEtatRhTraite, marquerDemandeRhTraitee,
-  archiveHrRequestIfDone, genererEtRemettreAttestation, preparerAttestationTravail,
+  archiveHrRequestIfDone, genererEtRemettreAttestation, preparerAttestationTravail, refusTransitionDemandeRh,
   type PreparationAttestation, type Civilite,
 } from "@/modules/rh/api";
 import { fdStr, fdNum, fdDate, type ActionResult } from "@/lib/actions/types";
@@ -33,7 +33,7 @@ import { clauseSalariesVisibles } from "@/lib/queries/visibilite-listes";
 import { sansBloquer } from "@/lib/journal";
 
 const REQUEST_TYPES: HrRequestType[] = ["WORK_CERTIFICATE", "CNAS_CERTIFICATE", "SALARY_STATEMENT", "DOMICILIATION", "LEAVE_CERTIFICATE", "LEAVE_TITLE", "MISSION_ORDER", "EXPENSE_REPORT", "EXCEPTIONAL_EXIT", "SICK_LEAVE", "ANNUAL_LEAVE", "UNPAID_LEAVE", "SPECIAL_LEAVE", "MATERNITY_LEAVE", "HR_INTERVIEW", "OTHER"];
-const REQUEST_STATUSES: HrRequestStatus[] = ["PENDING", "IN_PROGRESS", "READY", "DELIVERED", "REJECTED"];
+const REQUEST_STATUSES: HrRequestStatus[] = ["PENDING", "IN_PROGRESS", "READY", "DELIVERED", "APPROVED", "REJECTED", "CANCELLED"];
 const YM = /^\d{4}-\d{2}$/;
 /** Types « congé » à période complète (jours entiers, début + fin obligatoires). */
 const LEAVE_PERIOD_TYPES: HrRequestType[] = ["ANNUAL_LEAVE", "UNPAID_LEAVE", "SPECIAL_LEAVE", "MATERNITY_LEAVE", "SICK_LEAVE"];
@@ -313,7 +313,7 @@ export async function setExpenseClaimEditUnlocked(formData: FormData): Promise<A
   const user = await requireUser();
   if (!userCan(user, "HR_REQUESTS", "UPDATE")) return { ok: false, error: "Non autorisé." };
   const id = fdStr(formData, "id");
-  if (!id) return { ok: false, error: "Demande introuvable." };
+  if (!id || !(await demandeRhVisible(user.id, id))) return { ok: false, error: "Demande introuvable." };
   const ouvrir = fdStr(formData, "unlock") === "1";
 
   const req = await prisma.hrDocumentRequest.findUnique({
@@ -372,7 +372,7 @@ export async function askHrRequestPiece(formData: FormData): Promise<ActionResul
   const user = await requireUser();
   if (!userCan(user, "HR_REQUESTS", "UPDATE")) return { ok: false, error: "Non autorisé." };
   const id = fdStr(formData, "requestId");
-  if (!id) return { ok: false, error: "Demande introuvable." };
+  if (!id || !(await demandeRhVisible(user.id, id))) return { ok: false, error: "Demande introuvable." };
   const req = await prisma.hrDocumentRequest.findUnique({
     where: { id },
     select: { id: true, employeeId: true, employee: { select: { userId: true, fullName: true } } },
@@ -412,8 +412,8 @@ export async function addHrRequestComment(formData: FormData): Promise<ActionRes
   const req = await prisma.hrDocumentRequest.findUnique({ where: { id }, include: { employee: { select: { userId: true, fullName: true } } } });
   if (!req) return { ok: false, error: "Demande introuvable." };
   const isOwner = req.employee.userId === user.id;
-  const isHr = userCan(user, "HR_REQUESTS", "UPDATE");
-  if (!(isOwner || isHr)) return { ok: false, error: "Non autorisé." };
+  const isHr = !isOwner && userCan(user, "HR_REQUESTS", "UPDATE") && (await demandeRhVisible(user.id, id));
+  if (!(isOwner || isHr)) return { ok: false, error: "Demande introuvable." };
 
   await prisma.comment.create({ data: { entityType: "HR_REQUEST", entityId: id, body, authorId: user.id } });
   // Notifie l'autre partie.
@@ -436,7 +436,7 @@ export async function genererOrdreDeMission(formData: FormData): Promise<ActionR
   const user = await requireUser();
   if (!userCan(user, "HR_REQUESTS", "UPDATE")) return { ok: false, error: "Non autorisé." };
   const requestId = fdStr(formData, "requestId");
-  if (!requestId) return { ok: false, error: "Demande introuvable." };
+  if (!requestId || !(await demandeRhVisible(user.id, requestId))) return { ok: false, error: "Demande introuvable." };
   const txt = (k: string) => fdStr(formData, k) ?? "";
   const r = await genererEtRemettreOrdreDeMission(user.id, requestId, {
     dateEmission: txt("dateEmission"), reference: txt("reference"), entreprise: txt("entreprise"), adresse: txt("adresse"),
@@ -461,13 +461,15 @@ export async function referenceOrdreDeMission(formData: FormData): Promise<Refer
   const user = await requireUser();
   if (!userCan(user, "HR_REQUESTS", "UPDATE")) return { ok: false, error: "Non autorisé." };
   const requestId = fdStr(formData, "requestId");
-  if (!requestId) return { ok: false, error: "Demande introuvable." };
+  if (!requestId || !(await demandeRhVisible(user.id, requestId))) return { ok: false, error: "Demande introuvable." };
   return etatDuRegistre(await societeDeLOrdreDeMission(requestId, fdStr(formData, "entreprise")));
 }
 
 /**
- * L'ATTESTATION DE TRAVAIL — la demande doit être celle d'un salarié que la personne VOIT (la même clause que la file
- * « Demandes RH ») : le formulaire montre une date et un lieu de naissance, il ne s'ouvre pas sur un salarié hors périmètre.
+ * LE PÉRIMÈTRE DES RH SUR UNE DEMANDE — la demande doit être celle d'un salarié que la personne VOIT, la même clause que
+ * la file « Demandes RH » (`clauseSalariesVisibles`, §118.177). Toute action RH qui vise une demande par son id passe par
+ * ici (audit sécurité 11/2026 : `processHrRequest` et ses sœurs n'en vérifiaient aucun) ; hors périmètre, la demande est
+ * « introuvable », sans rien dire de son existence.
  */
 async function demandeRhVisible(userId: string, requestId: string): Promise<boolean> {
   const perimetre = await clauseSalariesVisibles(userId);
@@ -532,32 +534,44 @@ function refusDecisionRh(
   return refusTraitementRh(req.managerGate);
 }
 
+/**
+ * TRAITEMENT D'UNE DEMANDE PAR LES RH (statut + note) — audit sécurité 11/2026 : dans le périmètre de la file
+ * (`demandeRhVisible`), selon le graphe pur `refusTransitionDemandeRh` (les congés, notes de frais et entrevues ont leur
+ * propre décision), écrit sous condition du statut lu. Même statut et même note : rien n'est réécrit ni renotifié.
+ */
 export async function processHrRequest(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!userCan(user, "HR_REQUESTS", "UPDATE")) return { ok: false, error: "Non autorisé." };
   const id = fdStr(formData, "id");
-  if (!id) return { ok: false, error: "Demande introuvable." };
+  if (!id || !(await demandeRhVisible(user.id, id))) return { ok: false, error: "Demande introuvable." };
   const statusRaw = fdStr(formData, "status");
-  const status = (statusRaw && REQUEST_STATUSES.includes(statusRaw as HrRequestStatus) ? statusRaw : "IN_PROGRESS") as HrRequestStatus;
+  // Un statut inconnu était ramené à « En préparation » en silence : une demande accordée se rouvrait.
+  if (statusRaw && !REQUEST_STATUSES.includes(statusRaw as HrRequestStatus)) return { ok: false, error: "Statut inconnu : choisissez-le dans la liste." };
+  const status = (statusRaw ?? "IN_PROGRESS") as HrRequestStatus;
+  const hrNote = fdStr(formData, "hrNote");
 
+  const lu = await prisma.hrDocumentRequest.findUnique({ where: { id }, select: { status: true, type: true, hrNote: true, managerGate: true } });
+  if (!lu) return { ok: false, error: "Demande introuvable." };
   // UN ORDRE DE MISSION ENCORE CHEZ LE N+1 ne se traite pas aux RH (missions Ad & Pro, 10/2026).
-  const marche = await prisma.hrDocumentRequest.findUnique({ where: { id }, select: { managerGate: true } });
-  const avantRh = refusTraitementRh(marche?.managerGate ?? null);
+  const avantRh = refusTraitementRh(lu.managerGate);
   if (avantRh) return { ok: false, error: avantRh };
+  const refus = refusTransitionDemandeRh(hrNature(lu.type), lu.status, status);
+  if (refus) return { ok: false, error: refus };
+  const change = status !== lu.status;
+  if (!change && hrNote === lu.hrNote) return { ok: true, message: "Rien à enregistrer : la demande est déjà dans cet état." };
 
-  const req = await prisma.hrDocumentRequest.update({
-    where: { id },
-    data: { status, hrNote: fdStr(formData, "hrNote"), handledById: user.id },
-    include: { employee: { select: { fullName: true, userId: true } } },
-  });
-  if (estEtatRhTraite(status)) await marquerDemandeRhTraitee(id); // brique KPI « demandes traitées »
-
-  // Congé ANNUEL approuvé (READY) : débit UNIQUE du solde de congés de l'employé.
-  // (Les congés/absences passent normalement par decideHrLeave ; garde de compat.)
-  if (status === "READY") {
-    await applyAnnualLeaveBalance(req, user.id, req.employee.fullName);
+  // Écriture CONDITIONNÉE au statut lu (§118.151) : deux clics, ou une annulation passée entre-temps, n'écrivent qu'une fois.
+  const pris = await prisma.hrDocumentRequest.updateMany({ where: { id, status: lu.status }, data: { status, hrNote, handledById: user.id } });
+  if (pris.count !== 1) return { ok: false, error: "Cette demande vient de changer (traitée ou annulée entre-temps) : rechargez la page." };
+  const req = await prisma.hrDocumentRequest.findUniqueOrThrow({ where: { id }, select: { employeeId: true, employee: { select: { fullName: true, userId: true } } } });
+  if (change) {
+    if (estEtatRhTraite(status)) await marquerDemandeRhTraitee(id); // brique KPI « demandes traitées »
+    if (status === "READY" || status === "DELIVERED") await synchroniserOrdreEmis(id, user.id);
+    await recordAudit({
+      actorId: user.id, action: "UPDATE", module: "RH", entityType: "HR_REQUEST", entityId: id, field: "status", oldValue: lu.status, newValue: status,
+      summary: `Demande RH « ${HR_REQUEST_TYPE[lu.type] ?? lu.type} » de ${req.employee.fullName} : ${HR_REQUEST_STATUS[lu.status]?.label ?? lu.status} → ${HR_REQUEST_STATUS[status]?.label ?? status}`,
+    });
   }
-  if (status === "READY" || status === "DELIVERED") await synchroniserOrdreEmis(id, user.id);
 
   if (req.employee.userId) {
     await notifyUser({
@@ -585,6 +599,7 @@ export async function decideExpenseReport(formData: FormData): Promise<ActionRes
   const id = fdStr(formData, "id");
   const decision = fdStr(formData, "decision"); // APPROVE | APPROVE_NEXT | REJECT
   if (!id || !decision || !["APPROVE", "APPROVE_NEXT", "REJECT"].includes(decision)) return { ok: false, error: "Décision invalide." };
+  if (!(await demandeRhVisible(user.id, id))) return { ok: false, error: "Note de frais introuvable." };
   const req = await prisma.hrDocumentRequest.findUnique({ where: { id }, include: { employee: { select: { userId: true, fullName: true } } } });
   if (!req || req.type !== "EXPENSE_REPORT") return { ok: false, error: "Note de frais introuvable." };
   if (!req.expenseMonth || !YM.test(req.expenseMonth)) return { ok: false, error: "Cette note de frais n'a pas de mois renseigné." };
@@ -638,6 +653,7 @@ export async function decideHrLeave(formData: FormData): Promise<ActionResult> {
   const id = fdStr(formData, "id");
   const decision = fdStr(formData, "decision"); // APPROVE | REJECT
   if (!id || !decision || !["APPROVE", "REJECT"].includes(decision)) return { ok: false, error: "Décision invalide." };
+  if (!(await demandeRhVisible(user.id, id))) return { ok: false, error: "Demande introuvable." };
   const req = await prisma.hrDocumentRequest.findUnique({ where: { id }, include: { employee: { select: { userId: true, fullName: true } } } });
   if (!req) return { ok: false, error: "Demande introuvable." };
   if (hrNature(req.type) !== "APPROVAL") return { ok: false, error: "Cette demande ne relève pas d'une décision d'accord." };
@@ -733,8 +749,8 @@ export async function proposeHrMeeting(formData: FormData): Promise<ActionResult
   if (!req || req.type !== "HR_INTERVIEW") return { ok: false, error: "Demande d'entrevue introuvable." };
   if (req.meetingConfirmedAt) return { ok: false, error: "L'entrevue est déjà confirmée." };
   const isOwner = req.employee.userId === user.id;
-  const isHr = userCan(user, "HR_REQUESTS", "UPDATE");
-  if (!(isOwner || isHr)) return { ok: false, error: "Non autorisé." };
+  const isHr = !isOwner && userCan(user, "HR_REQUESTS", "UPDATE") && (await demandeRhVisible(user.id, id));
+  if (!(isOwner || isHr)) return { ok: false, error: "Demande d'entrevue introuvable." };
 
   await prisma.hrDocumentRequest.update({
     where: { id },
@@ -763,8 +779,8 @@ export async function confirmHrMeeting(formData: FormData): Promise<ActionResult
   if (req.meetingConfirmedAt) return { ok: false, error: "L'entrevue est déjà confirmée." };
   if (req.meetingProposedById === user.id) return { ok: false, error: "L'autre partie doit accepter votre proposition." };
   const isOwner = req.employee.userId === user.id;
-  const isHr = userCan(user, "HR_REQUESTS", "UPDATE");
-  if (!(isOwner || isHr)) return { ok: false, error: "Non autorisé." };
+  const isHr = !isOwner && userCan(user, "HR_REQUESTS", "UPDATE") && (await demandeRhVisible(user.id, id));
+  if (!(isOwner || isHr)) return { ok: false, error: "Demande d'entrevue introuvable." };
 
   await prisma.hrDocumentRequest.update({
     where: { id },
@@ -859,11 +875,11 @@ export async function deleteHrRequest(formData: FormData): Promise<ActionResult>
   });
   if (!req) return { ok: false, error: "Demande introuvable." };
   const isOwner = req.employee.userId === user.id;
-  const isHr = userCan(user, "HR_REQUESTS", "UPDATE");
+  const isHr = userCan(user, "HR_REQUESTS", "UPDATE") && (await demandeRhVisible(user.id, id));
   // LE SALARIÉ ANNULE, IL N'EFFACE PAS (décision du 04/10) : sa demande se CLÔT par
   // `annulerDemandeRh`, qui prévient les RH — la supprimer ferait disparaître ce qu'elles préparent.
   if (!isHr) {
-    return { ok: false, error: isOwner ? "Annulez plutôt votre demande : elle reste visible, close, et les RH en sont prévenues." : "Non autorisé." };
+    return { ok: false, error: isOwner ? "Annulez plutôt votre demande : elle reste visible, close, et les RH en sont prévenues." : "Demande introuvable." };
   }
   // Un congé annuel APPROUVÉ a débité le solde (verrou balanceAppliedAt) : le supprimer sans
   // rendre les jours amputerait le solde d'un congé qui n'existe plus.
