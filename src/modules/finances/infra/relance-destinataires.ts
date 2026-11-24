@@ -1,3 +1,4 @@
+import { prisma } from "@/lib/prisma";
 import { notifyRoles, notifyUser } from "@/lib/notify";
 import { CHEMIN_CENTRE_DE_PAIEMENT, lienCentreDePaiement } from "@/lib/chemins/finances";
 import type { EtatPaiement } from "../domaine/relance-paiement";
