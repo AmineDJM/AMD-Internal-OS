@@ -13,7 +13,8 @@
 export { attachHint, canAttachToAdPro, isOwnBusiness } from "./domaine/attachments";
 export { barreDesEtapes } from "./domaine/barre-etapes";
 export { beneficiaireDuPaiement, gesteVisaPoste, memePrestataire } from "./domaine/bc-poste";
-export { compteursCentre, type FormeBC, type FormePorte, type LigneCentre, REFUS_BC_CENTRE_AD_PRO, REFUS_CENTRE_AD_PRO, siegeAuCentreAdPro, trierCentre } from "./domaine/centre";
+export { estFormeBC, type FormeBC, type FormePorte, type LigneCentre, REFUS_BC_CENTRE_AD_PRO, REFUS_CENTRE_AD_PRO, siegeAuCentreAdPro, trierCentre } from "./domaine/centre";
+export { type AlerteCentre, alertesDeLaLigne, alerteCourte, type ChoixCentre, cleLigne, CONTEXTE_VIDE, type ContexteLigneCentre, type DecisionCentre, DORMANTE_JOURS, type EtatDecide, etatApresDecision, gestesDeLaForme, joursDAttente, montantsDuBC, type PieceCentre, type PosteCentre, natureDeLaDemande, natureDeLaLigne, natureDeLaLigneCourte, phraseApresDecision, phraseAttente, phraseSeuils, societesDuCentre } from "./domaine/centre-vue";
 export { bilanCloture, type BilanCloture, etatPostesSponsoring, LIBELLE_QUI_CLOTURE, peutCloturer, quiCloture, type QuiCloture, refusCloture } from "./domaine/cloture-sponsoring";
 export { composerContexte, type ConseilPiece, CONSIGNE_CONSEIL, type ContexteConseil, lireConseilModele, lireEmplacement, type NatureDemandeConseil, NATURES_DEMANDE_CONSEIL, type PosteDuContexte, SCHEMA_CONSEIL } from "./domaine/conseil-pieces";
 export { billingSuffix, isAwaitingDecision, isContractEditable, isOverdue, nextConsultingStatus, totalCommitment } from "./domaine/consulting";

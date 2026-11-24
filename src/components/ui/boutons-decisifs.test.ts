@@ -25,7 +25,7 @@ const POINTS: Point[] = [
   ["src/app/(app)/validations/paiements/[id]/dossier.tsx", "Renvoyer au demandeur", 1],
   ["src/app/(app)/validations/paiements/[id]/dossier.tsx", "Retirer la demande", 2],
   ["src/app/(app)/validations/paiements/[id]/dossier.tsx", "Refuser", 2],
-  ["src/app/(app)/centre-ad-pro/centre-board.tsx", "reexaminerVisaCentreAdPro", 1],
+  ["src/app/(app)/centre-ad-pro/menu-centre.tsx", "reexaminerVisaCentreAdPro", 1],
   ["src/app/(app)/centre-ad-pro/centre-board.tsx", 'decider("VALIDER")', 1],
   ["src/app/(app)/centre-ad-pro/centre-board.tsx", 'decider("RENVOYER")', 1],
   ["src/app/(app)/centre-ad-pro/centre-board.tsx", 'decider("REFUSER")', 1],

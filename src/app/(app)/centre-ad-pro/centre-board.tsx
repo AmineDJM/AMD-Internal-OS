@@ -2,427 +2,299 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Check, Loader2, ExternalLink } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input, Label } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, Loader2, Paperclip } from "lucide-react";
+import { useAction } from "@/components/shared/use-action";
 import { EmptyState } from "@/components/shared/empty-state";
-import { MENU_BONS_DE_COMMANDE } from "@/lib/chemins/bons-de-commande";
-import { setAdProDgThreshold, setBcValidationThreshold } from "@/lib/actions/settings-actions";
-import { deciderVisaCentreAdPro, reexaminerVisaCentreAdPro } from "@/modules/ad-pro/actions-centre";
-import { approveAdProItemOrder } from "@/modules/ad-pro/actions-postes";
-import type { LigneCentre, FormePorte, FormeBC } from "@/modules/ad-pro/partage";
-import type { VisaTranche } from "@/modules/ad-pro/api";
-import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { SurlignerCible } from "@/components/shared/surligner-cible";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/input";
+import { BoutonDecisif } from "@/components/ui/bouton-decisif";
+import { InfoBulle } from "@/components/ui/info-bulle";
+import { cn, formatCurrency } from "@/lib/utils";
 import { ancreLigneCentre } from "@/lib/chemins/ad-pro";
-import { actionFailureMessage } from "@/lib/action-outcome";
+import type { ActionResult } from "@/lib/actions/types";
+import { statuerTotalDg } from "@/lib/actions/porte-dg-actions";
+import { deciderVisaCentreAdPro } from "@/modules/ad-pro/actions-centre";
+import { approveAdProItemOrder } from "@/modules/ad-pro/actions-postes";
+import { addAdProComment } from "@/modules/ad-pro/actions-discussion";
+import {
+  alertesDeLaLigne, alerteCourte, cleLigne, CONTEXTE_VIDE, DORMANTE_JOURS, etatApresDecision, gestesDeLaForme,
+  joursDAttente, natureDeLaLigneCourte, phraseApresDecision, phraseAttente, phraseSeuils, societesDuCentre, trierCentre,
+  type ChoixCentre, type ContexteLigneCentre, type LigneCentre,
+} from "@/modules/ad-pro/partage";
+import { FicheCentre } from "./fiche-centre";
 
 /**
- * LE PLAN DE TRAVAIL DU CENTRE.
+ * LE CENTRE DE VALIDATION AD & PRO — la file « À décider » à gauche, la fiche de décision à droite (maquette validée
+ * le 24/11/2026). Une ligne : l'objet et le montant, la société, la nature et le demandeur, depuis quand elle attend,
+ * le budget restant de la ligne imputée et le nombre de pièces, l'alerte en une phrase rouge. Le seuil se dit UNE fois,
+ * dans la bulle ⓘ de la file ; il se règle dans le menu ⋯. Au téléphone, la file d'abord ; toucher une ligne ouvre la
+ * fiche en plein écran.
  *
- * Deux gestes possibles par ligne, et la distinction n'est pas un confort :
- *
- *   • `VISA_CENTRE` (consulting, autres demandes) — le visa EST la porte, il n'y a pas d'étape de
- *     circuit ailleurs : on tranche ICI. De même pour les BONS DE COMMANDE d'un poste ou du
- *     registre Legal (§118.148) : un BC se juge sur sa ligne — prestataire, montant, message.
- *   • `ETAPE_CIRCUIT` / `ETAPE_PROMO` — la décision se prend DEVANT LE DOSSIER, par l'action de
- *     son circuit. Arbitrer 1,2 M DZD depuis une ligne de liste, sans les pièces, sans la
- *     catégorie budgétaire, sans le fil des avis, c'est valider en regardant autre chose
- *     (§104.7). Le centre dit CE QUI attend et POURQUOI, et y mène en un clic.
+ * LES GESTES SONT CEUX D'HIER, par les MÊMES actions serveur — le centre est une lentille, jamais une seconde
+ * autorisation :
+ *   • le TOTAL d'une demande : `statuerTotalDg` (valider, ou renvoyer en révision, motif exigé) ;
+ *   • le BC d'un POSTE : `approveAdProItemOrder`, qui reçoit le montant et le prestataire AFFICHÉS (§118.187) ;
+ *   • une demande à visa et un BC du registre Legal : `deciderVisaCentreAdPro` (viser, renvoyer, refuser) ;
+ *   • les étapes de circuit et l'ancien parcours promo se décident sur leur dossier (lien).
+ * « Demander une précision » écrit dans le fil de la demande (ou du poste) par `addAdProComment`, sans décider.
+ * Confirmée, une décision se montre AUSSITÔT sur la ligne, puis la fiche suivante s'ouvre.
  */
 
-const LIBELLE_FORME: Record<FormePorte | FormeBC, string> = {
-  ETAPE_CIRCUIT: "Étape du circuit",
-  TOTAL_DG: "Total de la demande (DG)",
-  ETAPE_PROMO: "Circuit matériel promotionnel",
-  VISA_CENTRE: "Visa du centre",
-  BC_POSTE: "Bon de commande d'un poste",
-  BC_LEGAL: "Bon de commande (Legal)",
-  BC_PROMO: "Bon de commande — matériel promotionnel",
-};
+type Mode = "RENVOYER" | "REFUSER" | "PRECISION" | null;
+interface Decide { choix: ChoixCentre | "PRECISION"; motif: string | null; row: LigneCentre; c: ContexteLigneCentre }
 
-const estBC = (r: LigneCentre) => r.forme === "BC_POSTE" || r.forme === "BC_LEGAL" || r.forme === "BC_PROMO";
-
-/**
- * DEUX LISTES, PARCE QUE CE SONT DEUX QUESTIONS.
- *
- * Une DEMANDE est ici parce que son budget dépasse le seuil des DEMANDES ; un BON DE COMMANDE est
- * ici parce que son montant dépasse le seuil des BONS DE COMMANDE (§118.149) — deux chiffres
- * distincts, réglés chacun sur cet écran. Les mêler ferait lire « au-dessus du seuil » sur un BC
- * jugé contre l'autre chiffre — une raison fausse, affichée à celui qui décide.
- */
-export function CentreAdProBoard({ rows, seuil, seuilBC, tranches, ligneAOuvrir }: {
-  rows: LigneCentre[]; seuil: number; seuilBC: number; tranches: { lignes: VisaTranche[]; total: number };
-  /** La ligne dont parle la notification (`?ligne=`) : elle vient sous les yeux et s'entoure. */
+export function CentreAdProBoard({ rows, contextes, societes, seuil, seuilBC, ligneAOuvrir, menu }: {
+  rows: LigneCentre[];
+  contextes: Record<string, ContexteLigneCentre>;
+  societes: { id: string; nom: string }[];
+  seuil: number;
+  seuilBC: number;
+  /** La ligne dont parle la notification (`?ligne=`) : elle s'ouvre d'emblée et s'entoure. */
   ligneAOuvrir?: string | null;
+  menu: React.ReactNode;
 }) {
-  const demandes = rows.filter((r) => !estBC(r));
-  const bcs = rows.filter(estBC);
-  const regleBC = seuilBC > 0
-    ? `au-dessus de ${seuilBC.toLocaleString("fr-FR")} DZD — en deçà, ils passent directement à la signature des Finances`
-    : "tous, quel que soit leur montant (aucun seuil fixé)";
-  return (
-    <div className="space-y-5">
-      <SurlignerCible ids={[ligneAOuvrir ? ancreLigneCentre(ligneAOuvrir) : null]} />
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <SeuilForm seuil={seuil} />
-        <SeuilBCForm seuil={seuilBC} />
-      </div>
+  const { busy, err, setErr, run } = useAction();
+  const [decides, setDecides] = React.useState<Record<string, Decide>>({});
+  const [societe, setSociete] = React.useState<string | null>(null);
+  const [mode, setMode] = React.useState<Mode>(null);
+  const [motif, setMotif] = React.useState("");
+  const maintenant = React.useMemo(() => new Date(), []);
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Bons de commande à valider</CardTitle>
-          <CardDescription>
-            {bcs.length === 0
-              ? `Aucun bon de commande n'attend le centre. Y passent les BC nés d'Ad & Pro ${regleBC}.`
-              : `${bcs.length} bon(s) de commande né(s) d'Ad & Pro, le plus ancien en tête — y passent ceux ${regleBC}.`}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {bcs.length === 0 ? (
-            <EmptyState
-              title="Aucun bon de commande en attente"
-              description={`La demande de bon de commande d'un poste, et toute pièce BC enregistrée dans Legal depuis une demande Ad & Pro, arrivent ici avant d'engager la société — une fois validées, elles passent à la signature des Finances (${MENU_BONS_DE_COMMANDE}).`}
-            />
-          ) : (
-            <ul className="space-y-3">
-              {bcs.map((r) => (
-                <LigneCard key={`${r.entityType}:${r.entityId}`} row={r} />
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+  // Une ligne décidée quitte la file au rechargement ; elle reste visible, grisée, le temps de la session.
+  const toutes = React.useMemo(() => {
+    const presentes = new Set(rows.map(cleLigne));
+    return trierCentre([...rows, ...Object.entries(decides).filter(([k]) => !presentes.has(k)).map(([, d]) => d.row)]);
+  }, [rows, decides]);
+  // Le contexte d'une ligne décidée survit au rechargement de la file avec elle.
+  const ctx = React.useCallback((r: LigneCentre) => contextes[cleLigne(r)] ?? decides[cleLigne(r)]?.c ?? CONTEXTE_VIDE, [contextes, decides]);
+  const visibles = societe ? toutes.filter((r) => ctx(r).societeId === societe) : toutes;
+  const pastilles = societesDuCentre(societes, rows.map((r) => ({ societeId: ctx(r).societeId })));
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Demandes au-dessus du seuil</CardTitle>
-          <CardDescription>
-            {demandes.length === 0
-              ? "Rien n'attend le centre."
-              : `${demandes.length} demande(s) en attente d'arbitrage, la plus ancienne en tête.`}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {demandes.length === 0 ? (
-            <EmptyState
-              title="Aucune demande en attente"
-              description="Les demandes Ad & Pro dont le budget total dépasse le seuil apparaîtront ici dès leur soumission. En dessous du seuil, la porte est franchie automatiquement et tracée."
-            />
-          ) : (
-            <ul className="space-y-3">
-              {demandes.map((r) => (
-                <LigneCard key={`${r.entityType}:${r.entityId}`} row={r} />
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+  const designe = ligneAOuvrir ? toutes.find((r) => r.entityId === ligneAOuvrir) : undefined;
+  const [choisi, setChoisi] = React.useState<string | null>(designe ? cleLigne(designe) : toutes[0] ? cleLigne(toutes[0]) : null);
+  const [pleinEcran, setPleinEcran] = React.useState(Boolean(designe));
+  const enAttente = (k: string) => !decides[k] || decides[k].choix === "PRECISION";
+  const courant = visibles.find((r) => cleLigne(r) === choisi) ?? visibles.find((r) => enAttente(cleLigne(r))) ?? visibles[0] ?? null;
+  const nbAttente = visibles.filter((r) => enAttente(cleLigne(r))).length;
 
-      {/* LES REFUS ET LES RENVOIS RÉCENTS (audit 360°, R07) : un refus se RÉEXAMINE par un siège,
-          motif à l'appui ; un renvoi attend son demandeur, qui la resoumet depuis la fiche. */}
-      {tranches.lignes.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Refusées ou renvoyées récemment</CardTitle>
-            <CardDescription>
-              {tranches.total > tranches.lignes.length
-                ? `Les ${tranches.lignes.length} plus récentes sur ${tranches.total}.`
-                : `${tranches.lignes.length} décision(s).`} Un refus se réexamine ici ; une demande renvoyée revient quand son demandeur la resoumet.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-3">
-              {tranches.lignes.map((t) => <LigneTranchee key={`${t.entityType}:${t.entityId}`} t={t} />)}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  );
-}
+  const choisir = (k: string) => { setChoisi(k); setPleinEcran(true); setMode(null); setMotif(""); setErr(null); };
 
-function LigneTranchee({ t }: { t: VisaTranche }) {
-  const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-  const [note, setNote] = React.useState("");
-  return (
-    <li id={ancreLigneCentre(t.entityId)} className="space-y-2 rounded-xl border border-border p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Link href={t.href} className="inline-flex min-w-0 items-center gap-1 text-sm font-medium text-primary hover:underline [overflow-wrap:anywhere]">
-          {t.reference ? `${t.reference} — ` : ""}{t.intitule} <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-        </Link>
-        <Badge tone={t.etat === "REFUSED" ? "danger" : "warning"} dot={false}>{t.etat === "REFUSED" ? "Refusée" : "À corriger"}</Badge>
-      </div>
-      <p className="text-xs text-muted-foreground">
-        {t.decideur ?? "Le centre"}{t.decidedAt ? ` · ${new Date(t.decidedAt).toLocaleDateString("fr-FR")}` : ""}{t.note ? ` — « ${t.note} »` : ""}
-      </p>
-      {t.etat === "REFUSED" && (
-        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-          <Input
-            value={note} onChange={(e) => setNote(e.target.value)} aria-label={`Motif du réexamen — ${t.intitule}`}
-            placeholder="Pourquoi le centre réexamine (obligatoire)" className="min-w-0 flex-1"
-          />
-          <BoutonDecisif
-            size="sm" variant="outline" className="max-sm:w-full" disabled={busy || !note.trim()}
-            onClick={async () => {
-              setBusy(true); setError(null);
-              const fd = new FormData();
-              fd.set("entityType", t.entityType); fd.set("entityId", t.entityId); fd.set("note", note);
-              try {
-                const r = await reexaminerVisaCentreAdPro(fd);
-                if (!r.ok) setError(r.error ?? "Le réexamen n'a pas été enregistré.");
-              } catch {
-                setError(actionFailureMessage("THROWN"));
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Réexaminer
-          </BoutonDecisif>
-        </div>
-      )}
-      {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
-    </li>
-  );
-}
-
-function SeuilForm({ seuil }: { seuil: number }) {
-  const [saving, setSaving] = React.useState(false);
-  const [saved, setSaved] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Le seuil des demandes</CardTitle>
-        <CardDescription>
-          Au-dessus de ce montant — <strong>strictement</strong> au-dessus —, une demande Ad &amp; Pro passe
-          par ce centre. En dessous, sa porte est franchie automatiquement et tracée. Réglable par la
-          Direction Générale et le Super Admin, ici comme dans Administration › Réglages : c&apos;est le
-          même réglage, écrit à un seul endroit.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form
-          action={async (fd) => {
-            setSaving(true); setError(null);
-            try {
-              const r = await setAdProDgThreshold(fd);
-              if (r.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
-              else setError(r.error ?? "Le seuil n'a pas été enregistré.");
-            } catch {
-              setError(actionFailureMessage("THROWN"));
-            } finally {
-              setSaving(false);
-            }
-          }}
-          className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"
-        >
-          <div className="space-y-1">
-            <Label htmlFor="adProDgThreshold">Seuil (DZD)</Label>
-            <Input id="adProDgThreshold" name="adProDgThreshold" type="number" inputMode="decimal" min="0" step="any" defaultValue={seuil} />
-            <p className="text-xs text-muted-foreground">
-              <strong>0</strong> = aucune demande ne passe par le centre. Une demande <em>sans montant
-              renseigné</em> y passe quand même : on ne franchit pas un contrôle sur une absence de donnée.
-            </p>
-          </div>
-          <Button type="submit" className="w-full sm:w-auto" disabled={saving}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <Check className="h-4 w-4 text-success" /> : null}
-            {saved ? "Enregistré" : "Enregistrer"}
-          </Button>
-        </form>
-        {error && <p className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
-      </CardContent>
-    </Card>
-  );
-}
-
-/**
- * LE SEUIL DES BONS DE COMMANDE (§118.149) — « tout BC supérieur à un montant configuré dans les
- * centres de validations Ad&Pro devra passer par la validation d'un des centres ».
- *
- * Depuis 10/2026, il ne vaut plus que pour les bons de commande NÉS D'AD & PRO : le centre de validations règle le
- * sien pour les autres (« mets-moi un seuil là-bas aussi »). La phrase le dit. La réponse de l'action DIT ce que le
- * changement a déplacé.
- */
-function SeuilBCForm({ seuil }: { seuil: number }) {
-  const [saving, setSaving] = React.useState(false);
-  const [message, setMessage] = React.useState<string | null>(null);
-  const [error, setError] = React.useState<string | null>(null);
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Le seuil des bons de commande</CardTitle>
-        <CardDescription>
-          Un bon de commande <strong>né d&apos;Ad &amp; Pro</strong> et <strong>strictement</strong> au-dessus de ce
-          montant passe par ce centre avant la signature des Finances. En deçà, il passe directement à leur signature
-          ({MENU_BONS_DE_COMMANDE}). Les bons de commande hors Ad &amp; Pro ont leur propre seuil, réglé depuis le
-          centre de validations.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form
-          action={async (fd) => {
-            setSaving(true); setError(null); setMessage(null);
-            try {
-              const r = await setBcValidationThreshold(fd);
-              if (r.ok) setMessage(r.message ?? "Enregistré.");
-              else setError(r.error ?? "Le seuil n'a pas été enregistré.");
-            } catch {
-              setError(actionFailureMessage("THROWN"));
-            } finally {
-              setSaving(false);
-            }
-          }}
-          className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"
-        >
-          <div className="space-y-1">
-            <Label htmlFor="bcValidationThreshold">Seuil des bons de commande (DZD)</Label>
-            <Input id="bcValidationThreshold" name="bcValidationThreshold" type="number" inputMode="decimal" min="0" step="any" defaultValue={seuil} />
-            <p className="text-xs text-muted-foreground">
-              <strong>0</strong> = tout bon de commande passe par un centre. Un BC <em>sans montant
-              renseigné</em> y passe quand même. Les BC en cours qui changent de côté du seuil sont
-              réaiguillés aussitôt ; une validation déjà donnée ou une signature ne se retirent pas.
-            </p>
-          </div>
-          <Button type="submit" className="w-full sm:w-auto" disabled={saving}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            Enregistrer
-          </Button>
-        </form>
-        {message && <p className="mt-3 rounded-lg bg-success/10 px-3 py-2 text-sm text-foreground">{message}</p>}
-        {error && <p className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
-      </CardContent>
-    </Card>
-  );
-}
-
-function LigneCard({ row }: { row: LigneCentre }) {
-  const jours = Math.floor((Date.now() - new Date(row.depuis).getTime()) / 86_400_000);
-  return (
-    <li id={ancreLigneCentre(row.entityId)} className="surface space-y-3 p-3 sm:p-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0 space-y-1">
-          {/* Deux lignes plutôt qu'un intitulé coupé au premier mot au téléphone : c'est lui qu'on arbitre. */}
-          <p className="line-clamp-2 font-medium [overflow-wrap:anywhere]" title={row.intitule}>{row.intitule}</p>
-          <p className="text-xs text-muted-foreground">
-            {row.demandeur ? `Demandé par ${row.demandeur} · ` : ""}
-            en attente depuis {jours === 0 ? "aujourd'hui" : `${jours} jour(s)`}
-          </p>
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <Badge tone="neutral" dot={false}>{LIBELLE_FORME[row.forme]}</Badge>
-          {jours >= 7 && <Badge tone="danger" dot={false}>dort depuis {jours} j</Badge>}
-        </div>
-      </div>
-
-      <p className="text-sm">
-        {/* Le montant ET le seuil, côte à côte : c'est le RAPPORT des deux qui explique pourquoi
-            cette demande est ici, et un montant seul ne le dit pas. Un BC est ici parce qu'il dépasse
-            le seuil des bons de commande, réglé plus haut sur cet écran (en deçà, il va directement à la
-            signature des Finances) : sa ligne ne répète pas ce seuil (recette du 23/11/2026). */}
-        {row.montant != null && row.montant > 0
-          ? <><strong>{row.montant.toLocaleString("fr-FR")} DZD</strong>{row.seuil ? <> — au-dessus du seuil de {row.seuil.toLocaleString("fr-FR")} DZD</> : null}</>
-          : estBC(row)
-            ? <span className="text-muted-foreground">Montant non renseigné sur la pièce — ouvrez-la pour le lire avant de décider.</span>
-            : <span className="text-muted-foreground">Montant non renseigné — la porte s&apos;ouvre par défaut : on ne franchit pas un contrôle sur une absence de donnée.</span>}
-      </p>
-      {row.detail && (
-        <p className="rounded-lg bg-secondary/40 px-2.5 py-1.5 text-xs text-foreground">
-          <strong>{row.forme === "BC_POSTE" ? "Message du demandeur :" : "Note :"}</strong> {row.detail}
-        </p>
-      )}
-
-      {row.forme === "VISA_CENTRE" || row.forme === "BC_LEGAL" || row.forme === "BC_POSTE"
-        ? <DecisionVisa row={row} />
-        : (
-          <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href={row.href}
-              className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[var(--radius)] border border-border bg-card px-3 text-xs font-medium text-foreground transition-colors hover:bg-secondary focus-ring sm:h-8 sm:w-auto"
-            >
-              Ouvrir le dossier et décider <ExternalLink className="h-3.5 w-3.5" />
-            </Link>
-            <p className="text-xs text-muted-foreground">
-              La décision se prend devant le dossier — avec ses pièces, sa catégorie budgétaire et le fil des avis.
-            </p>
-          </div>
-        )}
-    </li>
-  );
-}
-
-function DecisionVisa({ row }: { row: LigneCentre }) {
-  const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-  const [note, setNote] = React.useState("");
-
-  // TROIS ISSUES là où le centre est la porte (audit 360°, R07/R10) : valider, RENVOYER pour
-  // correction, refuser. Le BC d'un poste garde les deux siennes — un refus s'y redemande depuis le poste.
-  const troisIssues = row.forme === "VISA_CENTRE" || row.forme === "BC_LEGAL";
-  const decider = async (choix: "VALIDER" | "RENVOYER" | "REFUSER") => {
-    const approuve = choix === "VALIDER";
-    setBusy(true); setError(null);
+  async function decider(choix: ChoixCentre | "PRECISION") {
+    const row = courant;
+    if (!row) return;
+    const k = cleLigne(row);
+    const note = motif.trim();
     const fd = new FormData();
-    let r: { ok: boolean; error?: string };
-    try {
-      // LE BC D'UN POSTE se décide par l'action du poste — la MÊME que le bouton de la fiche, avec
-      // la même garde : le centre est une lentille, jamais une seconde autorisation.
-      if (row.forme === "BC_POSTE") {
+    await run(async () => {
+      let r: ActionResult;
+      if (choix === "PRECISION") {
+        const cible = ctx(row).filCible;
+        if (!cible) return { ok: false, error: "Cette ligne n'a pas de fil où écrire : ouvrez le dossier." };
+        fd.set("entityType", cible.entityType); fd.set("entityId", cible.entityId); fd.set("body", note);
+        r = await addAdProComment(fd);
+      } else if (row.forme === "BC_POSTE") {
+        // LE BC D'UN POSTE se décide par l'action du poste — la même que le bouton de la fiche. CE QUE LE CENTRE A LU
+        // (§118.187) part avec le visa : un montant ou un prestataire changé pendant la lecture ne se vise pas.
         fd.set("id", row.entityId);
-        fd.set("decision", approuve ? "APPROVE" : "REFUSE");
+        fd.set("decision", choix === "VALIDER" ? "APPROVE" : "REFUSE");
         fd.set("note", note);
-        // CE QUE LE CENTRE A LU (§118.187) : un montant ou un prestataire changé pendant la lecture
-        // ne se vise pas sans avoir été vu — l'action compare et refuse en le disant.
         if (row.montant != null) fd.set("montantVu", String(row.montant));
         fd.set("prestataireVu", row.prestataire ?? "");
         r = await approveAdProItemOrder(undefined, fd);
+      } else if (row.forme === "TOTAL_DG") {
+        // Le total que l'écran affichait : s'il a bougé depuis, l'action le dit au lieu de valider un autre montant.
+        fd.set("parent", row.entityType); fd.set("parentId", row.entityId);
+        fd.set("decision", choix === "VALIDER" ? "VALIDEE" : "A_REVOIR");
+        fd.set("totalVu", String(row.montant ?? 0));
+        if (note) fd.set("note", note);
+        r = await statuerTotalDg(fd);
       } else {
-        fd.set("entityType", row.entityType);
-        fd.set("entityId", row.entityId);
-        fd.set("decision", choix);
-        fd.set("note", note);
+        fd.set("entityType", row.entityType); fd.set("entityId", row.entityId); fd.set("decision", choix); fd.set("note", note);
         r = await deciderVisaCentreAdPro(fd);
       }
-      if (!r.ok) setError(r.error ?? "La décision n'a pas été enregistrée.");
-    } catch {
-      setError(actionFailureMessage("THROWN"));
-    } finally {
-      setBusy(false);
-    }
-  };
-  const libelleAccord = row.forme === "VISA_CENTRE" ? "Autoriser le dépassement" : "Valider le bon de commande";
+      if (r.ok) { const cx = ctx(row); setDecides((avant) => ({ ...avant, [k]: { choix, motif: note || null, row, c: cx } })); }
+      return r;
+    }, () => {
+      setMode(null); setMotif("");
+      if (choix === "PRECISION") return;
+      // LA FICHE SUIVANTE S'OUVRE — le temps de lire que la ligne est passée « Visé ».
+      const prochain = visibles.find((x) => cleLigne(x) !== k && enAttente(cleLigne(x)));
+      window.setTimeout(() => { if (prochain) setChoisi(cleLigne(prochain)); else setPleinEcran(false); }, 900);
+    });
+  }
+
+  const c = courant ? ctx(courant) : CONTEXTE_VIDE;
+  const g = courant ? gestesDeLaForme(courant.forme) : null;
+  const dec = courant ? decides[cleLigne(courant)] : undefined;
+  const peutDecider = Boolean(courant && g?.ok && (!dec || dec.choix === "PRECISION"));
+  const statut = courant && dec ? {
+    texte: phraseApresDecision(courant.forme, dec.choix, dec.motif),
+    ton: dec.choix === "VALIDER" ? "ok" as const : dec.choix === "PRECISION" ? "attente" as const : "ko" as const,
+  } : null;
 
   return (
-    <div className="space-y-2">
-      <div className="space-y-1">
-        <Label htmlFor={`note-${row.entityId}`}>Motif <span className="text-muted-foreground">({troisIssues ? "obligatoire pour renvoyer ou refuser" : "obligatoire pour refuser"})</span></Label>
-        <Input
-          id={`note-${row.entityId}`} value={note} onChange={(e) => setNote(e.target.value)}
-          placeholder="Ce que le demandeur doit savoir"
-        />
-      </div>
-      {/* Au téléphone, les issues s'empilent en pleine largeur : trois boutons serrés sur une ligne
-          se manquent au pouce — et ici chaque geste engage de l'argent. */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-        <BoutonDecisif size="sm" className="max-sm:w-full" disabled={busy} onClick={() => decider("VALIDER")}>
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} {libelleAccord}
-        </BoutonDecisif>
-        {troisIssues && (
-          <BoutonDecisif size="sm" variant="outline" className="max-sm:w-full" disabled={busy || !note.trim()} onClick={() => decider("RENVOYER")}>Renvoyer pour correction</BoutonDecisif>
-        )}
-        <BoutonDecisif size="sm" variant="destructive" className="max-sm:w-full" disabled={busy} onClick={() => decider("REFUSER")}>Refuser</BoutonDecisif>
-        <Link
-          href={row.href}
-          className="inline-flex items-center justify-center gap-1 py-2 text-xs text-primary hover:underline sm:justify-start sm:py-0"
-        >
-          Voir le dossier <ExternalLink className="h-3.5 w-3.5" />
-        </Link>
-      </div>
-      {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+    <div className="space-y-4">
+      <SurlignerCible ids={[ligneAOuvrir ? ancreLigneCentre(ligneAOuvrir) : null]} />
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold">Centre de validation Ad &amp; Pro</h1>
+        <div className="flex min-w-0 max-w-full items-center gap-2">
+          {pastilles.length > 2 && (
+            <nav aria-label="Société" className="min-w-0 overflow-x-auto rounded-[10px] border border-border bg-card p-1">
+              <ul className="flex min-w-max gap-1">
+                {pastilles.map((s) => (
+                  <li key={s.cle ?? "toutes"}>
+                    <button
+                      type="button" onClick={() => setSociete(s.cle)} aria-pressed={societe === s.cle}
+                      className={cn("flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-[7px] px-3 text-sm transition-colors", societe === s.cle ? "bg-primary/10 font-semibold text-primary" : "text-muted-foreground hover:bg-secondary hover:text-foreground")}
+                    >
+                      {s.nom} <span className={cn("text-xs tabular-nums", s.enAttente > 0 ? "font-semibold" : "opacity-60")}>{s.enAttente}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          )}
+          {menu}
+        </div>
+      </header>
+
+      {visibles.length === 0 ? (
+        <EmptyState icon="ShieldCheck" title="Rien à décider." description="Les décisions passées et le réglage des seuils sont dans le menu ⋯." />
+      ) : (
+        <div className="flex flex-col items-start gap-4 lg:flex-row">
+          <section aria-labelledby="file-centre" className="w-full min-w-0 overflow-hidden rounded-xl border border-border bg-card lg:max-w-[440px] lg:flex-[1_1_380px]">
+            <h2 id="file-centre" className="flex items-center gap-1.5 px-4 pb-2.5 pt-4 text-base font-semibold">
+              À décider · {nbAttente}
+              <InfoBulle label="Ce qui passe par le centre" align="left">{phraseSeuils(seuil, seuilBC)}</InfoBulle>
+            </h2>
+            <ul>
+              {visibles.map((r) => {
+                const k = cleLigne(r);
+                const cx = ctx(r);
+                const d = decides[k];
+                const tranche = Boolean(d && d.choix !== "PRECISION");
+                const jours = joursDAttente(r.depuis, maintenant);
+                const alerte = alerteCourte(alertesDeLaLigne(r, cx));
+                const actif = Boolean(courant && cleLigne(courant) === k);
+                return (
+                  <li key={k} id={ancreLigneCentre(r.entityId)} className="border-t border-border">
+                    <button
+                      type="button" onClick={() => choisir(k)} aria-current={actif ? "true" : undefined}
+                      className={cn(
+                        "flex w-full flex-col gap-1 px-4 py-3.5 text-left transition-colors hover:bg-secondary/60",
+                        actif && "bg-primary/10 shadow-[inset_3px_0_0_hsl(var(--primary))]",
+                        tranche && "opacity-55",
+                      )}
+                    >
+                      <span className="flex items-baseline justify-between gap-3">
+                        <span className="min-w-0 text-[15px] font-semibold [overflow-wrap:anywhere]">{r.intitule}</span>
+                        <span className="whitespace-nowrap text-[15px] font-bold tabular-nums">{r.montant != null ? formatCurrency(r.montant) : "—"}</span>
+                      </span>
+                      <span className="flex justify-between gap-3 text-[13px] text-muted-foreground">
+                        <span className="min-w-0 [overflow-wrap:anywhere]">{[cx.societe, natureDeLaLigneCourte(r), r.demandeur].filter(Boolean).join(" · ")}</span>
+                        <span className={cn("whitespace-nowrap", !d && jours >= DORMANTE_JOURS && "font-semibold text-destructive", d?.choix === "PRECISION" && "font-semibold text-warning")}>
+                          {d ? etatApresDecision(r.forme, d.choix) : phraseAttente(jours)}
+                        </span>
+                      </span>
+                      <span className="flex justify-between gap-3 text-[13px] text-muted-foreground">
+                        <span className={cn("min-w-0 [overflow-wrap:anywhere]", cx.budget && cx.budget.disponible < 0 && "text-destructive")}>
+                          {cx.budget ? `Reste ${formatCurrency(cx.budget.disponible)} · ${cx.budget.ligne}` : "Aucune ligne imputée"}
+                        </span>
+                        <span className="inline-flex shrink-0 items-center gap-1" title={`${cx.pieces.length} pièce(s)`}>
+                          <Paperclip className="h-3.5 w-3.5" aria-hidden /><span className="sr-only">Pièces :</span>{cx.pieces.length}
+                        </span>
+                      </span>
+                      {alerte && !tranche && <span className="text-[13px] font-semibold text-destructive">{alerte}</span>}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+
+          {courant && g && (
+            <section
+              aria-labelledby="fiche-centre"
+              className={cn(
+                "min-w-0 bg-card p-4 sm:p-5 lg:static lg:block lg:flex-[999_1_560px] lg:rounded-xl lg:border lg:border-border",
+                pleinEcran ? "fixed inset-0 z-40 overflow-y-auto" : "hidden",
+              )}
+            >
+              <button type="button" onClick={() => setPleinEcran(false)} className="mb-3 inline-flex min-h-10 items-center gap-1.5 text-sm font-semibold text-primary lg:hidden">
+                <ArrowLeft className="h-4 w-4" /> Retour à la file
+              </button>
+              <FicheCentre
+                row={courant} c={c} alertes={alertesDeLaLigne(courant, c)} statut={statut}
+                decision={!g.ok ? (
+                  <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
+                    <Link href={courant.href} className="inline-flex h-11 items-center rounded-[var(--radius)] bg-primary px-5 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
+                      Décider dans le dossier
+                    </Link>
+                  </div>
+                ) : peutDecider ? (
+                  <div className="flex flex-col gap-2.5 border-t border-border pt-4">
+                    {(mode === "RENVOYER" || mode === "REFUSER") && (
+                      <div className="flex flex-col gap-2">
+                        <p className="text-sm font-semibold">{g.titreMotif}</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {g.motifs.map((m) => (
+                            <button
+                              key={m} type="button" onClick={() => setMotif(m)} aria-pressed={motif === m}
+                              className={cn("min-h-9 rounded-full border px-3 text-[13px]", motif === m ? "border-primary bg-primary/10 font-semibold text-primary" : "border-border hover:bg-secondary")}
+                            >{m}</button>
+                          ))}
+                        </div>
+                        <Textarea id="motif-centre" aria-label="Motif" rows={2} value={motif} onChange={(e) => setMotif(e.target.value)} placeholder="Ou écrivez le vôtre…" />
+                      </div>
+                    )}
+                    {mode === "PRECISION" && (
+                      <div className="flex flex-col gap-1.5">
+                        <label htmlFor="question-centre" className="text-sm font-semibold">Votre question{courant.demandeur ? ` à ${courant.demandeur}` : ""}</label>
+                        <Textarea id="question-centre" rows={2} value={motif} onChange={(e) => setMotif(e.target.value)} />
+                      </div>
+                    )}
+                    {err && <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+                    <div className="flex flex-wrap justify-end gap-2">
+                      {mode ? (
+                        <>
+                          <Button type="button" variant="outline" className="h-11" disabled={busy} onClick={() => { setMode(null); setMotif(""); setErr(null); }}>Annuler</Button>
+                          {mode === "RENVOYER" && (
+                            <BoutonDecisif type="button" className="h-11" disabled={busy || !motif.trim()} onClick={() => void decider("RENVOYER")}>
+                              {busy && <Loader2 className="h-4 w-4 animate-spin" />} Confirmer le renvoi
+                            </BoutonDecisif>
+                          )}
+                          {mode === "REFUSER" && (
+                            <BoutonDecisif type="button" variant="destructive" className="h-11" disabled={busy || !motif.trim()} onClick={() => void decider("REFUSER")}>
+                              {busy && <Loader2 className="h-4 w-4 animate-spin" />} Confirmer le refus
+                            </BoutonDecisif>
+                          )}
+                          {mode === "PRECISION" && (
+                            <Button type="button" className="h-11" disabled={busy || !motif.trim()} onClick={() => void decider("PRECISION")}>
+                              {busy && <Loader2 className="h-4 w-4 animate-spin" />} Envoyer la question
+                            </Button>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          {g.precision && c.filCible && (
+                            <Button type="button" variant="ghost" className="h-11 text-primary" onClick={() => { setMode("PRECISION"); setErr(null); }}>Demander une précision</Button>
+                          )}
+                          {g.refuser && <Button type="button" variant="outline" className="h-11" onClick={() => { setMode("REFUSER"); setErr(null); }}>{g.refuser}</Button>}
+                          {g.renvoyer && <Button type="button" variant="outline" className="h-11" onClick={() => { setMode("RENVOYER"); setErr(null); }}>{g.renvoyer}</Button>}
+                          <BoutonDecisif type="button" className="h-11" disabled={busy} onClick={() => void decider("VALIDER")}>
+                            {busy && <Loader2 className="h-4 w-4 animate-spin" />} {g.ok}
+                          </BoutonDecisif>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+              />
+            </section>
+          )}
+        </div>
+      )}
     </div>
   );
 }
