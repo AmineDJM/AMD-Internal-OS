@@ -4314,6 +4314,115 @@
   "annulation": "compensation",
   "appelable": true
  },
+ "depart-salarie-actions:annulerFinDeContrat": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "depart-salarie-actions:cocherLigneDeSortie": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "depart-salarie-actions:corrigerFinDeContrat": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "depart-salarie-actions:creerCompteSalarie": {
+  "risque": "R4",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "compensation",
+  "appelable": false
+ },
+ "depart-salarie-actions:ecrireLigneDeSortie": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "depart-salarie-actions:enregistrerCertificatDeTravail": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "compensation",
+  "appelable": true
+ },
+ "depart-salarie-actions:enregistrerSoldeDeToutCompte": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "compensation",
+  "appelable": true
+ },
+ "depart-salarie-actions:genererCertificatDeTravail": {
+  "risque": "R1",
+  "familles": [
+   "CONTRATS_RH",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "compensation",
+  "appelable": true
+ },
+ "depart-salarie-actions:ouvrirFinDeContrat": {
+  "risque": "R2",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "depart-salarie-actions:renouvelerInvitation": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "depart-salarie-actions:retirerLigneDeSortie": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "depart-salarie-actions:transfererLigneDeSortie": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
  "department-actions:assignEmployeeDepartment": {
   "risque": "R4",
   "familles": [
@@ -10638,14 +10747,14 @@
   "appelable": true
  },
  "recruitment-actions:onboardRecruitment": {
-  "risque": "R1",
+  "risque": "R4",
   "familles": [
    "FICHES",
    "ECRITURES"
   ],
   "simulable": "oui",
   "annulation": "retour",
-  "appelable": true
+  "appelable": false
  },
  "recruitment-actions:openRecruitmentSourcing": {
   "risque": "R2",

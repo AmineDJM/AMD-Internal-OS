@@ -243,6 +243,8 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
   // FINANCES_RAPPEL_QUESTION_JOURS jours (3 par défaut) — idempotent, le rappel est lui-même un événement du fil.
   { cle: "finances.questions-rappel", executer: async () => { await (await import("@/modules/finances/api")).rappelerQuestionsSansReponse(); } },
   { cle: "rh.conges-acquis", executer: accrueMonthlyLeave }, // +2,5 j/mois (idempotent)
+  // LA FIN DE CONTRAT ÉCHUE (lot rhdepart) : le lendemain du dernier jour, la fiche et le compte se ferment (idempotent).
+  { cle: "rh.departs-echus", executer: async () => { await (await import("@/modules/rh/api")).fermerLesDepartsEchus(); } },
   // PRODUIT = DOSSIER (Direction, 08/10) : UNE fois par processus, chaque dossier non verrouillé reçoit
   // son produit — l'existant rejoint la règle des nouveaux. Idempotent ; le bilan part au journal du serveur.
   { cle: "produits.dossiers", executer: assurerProduitsDesDossiersAuDemarrage },

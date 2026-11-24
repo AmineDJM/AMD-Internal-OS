@@ -86,6 +86,8 @@ export const ACTIONS_DES_MODULES: Readonly<Record<string, string | readonly stri
   "payroll-hr-actions": "src/modules/rh/actions-paie.ts",
   "conge-discussion-actions": "src/modules/rh/actions-conges-discussion.ts",
   "stand-in-actions": "src/modules/rh/actions-interim.ts",
+  // LA FIN DE CONTRAT ET LE COMPTE D'UNE FICHE (lot rhdepart, 24/11/2026).
+  "depart-salarie-actions": "src/modules/rh/actions-depart.ts",
   "organisation-actions": "src/modules/referentiels/actions-organisations.ts",
   "payment-centre-actions": "src/modules/finances/actions-centre.ts",
   "payment-centre-seat-actions": "src/modules/finances/actions-sieges.ts",

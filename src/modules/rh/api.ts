@@ -40,6 +40,14 @@ export { genererEtRemettreOrdreDeMission, referenceOrdreMissionSuggeree, societe
 export { compteSuitLaFiche } from "./infra/depart";
 export { autorisateursDeLaFormation, departementsDiriges, societesOuJAutoriseLesFormations } from "./infra/directeurs";
 
+// ── Le compte applicatif créé avec la fiche ; la fin de contrat (circuit, sortie, solde, certificat, fermeture)
+export { creerCompteDuSalarie, etatCompteSalarie, type IssueCompte, renouvelerInvitationSalarie } from "./infra/compte-salarie";
+export { annulerDepart, corrigerDepart, ouvrirDepart, type SaisieDepart, suiteDecisionDepart } from "./infra/depart-circuit";
+export { cocherTacheDeSortie, ecrireTacheDeSortie, enregistrerSolde, preparerLaSortie, retirerTacheDeSortie, transfererAuRepreneur } from "./infra/depart-sortie";
+export { champsCertificatPreremplis, emettreCertificat, enregistrerCertificat } from "./infra/depart-certificat";
+export { fermerLesDepartsEchus, fermerSiEchu } from "./infra/depart-cloture";
+export { type DepartDTO, getDepartDeLaFiche } from "./infra/requetes/depart";
+
 // ── Lectures des écrans
 export { getLeavesToDecide, getMyAdvances, getMyLeaveBalance, getMyLeaveRequests, getRhData } from "./infra/requetes/hr";
 export { getEmployeeHrDossier, getHrRequestQueue, getHrRequestsPretes, getMyHrDossier, type HrDocumentDTO, type HrQueueItem, type HrRequestDTO } from "./infra/requetes/hr-documents";

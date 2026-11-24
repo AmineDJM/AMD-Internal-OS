@@ -32,3 +32,17 @@ export { avecLiens, type CommonCounts, commonKpis, JOB_LABEL, type JobCounts, jo
 
 // ── Les directeurs : le responsable de chaque département (organigramme), la Direction des opérations, qui autorise une formation
 export { type DepartementOrganigramme, estDirecteurDe, estDirectionDesOperations } from "./domaine/directeurs";
+
+// ── Fin de contrat : motifs, circuit RH → N+1 → DG, liste de sortie, solde de tout compte, certificat de travail
+export {
+  CATEGORIES_TACHE, circuitDuDepart, departEchu, estCategorieTache, estMotifDepart, LIBELLE_CATEGORIE_TACHE, LIBELLE_MARCHE,
+  LIBELLE_MOTIF_DEPART, LIBELLE_STATUT_DEPART, lireSoldeSaisi, MOTIFS_DEPART, OBJET_DEPART_SALARIE, refusSaisieDepart,
+  soldePrerempli, SOURCE_CERTIFICAT, SOURCE_COMPTE, SOURCE_SOLDE, SOURCE_TRANSFERT_SUJETS, SOURCE_TRANSFERT_TACHES,
+  statutApresValidation, STATUTS_DEPART, STATUTS_DEPART_OUVERTS, tachesDeSortie, totauxSolde,
+  type CategorieTache, type EtapeDepart, type LigneSolde, type MarcheDepart, type MotifDepart, type SensSolde,
+  type SourcesSolde, type SourcesSortie, type StatutDepart, type TacheProposee,
+} from "./domaine/depart/regles";
+export { corpsCertificatParDefaut, lireCertificatSaisi, nomCertificat, refusCertificat, valeursCertificat, type ChampsCertificat } from "./domaine/depart/certificat";
+
+// ── Le compte applicatif naît avec la fiche (invitation, jamais de mot de passe)
+export { decisionCompteSalarie, emailDeConnexion, roleDuCompteSalarie, type DecisionCompte } from "./domaine/compte-salarie";

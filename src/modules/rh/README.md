@@ -13,13 +13,22 @@ Lit `coffre` (porte d'écriture : la double écriture des salaires, IBAN, NIN) e
 |---|---|
 | `partage.ts` | **Porte pure** (navigateur compris) : fiche de congé, circuit, absences, fenêtre d'une note de frais, visibilité d'un document, règles de l'attestation, ligne hiérarchique, KPI d'équipe |
 | `api.ts` | **Porte serveur** : tout `partage.ts` + les écrivains (`createLeaveRequest`, `archiveHrRequestIfDone`…), les dépôts (attestation, ordre de mission) et les lectures des écrans (`getRhData`, `getHrRequestQueue`, `getHrPulse`…) |
-| `actions*.ts` | Les actions serveur, chacune sous sa **clé historique** (`src/lib/actions/parc.ts`) : `actions.ts` (`hr-actions` : fiche, congés, avances), `actions-documents.ts` (`hr-document-actions` : demandes, notes de frais, entrevues, attestation, OM), `actions-paie.ts` (`payroll-hr-actions`), `actions-interim.ts` (`stand-in-actions`), `actions-conges-discussion.ts` (`conge-discussion-actions`) |
+| `actions*.ts` | Les actions serveur, chacune sous sa **clé historique** (`src/lib/actions/parc.ts`) : `actions.ts` (`hr-actions` : fiche, congés, avances), `actions-documents.ts` (`hr-document-actions` : demandes, notes de frais, entrevues, attestation, OM), `actions-paie.ts` (`payroll-hr-actions`), `actions-interim.ts` (`stand-in-actions`), `actions-conges-discussion.ts` (`conge-discussion-actions`), `actions-depart.ts` (`depart-salarie-actions` : compte de la fiche, fin de contrat, sortie, solde, certificat) |
 | `domaine/` | règles pures + leurs tests ; `attestation-travail/regles`, `ordre-mission/constantes` |
 | `infra/` | congés (`leave-core`, `conge-escalade`), paie (`salaires-partis`), dépôts (`attestation-travail-depot`, `ordre-mission-depot`, modèles `.docx`), archives, `requetes/` (lectures des écrans) |
 | `ecrans/` | `hr-request-thread`, `hr-meeting-controls` (fil et entrevue d'une demande RH), montés par `/rh` et `/mon-dossier` |
 
 - **Tables** : `Employee` (fiche RH), `LeaveRequest`, `SalaryAdvance`, `PayrollEntry`,
-  `HrDocumentRequest`, `EmployeeDocument`.
+  `HrDocumentRequest`, `EmployeeDocument`, `DepartSalarie` et `DepartSalarieTache` (fin de contrat, lot rhdepart).
+- **Le compte naît avec la fiche** (Super Admin, 24/11/2026) : `createEmployee` et l'intégration d'une recrue appellent
+  `creerCompteDuSalarie` (`infra/compte-salarie.ts`) — invitation à usage unique (`lib/user-invites.ts`), aucun mot de
+  passe ; un compte existant sous la même adresse est relié, jamais doublé ; rôle « Lecteur » sauf choix d'un administrateur.
+- **La fin de contrat** (`infra/depart-*.ts`, règles `domaine/depart/`) : ouverte depuis la fiche, validée par le MOTEUR
+  COMMUN des validations (nature `DEPART_SALARIE`, RH acquise à l'ouverture → N+1 → DG ; `decideValidation` rappelle
+  `suiteDecisionDepart`). À l'accord final : liste de sortie préremplie (véhicule et équipement des Moyens généraux,
+  matériel promotionnel en main, transferts, accès, documents), solde de tout compte prérempli (aucun calcul de paie),
+  certificat de travail sur le papier de l'attestation (Word + PDF au dossier RH, jamais au Drive). Le lendemain du
+  dernier jour, `rh.departs-echus` ferme la fiche et le compte (`compteSuitLaFiche`).
 - **Qui possède quoi dans la paie** (décision du 28/10/2026) : **les RH DÉCIDENT les salaires** (saisie, révision,
   bulletins, `actions-paie.ts`) ; **les Finances les VERSENT** — le virement par le centre de paiement, son soldage
   au règlement, l'état d'un salaire et du virement, le coût employeur et la masse salariale vivent dans
