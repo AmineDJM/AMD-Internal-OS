@@ -67,7 +67,7 @@ export interface PartiesProposees {
 }
 
 export function PartyPicker({
-  name, options, defaultValue = [], arity = "many", canCreate = false, placeholder, propose,
+  name, options, defaultValue = [], arity = "many", canCreate = false, placeholder, propose, signalerVidage = false,
 }: {
   /** Le nom du champ : le serveur lit `formData.getAll(name)`. */
   name: string;
@@ -83,6 +83,12 @@ export function PartyPicker({
   canCreate?: boolean;
   placeholder?: string;
   propose?: PartiesProposees;
+  /**
+   * POSTER LE VIDAGE VOLONTAIRE (`<name>__vide`). Un sélecteur vide ne poste rien — ce qui, pour une
+   * CORRECTION, se lit « inchangé ». Retirer la partie retenue est pourtant un choix : ce marqueur
+   * le dit au serveur, qui efface alors. Opt-in : seuls les écrans qui fusionnent le lisent.
+   */
+  signalerVidage?: boolean;
 }) {
   const [connus, setConnus] = React.useState<PartyOption[]>(options ?? []);
   const [creationPermise, setCreationPermise] = React.useState(canCreate);
@@ -115,13 +121,15 @@ export function PartyPicker({
   );
 
   const ajouter = (id: string) => { setIds((prev) => withParty(prev, id, arity)); setQuery(""); };
-  const retirer = (id: string) => setIds((prev) => prev.filter((x) => x !== id));
+  const [retire, setRetire] = React.useState(false);
+  const retirer = (id: string) => { setIds((prev) => prev.filter((x) => x !== id)); setRetire(true); };
 
   return (
     <div className="space-y-2">
       {/* CE QUE LE SERVEUR REÇOIT. Des champs cachés nommés : l'action lit `getAll(name)` comme
           pour n'importe quelle liste, sans code de transport particulier. */}
       {ids.map((id) => <input key={id} type="hidden" name={name} value={id} />)}
+      {signalerVidage && retire && ids.length === 0 && <input type="hidden" name={`${name}__vide`} value="1" />}
 
       {choisies.length > 0 && (
         <ul className="flex flex-wrap gap-1.5">

@@ -2,7 +2,7 @@ import type { EntityType, MailDirection } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { userCan, type SessionUser } from "@/lib/rbac";
 import { recordAudit } from "@/lib/audit";
-import { companyIdForNew, getMyCompanies } from "@/lib/company";
+import { companyIdForNew, entitePermisePourFiche, getMyCompanies } from "@/lib/company";
 import { chosenCompanyId } from "@/lib/company-access";
 import { canAccessEntity } from "@/lib/entity-access";
 import type { ActionResult } from "@/lib/actions/types";
@@ -10,6 +10,7 @@ import {
   diffMailEntry, diffMailAssignments, describeMailChanges, MAIL_TRACKED_FIELDS,
   type MailSnapshot, type MailLabelChange,
 } from "./trace";
+import { correctionSuivie, dossierAccepteLePli, origineInvalide } from "./regles";
 
 /**
  * L'ÉCRITURE DU REGISTRE DES COURRIERS — le cœur, appelé par les DEUX portes.
@@ -95,7 +96,7 @@ export const TRACKED_SELECT = Object.fromEntries(
  * lirait une erreur technique au lieu d'une phrase.
  */
 async function resolveAssignments(
-  user: SessionUser, f: MailFields,
+  user: SessionUser, f: Partial<MailFields>,
 ): Promise<{ ok: true; department: string; person: string } | { ok: false; error: string }> {
   let department = "";
   let person = "";
@@ -122,6 +123,33 @@ async function resolveAssignments(
     person = u.name;
   }
   return { ok: true, department, person };
+}
+
+/**
+ * VÉRIFIE LE PARTENAIRE ET LE DOSSIER CHOISIS — et l'objet d'origine.
+ *
+ * Les trois viennent de menus ou de champs cachés, donc de valeurs qu'on peut réécrire dans le
+ * navigateur (ou qu'un agent peut inventer). Sans contrôle, une valeur inconnue faisait lever la
+ * clé étrangère — une page d'erreur au lieu d'une phrase — et un dossier d'une société qu'on ne
+ * voit pas recevait le pli. `companyId` est l'entité FINALE du pli : un dossier d'une entité ne
+ * range que les plis de cette entité (`dossierAccepteLePli`).
+ */
+async function verifierRattachements(
+  user: SessionUser, f: Partial<MailFields>, companyId: string | null,
+): Promise<string | null> {
+  if (f.partnerId) {
+    const p = await prisma.mailPartner.findUnique({ where: { id: f.partnerId }, select: { id: true } });
+    if (!p) return "Ce partenaire n'existe plus — choisissez-en un autre dans la liste.";
+  }
+  if (f.folderId) {
+    const d = await prisma.mailEntryFolder.findUnique({ where: { id: f.folderId }, select: { companyId: true } });
+    // Un dossier d'une société qu'on ne voit pas est INTROUVABLE : on ne dit pas qu'il existe.
+    if (!d || !(await entitePermisePourFiche(user.id, d.companyId))) return "Ce dossier de classement est introuvable.";
+    if (!dossierAccepteLePli(d.companyId, companyId)) {
+      return "Ce dossier de classement appartient à une autre entité que le courrier — choisissez un dossier de la même entité, ou un dossier commun.";
+    }
+  }
+  return origineInvalide(f.sourceType, f.sourceId);
 }
 
 /**
@@ -167,6 +195,10 @@ export async function createMailEntryFor(user: SessionUser, f: MailFields): Prom
   }
   const assigned = await resolveAssignments(user, f);
   if (!assigned.ok) return { ok: false, error: assigned.error };
+  // L'ENTITÉ FINALE, calculée une fois : le dossier choisi doit l'accepter.
+  const companyId = chosenCompanyId(f.companyId, null, await companyIdForNew(user.id));
+  const refus = await verifierRattachements(user, f, companyId);
+  if (refus) return { ok: false, error: refus };
 
   const created = await prisma.mailEntry.create({
     data: {
@@ -190,7 +222,7 @@ export async function createMailEntryFor(user: SessionUser, f: MailFields): Prom
       // UN MENU LAISSÉ VIDE N'EST PAS UN CHOIX. Sans ce repli, le pli naît sans entité :
       // la liste le montre (elle garde les non rattachés, exprès), sa fiche répond 404 et ses
       // pièces jointes sont refusées. C'est le défaut rapporté « j'enregistre, et 404 ».
-      companyId: chosenCompanyId(f.companyId, null, await companyIdForNew(user.id)),
+      companyId,
       sourceType: f.sourceType ?? null,
       sourceId: f.sourceId ?? null,
       createdById: user.id, updatedById: user.id,
@@ -208,15 +240,23 @@ export async function createMailEntryFor(user: SessionUser, f: MailFields): Prom
   return { ok: true, id: created.id };
 }
 
-/** Modifier un courrier — chaque champ touché part au journal avec ses deux valeurs. */
-export async function updateMailEntryFor(user: SessionUser, id: string, f: MailFields): Promise<ActionResult> {
+/**
+ * Modifier un courrier — chaque champ touché part au journal avec ses deux valeurs.
+ *
+ * UNE CORRECTION FUSIONNE (`correctionSuivie`) : un champ `undefined` est INCHANGÉ, un champ
+ * présent — même vide, c'est alors un effacement voulu — est écrit. Les trois portes en dépendent :
+ * l'écran ne poste pas l'expéditeur quand aucun contact n'est choisi, Adam ne cite que ce qu'il
+ * corrige, l'API n'envoie que les paramètres de l'appel. L'ancien `f.sender ?? null` effaçait en
+ * silence tout ce que l'appelant n'avait pas répété.
+ */
+export async function updateMailEntryFor(user: SessionUser, id: string, f: Partial<MailFields>): Promise<ActionResult> {
   if (!userCan(user, "MAIL_REGISTER", "UPDATE")) return { ok: false, error: "Non autorisé." };
   if (!id) return { ok: false, error: "Courrier introuvable." };
   if (!(await canAccessEntity(user, "MAIL_ENTRY", id, "UPDATE"))) {
     return { ok: false, error: "Ce courrier n'est pas dans votre périmètre." };
   }
-  const title = (f.title ?? "").trim();
-  if (!title) return { ok: false, error: "L'objet du courrier est obligatoire." };
+  const after = correctionSuivie(f);
+  if (after.title !== undefined && !after.title) return { ok: false, error: "L'objet du courrier est obligatoire." };
 
   const before = await prisma.mailEntry.findUnique({
     where: { id },
@@ -225,24 +265,13 @@ export async function updateMailEntryFor(user: SessionUser, id: string, f: MailF
     select: {
       ...TRACKED_SELECT,
       // L'ENTITÉ ACTUELLE est relue : elle est ce qu'on GARDE quand le menu revient vide.
-      companyId: true,
+      companyId: true, folderId: true,
       department: { select: { name: true } }, concernedUser: { select: { name: true } },
     },
   });
   if (!before) return { ok: false, error: "Courrier introuvable." };
+  const title = after.title ?? before.title;
 
-  const after = {
-    title,
-    reference: f.reference ?? null,
-    direction: f.direction ?? "OUTGOING",
-    sender: f.sender ?? null,
-    recipient: f.recipient ?? null,
-    sentAt: f.sentAt ?? null,
-    receivedAt: f.receivedAt ?? null,
-    acknowledgedAt: f.acknowledgedAt ?? null,
-    carrier: f.carrier ?? null,
-    notes: f.notes ?? null,
-  };
   // ENTITÉ ET PARTENAIRE se corrigent aussi — une erreur de saisie qui ne se rattrape pas
   // reste au registre pour toujours. Ils sont écrits À CÔTÉ de `after` : le journal suit des
   // champs LISIBLES, et y inscrire « cmt1es… → cmt2fk… » n'apprendrait rien à personne.
@@ -254,11 +283,17 @@ export async function updateMailEntryFor(user: SessionUser, id: string, f: MailF
   }
   const assigned = await resolveAssignments(user, f);
   if (!assigned.ok) return { ok: false, error: assigned.error };
+  // CORRIGER UNE DATE NE DÉTACHE PAS LE PLI. Le menu d'entité revient vide dès qu'on n'y
+  // touche pas ; l'écrire tel quel effaçait l'entité, et le courrier disparaissait de sa
+  // propre vue au rechargement suivant — 404 sur la fiche qu'on venait de corriger.
+  const companyId = chosenCompanyId(f.companyId, before.companyId, await companyIdForNew(user.id));
+  // Le dossier vérifié est celui que le pli AURA : le nouveau s'il change, sinon l'actuel quand
+  // c'est l'entité qui change (un pli de B ne reste pas dans un dossier de A).
+  const dossierFinal = f.folderId !== undefined ? f.folderId : (companyId !== before.companyId ? before.folderId : null);
+  const refus = await verifierRattachements(user, { ...f, folderId: dossierFinal }, companyId);
+  if (refus) return { ok: false, error: refus };
   const links = {
-    // CORRIGER UNE DATE NE DÉTACHE PAS LE PLI. Le menu d'entité revient vide dès qu'on n'y
-    // touche pas ; l'écrire tel quel effaçait l'entité, et le courrier disparaissait de sa
-    // propre vue au rechargement suivant — 404 sur la fiche qu'on venait de corriger.
-    companyId: chosenCompanyId(f.companyId, before.companyId, await companyIdForNew(user.id)),
+    companyId,
     ...(f.partnerId !== undefined ? { partnerId: f.partnerId ?? null } : {}),
     ...(f.departmentId !== undefined ? { departmentId: f.departmentId ?? null } : {}),
     ...(f.concernedUserId !== undefined ? { concernedUserId: f.concernedUserId ?? null } : {}),

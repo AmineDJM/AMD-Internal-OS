@@ -82,11 +82,12 @@ export function mailFields(
       : []),
     // EXPÉDITEUR ET DESTINATAIRE — un seul chacun, choisi dans l'annuaire de l'entreprise. Un
     // pli part d'un endroit et arrive à un autre : la cardinalité n'est pas celle des parties
-    // d'un contrat, qui sont réellement plusieurs.
+    // d'un contrat, qui sont réellement plusieurs. Laissés vides, ils ne postent rien et la
+    // correction garde le correspondant en texte ; RETIRER le contact poste `…__vide` et l'efface.
     {
       type: "parties", name: "senderContactId", label: "Expéditeur", arity: 1,
       options: parties.options, canCreate: parties.canCreate,
-      defaultValue: parties.selected?.sender ?? [],
+      defaultValue: parties.selected?.sender ?? [], signalerVidage: true,
       placeholder: "Chercher l\u2019expéditeur dans l\u2019annuaire…",
       hint: v("sender") && !(parties.selected?.sender ?? []).length
         ? `Correspondant enregistré en texte : « ${v("sender")} ». Choisissez-le dans l\u2019annuaire pour qu\u2019on puisse le joindre.`
@@ -95,7 +96,7 @@ export function mailFields(
     {
       type: "parties", name: "recipientContactId", label: "Destinataire", arity: 1,
       options: parties.options, canCreate: parties.canCreate,
-      defaultValue: parties.selected?.recipient ?? [],
+      defaultValue: parties.selected?.recipient ?? [], signalerVidage: true,
       placeholder: "Chercher le destinataire dans l\u2019annuaire…",
       hint: v("recipient") && !(parties.selected?.recipient ?? []).length
         ? `Correspondant enregistré en texte : « ${v("recipient")} ». Choisissez-le dans l\u2019annuaire pour qu\u2019on puisse le joindre.`

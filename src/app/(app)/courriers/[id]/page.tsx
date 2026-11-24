@@ -28,6 +28,7 @@ import { EntityLinks } from "@/components/shared/entity-links";
 import { linksOf, linkedViews } from "@/lib/links/store";
 import { getMyCompanies, companyLabel } from "@/lib/company";
 import { mailRoutingOptions } from "@/lib/queries/mail-routing";
+import { resolveDriveAccess, canViewDrive } from "@/lib/drive";
 
 export const dynamic = "force-dynamic";
 
@@ -106,13 +107,32 @@ export default async function MailEntryPage(props: { params: Promise<{ id: strin
     getMyCompanies(user.id),
     prisma.mailPartner.findMany({ where: { isActive: true }, select: { id: true, name: true, kind: true }, orderBy: { name: "asc" } }),
     mailRoutingOptions(),
-    prisma.mailEntryFolder.findMany({ select: { id: true, name: true, parentId: true, companyId: true } }),
+    // LES DOSSIERS OÙ CE PLI PEUT ALLER — ceux qu'on voit (la règle de la liste) ET qui acceptent son
+    // entité (`dossierAccepteLePli`) ; plus le sien, toujours : absent du menu, il serait lu « non
+    // classé » et le pli sortirait de son dossier au premier enregistrement.
+    prisma.mailEntryFolder.findMany({
+      where: {
+        OR: [
+          await companyScopedWhere(user.id, entry.companyId ? { companyId: { in: [entry.companyId] } } : {}),
+          await companyScopedWhere(user.id, { companyId: null }),
+          ...(entry.folderId ? [{ id: entry.folderId }] : []),
+        ],
+      },
+      select: { id: true, name: true, parentId: true, companyId: true },
+    }),
   ]);
   const folderOptions = flattenFolders(buildFolderTree(folderRows)).map((n) => ({ value: n.id, label: indentedLabel(n) }));
 
   // « RELIER À… » — la carte partagée : le flux décide des natures proposées, le registre
   // commun porte les liens, et l'accès est REVÉRIFIÉ à l'écriture. Un pli parle de tout : c'est
   // la seule nature sans contrainte de flux.
+  // LE DRIVE A SES PROPRES DROITS (audit Courrier, 24/11) : lire le pli ne donne pas le droit de lire
+  // le fichier qu'il référence. Son NOM même peut être confidentiel — on ne l'affiche, avec son lien,
+  // qu'à qui peut l'ouvrir ; aux autres, la fiche dit qu'une pièce existe et qu'elle est réservée.
+  const noeudsDrive = [entry.driveNode?.id, ...entry.pieces.map((p) => p.driveNodeId)].filter((x): x is string => Boolean(x));
+  const driveLisible = new Set<string>();
+  for (const n of new Set(noeudsDrive)) if (canViewDrive(await resolveDriveAccess(user, n))) driveLisible.add(n);
+
   const self = { type: "MAIL_ENTRY" as const, id: entry.id };
   const linkViews = await linkedViews(self, await linksOf(self));
 
@@ -234,9 +254,13 @@ export default async function MailEntryPage(props: { params: Promise<{ id: strin
               {entry.driveNode && (
                 <div className="col-span-2 min-w-0 sm:col-span-3">
                   <p className="text-xs text-muted-foreground">Pièce de référence (dans le Drive)</p>
-                  <Link href={`/drive/${entry.driveNode.id}`} className="inline-flex min-w-0 items-center gap-1 font-medium text-primary hover:underline">
-                    <Paperclip className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">{entry.driveNode.name}</span> <ExternalLink className="h-3 w-3 shrink-0" />
-                  </Link>
+                  {driveLisible.has(entry.driveNode.id) ? (
+                    <Link href={`/drive/${entry.driveNode.id}`} className="inline-flex min-w-0 items-center gap-1 font-medium text-primary hover:underline">
+                      <Paperclip className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">{entry.driveNode.name}</span> <ExternalLink className="h-3 w-3 shrink-0" />
+                    </Link>
+                  ) : (
+                    <p className="text-muted-foreground">Fichier du Drive auquel vous n&apos;avez pas accès — demandez-le à son propriétaire.</p>
+                  )}
                 </div>
               )}
               {entry.notes && (
@@ -281,7 +305,8 @@ export default async function MailEntryPage(props: { params: Promise<{ id: strin
             pieces={entry.pieces.map((p) => ({
               id: p.id, label: p.label, recipient: p.recipient, notes: p.notes,
               documentId: p.documentId, driveNodeId: p.driveNodeId,
-              driveName: p.driveNode?.name ?? null,
+              // Le nom d'un fichier du Drive qu'on ne peut pas ouvrir ne s'affiche pas (voir plus haut).
+              driveName: p.driveNodeId && driveLisible.has(p.driveNodeId) ? (p.driveNode?.name ?? null) : null,
             }))}
           />
         </div>

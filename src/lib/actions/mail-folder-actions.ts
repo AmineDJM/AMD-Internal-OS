@@ -7,7 +7,8 @@ import { requireUser } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
-import { getMyCompanies } from "@/lib/company";
+import { entitePermisePourFiche, getMyCompanies } from "@/lib/company";
+import { dossierAccepteLePli } from "@/lib/mail-register/regles";
 import { canReparent, type FolderLite } from "@/lib/legal/folders";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 
@@ -21,6 +22,19 @@ import { fdStr, type ActionResult } from "@/lib/actions/types";
  */
 
 const PATH = "/courriers";
+
+/**
+ * LE JOURNAL D'UN DOSSIER N'EST PAS CELUI D'UN COURRIER (audit Courrier, 24/11).
+ *
+ * Ces gestes s'écrivaient `entityType: "MAIL_ENTRY"` avec l'identifiant du DOSSIER : la création
+ * d'un dossier émettait le fait métier « courrier enregistré » (`from-audit.ts`), et le journal
+ * global menait vers `/courriers/<id du dossier>` — un 404. L'énumération `EntityType` n'a aucune
+ * valeur pour un dossier de classement, et aucune voisine n'est juste : `DOSSIER` est un sujet
+ * (lien vers `/dossiers/…`), `DRIVE_NODE` un nœud du Drive (lien vers `/drive/…`) — chacune
+ * fabriquerait le même faux lien ailleurs. On écrit donc la ligne SANS type d'entité, comme le
+ * classement des plis (`moveMailEntries`) le faisait déjà : l'identifiant du dossier reste au
+ * journal pour le retrouver, aucun lien n'est fabriqué, aucun fait n'est émis.
+ */
 
 /** Tous les dossiers, en forme légère — ce dont les règles pures ont besoin. */
 async function allFolders(): Promise<FolderLite[]> {
@@ -61,8 +75,13 @@ export async function createMailFolder(_prev: ActionResult | undefined, formData
 
     const parentId = fdStr(formData, "parentId");
     if (parentId) {
-      const parent = await prisma.mailEntryFolder.findUnique({ where: { id: parentId }, select: { id: true } });
-      if (!parent) return { ok: false, error: "Dossier parent introuvable." };
+      // Le parent est un dossier qu'on VOIT, et de la même entité : un sous-dossier d'Alpha rangé
+      // sous un dossier de Beta n'apparaîtrait dans l'arbre de personne.
+      const parent = await prisma.mailEntryFolder.findUnique({ where: { id: parentId }, select: { companyId: true } });
+      if (!parent || !(await entitePermisePourFiche(user.id, parent.companyId))) return { ok: false, error: "Dossier parent introuvable." };
+      if (!dossierAccepteLePli(parent.companyId, companyId)) {
+        return { ok: false, error: "Le dossier parent appartient à une autre entité — choisissez un parent de la même entité, ou un dossier commun." };
+      }
     }
 
     const created = await prisma.mailEntryFolder.create({
@@ -70,7 +89,7 @@ export async function createMailFolder(_prev: ActionResult | undefined, formData
       select: { id: true },
     });
     await recordAudit({
-      actorId: user.id, action: "CREATE", module: "Courriers", entityType: "MAIL_ENTRY", entityId: created.id,
+      actorId: user.id, action: "CREATE", module: "Courriers", entityId: created.id,
       summary: `Dossier de classement « ${name} » créé`,
     });
     revalidatePath(PATH);
@@ -91,10 +110,23 @@ export async function updateMailFolder(formData: FormData): Promise<ActionResult
       // Créer une boucle ferait disparaître le dossier — et tout ce qu'il contient — de l'arbre.
       return { ok: false, error: "Un dossier ne peut pas être rangé dans lui-même ni dans l'un de ses sous-dossiers." };
     }
+    if (nextParent) {
+      // On ne range pas sous le dossier d'une société qu'on ne voit pas — il est, pour nous, introuvable.
+      const parent = await prisma.mailEntryFolder.findUnique({ where: { id: nextParent }, select: { companyId: true } });
+      if (!parent || !(await entitePermisePourFiche(user.id, parent.companyId))) return { ok: false, error: "Dossier parent introuvable." };
+    }
 
     const companyRaw = formData.get("companyId");
     if (companyRaw != null && !(await companyAllowed(user.id, String(companyRaw) || null))) {
       return { ok: false, error: "Cette entité n'est pas dans votre périmètre." };
+    }
+    // Rattacher le dossier à une entité ne doit pas y laisser les plis d'une autre (`dossierAccepteLePli`).
+    const nextCompany = companyRaw != null ? (String(companyRaw) || null) : null;
+    if (nextCompany) {
+      const etrangers = await prisma.mailEntry.count({ where: { folderId: id, companyId: { not: null }, NOT: { companyId: nextCompany } } });
+      if (etrangers > 0) {
+        return { ok: false, error: `Ce dossier contient ${etrangers} courrier(s) d'une autre entité — déplacez-les d'abord, ou laissez le dossier commun au groupe.` };
+      }
     }
 
     const name = fdStr(formData, "name") || existing.name;
@@ -108,7 +140,7 @@ export async function updateMailFolder(formData: FormData): Promise<ActionResult
       },
     });
     await recordAudit({
-      actorId: user.id, action: "UPDATE", module: "Courriers", entityType: "MAIL_ENTRY", entityId: id,
+      actorId: user.id, action: "UPDATE", module: "Courriers", entityId: id,
       summary: `Dossier de classement modifié : ${existing.name}${name !== existing.name ? ` → ${name}` : ""}`,
     });
     revalidatePath(PATH);
@@ -128,7 +160,7 @@ export async function deleteMailFolder(formData: FormData): Promise<ActionResult
 
   await prisma.mailEntryFolder.delete({ where: { id } });
   await recordAudit({
-    actorId: user.id, action: "DELETE", module: "Courriers", entityType: "MAIL_ENTRY", entityId: id,
+    actorId: user.id, action: "DELETE", module: "Courriers", entityId: id,
     summary: `Dossier de classement « ${existing.name} » supprimé (courriers déclassés, non supprimés)`,
   });
   revalidatePath(PATH);
@@ -150,21 +182,29 @@ export async function moveMailEntries(formData: FormData): Promise<ActionResult>
 
     const folderId = fdStr(formData, "folderId");
     let folderName = "Non classés";
+    let folderCompanyId: string | null = null;
     if (folderId) {
       // On ne range pas dans le dossier d'une société qu'on ne voit pas (SA-16).
       const porte = await ouvrirPourEcrire(user, "MAIL_FOLDER", folderId, "UPDATE");
       if (!porte.ok) return porte;
-      const folder = await prisma.mailEntryFolder.findUnique({ where: { id: folderId }, select: { name: true } });
+      const folder = await prisma.mailEntryFolder.findUnique({ where: { id: folderId }, select: { name: true, companyId: true } });
       if (!folder) return { ok: false, error: "Dossier introuvable." };
       folderName = folder.name;
+      folderCompanyId = folder.companyId;
     }
 
     const mine = await getMyCompanies(user.id);
     const movable = await prisma.mailEntry.findMany({
       where: { id: { in: ids }, OR: [{ companyId: null }, { companyId: { in: mine.map((c) => c.id) } }] },
-      select: { id: true },
+      select: { id: true, companyId: true },
     });
     if (movable.length === 0) return { ok: false, error: "Ces courriers ne sont pas dans votre périmètre." };
+    // UN DOSSIER D'UNE ENTITÉ NE RANGE QUE SES PLIS. Refus franc, rien de déplacé : ranger « une
+    // partie » laisserait la personne chercher lesquels sont partis.
+    const etrangers = movable.filter((m) => !dossierAccepteLePli(folderCompanyId, m.companyId)).length;
+    if (etrangers > 0) {
+      return { ok: false, error: `${etrangers} courrier(s) relève(nt) d'une autre entité que le dossier « ${folderName} » — rangez-les dans un dossier de leur entité, ou dans un dossier commun.` };
+    }
 
     // porte d'écriture : `movable` ne garde que les pièces des sociétés de la personne (filtre ci-dessus).
     await prisma.mailEntry.updateMany({

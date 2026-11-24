@@ -114,6 +114,19 @@ export async function deleteOwnRecord(formData: FormData): Promise<DeleteResult>
   if (!isCreator && !hasModuleDelete && user.role !== "SUPER_ADMIN") {
     return { ok: false, error: "Seul le créateur (ou un administrateur) peut supprimer cet élément." };
   }
+  // LE PÉRIMÈTRE, PAS SEULEMENT LE DROIT (audit Courrier, 24/11). Le droit `DELETE` du module ne dit
+  // pas « cet objet-ci » : il supprimait le courrier d'une société qu'on ne voit pas, par son
+  // identifiant. Et la paternité n'est pas un droit perpétuel : un créateur dont le module a été
+  // BLOQUÉ depuis supprimait encore son pli. On relit donc la règle de la ligne — la même que
+  // l'écran (`canAccessEntity`) : `DELETE` pour qui supprime au titre du module, `VIEW` (l'objet
+  // est encore sous ses yeux) pour le créateur. Le Super Admin voit tout.
+  if (user.role !== "SUPER_ADMIN" && spec.entityType) {
+    const parLeModule = hasModuleDelete && (await canAccessEntity(user, spec.entityType, id, "DELETE"));
+    const parLaPaternite = !parLeModule && isCreator && (await canAccessEntity(user, spec.entityType, id, "VIEW"));
+    if (!parLeModule && !parLaPaternite) {
+      return { ok: false, error: "Cet élément n'est pas (ou plus) dans votre périmètre — entité ou module. Demandez à un administrateur de le retirer." };
+    }
+  }
 
   const name = await spec.describe(id);
   const r = await supprimerReversible(kind, id, user.id, `Suppression par ${isCreator ? "le créateur" : "un administrateur"} — ${spec.label} « ${name ?? id} » (restaurable depuis la corbeille)`);
