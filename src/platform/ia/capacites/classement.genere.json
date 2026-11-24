@@ -3230,7 +3230,7 @@
   "appelable": true
  },
  "budget-pole-actions:reallouerCategorie": {
-  "risque": "R1",
+  "risque": "R2",
   "familles": [
    "BUDGETS",
    "ECRITURES"
@@ -12571,7 +12571,7 @@
   "appelable": true
  },
  "training-actions:createHrTraining": {
-  "risque": "R2",
+  "risque": "R1",
   "familles": [
    "FICHES",
    "ECRITURES"
