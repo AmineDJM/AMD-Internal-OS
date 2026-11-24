@@ -1,5 +1,24 @@
 ## 🧾 Journal des évolutions récentes
 
+### MOYENS GÉNÉRAUX : LE SERVICE SE RÈGLE DANS LES RÉGLAGES, LA CAISSE NE COMPTE UNE REMISE QU'À LA CONFIRMATION DU CAISSIER (2026-11-24)
+
+Décisions du Super Admin du 24/11/2026.
+- **Plus de « Changer de service » sur l'écran des Moyens généraux** : la page montre la caisse du service désigné, comme
+  avant (même résolveur, même repli). La désignation (`AppSetting.generalMeansDepartmentId`, `setGeneralMeansDepartment`,
+  Super Admin seul, journalisée) vit dans **Administration › Réglages** (`admin/settings/service-moyens-generaux.tsx`) ;
+  sans service valide, l'écran vide du Super Admin y renvoie.
+- **Une seule caisse reçoit** : remise, rallonge accordée et réglage mensuel ne visent que le service désigné
+  (`refusHorsServiceMoyensGeneraux`, `lib/queries/general-means.ts`), assistant compris (`allot_petty_cash`,
+  `set_petty_cash_plan`). Les anciennes caisses d'autres départements restent en base, intactes.
+- **Le circuit de la remise** : centre de paiement → **Refusé** (bandeau de la caisse, avec le motif, jusqu'à la remise
+  suivante) ou autorisée → **Finances** (« Banque & paiements », « à payer par les Finances ») → payée (`verserLaRemise` :
+  ordre réglé, sortie en liquide) → **« Versée — à confirmer par le caissier »**, hors du solde → **Confirmer la réception**
+  (`confirmPettyCashReceipt`) : la somme compte alors dans la caisse. La règle du 28/10 (crédit à l'autorisation du centre)
+  est retirée ; les remises déjà créditées ne bougent pas.
+- **« Non payé » après « payé »** (annulation du règlement par les Finances) : avant confirmation, la remise redevient « à
+  payer » ; après, sa somme sort du solde (les dépenses faites dessus restent comptées, `statutPourLeFond`) et un nouveau
+  paiement se reconfirme. Banc : `src/lib/actions/caisse-confirmation-reception-flow.test.ts`.
+
 ### AD & PRO, RECETTE DU 24/11 : LE POSTE PUBLIÉ SANS MONTANT, LE BC ET LE BUDGET EN PARALLÈLE, LA DÉCLARATION QUI ATTEND LES POSTES PRÊTS (2026-11-24)
 
 Recette Ad & Pro de la Direction du 24/11/2026 (commits `2755db2a`, `9ee78395`, `5d3a976c`, puis un lot en cours sur

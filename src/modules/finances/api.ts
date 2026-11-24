@@ -4,8 +4,8 @@
  *
  * L'argent qui sort et qui entre : les ORDRES DE DÉPENSE (un seul écrivain, `createExpenseOrder`,
  * qui fait naître tout ordre en attente du centre de paiement), leur révision et leur annulation
- * tant qu'ils ne sont pas réglés, le versement d'une remise de caisse d'avance autorisée par le
- * centre (`verserLaRemise`, Direction 28/10/2026), le règlement des factures, la trésorerie et
+ * tant qu'ils ne sont pas réglés, le paiement d'une remise de caisse d'avance par les Finances
+ * (`verserLaRemise` — elle compte dans la caisse à la confirmation du caissier, 24/11/2026), le règlement des factures, la trésorerie et
  * les comptes, et les lectures des écrans `/finances`, `/centre-de-paiement`, `/validations/paiements`.
  *
  * Hors de `src/modules/finances/`, on importe CE fichier (ou `./partage` pour les règles pures,

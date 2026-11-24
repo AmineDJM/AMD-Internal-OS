@@ -18,11 +18,10 @@ import { ParNatureMois } from "./par-nature-mois";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { CashPanel } from "./cash-panel";
 import { ExpensePanel } from "./expense-panel";
-import { ServiceSwitch, ChangerDeService } from "./service-switch";
 import { EnteteMenu } from "./entete-menu";
 import { ExpenseTable } from "./expense-table";
 import { SurlignerCible } from "@/components/shared/surligner-cible";
-import { ANCRE_CAISSE_AVANCE } from "@/lib/chemins/moyens-generaux";
+import { ANCRE_CAISSE_AVANCE, ANCRE_SERVICE_MOYENS_GENERAUX } from "@/lib/chemins/moyens-generaux";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Moyens généraux — AMD Internal OS" };
@@ -93,31 +92,28 @@ export default async function MoyensGenerauxPage(props: { searchParams: Promise<
     );
   }
 
-  // LE SUPER ADMIN DÉSIGNE LE SERVICE — et lui seul (`setGeneralMeansDepartment` le revérifie).
+  // LE SUPER ADMIN DÉSIGNE LE SERVICE — dans Administration › Réglages, plus ici (Super Admin,
+  // 24/11/2026 : « enlève le fait qu'on puisse changer de service ») ; `setGeneralMeansDepartment`
+  // le revérifie. Ici, il ne garde que le classement des natures (`ParNatureMois`).
   const pilote = user.role === "SUPER_ADMIN" || user.secondaryRole === "SUPER_ADMIN";
-  const serviceCourant = pilote ? (await getAppSettings()).generalMeansDepartmentId : null;
-  // La liste des départements ne sert qu'à DÉSIGNER le service (`ChangerDeService`) : elle n'ouvre
-  // la caisse d'aucun d'eux. Chargée pour le seul Super Admin.
-  const departements = pilote
-    ? (await prisma.department.findMany({ select: { id: true, name: true, parent: { select: { name: true } } }, orderBy: { name: "asc" } }))
-        .map((d) => ({ id: d.id, libelle: d.parent ? `${d.parent.name} › ${d.name}` : d.name }))
-    : [];
 
   const departmentId = await resolveGeneralMeansDepartment(user);
   if (!departmentId) {
     // UNE ISSUE POUR LE SUPER ADMIN. Sans département à lui et sans service valide (jamais désigné,
-    // ou supprimé depuis), il n'avait que « aucun département rattaché » — et le seul geste qui
-    // désigne le service vivait sur l'écran d'un département qu'il ne pouvait plus ouvrir.
+    // ou supprimé depuis), on le renvoie au réglage — sobrement : la désignation ne vit plus ici.
     if (pilote) {
+      const serviceRegle = Boolean((await getAppSettings()).generalMeansDepartmentId);
       return (
         <div className="space-y-5">
           <PageHeader title="Moyens généraux" description="La caisse des moyens généraux de la société — l'exercice et le mois — et ses achats, au même endroit." />
           <EmptyState
             icon="Landmark"
-            title={serviceCourant ? "Le service des moyens généraux n'existe plus" : "Aucun service des moyens généraux n'est désigné"}
-            description="Choisissez le département qui tient la caisse de la société : c'est elle que tout le monde ouvrira en arrivant ici."
+            title={serviceRegle ? "Le service des moyens généraux n'existe plus" : "Aucun service des moyens généraux n'est désigné"}
+            description="Le département qui tient la caisse de la société se choisit dans Administration › Réglages."
           />
-          <ChangerDeService departements={departements} actuel={null} ouvertParDefaut />
+          <div className="flex justify-center">
+            <Link href={`/admin/settings#${ANCRE_SERVICE_MOYENS_GENERAUX}`} className="text-sm font-medium text-primary hover:underline">Désigner le service des moyens généraux</Link>
+          </div>
         </div>
       );
     }
@@ -140,9 +136,8 @@ export default async function MoyensGenerauxPage(props: { searchParams: Promise<
   // départements, laisse que l'Administration »). Le sélecteur qui lui ouvrait les moyens généraux
   // de chaque département est retiré : pour tout le monde, les moyens généraux sont ceux de la
   // société, et un sélecteur dirait le contraire. Le découpage par département reste la façon dont
-  // l'argent est IMPUTÉ — il se lit dans Budgets › par département, lien conservé ci-dessous.
-  // Le Super Admin garde ce qui n'appartient qu'à lui : voir QUEL département tient le service,
-  // et en désigner un autre (`ChangerDeService`) — sans ouvrir la caisse de cet autre.
+  // l'argent est IMPUTÉ — il se lit dans Budgets › par département. Désigner le service est un
+  // réglage d'administration (Administration › Réglages), pas un geste de cet écran.
 
   // Les candidats à qui remettre une caisse : seule l'administration a besoin de cette liste.
   const people = view.canAllot
@@ -184,9 +179,9 @@ export default async function MoyensGenerauxPage(props: { searchParams: Promise<
           sous les yeux ; si elle n'est plus affichée (soldée, repliée), c'est la caisse d'avance qui s'entoure. */}
       <SurlignerCible ids={searchParams.cible ? [searchParams.cible, ANCRE_CAISSE_AVANCE] : []} />
       {/* EN-TÊTE (Direction, 09/10) : la société et l'année, UN geste principal (« Ajouter une dépense »), le reste dans ⋯.
-          La caisse, les dépenses et le choix du service ne sont pas retirés : ils vivent dans la page, sous l'en-tête. */}
+          La caisse et les dépenses vivent dans la page, sous l'en-tête. */}
       <PageHeader
-        title={pilote ? `Moyens généraux — ${view.department.path}` : "Moyens généraux"}
+        title="Moyens généraux"
         description={`${view.department.company ?? view.department.name} · ${year}`}
       >
         {view.canSpend && (
@@ -206,19 +201,6 @@ export default async function MoyensGenerauxPage(props: { searchParams: Promise<
         )}
         {canManageCatalog && <EnteteMenu articles={catalogRows} peutModifier />}
       </PageHeader>
-
-      {/* QUEL DÉPARTEMENT TIENT LES MOYENS GÉNÉRAUX DE LA SOCIÉTÉ — le réglage qui décide où tout le
-          monde atterrit. Il n'appartient qu'au Super Admin, et il n'ouvre la caisse d'aucun autre
-          département : une seule caisse à l'écran, celle du service désigné (§118.170). */}
-      {pilote && (
-        <div className="flex flex-wrap items-center gap-2">
-          <ServiceSwitch
-            departmentId={view.department.id} departmentName={view.department.path}
-            current={serviceCourant}
-          />
-          <ChangerDeService departements={departements} actuel={serviceCourant} />
-        </div>
-      )}
 
       {/* TROIS CHIFFRES : ce qu'il reste à dépenser, ce que le mois a coûté, ce que l'année a coûté. Les explications
           (caisse de l'exercice, autres budgets) sont derrière ⓘ. */}
@@ -255,7 +237,8 @@ export default async function MoyensGenerauxPage(props: { searchParams: Promise<
             <CardTitle>Caisse d&apos;avance</CardTitle>
             <InfoBulle label="À propos de la caisse d'avance">
               La part de la caisse de l&apos;exercice en main — le même argent, pas un budget à côté. Elle est continue : chaque remise
-              s&apos;ajoute au fond et garde sa date. La personne qui la détient confirme avoir reçu la somme, puis chaque dépense en est
+              s&apos;ajoute au fond et garde sa date — une fois autorisée par le centre de paiement et payée par les Finances, quand la
+              personne qui la détient confirme l&apos;avoir reçue. Chaque dépense en est
               déduite, justificatif à l&apos;appui, jusqu&apos;à épuisement — moment où elle demande une rallonge.
             </InfoBulle>
           </CardHeader>

@@ -3,8 +3,8 @@
 Tout l'argent qui sort (et qui entre) : un **ordre de dépense** naît d'un seul écrivain, en attente du **centre de
 paiement** (PDG, DG, Super Admin, sièges nommés), qui autorise ou refuse ; les **Finances** paient ce qui est autorisé
 (`canDisburse`), l'écriture de **trésorerie** se pose au règlement. Les **demandes de paiement** (`/validations/paiements`)
-entrent au centre dès leur transmission. Une **remise de caisse d'avance** autorisée par le centre entre directement
-dans la caisse (`verserLaRemise`, Direction 28/10/2026). Lit `referentiels` et `coffre` (`carte.ts`).
+entrent au centre dès leur transmission. Une **remise de caisse d'avance** autorisée par le centre va aux Finances
+comme tout ordre ; payée (`verserLaRemise`), elle compte dans la caisse à la confirmation du caissier (24/11/2026). Lit `referentiels` et `coffre` (`carte.ts`).
 Ancien emplacement : `src/lib/{finance,finances,payments}/`, `src/lib/expense-orders.ts`, six lectures de
 `src/lib/queries/` et sept fichiers d'actions — **fusionnés** ici (deux dossiers pour un même métier, c'était fini).
 

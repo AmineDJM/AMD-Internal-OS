@@ -5,6 +5,15 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 vi.mock("next/headers", () => ({ cookies: () => ({ get: () => undefined }) }));
 let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
+/**
+ * LE SERVICE DES MOYENS GÉNÉRAUX EST UN RÉGLAGE GLOBAL : le poser en base changerait ce que voient les suites voisines
+ * (§118.132). Le banc l'injecte dans son processus — la caisse du département B est celle des moyens généraux.
+ */
+let SERVICE: string | null = null;
+vi.mock("@/lib/settings", async (importOriginal) => {
+  const vrai = await importOriginal<typeof import("@/lib/settings")>();
+  return { ...vrai, getAppSettings: async () => ({ ...(await vrai.getAppSettings()), generalMeansDepartmentId: SERVICE }) };
+});
 
 import { prisma } from "@/lib/prisma";
 import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
@@ -168,6 +177,7 @@ suite("Paie et caisse d'avance par le centre de paiement", () => {
       prisma.department.create({ data: { name: `${TAG} Administration B`, code: `${TAG}B`, companyId: bId } }),
     ]);
     deptAId = dA.id; deptBId = dB.id;
+    SERVICE = deptBId;
     const mk = (n: string, role: SessionUser["role"]) =>
       prisma.user.create({ data: { name: `${TAG}${n}`, email: `${TAG}${n}@t.dz`, role, passwordHash: "x" } }).then((u) => u.id);
     [rhId, directionId, financeId, holderId] = await Promise.all([
@@ -431,7 +441,7 @@ suite("Paie et caisse d'avance par le centre de paiement", () => {
       expect(vue?.cash?.fund.remittanceCount).toBe(0);
     });
 
-    it("AVANT LE CENTRE, RIEN À CONFIRMER ; AUTORISÉE, LA REMISE EST DANS LA CAISSE — sans passer par les Finances (Direction, 28/10/2026)", async () => {
+    it("AVANT LE CENTRE, RIEN À CONFIRMER ; AUTORISÉE, LA REMISE PASSE AUX FINANCES — la caisse n'est pas créditée (Super Admin, 24/11/2026)", async () => {
       ACTOR = await actorFor(holderId, "DIRECTION_ASSISTANT");
       const avant = await confirmPettyCashReceipt(form({ id: remiseId }));
       expect(avant.ok).toBe(false);
@@ -439,27 +449,53 @@ suite("Paie et caisse d'avance par le centre de paiement", () => {
       const remise = await prisma.pettyCashAllotment.findUniqueOrThrow({ where: { id: remiseId } });
       const r = await autoriser(remise.expenseOrderId!);
       expect(r.ok, r.error).toBe(true);
-      expect(r.message).toMatch(/ajoutés à la caisse d'avance/);
+      expect(r.message).toMatch(/passe aux Finances/);
+      expect(r.message).not.toMatch(/ajoutés à la caisse/);
       const ordre = await prisma.expenseOrder.findUniqueOrThrow({ where: { id: remise.expenseOrderId! } });
-      expect(ordre.status, "l'ordre ne reste pas dans « Banque & paiements »").toBe("PAID");
+      expect([ordre.status, ordre.centralStatus], "l'ordre reste dans « Banque & paiements », à payer").toEqual(["PENDING", "APPROVED"]);
       const apres = await prisma.pettyCashAllotment.findUniqueOrThrow({ where: { id: remiseId } });
-      expect(apres.status, "en main dès l'autorisation, sans confirmation").toBe("RECEIVED");
-      expect(apres.transactionId).toBe(ordre.transactionId);
-      const fond = (await openRemittances(remise.departmentId)).find((x) => x.id === remiseId);
-      expect(fond?.enAttenteDuCentre).toBe(false);
+      expect([apres.status, apres.transactionId], "pas en main, pas d'écriture : le centre autorise, il ne paie pas").toEqual(["ALLOTTED", null]);
+      expect((await openRemittances(remise.departmentId)).find((x) => x.id === remiseId)?.enAttenteDuCentre).toBe(true);
+      const vue = await getGeneralMeans(await actorFor(holderId, "DIRECTION_ASSISTANT"), deptBId, YEAR);
+      expect(vue?.cash?.remittances.find((x) => x.id === remiseId)?.centre).toBe("A_VERSER");
+      expect(vue?.cash?.fund.remaining).toBe(0);
+      // Les Finances sont prévenues : c'est à elles de payer.
+      expect(await prisma.notification.count({ where: { userId: financeId, title: "Paiement autorisé — à régler", body: { startsWith: ordre.reference } } })).toBe(1);
+      ACTOR = await actorFor(holderId, "DIRECTION_ASSISTANT");
+      const encore = await confirmPettyCashReceipt(form({ id: remiseId }));
+      expect(encore.ok).toBe(false);
+      expect(encore.error).toMatch(/les Finances doivent encore la payer/);
     });
 
-    it("VERSÉE À L'AUTORISATION : UNE écriture SANS catégorie (ce n'est pas une dépense), en liquide, rattachée à la remise, et la détentrice est prévenue", async () => {
+    it("PAYÉE PAR LES FINANCES : UNE écriture SANS catégorie, en liquide, rattachée à la remise — mais la somme n'est PAS dans la caisse avant la confirmation du caissier", async () => {
+      const remise = await prisma.pettyCashAllotment.findUniqueOrThrow({ where: { id: remiseId } });
+      const r = await regler(remise.expenseOrderId!, { budgetCategoryId: categoryId });
+      expect(r.ok, r.error).toBe(true);
+      expect(r.message).toMatch(/confirmé la réception/);
+      const ordre = await prisma.expenseOrder.findUniqueOrThrow({ where: { id: remise.expenseOrderId! } });
+      expect(ordre.status).toBe("PAID");
       const apres = await prisma.pettyCashAllotment.findUniqueOrThrow({ where: { id: remiseId } });
-      expect(await prisma.financeTransaction.count({ where: { id: apres.transactionId! } })).toBe(1);
+      expect(apres.status, "payée n'est pas reçue").toBe("ALLOTTED");
+      expect(apres.transactionId).toBe(ordre.transactionId);
       const tx = await prisma.financeTransaction.findUniqueOrThrow({ where: { id: apres.transactionId! } });
       expect(tx.budgetCategoryId, "imputer la remise compterait le même dinar deux fois").toBeNull();
       expect(tx.method).toBe("CASH");
       expect(tx.companyId).toBe(bId);
-      expect(await prisma.notification.count({ where: { userId: holderId, title: "Caisse d'avance créditée" } })).toBe(1);
-      // Les Finances n'ont plus rien à régler : un second règlement ne pose pas une seconde écriture.
+      expect(await prisma.notification.count({ where: { userId: holderId, title: "Caisse d'avance payée — confirmez la réception" } })).toBe(1);
+      // HORS DU SOLDE jusqu'au geste du caissier.
+      const vue = await getGeneralMeans(await actorFor(holderId, "DIRECTION_ASSISTANT"), deptBId, YEAR);
+      expect(vue?.cash?.remittances.find((x) => x.id === remiseId)?.centre).toBe("VERSEE");
+      expect([vue?.cash?.fund.received, vue?.cash?.fund.remaining, vue?.cash?.fund.awaitingAmount]).toEqual([0, 0, 24_000]);
+      // Un second règlement ne pose pas une seconde écriture.
       expect((await regler(apres.expenseOrderId!, { budgetCategoryId: categoryId })).ok).toBe(true);
       expect(await prisma.financeTransaction.count({ where: { label: tx.label, companyId: bId } })).toBe(1);
+
+      // LE CAISSIER CONFIRME : la somme compte, exactement.
+      ACTOR = await actorFor(holderId, "DIRECTION_ASSISTANT");
+      const conf = await confirmPettyCashReceipt(form({ id: remiseId }));
+      expect(conf.ok, conf.error).toBe(true);
+      const vue2 = await getGeneralMeans(await actorFor(holderId, "DIRECTION_ASSISTANT"), deptBId, YEAR);
+      expect([vue2?.cash?.fund.received, vue2?.cash?.fund.remaining]).toEqual([24_000, 24_000]);
 
       // Elle ne traîne pas parmi les « à imputer » — une dépense ordinaire sans catégorie, si.
       const ordinaire = await prisma.financeTransaction.create({
@@ -472,17 +508,18 @@ suite("Paie et caisse d'avance par le centre de paiement", () => {
       expect(aImputer).toContain(ordinaire.id);
     });
 
-    it("UNE REMISE AUTORISÉE AVANT LA RÈGLE, restée chez les Finances, est versée par le même écrivain et entre dans la caisse", async () => {
+    it("UNE REMISE DÉJÀ CRÉDITÉE SOUS LA RÈGLE DU 28/10 ne bouge pas : en main, et un règlement tardif n'y touche pas", async () => {
       ACTOR = await rh();
       expect((await allotPettyCash(form({ departmentId: deptBId, holderId, amount: "6000", period: "2033-06" }))).ok).toBe(true);
       const ancienne = await prisma.pettyCashAllotment.findFirstOrThrow({ where: { departmentId: deptBId, amount: 6000 } });
-      // L'état qu'avait une remise autorisée avant le 28/10 : autorisée, pas encore versée.
-      await prisma.expenseOrder.update({ where: { id: ancienne.expenseOrderId! }, data: { centralStatus: "APPROVED" } });
+      // L'état qu'a laissé la règle du 28/10 : ordre réglé à l'autorisation, remise en main sans confirmation.
+      await prisma.expenseOrder.update({ where: { id: ancienne.expenseOrderId! }, data: { centralStatus: "APPROVED", status: "PAID", paidDate: new Date() } });
+      await prisma.pettyCashAllotment.update({ where: { id: ancienne.id }, data: { status: "RECEIVED", receivedAt: new Date() } });
       const r = await regler(ancienne.expenseOrderId!, {});
       expect(r.ok, r.error).toBe(true);
-      const apres = await prisma.pettyCashAllotment.findUniqueOrThrow({ where: { id: ancienne.id } });
-      expect(apres.status).toBe("RECEIVED");
-      expect((await prisma.financeTransaction.findUniqueOrThrow({ where: { id: apres.transactionId! } })).budgetCategoryId).toBeNull();
+      expect((await prisma.pettyCashAllotment.findUniqueOrThrow({ where: { id: ancienne.id } })).status).toBe("RECEIVED");
+      const vue = await getGeneralMeans(await actorFor(holderId, "DIRECTION_ASSISTANT"), deptBId, YEAR);
+      expect(vue?.cash?.fund.received).toBe(30_000);
     });
 
     it("REFUSÉE PAR LE CENTRE : la remise sort du fond, la raison s'écrit sur elle, la détentrice l'apprend", async () => {
@@ -496,6 +533,9 @@ suite("Paie et caisse d'avance par le centre de paiement", () => {
       expect(etatRemise({ aUnOrdre: true, ordre: apres.expenseOrder, transactionId: apres.transactionId })).toBe("REFUSEE");
       expect((await openRemittances(deptBId)).map((r) => r.id)).not.toContain(refusee.id);
       expect(await prisma.notification.count({ where: { userId: holderId, title: "Remise de caisse refusée" } })).toBe(1);
+      // « REFUSÉ » BIEN VISIBLE : la dernière remise, refusée, est portée par la vue de la caisse, avec son motif.
+      const vue = await getGeneralMeans(await actorFor(holderId, "DIRECTION_ASSISTANT"), deptBId, YEAR);
+      expect([vue?.refusee?.id, vue?.refusee?.motif]).toEqual([refusee.id, "Caisse déjà suffisante ce mois-ci"]);
     });
 
     it("SOLDER LA CAISSE NE SOLDE PAS UNE REMISE QUI ATTEND LE CENTRE", async () => {

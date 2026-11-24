@@ -10,7 +10,7 @@ import {
   sitsOnPaymentCentre, applyDecision, applyResubmission, canResubmitAuCentre as canResubmit, memeBeneficiaire,
   CENTRAL_DECISION_LABEL, CENTRAL_STATUS_LABEL, type CentralDecision, type CentralStatus,
   PAYMENT_CENTRE_REFUSAL, refusOrdreFerme, ROLES_CENTRE_DE_PAIEMENT, dossierHrefByOrder, ENTITE_SANS,
-  verserLaRemise, refusSeparationDesTaches,
+  refusSeparationDesTaches,
 } from "@/modules/finances/api";
 import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
 import { lienCentreDePaiement, lienOrdreAPayer } from "@/lib/chemins/finances";
@@ -58,6 +58,7 @@ async function suitesDuRefus(orderId: string, motif: string): Promise<void> {
       select: { id: true, status: true, note: true, holderId: true, createdById: true, amount: true, department: { select: { name: true } } },
     });
     if (!remise || remise.status !== "ALLOTTED") return;
+    // Cette phrase est relue par l'écran pour afficher le motif (`motifDuRefus`, general-means/remise-centre.ts).
     const raison = `Refusée par le centre de paiement : ${motif}`;
     // porte d'écriture : appelé par `decidePayment` seul, après la porte de l'ordre — la remise de CET ordre.
     await prisma.pettyCashAllotment.updateMany({
@@ -214,17 +215,11 @@ export async function decidePayment(formData: FormData): Promise<ActionResult> {
 
   if (next === "REFUSED") await suitesDuRefus(id, body.trim());
 
-  // UNE REMISE DE CAISSE D'AVANCE AUTORISÉE ENTRE DANS LA CAISSE (Direction, 28/10/2026) : elle ne va
-  // pas dans « Banque & paiements » — l'autorisation vaut versement (`finance/verser-remise.ts`).
-  // Un versement qui échoue (ordre révisé ou annulé à la même seconde) laisse l'ordre autorisé : il
-  // reste alors dans la file des Finances, comme avant, plutôt que de disparaître.
-  const versement = next === "APPROVED" ? await verserLaRemise({ orderId: id, acteurId: user.id, par: "CENTRE" }) : null;
-  if (versement && !versement.ok) console.error(`[centre] remise ${order.reference} autorisée mais non versée : ${versement.error}`);
-  const caisseCreditee = versement?.ok === true;
-
   // On prévient CELUI QUI ATTEND : le demandeur quand la balle lui revient, la comptabilité quand
-  // le paiement est enfin exécutable.
-  if (next === "APPROVED" && !caisseCreditee) {
+  // le paiement est enfin exécutable. Une remise de caisse d'avance autorisée n'y fait plus exception
+  // (Super Admin, 24/11/2026) : elle va aux Finances comme tout ordre, et ne compte dans la caisse
+  // qu'une fois payée puis confirmée par le caissier (`finances/infra/verser-remise.ts`).
+  if (next === "APPROVED") {
     await notifyRoles(["FINANCE_BUDGET_MANAGER", "SUPER_ADMIN"], {
       type: "VALIDATION_REQUIRED",
       title: "Paiement autorisé — à régler",
@@ -247,10 +242,8 @@ export async function decidePayment(formData: FormData): Promise<ActionResult> {
   revalidatePath(PATH);
   revalidatePath("/finances/paiements-a-faire");
   if (dossierBv) revalidatePath(dossierBv);
-  if (versement?.ok) {
-    revalidatePath("/moyens-generaux");
-    return { ok: true, message: `Autorisé — ${versement.montant.toLocaleString("fr-FR")} DZD ajoutés à la caisse d'avance ${versement.departement}.` };
-  }
+  // Une remise de caisse d'avance s'y lit « autorisée — à payer par les Finances », ou « refusé ».
+  revalidatePath("/moyens-generaux");
   // LA PHRASE DE CONFIRMATION, telle que l'écran l'affiche (recette du 23/11/2026) : « Autoriser le paiement — enregistré »
   // se lisait comme un bouton, pas comme un fait ; elle dit désormais ce qui s'est passé, et pour quel ordre.
   return {

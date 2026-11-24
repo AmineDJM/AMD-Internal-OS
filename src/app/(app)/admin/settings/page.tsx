@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { ArrowLeft, SlidersHorizontal, Megaphone, MailWarning, FileCheck2, ScanSearch, ShieldCheck, MessageSquarePlus, FolderPlus, BarChart3, Network, Layers, LayoutGrid, Lock } from "lucide-react";
+import { ArrowLeft, SlidersHorizontal, Megaphone, MailWarning, FileCheck2, ScanSearch, ShieldCheck, MessageSquarePlus, FolderPlus, BarChart3, Network, Layers, LayoutGrid, Lock, Landmark } from "lucide-react";
 import { requireModule } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { getAppSettings } from "@/lib/settings";
@@ -7,6 +7,8 @@ import { ROLE_LABELS } from "@/lib/labels";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AdminLimitsForm, AdProDgThresholdForm, BroadcastComposer, MailDiagnosticPanel, RegEnrollmentToggle, RegIntelligenceToggles, RegulatorySupervisorForm, RegulatoryTherapeuticSegmentsForm, RegulatoryHiddenColumnsForm, DriveSpaceCreatorForm, FieldReportsOverviewForm, PromoMessageAuthorsForm, OrgChartViewersForm, HiddenModulesForm, PipelineAccessForm, DirectiveAccessForm } from "./admin-settings-forms";
 import { SeparationTachesToggle } from "./separation-taches-toggle";
+import { ServiceMoyensGenerauxForm } from "./service-moyens-generaux";
+import { ANCRE_SERVICE_MOYENS_GENERAUX } from "@/lib/chemins/moyens-generaux";
 import { MODULES } from "@/lib/rbac";
 import { MODULE_LABELS } from "@/lib/labels";
 import { isHideable } from "@/lib/modules-visibility";
@@ -19,13 +21,18 @@ export default async function AdminSettingsPage() {
   const admin = await requireModule("ADMIN", "UPDATE");
   if (admin.role !== "SUPER_ADMIN") redirect("/admin");
 
-  const [settings, users, mailAccounts, companies, regFlags] = await Promise.all([
+  const [settings, users, mailAccounts, companies, regFlags, departements] = await Promise.all([
     getAppSettings(),
     prisma.user.findMany({ where: { isActive: true }, select: { id: true, name: true, role: true }, orderBy: { name: "asc" } }),
     prisma.mailAccount.findMany({ select: { userId: true, email: true, user: { select: { name: true } } }, orderBy: { email: "asc" } }),
     prisma.company.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
     prisma.regulatoryFeatureAccess.findMany({ select: { companyId: true, enabled: true } }),
+    // Les départements, pour DÉSIGNER le service des moyens généraux — la liste n'ouvre la caisse d'aucun d'eux.
+    prisma.department.findMany({ select: { id: true, name: true, parent: { select: { name: true } } }, orderBy: { name: "asc" } }),
   ]);
+  const departementsMg = departements.map((d) => ({ id: d.id, libelle: d.parent ? `${d.parent.name} › ${d.name}` : d.name }));
+  // Un réglage qui nomme un département supprimé ne désigne plus rien : le formulaire le dit.
+  const serviceMg = departementsMg.some((d) => d.id === settings.generalMeansDepartmentId) ? settings.generalMeansDepartmentId : null;
   const roleOptions = Object.entries(ROLE_LABELS).map(([value, label]) => ({ value, label }));
   const mailboxes = mailAccounts.map((a) => ({ userId: a.userId, email: a.email, name: a.user?.name ?? a.email }));
   const regEnabled = new Map(regFlags.map((f) => [f.companyId, f.enabled]));
@@ -69,6 +76,17 @@ export default async function AdminSettingsPage() {
         </CardHeader>
         <CardContent>
           <SeparationTachesToggle active={settings.separationTachesPaiement} />
+        </CardContent>
+      </Card>
+
+      {/* LE SERVICE DES MOYENS GÉNÉRAUX — déplacé ici depuis l'écran des Moyens généraux (Super Admin, 24/11/2026). */}
+      <Card id={ANCRE_SERVICE_MOYENS_GENERAUX} className="scroll-mt-4">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Landmark className="h-4 w-4" /> Moyens généraux — service qui tient la caisse</CardTitle>
+          <p className="text-sm text-muted-foreground">Le département dont tout le monde ouvre les Moyens généraux et la caisse d&apos;avance. Les remises, les rallonges et le rechargement mensuel ne visent que sa caisse ; changer de service ne déplace aucune somme. Chaque changement est journalisé.</p>
+        </CardHeader>
+        <CardContent>
+          <ServiceMoyensGenerauxForm departements={departementsMg} actuel={serviceMg} />
         </CardContent>
       </Card>
 

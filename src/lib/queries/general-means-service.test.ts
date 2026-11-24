@@ -132,24 +132,27 @@ describe("Moyens généraux — plus aucune porte vers les autres départements 
     expect(page).not.toMatch(/DepartmentSwitcher/);
   });
 
-  it("le Super Admin garde de quoi DÉSIGNER le service — sur l'écran du service ET sur l'écran vide, sinon le réglage n'a plus d'écrivain", () => {
-    // Le seul geste qui écrit le réglage vivait sur l'écran d'un AUTRE département (« En faire le
-    // service »), que plus personne ne peut ouvrir d'ici. Sans ces deux points d'appel, le service
-    // ne se changerait plus jamais, et un Super Admin sans département resterait devant un écran
-    // vide sans issue (§118.131, §118.63). Le POINT D'APPEL, pas le corps du composant (§118.49).
+  it("PLUS DE « CHANGER DE SERVICE » À L'ÉCRAN (Super Admin, 24/11/2026) : la désignation vit dans Administration › Réglages — elle garde son écrivain", () => {
+    // Le réglage ne doit pas perdre son SEUL écrivain (§118.131) : retiré de la page, il est monté dans les réglages du
+    // Super Admin, et l'écran vide des moyens généraux y renvoie. Le POINT D'APPEL, pas le corps du composant (§118.49).
     const page = sansCommentaires(readFileSync(path.join(RACINE, "src/app/(app)/moyens-generaux/page.tsx"), "utf8"));
-    expect(page.match(/<ChangerDeService departements=\{departements\}/g) ?? []).toHaveLength(2);
-    expect(page, "l'écran vide du Super Admin propose la désignation ouverte d'office").toMatch(/<ChangerDeService departements=\{departements\} actuel=\{null\} ouvertParDefaut \/>/);
-    expect(page, "l'écran du service la propose, fermée, à côté de l'état du réglage").toMatch(/<ChangerDeService departements=\{departements\} actuel=\{serviceCourant\} \/>/);
-    // La liste des départements n'est chargée que pour le Super Admin : elle n'ouvre la caisse
-    // d'aucun d'eux, mais rien ne justifie de la servir à qui ne peut rien en faire.
-    expect(page).toMatch(/const departements = pilote\s*\?/);
+    for (const retire of [/ServiceSwitch/, /ChangerDeService/, /service-switch/, /department\.findMany/, /view\.department\.path/]) {
+      expect(page, `la page porte encore ${retire}`).not.toMatch(retire);
+    }
+    expect(existsSync(path.join(RACINE, "src/app/(app)/moyens-generaux/service-switch.tsx")), "le composant du changement de service est retiré").toBe(false);
+    expect(page, "l'écran vide du Super Admin renvoie au réglage").toMatch(/href=\{`\/admin\/settings#\$\{ANCRE_SERVICE_MOYENS_GENERAUX\}`\}/);
+    const reglages = sansCommentaires(readFileSync(path.join(RACINE, "src/app/(app)/admin/settings/page.tsx"), "utf8"));
+    expect(reglages).toMatch(/<ServiceMoyensGenerauxForm departements=\{departementsMg\} actuel=\{serviceMg\} \/>/);
+    expect(reglages, "la carte porte l'ancre que l'écran vide vise").toMatch(/<Card id=\{ANCRE_SERVICE_MOYENS_GENERAUX\}/);
+    expect(reglages, "les réglages restent au Super Admin").toMatch(/if \(admin\.role !== "SUPER_ADMIN"\) redirect\("\/admin"\)/);
+    const formulaire = sansCommentaires(readFileSync(path.join(RACINE, "src/app/(app)/admin/settings/service-moyens-generaux.tsx"), "utf8"));
+    expect(formulaire).toMatch(/setGeneralMeansDepartment\(fd\)/);
   });
 
   it("EN-TÊTE : « Ajouter une dépense » et le menu ⋯ (catalogue) — la caisse, la liste et le service restent dans la PAGE (décisions du 04/10 puis du 09/10)", () => {
     const page = sansCommentaires(readFileSync(path.join(RACINE, "src/app/(app)/moyens-generaux/page.tsx"), "utf8"));
     // L'en-tête de la page de la CAISSE (celui qui porte le titre du service), pas ceux des écrans vides.
-    const debut = page.lastIndexOf("<PageHeader", page.indexOf("title={pilote ?"));
+    const debut = page.lastIndexOf("<PageHeader", page.indexOf("<ExpensePanel"));
     const fin = page.indexOf("</PageHeader>", debut);
     // PRÉMISSE : on isole bien l'en-tête — sans quoi les absences ci-dessous ne prouveraient rien.
     expect(debut).toBeGreaterThan(-1);

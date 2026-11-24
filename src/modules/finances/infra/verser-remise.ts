@@ -9,24 +9,26 @@ import { lienRemiseCaisse } from "@/lib/chemins/moyens-generaux";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LA REMISE DE CAISSE D'AVANCE ENTRE DANS LA CAISSE DÈS QUE LE CENTRE L'AUTORISE (Direction, 28/10/2026).
+ * LE PAIEMENT D'UNE REMISE DE CAISSE D'AVANCE PAR LES FINANCES — l'argent sort de la banque ; il
+ * n'entre dans la caisse qu'à la confirmation du caissier (Super Admin, 24/11/2026).
  *
- * « Quand on veut remettre une somme dans la caisse d'avance des moyens généraux, ça va dans le centre
- * de paiement ; quand le centre valide, ça doit directement ajouter la somme dans les moyens généraux,
- * et pas aller dans Banque & paiements comme les autres. »
+ * « Quand les Finances marquent payé, ET que le caissier confirme la réception, c'est à ce moment-là
+ * que la somme compte dans la caisse. »
  *
- * Avant : autorisée, la remise (mensuelle ou rallonge) rejoignait la file des Finances, qui la
- * « réglaient » ; la détentrice confirmait ensuite sa réception. Désormais l'autorisation du centre
- * VAUT versement : dans la même transaction, l'ordre passe « réglé », l'écriture de trésorerie
- * (sortie en liquide, non classée — la remise est un changement de tiroir, chaque achat sur la caisse
- * s'impute ensuite à son budget) se pose, et la remise entre dans le fond, en main.
+ * La règle du 28/10/2026 (l'autorisation du centre valait versement, la remise entrait en main sans
+ * confirmation) est RETIRÉE : autorisée, la remise rejoint la file des Finances comme tout ordre.
+ * Quand elles la marquent payée (`settleExpenseOrder`), dans la même transaction : l'ordre passe
+ * « réglé », l'écriture de trésorerie se pose (sortie en liquide, non classée — la remise est un
+ * changement de tiroir, chaque achat sur la caisse s'impute ensuite à son budget). La remise, elle,
+ * reste « à confirmer » (`ALLOTTED`) : hors du solde tant que le caissier n'a pas confirmé l'avoir en
+ * main (`confirmPettyCashReceipt`). Il en est prévenu ici.
  *
- * UN SEUL ÉCRIVAIN DU VERSEMENT D'UNE REMISE : le centre l'appelle à l'autorisation, et le règlement
- * des Finances (`settleExpenseOrder`) aussi, pour une remise autorisée AVANT cette règle et restée dans
- * leur file — deux chemins qui écriraient chacun leur version finiraient par diverger (§118.5).
+ * Une remise de nouveau payée après un « non payé » (l'annulation du paiement par les Finances) se
+ * reconfirme : l'argent reçu la première fois n'est plus celui qui vient de partir.
  *
- * L'écriture est conditionnelle sur ce qui a été lu (statut, autorisation, montant, bénéficiaire) :
- * deux appels simultanés ne versent qu'une fois, et un ordre annulé ou révisé entre-temps ne verse rien.
+ * UN SEUL ÉCRIVAIN DU VERSEMENT D'UNE REMISE (§118.5). L'écriture est conditionnelle sur ce qui a été
+ * lu (statut, autorisation, montant, bénéficiaire) : deux appels simultanés ne versent qu'une fois,
+ * et un ordre annulé ou révisé entre-temps ne verse rien.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
@@ -43,8 +45,6 @@ export async function verserLaRemise(args: {
   acteurId: string;
   /** Le compte « payé depuis » choisi par les Finances ; à défaut, le compte principal de l'entité. */
   compteId?: string | null;
-  /** Qui verse : le centre à l'autorisation, ou les Finances pour une remise autorisée avant la règle. */
-  par: "CENTRE" | "FINANCES";
 }): Promise<VersementRemise | null> {
   const remise = await prisma.pettyCashAllotment.findUnique({
     where: { expenseOrderId: args.orderId },
@@ -86,10 +86,11 @@ export async function verserLaRemise(args: {
     });
     await tx.expenseOrder.update({ where: { id: order.id }, data: { transactionId: ecriture.id } });
     await tx.pettyCashAllotment.update({ where: { id: remise.id }, data: { transactionId: ecriture.id } });
-    // EN MAIN, sans confirmation : la somme est dans la caisse dès l'autorisation (règle du 28/10/2026).
+    // PAYÉE ≠ REÇUE : la remise reste à confirmer par le caissier. Seule une remise confirmée puis
+    // « non payée » (paiement défait) repasse à confirmer — la première payée l'est déjà.
     await tx.pettyCashAllotment.updateMany({
-      where: { id: remise.id, status: "ALLOTTED" },
-      data: { status: "RECEIVED", receivedAt: maintenant },
+      where: { id: remise.id, status: "RECEIVED" },
+      data: { status: "ALLOTTED", receivedAt: null },
     });
     return true;
   });
@@ -99,20 +100,17 @@ export async function verserLaRemise(args: {
     return { ok: false, error: "Cet ordre a changé pendant le versement (annulé, révisé, ou son autorisation a bougé) : rien n'a été versé." };
   }
 
-  await solderLeDossierCompagnon(
-    order.id, order.reference, args.acteurId,
-    args.par === "CENTRE" ? `Ordre ${order.reference} autorisé par le centre de paiement : la somme rejoint la caisse d'avance.` : undefined,
-  );
+  await solderLeDossierCompagnon(order.id, order.reference, args.acteurId);
   if (remise.holderId) {
     await notifyUser({
-      userId: remise.holderId, type: "ASSIGNMENT", title: "Caisse d'avance créditée",
-      body: `${montant.toLocaleString("fr-FR")} DZD ajoutés à la caisse ${departement}${args.par === "CENTRE" ? ", autorisés par le centre de paiement" : ""}.`,
+      userId: remise.holderId, type: "VALIDATION_REQUIRED", title: "Caisse d'avance payée — confirmez la réception",
+      body: `${montant.toLocaleString("fr-FR")} DZD payés par les Finances pour la caisse ${departement} : confirmez les avoir reçus, ils compteront alors dans la caisse.`,
       link: lienRemiseCaisse(remise.id),
     });
   }
   await recordAudit({
     actorId: args.acteurId, action: "UPDATE", module: "Budgets", entityType: "BUDGET", entityId: remise.departmentId,
-    summary: `Caisse d'avance créditée — ${montant} DZD (${order.reference}, ${args.par === "CENTRE" ? "à l'autorisation du centre de paiement" : "réglée par les Finances"})`,
+    summary: `Caisse d'avance — remise de ${montant} DZD payée par les Finances (${order.reference}), à confirmer par le caissier`,
   });
   return { ok: true, dejaVersee: false, montant, departement };
 }

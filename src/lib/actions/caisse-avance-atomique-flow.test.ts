@@ -2,6 +2,15 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { CurrentUser } from "@/lib/session";
 
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
+/**
+ * LE SERVICE DES MOYENS GÉNÉRAUX EST UN RÉGLAGE GLOBAL (§118.132) : le banc l'injecte dans son processus — seule sa
+ * caisse reçoit les remises (Super Admin, 24/11/2026) —, la base partagée garde son réglage.
+ */
+let SERVICE: string | null = null;
+vi.mock("@/lib/settings", async (importOriginal) => {
+  const vrai = await importOriginal<typeof import("@/lib/settings")>();
+  return { ...vrai, getAppSettings: async () => ({ ...(await vrai.getAppSettings()), generalMeansDepartmentId: SERVICE }) };
+});
 let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
@@ -14,6 +23,7 @@ import { openRemittances } from "@/lib/queries/general-means";
 import { deleteFileByKey } from "@/lib/storage";
 import { allotPettyCash, closePettyCash, confirmPettyCashReceipt, decidePettyCashTopUp, requestPettyCashTopUp, spendFromPettyCash } from "./petty-cash-actions";
 import { decidePayment } from "@/modules/finances/actions-centre";
+import { settleExpenseOrder } from "@/modules/finances/actions-depenses";
 import { addDepartmentExpense, updateDepartmentExpense } from "./department-budget-actions";
 
 /**
@@ -61,6 +71,7 @@ suite("Caisse d'avance — dépense atomique, rallonge adressée à qui tranche"
     const [admin, holder, rh, hors, pdg, cpt] = await Promise.all([mk("admin", "SUPER_ADMIN"), mk("assistante", "DIRECTION_ASSISTANT"), mk("rh", "COORDINATOR"), mk("hors", "COORDINATOR"), mk("pdg", "DIRECTION"), mk("cpt", "FINANCE_BUDGET_MANAGER")]);
     adminId = admin.id; holderId = holder.id; rhId = rh.id; horsId = hors.id; pdgId = pdg.id; comptableId = cpt.id;
     deptId = (await prisma.department.create({ data: { name: `${TAG} Moyens généraux`, code: `${TAG}MG` } })).id;
+    SERVICE = deptId;
     await prisma.userAccess.createMany({
       data: [
         { userId: holderId, module: "GENERAL_MEANS", canView: true, canCreate: true, canUpdate: true, scope: "ALL" },
@@ -73,10 +84,16 @@ suite("Caisse d'avance — dépense atomique, rallonge adressée à qui tranche"
     const remise = await allotPettyCash(form({ departmentId: deptId, holderId, amount: "100000" }));
     expect(remise.ok, remise.error).toBe(true);
     const ligne = await prisma.pettyCashAllotment.findFirstOrThrow({ where: { departmentId: deptId }, select: { id: true, expenseOrderId: true } });
-    // Autorisée par le centre — par le PDG, pas par qui l'a demandée (séparation des tâches, ARGENT-06) — la
-    // remise est versée et EN MAIN (règle du 28/10/2026).
+    // Autorisée par le centre — par le PDG, pas par qui l'a demandée (séparation des tâches, ARGENT-06) —, payée par
+    // les Finances, puis confirmée par la caissière : la remise est EN MAIN (Super Admin, 24/11/2026).
     ACTOR = await actorFor(pdgId, "DIRECTION");
     expect((await decidePayment(form({ id: ligne.expenseOrderId!, decision: "APPROVE" }))).ok).toBe(true);
+    ACTOR = await actorFor(comptableId, "FINANCE_BUDGET_MANAGER");
+    const payee = await settleExpenseOrder(form({ id: ligne.expenseOrderId! }));
+    expect(payee.ok, payee.error).toBe(true);
+    ACTOR = await actorFor(holderId, "DIRECTION_ASSISTANT");
+    const recue = await confirmPettyCashReceipt(form({ id: ligne.id }));
+    expect(recue.ok, recue.error).toBe(true);
     expect((await prisma.pettyCashAllotment.findUniqueOrThrow({ where: { id: ligne.id } })).status).toBe("RECEIVED");
   }, 60_000);
 

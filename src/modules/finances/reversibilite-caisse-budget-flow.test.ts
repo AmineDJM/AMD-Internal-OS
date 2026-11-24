@@ -2,6 +2,15 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { CurrentUser } from "@/lib/session";
 
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
+/**
+ * LE SERVICE DES MOYENS GÉNÉRAUX EST UN RÉGLAGE GLOBAL (§118.132) : le banc l'injecte dans son processus — seule sa
+ * caisse reçoit les remises (Super Admin, 24/11/2026) —, la base partagée garde son réglage.
+ */
+let SERVICE: string | null = null;
+vi.mock("@/lib/settings", async (importOriginal) => {
+  const vrai = await importOriginal<typeof import("@/lib/settings")>();
+  return { ...vrai, getAppSettings: async () => ({ ...(await vrai.getAppSettings()), generalMeansDepartmentId: SERVICE }) };
+});
 let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
@@ -24,6 +33,7 @@ import { reglerPoleCampagne } from "@/lib/actions/budget-campagne-actions";
 import { reglerFournisseurVentesPch } from "@/lib/actions/ventes-pch-actions";
 import { updateSupplierView } from "@/lib/actions/supplier-actions";
 import { decidePayment } from "./actions-centre";
+import { settleExpenseOrder } from "./actions-depenses";
 import { repondreActualisationSoldes } from "./actions-soldes";
 import { corrigerAncrageTresorerie, createPayroll, createTransaction, importTransactions } from "./actions-tresorerie";
 import { changerBudgetDepensePoste, consommerDepensePoste, imputerDepensePoste } from "@/lib/actions/budget-depense-poste-actions";
@@ -87,11 +97,12 @@ suite("K10a — caisse, budgets et paie se défont d'un geste", () => {
     const mk = async (k: string, role: SessionUser["role"]) => {
       u[k] = (await prisma.user.create({ data: { name: `${RUN} ${k}`, email: `${RUN}${k}@t.dz`, role, passwordHash: "x" } })).id;
     };
-    await Promise.all([mk("sa", "SUPER_ADMIN"), mk("pdg", "DIRECTION"), mk("holder", "DIRECTION_ASSISTANT")]);
+    await Promise.all([mk("sa", "SUPER_ADMIN"), mk("pdg", "DIRECTION"), mk("holder", "DIRECTION_ASSISTANT"), mk("fin", "FINANCE_BUDGET_MANAGER")]);
     soc = (await prisma.company.create({ data: { name: `${RUN} Adventum`, shortName: `${RUN}A` } })).id;
     soc2 = (await prisma.company.create({ data: { name: `${RUN} Pharmagène`, shortName: `${RUN}B` } })).id;
     compte = (await prisma.treasuryAccount.create({ data: { name: `${RUN} Banque`, openingBalance: 1_000_000, openingDate: new Date("2026-01-01"), companyId: soc, principal: true } })).id;
     dept = (await prisma.department.create({ data: { name: `${RUN} Moyens généraux`, code: `${RUN}MG`, companyId: soc } })).id;
+    SERVICE = dept;
     employe = (await prisma.employee.create({ data: { fullName: `${RUN} Salarié`, companyId: soc, departmentId: dept } })).id;
     await prisma.userAccess.create({ data: { userId: u.holder, module: "GENERAL_MEANS", canView: true, canCreate: true, canUpdate: true, scope: "ALL" } });
     await commeSa();
@@ -155,7 +166,7 @@ suite("K10a — caisse, budgets et paie se défont d'un geste", () => {
     expect((await prisma.pettyCashAllotment.findUniqueOrThrow({ where: { id: remise.id } })).expenseOrderId).toBe(remise.expenseOrderId);
   });
 
-  it("CASCADE — la remise VERSÉE par le centre (un autre geste) puis annulée : refus dit, ligne par ligne, et rien d'incohérent", async () => {
+  it("CASCADE — la remise autorisée par le centre puis PAYÉE par les Finances (d'autres gestes), puis annulée : refus dit, ligne par ligne, et rien d'incohérent", async () => {
     await commeSa();
     const remise = await prisma.pettyCashAllotment.findFirstOrThrow({ where: { departmentId: dept } });
     // Le geste de la remise, RÉTABLI au cas précédent : il se ré-annule (K10b).
@@ -163,10 +174,14 @@ suite("K10a — caisse, budgets et paie se défont d'un geste", () => {
     ACTOR = await acteur(u.pdg, "DIRECTION");
     const d = await decidePayment(fd({ id: remise.expenseOrderId!, decision: "APPROVE" }));
     expect(d.ok, d.error).toBe(true);
-    const versee = await prisma.pettyCashAllotment.findUniqueOrThrow({ where: { id: remise.id } });
-    expect(versee.status).toBe("RECEIVED");
+    // Autorisée, elle part aux Finances, qui la paient ; elle reste à confirmer par le caissier (Super Admin, 24/11/2026).
+    ACTOR = await acteur(u.fin, "FINANCE_BUDGET_MANAGER");
+    const p = await settleExpenseOrder(fd({ id: remise.expenseOrderId!, treasuryAccountId: compte }));
+    expect(p.ok, p.error).toBe(true);
+    const payee = await prisma.pettyCashAllotment.findUniqueOrThrow({ where: { id: remise.id } });
+    expect([payee.status, Boolean(payee.transactionId)]).toEqual(["ALLOTTED", true]);
     const ordreAvant = await prisma.expenseOrder.findUniqueOrThrow({ where: { id: remise.expenseOrderId! } });
-    // Le Super Admin annule de nouveau la remise rétablie : elle a vécu depuis — versée par le centre.
+    // Le Super Admin annule de nouveau la remise rétablie : elle a vécu depuis — autorisée, puis payée.
     await commeSa();
     const c = await annulerGeste(gesteRemise.id, ACTOR!);
     // TOUT OU RIEN (K10b) : un geste d'écran dont un effet ne se défait plus n'est PAS annulé à moitié — le refus nomme,
@@ -176,16 +191,16 @@ suite("K10a — caisse, budgets et paie se défont d'un geste", () => {
     expect(c.refus).toMatch(/^Rien n'est annulé/);
     expect(c.refus).toMatch(/modifiée depuis|vaut maintenant|rattaché/);
     expect((await prisma.assistantGesteJournal.findUniqueOrThrow({ where: { id: gesteRemise.id } })).annuleLe).toBeNull();
-    // Rien d'incohérent : la remise reste versée, son ordre reste payé et lié.
+    // Rien d'incohérent : la remise reste payée (à confirmer), son ordre reste réglé et lié.
     const apres = await prisma.pettyCashAllotment.findUniqueOrThrow({ where: { id: remise.id } });
     const ordre = await prisma.expenseOrder.findUniqueOrThrow({ where: { id: remise.expenseOrderId! } });
-    expect([apres.status, apres.expenseOrderId, ordre.status]).toEqual(["RECEIVED", remise.expenseOrderId, ordreAvant.status]);
+    expect([apres.status, apres.expenseOrderId, ordre.status]).toEqual(["ALLOTTED", remise.expenseOrderId, "PAID"]);
+    expect(ordreAvant.status).toBe("PAID");
   });
 
   it("CONFIRMER la réception → remis ; DÉPENSER sur la caisse → la dépense retirée ; RALLONGE demandée, refusée, retirée → chaque geste se remet", async () => {
     const remise = await prisma.pettyCashAllotment.findFirstOrThrow({ where: { departmentId: dept } });
-    // La confirmation d'une remise encore ALLOTTED : on repasse la remise à « remise » pour l'éprouver.
-    await prisma.pettyCashAllotment.update({ where: { id: remise.id }, data: { status: "ALLOTTED" } });
+    // La confirmation d'une remise PAYÉE par les Finances (au cas précédent) : c'est elle qui la fait compter.
     ACTOR = await acteur(u.holder, "DIRECTION_ASSISTANT");
     const conf = await confirmPettyCashReceipt(fd({ id: remise.id }));
     expect(conf.ok, conf.error).toBe(true);

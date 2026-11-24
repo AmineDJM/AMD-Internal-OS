@@ -14,6 +14,9 @@ export const CHEMIN_MOYENS_GENERAUX = "/moyens-generaux";
 /** L'ancre de la carte « Caisse d'avance » — le repli quand l'objet visé n'est plus affiché. */
 export const ANCRE_CAISSE_AVANCE = "caisse-avance";
 
+/** L'ancre du réglage « service des moyens généraux » dans Administration › Réglages (`/admin/settings`). */
+export const ANCRE_SERVICE_MOYENS_GENERAUX = "service-moyens-generaux";
+
 export const ancreRemise = (id: string): string => `remise-${id}`;
 export const ancreRallonge = (id: string): string => `rallonge-${id}`;
 
