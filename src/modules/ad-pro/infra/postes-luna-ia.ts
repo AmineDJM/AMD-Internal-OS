@@ -4,9 +4,10 @@ import { aiFeatureEnabled, interrupteurIaCoupe, logAiUsage, type AiUsageInput } 
 import { aiConfigured, cleModeleRequise } from "@/lib/ai";
 import { wrapUntrusted } from "@/lib/comms/untrusted";
 import {
-  CONSIGNE_POSTES, DESCRIPTION_MAX, DESCRIPTION_MIN, lirePropositionModele, propositionVide, SCHEMA_POSTES, type RaisonPostes, type ResultatPostes,
+  CONSIGNE_POSTES, DESCRIPTION_MAX, DESCRIPTION_MIN, lirePropositionModele, propositionVide, SCHEMA_POSTES, type RaisonPostes, type ResultatPostes, postesCompares,
 } from "../domaine/postes-luna";
 import { sansBloquer } from "@/lib/journal";
+import { noterProposition, type PropositionANoter } from "@/modules/pilotage/api-ecriture";
 
 export type { ResultatPostes };
 
@@ -47,6 +48,11 @@ export interface DependancesPostes {
     opts: { system: string; maxOutputTokens: number; verbosity: "low" },
   ) => Promise<{ data: T | null; reply: ModelReply }>;
   journaliser: (u: AiUsageInput) => Promise<void>;
+  /**
+   * GARDER LA PROPOSITION au journal du pilotage (`noterProposition`) — retenue ou non, l'ajout des postes dira ce qui l'a
+   * été (`noterPosteRetenu`). Facultative : un banc qui injecte ses dépendances n'écrit rien.
+   */
+  noter?: (p: PropositionANoter) => Promise<unknown>;
 }
 
 const REELLES: DependancesPostes = {
@@ -56,6 +62,7 @@ const REELLES: DependancesPostes = {
   cle: () => cleModeleRequise(),
   appeler: (role, prompt, schema, opts) => askModelJson(role, prompt, schema, opts),
   journaliser: (u) => logAiUsage(u),
+  noter: noterProposition,
 };
 
 const refus = (raison: RaisonPostes, error: string): ResultatPostes => ({ ok: false, raison, error });
@@ -128,6 +135,10 @@ export async function proposerPostesParModele(e: EntreePostes, deps: Dependances
     costUsd: usage?.costUsd ?? null,
   }).catch(sansBloquer("postes-luna-ia.proposerPostesParModele.journaliser"));
 
+  if (proposition && !propositionVide(proposition)) {
+    // La demande n'existe pas encore (on décrit un événement à créer) : la proposition n'a pas de cible.
+    await deps.noter?.({ source: FONCTION, nature: "postes", auteurId: e.userId, propose: postesCompares(proposition.postes), producteur: "ia" });
+  }
   if (proposition) return propositionVide(proposition) ? refus("RIEN", "Rien à proposer.") : { ok: true, proposition };
   if (reply && !reply.ok && !reply.configured) return refus("NON_CONFIGUREE", "IA non configurée.");
   if (panne || !reply?.ok) return refus("ECHEC", "Luna n'a pas pu lire la description.");

@@ -9,9 +9,19 @@ import { recordAudit } from "@/lib/audit";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { getRecommendations, normText, queryTokens, allTokensIn, type RecRow } from "@/lib/market/engine";
 import { DEFAULT_RESEARCH_SOURCES } from "@/lib/queries/market-research";
+import { resolveProductId } from "@/lib/products/resolve";
+import { sansBloquer } from "@/lib/journal";
 
 const MODULE = "BUSINESS_DEVELOPMENT" as const;
 const BASE = "/business-development/etudes";
+
+/**
+ * NOTRE PRODUIT, quand la molécule saisie le désigne CERTAINEMENT (lien L10, lot « mémoire ») — sinon `null` : une ligne
+ * d'étude parle le plus souvent du marché (concurrents, molécules), et une ambiguïté ne se tranche pas en silence. Jamais
+ * bloquant : une résolution en panne laisse la ligne sans produit.
+ */
+const produitCertain = (mention: string | null | undefined): Promise<string | null> =>
+  mention?.trim() ? resolveProductId(mention).catch(sansBloquer("market-research-actions.resolveProductId", null)) : Promise.resolve(null);
 
 function num(fd: FormData, key: string): number | null {
   const v = fd.get(key);
@@ -32,7 +42,7 @@ export async function createMarketResearch(_prev: ActionResult | undefined, form
   const molecules = (fdStr(formData, "molecules") ?? "").split("\n").map((s) => s.trim()).filter(Boolean);
   if (molecules.length) {
     await prisma.marketResearchRow.createMany({
-      data: molecules.map((product, i) => ({ researchId: research.id, product, sortOrder: i })),
+      data: await Promise.all(molecules.map(async (product, i) => ({ researchId: research.id, product, productId: await produitCertain(product), sortOrder: i }))),
     });
   }
   await recordAudit({ actorId: user.id, action: "CREATE", module: "Business Development", summary: `Étude de marché « ${title} »` });
@@ -90,8 +100,9 @@ export async function addResearchRow(formData: FormData): Promise<ActionResult> 
   const researchId = fdStr(formData, "researchId");
   if (!researchId) return { ok: false, error: "Étude introuvable." };
   const count = await prisma.marketResearchRow.count({ where: { researchId } });
+  const product = fdStr(formData, "product");
   const row = await prisma.marketResearchRow.create({
-    data: { researchId, product: fdStr(formData, "product") || "Nouveau produit", sortOrder: count },
+    data: { researchId, product: product || "Nouveau produit", productId: await produitCertain(product), sortOrder: count },
   });
   revalidatePath(`${BASE}/${researchId}`);
   return { ok: true, id: row.id };
@@ -103,11 +114,14 @@ export async function updateResearchRow(formData: FormData): Promise<ActionResul
   const id = fdStr(formData, "id");
   const researchId = fdStr(formData, "researchId");
   if (!id) return { ok: false, error: "Ligne introuvable." };
+  const product = fdStr(formData, "product");
   await prisma.marketResearchRow.update({
     where: { id },
     data: {
       therapeuticClass: fdStr(formData, "therapeuticClass"),
-      product: fdStr(formData, "product") ?? undefined,
+      product: product ?? undefined,
+      // La molécule change : le rattachement suit (jamais un produit d'avant sur un texte nouveau).
+      ...(product ? { productId: await produitCertain(product) } : {}),
       marketVolume: num(formData, "marketVolume"),
       marketValueUsd: num(formData, "marketValueUsd"),
       avgPricePerBoxUsd: num(formData, "avgPricePerBoxUsd"),

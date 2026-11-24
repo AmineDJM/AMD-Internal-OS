@@ -9,6 +9,7 @@ import {
 import { proposerPostesDuFichier } from "./infra/postes-fichier-ia";
 import { nomDuCahier, phraseDeLaProposition, type PosteDuFichier } from "./domaine/postes-fichier";
 import { PARENT_ENTITE, type AdProParent } from "./domaine/postes";
+import { cibleDuJournalIa } from "./domaine/postes-luna";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -64,7 +65,7 @@ export async function proposerPostesDepuisFichier(formData: FormData): Promise<P
   const nom = nomDuCahier(fichier.name);
 
   const r = await proposerPostesDuFichier({
-    octets, nomFichier: fichier.name, userId: user.id, natureDemande: NATURE_DEMANDE[parent],
+    octets, nomFichier: fichier.name, userId: user.id, natureDemande: NATURE_DEMANDE[parent], cible: cibleDuJournalIa(parent, parentId),
     // LE FICHIER RESTE SUR LA DEMANDE, sous un nom qui dit ce qu'il est : une pièce complémentaire de la demande
     // (`SUPPORTING_DOC`, comme les annexes jointes à la création), interne. Déposé après les portes, avant la lecture.
     garder: async () => {

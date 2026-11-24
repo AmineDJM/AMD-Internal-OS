@@ -5372,6 +5372,10 @@ model MedicalDoctor {
   segmentationObservations HcpObservation[]
   /// LES DÉROGATIONS POSÉES À LA MAIN sur son ciblage ou ses segments (valeur, auteur, motif, échéance).
   segmentationDerogations  SegmentationDerogation[]
+  /// LE GRAPHE D'INFLUENCE (console Super Admin) : les liens qu'il exerce, ceux qu'il reçoit, son score en cache.
+  influenceExercee         PraticienRelation[]        @relation("InfluenceDe")
+  influenceRecue           PraticienRelation[]        @relation("InfluenceVers")
+  influenceScore           InfluenceScore?
 
   /// ARCHIVAGE RÉVERSIBLE (Direction, 06/10) : « supprimer » une ligne de l'annuaire l'archive — elle
   /// sort de la feuille, des comptes, de l'export et de la recherche, mais reste en base et se
@@ -13420,6 +13424,9 @@ model MarketResearchRow {
   research          MarketResearch @relation(fields: [researchId], references: [id], onDelete: Cascade)
   therapeuticClass  String?
   product           String // DCI / molécule / marque
+  /// NOTRE produit, quand la molécule saisie le désigne CERTAINEMENT (`resolveProductId`) — lien L10 ; null = marché seul.
+  productId         String?
+  produit           Product?       @relation("EtudeMarcheProduit", fields: [productId], references: [id], onDelete: SetNull)
   marketVolume      Decimal?       @db.Decimal(18, 2) // taille du marché en volume (boîtes)
   marketValueUsd    Decimal?       @db.Decimal(18, 2) // taille du marché en valeur ($)
   avgPricePerBoxUsd Decimal?       @db.Decimal(14, 2) // prix moyen par boîte ($)
@@ -13431,6 +13438,7 @@ model MarketResearchRow {
   players MarketResearchPlayer[]
 
   @@index([researchId])
+  @@index([productId])
 }
 
 // Un acteur du marché sur une ligne (Player 1, 2, 3… — non plafonné).
@@ -16293,6 +16301,8 @@ model Product {
   ventesPch            PchVenteLigne[]                @relation("PchVenteProduit")
   receptionsPch        PchReceptionLigne[]            @relation("PchReceptionProduit")
   fournisseursPch      PchFournisseurProduit[]        @relation("PchFournisseurProduit")
+  /// LES LIGNES D'ÉTUDES DE MARCHÉ qui le désignent (lien L10, lot « mémoire »).
+  etudesMarche         MarketResearchRow[]            @relation("EtudeMarcheProduit")
 
   @@index([dci])
   @@index([companyId])
@@ -17996,12 +18006,15 @@ model VoixTerrainCache {
 /// INTELLIGENCE TERRAIN (console d'administration, Super Admin seul — Direction, 10/2026) : UN LIEN D'INFLUENCE entre deux
 /// praticiens. Sens : `fromDoctorId` INFLUENCE `toDoctorId`. Trois sources : STRUCTURE (hiérarchie du service, co-orateurs,
 /// pharmacie — recalculée, toujours confirmée), LUNA (extrait d'un rapport, PROPOSÉ avec sa citation mot pour mot) et SAISIE.
-/// Un lien rejeté reste (statut REJETEE) : Luna ne le reproposera pas. Identifiants SANS relation Prisma (convention des
-/// marques de renvoi) : les clés étrangères (cascade) vivent dans la migration `20270118120000_intelligence_terrain`.
+/// Un lien rejeté reste (statut REJETEE) : Luna ne le reproposera pas. Les clés étrangères (cascade) posées par
+/// `20270118120000_intelligence_terrain` sont DÉCLARÉES en relation depuis le lot « mémoire » (L4) ; la fusion de deux fiches
+/// médecin repointe ces liens (`repointerInfluence`, module `pilotage`).
 model PraticienRelation {
-  id            String    @id @default(cuid())
+  id            String        @id @default(cuid())
   fromDoctorId  String
+  medecinDe     MedicalDoctor @relation("InfluenceDe", fields: [fromDoctorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   toDoctorId    String
+  medecinVers   MedicalDoctor @relation("InfluenceVers", fields: [toDoctorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   /// HIERARCHIE · PHARMACIE_SERVICE · CO_ORATEUR · SUIT_AVIS · ELEVE_DE · COMITE · DECIDE (`src/lib/influence/relations.ts`)
   type          String
   /// STRUCTURE · LUNA · SAISIE
@@ -18029,7 +18042,8 @@ model PraticienRelation {
 /// LE SCORE D'INFLUENCE EN CACHE (0–100) et ses raisons (points expliqués) — recalculé à chaque analyse et après chaque
 /// décision sur un lien. Une donnée de confort : la supprimer fait seulement recalculer.
 model InfluenceScore {
-  doctorId   String   @id
+  doctorId   String        @id
+  doctor     MedicalDoctor @relation(fields: [doctorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   score      Int
   raisons    Json
   computedAt DateTime @default(now())
@@ -19747,4 +19761,58 @@ model IqviaLigne {
   moisValeur    Float        @default(0)
 
   @@index([importId])
+}
+
+/// LES SIGNAUX DATÉS (lot « mémoire », module `src/modules/pilotage`, migration `20270247900000_signaux_dates`) — une ligne =
+/// une observation DATÉE d'une source : la Voix du terrain d'un périmètre, l'essentiel Produits 360 d'un produit, l'instantané
+/// quotidien des finances d'une société, une PROPOSITION d'IA et la décision humaine qui la suit, le contrôle des clés.
+/// On ne purge plus (décision du Super Admin, 24/11/2026) : l'historique est la valeur. `(source, nature, cle, jour)` est
+/// unique — un rejeu le même jour réécrit la même ligne, jamais une seconde. Les dimensions sont des identifiants SANS clé
+/// étrangère, comme `BudgetEnvelope.businessUnitId` : un historique ne s'efface pas avec ce qu'il observe. Lecture : Super
+/// Admin seul (`lireSignaux`).
+model SignalDate {
+  id               String    @id @default(cuid())
+  /// AAAA-MM-JJ, jour d'Alger.
+  jour             String
+  /// Le mécanisme qui écrit (`SOURCES` de `pilotage/partage`) : voix_terrain, produit_360, finances, une fonction d'IA…
+  source           String
+  /// Ce qui est observé : une famille de la Voix du terrain, un code de signal financier, « proposition »…
+  nature           String
+  /// La cible, dérivée par `cleDeCible` (« bu:… », « produit:… », « ExpenseOrder:… ») — part de l'unicité.
+  cle              String
+  /// regle · ia · repli
+  producteur       String    @default("regle")
+  companyId        String?
+  buId             String?
+  wilayaCode       String?
+  productId        String?
+  doctorId         String?
+  budgetEnvelopeId String?
+  /// Le dossier ou l'entité observée (ExpenseOrder, HrRequest, BudgetProposalLine…), quand ce n'est pas une dimension.
+  entiteType       String?
+  entiteId         String?
+  valeur           Float?
+  unite            String?
+  gravite          String?
+  /// Ce qui se lit avec la valeur (citation, calcul, libellés) — jamais une donnée du coffre.
+  charge           Json      @default("{}")
+  /// CONSTATE (une mesure) · PROPOSE · ACCEPTE · MODIFIE · REJETE (une proposition d'IA et son sort).
+  statut           String    @default("CONSTATE")
+  /// L'auteur d'une proposition (la personne pour qui l'IA a proposé).
+  auteurId         String?
+  /// Ce que l'humain a retenu de la proposition.
+  retenu           Json?
+  decideParId      String?
+  decideLe         DateTime?
+  creeLe           DateTime  @default(now())
+  majLe            DateTime  @updatedAt
+
+  @@unique([source, nature, cle, jour])
+  @@index([companyId, jour])
+  @@index([source, nature, jour])
+  @@index([source, statut, auteurId])
+  @@index([entiteType, entiteId])
+  @@index([productId])
+  @@index([doctorId])
+  @@index([buId])
 }

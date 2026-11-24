@@ -24,6 +24,7 @@ import { entreeDroits } from "@/lib/budget-campagne/requetes";
 import { calculerPrefill } from "@/lib/budget-campagne/prefill";
 import { ouvrirEnveloppeDeLaProposition } from "@/lib/budget-campagne/enveloppes";
 import { brouillonJustification, resumerVersions } from "@/lib/budget-campagne-luna";
+import { noterDecision } from "@/modules/pilotage/api-ecriture";
 import { sansBloquer } from "@/lib/journal";
 import { annulable } from "@/lib/effets/ecran";
 
@@ -331,6 +332,8 @@ export async function enregistrerLigneProposition(formData: FormData): Promise<A
       where: { id: lineId },
       data: { ...(label ? { label } : {}), ...(propose !== null ? { propose } : {}), ...(justification !== undefined ? { justification } : {}) },
     });
+    // LE BROUILLON DE LUNA, GARDÉ TEL QUEL, CORRIGÉ OU ÉCARTÉ (journal du pilotage, jamais bloquant).
+    if (justification !== undefined) await noterDecision({ source: "budget_campagne", nature: "justification", auteurId: user.id, cible: { type: "BudgetProposalLine", id: lineId }, retenu: justification, decideurId: user.id });
   } else {
     if (!label) return { ok: false, error: "Le libellé de la ligne est obligatoire." };
     const n = await prisma.budgetProposalLine.count({ where: { proposalId } });
@@ -390,7 +393,7 @@ export async function proposerJustificationLuna(formData: FormData): Promise<Act
   const r = await brouillonJustification({
     pole: ctx.p.poleLabel, label: l.label, source: estSourceLigne(l.source) ? l.source : "SAISIE",
     realise: toNumber(l.realise2026), propose: toNumber(l.propose), contexte: l.justification,
-  }, user.id);
+  }, user.id, lineId);
   return { ok: true, message: r.texte };
 }
 

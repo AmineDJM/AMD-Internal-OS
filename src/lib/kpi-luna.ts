@@ -6,7 +6,8 @@ import {
   commentaireDeSecours, lireCommentaire, lireReponseDefinitions, lireReponseEvaluation, propositionsDeSecours,
   type KpiPourCommentaire, type ReponseDefinitions, type SourceEvaluation,
 } from "@/lib/kpi/luna-pur";
-import type { NiveauGrille } from "@/lib/kpi/definition";
+import type { DefinitionKpi, NiveauGrille } from "@/lib/kpi/definition";
+import { noterProposition } from "@/modules/pilotage/api-ecriture";
 import {
   CONSIGNE_CIBLE, SCHEMA_CIBLE, entreePourLuna, historiqueSuffisant, lireReponseCibles, type CibleLuna, type EntreeCible,
 } from "@/lib/kpi/luna-cible";
@@ -59,8 +60,22 @@ async function appeler<T>(entree: { system: string; user: string; schema: { name
   return { data: r?.ok ? data : null, ok: Boolean(r?.ok) };
 }
 
+/**
+ * CE QUI SE COMPARE d'une définition proposée à une définition créée (journal « proposition → décision », module
+ * `pilotage`) : le nom, la nature et la brique mesurée — un seuil retouché n'est pas un refus de la proposition.
+ */
+export const empreinteDefinition = (d: Pick<DefinitionKpi, "nom" | "nature" | "numerateur">) =>
+  ({ nom: d.nom, nature: d.nature, brique: d.numerateur?.brique ?? null });
+
 /** (a) UNE PHRASE → des définitions contraintes au catalogue des briques. Ne lève jamais. */
 export async function proposerDefinitions(phrase: string, userId: string): Promise<ReponseDefinitions & { parLuna: boolean; note: string | null }> {
+  const r = await definitionsProposees(phrase, userId);
+  // LA PROPOSITION EST GARDÉE, retenue ou non : `creerKpi` dira ce que le manager en a fait.
+  if (r.propositions.length) await noterProposition({ source: FONCTION, nature: "definitions", auteurId: userId, propose: r.propositions.map((x) => empreinteDefinition(x.def)), producteur: r.parLuna ? "ia" : "repli" });
+  return r;
+}
+
+async function definitionsProposees(phrase: string, userId: string): Promise<ReponseDefinitions & { parLuna: boolean; note: string | null }> {
   const p = await porte();
   if (!p.ouverte) return { ...propositionsDeSecours(phrase), parLuna: false, note: p.raison };
   const demande = `DEMANDE DU MANAGER :\n${wrapUntrusted(phrase.slice(0, 1500), { source: "manager", kind: "demande de KPI", maxChars: 3200 })}`;
@@ -112,6 +127,9 @@ export async function proposerCibles(
   const { data } = await appeler({ system: CONSIGNE_CIBLE, user, schema: SCHEMA_CIBLE as unknown as { name: string; schema: Record<string, unknown> }, max: 1800 }, userId);
   const cibles = lireReponseCibles(data, entrees);
   const lues = cibles.filter(Boolean).length;
+  // LES OBJECTIFS PROPOSÉS SONT GARDÉS (KPI → cible), retenus ou non : `creerKpi` dira la cible enregistrée.
+  const proposees = Object.fromEntries(entrees.flatMap((e, i) => (e && cibles[i] ? [[e.nom, cibles[i]!.cible]] : [])));
+  if (lues > 0) await noterProposition({ source: FONCTION, nature: "cibles", auteurId: userId, propose: proposees, producteur: "ia" });
   return { cibles, note: lues === 0 ? "Luna n'a pas pu appuyer une cible sur l'historique : la cible suit la règle fixe." : null };
 }
 

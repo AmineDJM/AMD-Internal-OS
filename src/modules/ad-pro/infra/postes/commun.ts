@@ -29,6 +29,8 @@ import type { ModificationsDocument } from "@/platform/ia/artifact/factory";
 import { ecrireDansLeSujet } from "@/lib/dossiers-core";
 import { annulerDemandeSecretariat } from "@/lib/secretariat/annulation";
 import { sansBloquer } from "@/lib/journal";
+import { noterDecision } from "@/modules/pilotage/api-ecriture";
+import { cibleDuJournalIa, posteCompare } from "../../domaine/postes-luna";
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════
 // LE SOCLE COMMUN DES ACTIONS DE POSTES — la table `PARENTS`, le chargement d'un poste et ses refus,
@@ -835,4 +837,16 @@ export async function prevenirLeFilDuPoste(a: {
   await Promise.all([...destinataires].map((userId) =>
     notifyUser({ userId, type: "GENERIC", title: "Nouveau message sur un poste", body: corps, link: lienPour(userId) })
       .catch(sansBloquer("ad-pro.prevenirLeFilDuPoste.notifyUser"))));
+}
+
+/**
+ * UN POSTE AJOUTÉ, EST-CE UN POSTE PROPOSÉ PAR LUNA ? (journal « proposition → décision », module `pilotage`) — le poste
+ * rejoint la liste RETENUE de la dernière proposition ouverte : celle du cahier des charges lu sur CETTE demande, sinon
+ * celle tirée d'une description juste avant la création de la demande (sans cible, d'où la fenêtre courte : deux heures).
+ * Jamais bloquant ; sans proposition ouverte, rien n'est écrit.
+ */
+export async function noterPosteRetenu(userId: string, parent: string, parentId: string, poste: { nature: string; libelle: string }): Promise<void> {
+  const commun = { source: "postes_luna" as const, nature: "postes", auteurId: userId, decideurId: userId, retenu: posteCompare(poste), mode: "ajouter" as const };
+  if (await noterDecision({ ...commun, cible: cibleDuJournalIa(parent, parentId) })) return;
+  await noterDecision({ ...commun, cible: null, fenetreHeures: 2 });
 }

@@ -238,9 +238,6 @@ export const EXCEPTIONS: Exception[] = [
       "fk:BesoinAnnuelService_institutionId_fkey:DROP",
       "fk:BesoinAnnuelService_productId_fkey:DROP",
       "fk:BesoinAnnuelService_serviceId_fkey:DROP",
-      "fk:InfluenceScore_doctorId_fkey:DROP",
-      "fk:PraticienRelation_fromDoctorId_fkey:DROP",
-      "fk:PraticienRelation_toDoctorId_fkey:DROP",
     ],
   ),
 

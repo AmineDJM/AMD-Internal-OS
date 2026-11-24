@@ -15,7 +15,9 @@ import {
   nomAttestation, refusAttestation, remplirAttestationDeTravail, societeImprimee,
   type ChampsAttestation, type Civilite, type ProvenanceChamp,
 } from "./attestation-travail/modele";
+import { CHAMPS_DU_CONTRAT } from "../domaine/attestation-travail/regles";
 import { sansBloquer } from "@/lib/journal";
+import { noterDecision, noterProposition } from "@/modules/pilotage/api-ecriture";
 import { inscrireDocumentRh } from "@/modules/bibliotheque/api-inscription";
 
 /**
@@ -156,6 +158,13 @@ export async function preparerAttestationTravail(
           .catch(sansBloquer("attestation-travail-depot.preparerAttestationTravail", { lu: {}, parLuna: [], note: "Le contrat n'a pas pu être lu : complétez les champs vides." }))
       : { lu: {}, parLuna: [], note: "Le fichier du contrat est introuvable : complétez les champs vides." };
   }
+  // CE QUI A ÉTÉ LU DANS LE CONTRAT EST GARDÉ (journal du pilotage) : la génération dira ce que les RH en ont retenu.
+  if (Object.keys(lecture.lu).length) {
+    await noterProposition({
+      source: "attestation_travail", nature: "champs_contrat", auteurId: acteurId, cible: { type: "HrRequest", id: requestId },
+      propose: lecture.lu, producteur: lecture.parLuna.length ? "ia" : "repli", companyId, contexte: { parLuna: lecture.parLuna },
+    });
+  }
 
   const [referenceExistante, registre, signataires, versions] = await Promise.all([
     referenceDejaAttribuee(requestId),
@@ -263,6 +272,11 @@ export async function genererEtRemettreAttestation(
     return { ok: false, error: "L'attestation n'a pas pu être rattachée à la demande (une autre génération était peut-être en cours) : réessayez." };
   }
   await marquerDemandeRhTraitee(requestId); // brique KPI « demandes traitées »
+  // LES CHAMPS LUS DANS LE CONTRAT, GARDÉS OU CORRIGÉS (journal du pilotage, jamais bloquant).
+  await noterDecision({
+    source: "attestation_travail", nature: "champs_contrat", auteurId: acteurId, decideurId: acteurId, cible: { type: "HrRequest", id: requestId },
+    retenu: Object.fromEntries(CHAMPS_DU_CONTRAT.map((k) => [k, saisis[k]])),
+  });
   // Les pièces remises entrent à la bibliothèque, CONFIDENTIELLES (J1), une fois la transaction acquise.
   for (const r of remises) {
     await inscrireDocumentRh({ id: r.id, blobId: r.ecrit.blobId, sha256: r.ecrit.sha256, nom: r.nom, mime: r.mime, taille: r.ecrit.size, deposeParId: acteurId });

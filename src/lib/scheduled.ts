@@ -337,6 +337,10 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
   // KPI & BILANS (KPI sans code, Direction 08/10 : « bilan en continu ») : une fois par jour, la période courante de
   // chacun est recalculée et mise en cache — le calcul à la demande reste là entre deux passages.
   { cle: "kpi.rafraichissement", executer: rafraichirKpiSiDu },
+  // LA MÉMOIRE DU PILOTAGE (lot « mémoire », 24/11/2026) : une fois par jour, l'instantané des finances PAR SOCIÉTÉ (santé et
+  // projection des enveloppes, justificatifs manquants, échéances de paiement, disponible) écrit en signaux datés — ils
+  // n'étaient calculés qu'à la lecture, sans historique — puis le contrôle des clés orphelines, en lecture (il signale).
+  { cle: "pilotage.instantane", executer: async () => (await import("@/modules/pilotage/api")).instantaneQuotidienSiDu() },
   // INTELLIGENCE TERRAIN (console d'administration, Super Admin seul) : une fois par jour, les liens structurels et les
   // scores d'influence se recalculent, et Luna lit les rapports NOUVEAUX depuis le filigrane (liens PROPOSÉS, jamais appliqués).
   { cle: "terrain.influence", executer: analyserInfluenceSiDu },

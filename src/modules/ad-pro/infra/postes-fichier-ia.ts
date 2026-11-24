@@ -7,6 +7,8 @@ import { moteurLuna } from "@/lib/pieces-lues/moteur-luna";
 import { moteurParDefaut } from "@/lib/regulatory/intelligence/extract/texte-ou-ocr";
 import { FORMATS_LUS, PAGES_MAX, TAILLE_MAX_OCTETS } from "@/lib/pieces-lues/formats";
 import { sansBloquer } from "@/lib/journal";
+import { noterProposition, type PropositionANoter } from "@/modules/pilotage/api-ecriture";
+import { postesCompares } from "../domaine/postes-luna";
 import {
   CONSIGNE_POSTES_FICHIER, lirePostesDuModele, SCHEMA_POSTES_FICHIER, TEXTE_MAX, TEXTE_MIN, type PosteDuFichier,
 } from "../domaine/postes-fichier";
@@ -68,6 +70,11 @@ export interface DependancesPostesFichier {
     opts: { system: string; maxOutputTokens: number; verbosity: "low" },
   ) => Promise<{ data: T | null; reply: ModelReply }>;
   journaliser: (u: AiUsageInput) => Promise<void>;
+  /**
+   * GARDER LA PROPOSITION au journal du pilotage (`noterProposition`), sur la demande visée — l'ajout des postes dira ce
+   * qui a été retenu (`noterPosteRetenu`). Facultative : un banc qui injecte ses dépendances n'écrit rien.
+   */
+  noter?: (p: PropositionANoter) => Promise<unknown>;
 }
 
 async function lireParLeLecteurCommun(a: { octets: Buffer; ext: string; userId: string }): Promise<LectureDuFichier> {
@@ -88,6 +95,7 @@ const REELLES: DependancesPostesFichier = {
   lire: lireParLeLecteurCommun,
   appeler: (role, prompt, schema, opts) => askModelJson(role, prompt, schema, opts),
   journaliser: (u) => logAiUsage(u),
+  noter: noterProposition,
 };
 
 const PHRASE_DESACTIVEE = "L'assistant IA est désactivé (Administration › Contrôle de l'IA) : ajoutez les postes un par un.";
@@ -116,6 +124,8 @@ export interface EntreePostesFichier {
   natureDemande: string;
   /** Garde le fichier sur la demande — appelé APRÈS les portes et le format, AVANT la lecture. */
   garder: () => Promise<{ ok: true } | { ok: false; error: string }>;
+  /** La demande visée (« adpro.<parent> », son id) — la cible de la proposition au journal du pilotage. */
+  cible?: { type: string; id: string } | null;
 }
 
 /** LE CHEMIN : portes → format → garder → lire → appeler → relire → journaliser. */
@@ -193,6 +203,9 @@ export async function proposerPostesDuFichier(e: EntreePostesFichier, deps: Depe
     costUsd: usage?.costUsd ?? null,
   }).catch(sansBloquer("postes-fichier-ia.proposerPostesDuFichier.journaliser"));
 
+  if (lecture && lecture.postes.length) {
+    await deps.noter?.({ source: FONCTION, nature: "postes", auteurId: e.userId, cible: e.cible ?? null, propose: postesCompares(lecture.postes), producteur: "ia" });
+  }
   if (lecture) return { ok: true, postes: lecture.postes, remarques: lecture.remarques, coupe, scan: lu.scan };
   if (reply && !reply.ok && !reply.configured) return refus("NON_CONFIGUREE", PHRASE_NON_CONFIGUREE);
   if (panne || !reply?.ok) return refus("ECHEC", PHRASE_PANNE);

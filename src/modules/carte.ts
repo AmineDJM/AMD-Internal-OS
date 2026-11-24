@@ -32,9 +32,9 @@ export const CARTE = {
    * Ad & Pro : sponsoring, congrès, événements, « autres », prise en charge, postes, porte du DG,
    * centre de validation, clôture. Relie les personnes qu'il crée au référentiel (double écriture).
    */
-  "ad-pro": ["referentiels", "finances"],
+  "ad-pro": ["referentiels", "finances", "pilotage"],
   /** RH : congés, paie (par le centre de paiement), avances, notes de frais, documents RH, organisation. */
-  rh: ["coffre", "referentiels", "finances", "bibliotheque"],
+  rh: ["coffre", "referentiels", "finances", "bibliotheque", "pilotage"],
   /**
    * Bibliothèque (J1) : toute pièce entrée est inscrite au registre (`Piece`/`PieceLien`), lue une fois, découpée,
    * vectorisée ; une requête la retrouve par son contenu, sous la règle d'ouverture de l'écran qui la sert.
@@ -68,6 +68,11 @@ export const CARTE = {
   "acces-bases": [],
   /** Suivi de dossiers (T3, décision 0051) : la mise à jour EN LOT depuis un tableau (rapprochement contrôlé, plan). */
   "suivi-dossiers": [],
+  /**
+   * Pilotage (lot « mémoire », 24/11/2026) : les SIGNAUX DATÉS — ce que les IA produisent et ce que les humains en font,
+   * gardé au lieu d'être purgé. Lit les finances (santé d'enveloppe, trésorerie) pour l'instantané quotidien par société.
+   */
+  pilotage: ["finances"],
 } as const satisfies Record<string, readonly string[]>;
 
 export type NomModule = keyof typeof CARTE;

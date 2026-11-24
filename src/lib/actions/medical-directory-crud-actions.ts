@@ -13,6 +13,7 @@ import { actionReversible } from "@/lib/effets/reversible";
 import { updateDoctor } from "@/lib/actions/medical-actions";
 import { CHAMPS_FUSION, COLONNE_FORMULAIRE_FUSION } from "@/modules/referentiels/partage";
 import { peutDeciderFusionMedecins, propositionDeLaPaire } from "@/modules/referentiels/api";
+import { repointerInfluence } from "@/modules/pilotage/api";
 import { MODULE_AUDIT_VISITE } from "@/lib/medical/module-visite";
 
 /**
@@ -320,7 +321,7 @@ export async function deleteDirectoryColumn(formData: FormData): Promise<ActionR
  * L'assistant PROPOSE (`lib/queries/doublons-medecins.ts`) ; seul le Super Admin TRANCHE, ici, par un clic :
  *   • ✓ `fusionnerMedecinsEnDouble` — la paire est RELUE (ce qui a été vu est ce qui s'exécute) ; la fiche gardée reçoit
  *     les champs qui lui manquent (par `updateDoctor`), les visites, rapports terrain, demandes Ad & Pro, remises de
- *     matériel, segmentation et couleurs de la fiche absorbée ; celle-ci est ARCHIVÉE (jamais supprimée). Un geste,
+ *     matériel, segmentation, couleurs et liens d'influence de la fiche absorbée ; celle-ci est ARCHIVÉE (jamais supprimée). Un geste,
  *     réversible d'un coup (`actionReversible`, journal des effets) ;
  *   • ✗ `ecarterFusionMedecin` — la paire ne revient que si l'une des deux fiches change (empreinte).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -376,6 +377,10 @@ export async function fusionnerMedecinsEnDouble(formData: FormData): Promise<Act
       if (deja) await prisma.directoryCellStyle.delete({ where: { id: l.id } });
       else await prisma.directoryCellStyle.update({ where: { id: l.id }, data: vers });
     }
+    // LE GRAPHE D'INFLUENCE (lot « mémoire », L4) : les liens de la fiche absorbée passent à la fiche gardée ; un lien que
+    // la gardée porte déjà garde la décision humaine prise sur l'un ou l'autre, un lien entre les deux fiches disparaît.
+    // Le score (un cache) se recalcule au prochain passage de `terrain.influence`.
+    await repointerInfluence(absorbee.id, garde.id, { effacer: true });
     // 3. La fiche absorbée est ARCHIVÉE (restaurable), avec la trace de la fusion.
     const avant = await prisma.medicalDoctor.findUnique({ where: { id: absorbee.id }, select: { comments: true } });
     await prisma.medicalDoctor.update({
