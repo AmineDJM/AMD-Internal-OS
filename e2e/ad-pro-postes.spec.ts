@@ -76,10 +76,16 @@ async function sansDebordement(page: Page) {
 }
 
 /** La carte d'un poste — désignée par son menu « Autres actions », que les lignes de voyageurs n'ont pas. */
-function carte(page: Page, libelle: string) {
+async function carte(page: Page, libelle: string) {
   // `.last()` : une nature répartie vit DANS le groupe de sa répartition, lui-même un élément de
   // liste qui contient aussi ce bouton — le plus profond vient le dernier dans l'ordre du document.
-  return page.locator("li").filter({ has: page.getByRole("button", { name: `Autres actions — ${libelle}` }) }).last();
+  const c = page.locator("li").filter({ has: page.getByRole("button", { name: `Autres actions — ${libelle}` }) }).last();
+  // LE TABLEAU DES POSTES (fiche simplifiée, 24/11/2026) : la carte d'un poste se déplie depuis sa ligne, « Ouvrir ».
+  if ((await c.count()) === 0) {
+    const ouvrir = page.getByRole("button", { name: `Ouvrir — ${libelle}`, exact: true });
+    if (await ouvrir.count()) await ouvrir.first().click();
+  }
+  return c;
 }
 
 /**
@@ -214,7 +220,7 @@ test("POSTES : un seul geste par carte — et le sponsoring indirect se RÉPARTI
 
   await login(page, NS_EMAIL);
   await aller(page, `/sponsoring/${sponsoringId}`);
-  const c = carte(page, origine.label);
+  const c = await carte(page, origine.label);
   await expect(c.getByRole("button", { name: "Répartir par nature" })).toBeVisible();
   // UN geste, pas neuf : ni « Soumettre », ni demande au secrétariat en bouton principal.
   await expect(c.getByRole("button", { name: /Soumettre/ })).toHaveCount(0);
@@ -237,9 +243,10 @@ test("POSTES : un seul geste par carte — et le sponsoring indirect se RÉPARTI
   const natures = await prisma.adProItem.findMany({ where: { sponsoringId }, orderBy: { position: "asc" }, select: { label: true } });
   expect(natures.map((n) => n.label)[0]).toBe("Imprimerie — Affiches");
   for (const n of natures) {
-    await expect(carte(page, n.label).getByRole("button", { name: "Soumettre pour validation" })).toBeVisible();
+    await expect((await carte(page, n.label)).getByRole("button", { name: "Soumettre pour validation" })).toBeVisible();
   }
-  await capture(page, "p3-postes-repartis", carte(page, natures[0]!.label).locator("xpath=ancestor::li[1]"));
+  // Le tableau des postes (24/11/2026) : la répartition se lit d'un tenant dans la section « Postes ».
+  await capture(page, "p3-postes-repartis", page.locator("#postes"));
 });
 
 test("BILLETTERIE : les voyageurs, puis la réservation — un sujet s'ouvre pour l'assistante, et une date changée s'y écrit", async ({ page }) => {
@@ -255,7 +262,7 @@ test("BILLETTERIE : les voyageurs, puis la réservation — un sujet s'ouvre pou
   await page.reload();
   await page.waitForLoadState("networkidle");
 
-  const c = carte(page, `${P} Billets Paris`);
+  const c = await carte(page, `${P} Billets Paris`);
   await expect(c.getByText("Voyageurs (0)")).toBeVisible();
   await c.getByRole("button", { name: "Ajouter un voyageur" }).click();
   // Un NOM suffit : les dates viendront plus tard.
@@ -268,23 +275,23 @@ test("BILLETTERIE : les voyageurs, puis la réservation — un sujet s'ouvre pou
   sujetId = (await prisma.adProItem.findFirstOrThrow({ where: { sponsoringId, kind: "TICKETING" } })).reservationDossierId!;
   await page.reload();
   await page.waitForLoadState("networkidle");
-  await expect(carte(page, `${P} Billets Paris`).getByRole("link", { name: /Réservation : sujet/ })).toBeVisible();
+  await expect((await carte(page, `${P} Billets Paris`)).getByRole("link", { name: /Réservation : sujet/ })).toBeVisible();
 
   // FLEXIBILITÉ : la date arrive après la demande — elle s'écrit dans le sujet, d'elle-même.
   const avant = await prisma.dossierMessage.count({ where: { dossierId: sujetId } });
-  const c2 = carte(page, `${P} Billets Paris`);
+  const c2 = await carte(page, `${P} Billets Paris`);
   await c2.getByRole("button", { name: `Autres actions pour ${MEDECIN_HORS}` }).click();
   await c2.getByRole("menuitem", { name: "Modifier", exact: true }).click();
   await c2.getByLabel(/^Date de départ/).fill("2026-11-04");
   await c2.getByRole("button", { name: "Enregistrer", exact: true }).click();
   await expect.poll(async () => prisma.dossierMessage.count({ where: { dossierId: sujetId } })).toBe(avant + 1);
-  await capture(page, "p4-billetterie", carte(page, `${P} Billets Paris`));
+  await capture(page, "p4-billetterie", await carte(page, `${P} Billets Paris`));
 });
 
 test("BILLETTERIE : nom et prénom séparés, trajet à PLUSIEURS DESTINATIONS, documents du voyageur ouverts d'emblée", async ({ page }) => {
   await login(page, NS_EMAIL);
   await aller(page, `/sponsoring/${sponsoringId}`);
-  const c = carte(page, `${P} Billets Paris`);
+  const c = await carte(page, `${P} Billets Paris`);
   await c.getByRole("button", { name: "Ajouter un voyageur" }).click();
   await c.getByLabel("Prénom", { exact: true }).fill("Karim");
   await c.getByLabel("Nom", { exact: true }).fill("Benali");
@@ -314,11 +321,11 @@ test("BILLETTERIE : nom et prénom séparés, trajet à PLUSIEURS DESTINATIONS, 
     { de: "Alger", vers: "Dubaï", date: "2026-12-01" },
   ]);
   // Le voyageur s'affiche « Prénom NOM », ses étapes en liste ordonnée, et SES documents sont ouverts d'emblée.
-  const c2 = carte(page, `${P} Billets Paris`);
+  const c2 = await carte(page, `${P} Billets Paris`);
   await expect(c2.getByText("Karim Benali").first()).toBeVisible();
   await expect(c2.getByText(/Alger → Paris · 12\/11\/2026/)).toBeVisible();
   await expect(c2.getByText(/Documents de Karim Benali/)).toBeVisible();
-  await capture(page, "p4b-billetterie-multi", carte(page, `${P} Billets Paris`));
+  await capture(page, "p4b-billetterie-multi", await carte(page, `${P} Billets Paris`));
 });
 
 test("LE RAFRAÎCHISSEMENT RETENU : la carte garde ses gestes fermés tant que l'écran n'est pas à jour", async ({ page }) => {
@@ -328,7 +335,7 @@ test("LE RAFRAÎCHISSEMENT RETENU : la carte garde ses gestes fermés tant que l
   await login(page, NS_EMAIL);
   await aller(page, `/sponsoring/${sponsoringId}`);
   await ralentirRafraichissements(page, 3_000);
-  const c = carte(page, `${P} Billets Paris`);
+  const c = await carte(page, `${P} Billets Paris`);
   await c.getByRole("button", { name: `Autres actions pour ${MEDECIN_HORS}` }).click();
   await c.getByRole("menuitem", { name: "Modifier", exact: true }).click();
   await c.getByLabel(/^Date de retour/).fill("2026-11-09");

@@ -11,15 +11,21 @@ import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { SupprimerDemandeAdPro } from "@/modules/ad-pro/ecrans/supprimer-demande";
 import { type DocItem } from "@/components/documents/document-list";
-import { CONGRESS_REQUEST_STATUS } from "@/lib/labels";
+import { CONGRESS_REQUEST_STATUS, ROLE_LABELS } from "@/lib/labels";
 import { CongressDetailView, AccompagnantsDeLaPriseEnCharge } from "../../congress-international/congress-detail-view";
-import { SectionRepliable, Sections } from "@/components/shared/section-repliable";
+import { SectionRepliable } from "@/components/shared/section-repliable";
+import { circuitPourLaBarre } from "@/lib/workflow/frise-circuit";
 import { resumeDuCircuit } from "@/lib/workflow/resume-circuit";
+import { WithdrawForm } from "@/components/workflow/workflow-panel";
+import { MenuDossier } from "@/components/shared/menu-dossier";
+import { ThirdPartyInvolveButton } from "@/modules/ad-pro/ecrans/third-party-involve";
+import { BarreEtapes, CarteAVous, PlusDInformations, SectionDeclaration, ligneDeLaDemande, type GesteAVous } from "@/modules/ad-pro/ecrans/fiche";
+import { droitsDesPostes, gesteDuCircuit, gesteDeLaDeclaration, gestesDesPostes } from "@/modules/ad-pro/ecrans/fiche-gestes";
 import { etapeDeclaration } from "@/lib/medical-info/etape-ad-pro";
 import { EtapeDeclarationAdPro } from "../../information-medicale/etape-declaration-ad-pro";
 import { CartePriseEnCharge } from "@/modules/ad-pro/ecrans/prise-en-charge/carte-prise-en-charge";
 import { getInvolvementThreads } from "@/lib/queries/involvement";
-import { toNumber } from "@/lib/utils";
+import { formatDate, toNumber } from "@/lib/utils";
 import { promoMaterialOptions } from "@/modules/ad-pro/actions-postes";
 import { AdProItemsPanel } from "@/modules/ad-pro/ecrans/items-panel";
 import { PiecesLegalDeLaDemande } from "@/modules/ad-pro/ecrans/pieces-legal-demande";
@@ -28,7 +34,7 @@ import { InvolvementConversations } from "@/modules/ad-pro/ecrans/involvement-co
 import { CarePanel } from "@/modules/ad-pro/ecrans/prise-en-charge/care-panel";
 import { careDirectoryOptions, carePromoOptions } from "@/modules/ad-pro/actions-prise-en-charge-logistique";
 import { BoutonLivret } from "@/modules/ad-pro/ecrans/prise-en-charge/bouton-livret";
-import { peutMarquerRealisee, peutTeleverserBillet, resumeDesFiches, canEditAdProRequest, isAdProDecided, AD_PRO_DOC_CATEGORIES, categoriesDuDepotDeLaDemande, canAttachToAdPro, siegeAuCentreAdPro } from "@/modules/ad-pro/partage";
+import { peutMarquerRealisee, peutTeleverserBillet, resumeDesFiches, canEditAdProRequest, isAdProDecided, AD_PRO_DOC_CATEGORIES, categoriesDuDepotDeLaDemande, canAttachToAdPro, siegeAuCentreAdPro, barreDesEtapes } from "@/modules/ad-pro/partage";
 import { AdProTransferButton } from "@/modules/ad-pro/ecrans/transfer-button";
 import { AdProEditButton } from "@/modules/ad-pro/ecrans/edit-request-button";
 import { BackLink } from "@/components/shared/back-link";
@@ -127,21 +133,57 @@ export default async function CongressNatDetailPage(props: { params: Promise<{ i
   );
   const editValues = canEditRequest ? await adProEditValues("CONGRESS_NATIONAL", detail.id) : null;
 
+  // ── LE CADRE COMMUN DES FICHES (maquette « Fiche Ad & Pro » validée, 24/11/2026) : la barre d'étapes et la carte « À
+  // vous ». Le bloc des professionnels et « Ce que couvre la prise en charge » (`CartePriseEnCharge`) ne changent pas. ──
+  const postesDecides = ["APPROVED", "COMPLETED"].includes(congress?.requestStatus ?? "");
+  const postes = gestesDesPostes(items, droitsDesPostes(user, {
+    canEdit: userCan(user, "CONGRESS_NATIONAL", "CREATE") || userCan(user, "CONGRESS_NATIONAL", "UPDATE") || canAllocate,
+    canAllocate: canAllocate, decided: postesDecides, contexte,
+  }));
+  const panneauDeclaration = declaration ? <EtapeDeclarationAdPro etape={declaration} sourceType="CONGRESS_NATIONAL" sourceId={detail.id} /> : null;
+  const barre = barreDesEtapes({
+    nature: "CONGRESS_NATIONAL",
+    circuit: circuitPourLaBarre(workflow),
+    deposee: { detail: formatDate(detail.createdAt, { day: "numeric", month: "short" }) },
+    postes: { ouverts: postesDecides && detail.requestStatus !== "COMPLETED", termines: detail.requestStatus === "COMPLETED", aVous: postes.posteAVous, n: items.length },
+    validationFinale: null,
+    declaration: declaration ? { etat: declaration.etat, detail: declaration.detail, aVous: declaration.aVous } : null,
+  });
+  const aVous = [
+    gesteDuCircuit("CONGRESS_NATIONAL", detail.id, workflow),
+    ...postes.gestes,
+    gesteDeLaDeclaration(declaration, panneauDeclaration),
+  ].filter((g): g is GesteAVous => g !== null);
+  const roleDemandeur = detail.requesterId
+    ? (await prisma.user.findUnique({ where: { id: detail.requesterId }, select: { role: true } }))?.role ?? null
+    : null;
+
   return (
     <div className="space-y-5">
       <BackLink href="/congress-national">
         <ArrowLeft className="h-4 w-4" /> Prises en charge Nationales
       </BackLink>
-      <PageHeader title={detail.name} description="Demande de prise en charge — événement national.">
+      {/* L'EN-TÊTE COMMUN DES FICHES AD & PRO (24/11/2026) : une ligne grise, UN badge d'état, et les gestes secondaires —
+          livret, corriger, impliquer, transférer, retirer, supprimer — rangés dans « ⋯ » (ils étaient à plat). */}
+      <PageHeader
+        title={detail.name}
+        description={ligneDeLaDemande({ reference: "Prise en charge — événement national", par: detail.requester || null, role: roleDemandeur ? ROLE_LABELS[roleDemandeur] ?? null : null, le: detail.createdAt })}
+      >
         <StatusBadge map={CONGRESS_REQUEST_STATUS} value={detail.requestStatus} />
-        {peutTeleverser && <BoutonLivret scope="NATIONAL" requestId={detail.id} libelle="Livret général" />}
-        {canEditRequest && editValues && (
-          <AdProEditButton kind="CONGRESS_NATIONAL" id={detail.id} decided={requestDecided} values={editValues} />
-        )}
-        {hasGlobalView(user) && <AdProTransferButton from="CONGRESS_NATIONAL" sourceId={detail.id} title={detail.name} />}
-        <SupprimerDemandeAdPro kind="CONGRESS_NATIONAL" id={detail.id} name={detail.name} enabled={await peutSupprimerUneDemandeAdPro(user, "CONGRESS_NATIONAL", detail.id)} />
+        <MenuDossier>
+          {peutTeleverser && <BoutonLivret scope="NATIONAL" requestId={detail.id} libelle="Livret général" />}
+          {canEditRequest && editValues && (
+            <AdProEditButton kind="CONGRESS_NATIONAL" id={detail.id} decided={requestDecided} values={editValues} />
+          )}
+          {canInvolveThirdParty && <ThirdPartyInvolveButton type={detail.type} id={detail.id} people={missionUsers} />}
+          {hasGlobalView(user) && <AdProTransferButton from="CONGRESS_NATIONAL" sourceId={detail.id} title={detail.name} />}
+          {workflow?.peutRetirer && <WithdrawForm entityType="CONGRESS_NATIONAL" entityId={detail.id} dansUnMenu />}
+          <SupprimerDemandeAdPro kind="CONGRESS_NATIONAL" id={detail.id} name={detail.name} enabled={await peutSupprimerUneDemandeAdPro(user, "CONGRESS_NATIONAL", detail.id)} />
+        </MenuDossier>
       </PageHeader>
       <BlocHistorique user={user} type="CONGRESS_NATIONAL" id={detail.id} />
+      <BarreEtapes etapes={barre} />
+      <CarteAVous gestes={aVous} />
       {/* LA PRISE EN CHARGE EN UNE CARTE (Direction, 07/10) — la même que l'international. */}
       <CartePriseEnCharge
         evenement={{ eventType: detail.eventType, location: detail.location, ville: detail.ville, pays: detail.pays, medecinsOrigine: detail.medecinsOrigine, date: detail.date, endDate: detail.endDate, requester: detail.requester, initiative: detail.initiative }}
@@ -200,30 +242,27 @@ export default async function CongressNatDetailPage(props: { params: Promise<{ i
       {/* LES PIÈCES LEGAL RATTACHÉES À LA DEMANDE ELLE-MÊME, hors postes — d'avant les postes, ou qui ne sont pas des achats. */}
       <PiecesLegalDeLaDemande spectateur={user} entityType="CONGRESS_NATIONAL" entityId={detail.id} />
 
-      {/* LE RESTE DE LA FICHE, REPLIÉ (17/11/2026) : médecins concernés, circuit, discussion, accompagnants, information
-          médicale — une ligne chacun ; le circuit s'ouvre seul quand la personne qui regarde y a un geste à faire (« À vous »)
-          (recette 24/11/2026 : les médecins rejoignent les sections ; l'information médicale vient en dernier). */}
-      <Sections>
+      {/* LA DÉCLARATION (information scientifique) — seulement à SON étape ; avant, la barre la montre grisée. */}
+      <SectionDeclaration etape={declaration}>{panneauDeclaration}</SectionDeclaration>
+
+      {/* PLUS D'INFORMATIONS, REPLIÉ (cadre commun des fiches, 24/11/2026) : médecins concernés, discussion, accompagnants, circuit
+          détaillé — chacun avec son composant d'avant. Le circuit y perd ses gestes : ils sont dans « À vous ». */}
+      <PlusDInformations>
         {/* LES MÉDECINS CONCERNÉS (Direction, 08/10) — choisis dans l'annuaire : le lien que lisent le cockpit marketing et la fiche du praticien. */}
         <MedecinsConcernesSection user={user} entityType="CONGRESS_NATIONAL" entityId={detail.id} />
-        <SectionRepliable titre="Circuit de validation" resume={resumeDuCircuit(workflow)} aVous={Boolean(workflow?.action)}>
-          <CongressDetailView enSection detail={detail} workflow={workflow} canInvolveThirdParty={canInvolveThirdParty} entityType="CONGRESS_NATIONAL" entityId={detail.id} missionUsers={missionUsers} />
-        </SectionRepliable>
         <SectionRepliable titre="Discussion" sansCadre>
           <EspaceDiscussion>
             <AdProDiscussionCard entityType="CONGRESS_NATIONAL" entityId={detail.id} user={user} />
             <InvolvementConversations threads={involvementThreads} currentUserId={user.id} canManage={hasGlobalView(user)} />
           </EspaceDiscussion>
         </SectionRepliable>
-        <SectionRepliable titre="Accompagnants & délégués" compte={missions.length} sansCadre>
+        <SectionRepliable titre="Accompagnants et délégués" compte={missions.length} sansCadre>
           <AccompagnantsDeLaPriseEnCharge entityType="CONGRESS_NATIONAL" entityId={detail.id} missions={missions} missionUsers={missionUsers} canManageMissions={canManageMissions} currentUserId={user.id} path={`/congress-national/${detail.id}`} />
         </SectionRepliable>
-        {declaration && (
-          <SectionRepliable titre={declaration.titre} resume={declaration.detail ?? undefined} aVous={declaration.aVous}>
-            <EtapeDeclarationAdPro etape={declaration} sourceType="CONGRESS_NATIONAL" sourceId={detail.id} />
-          </SectionRepliable>
-        )}
-      </Sections>
+        <SectionRepliable titre="Circuit de validation détaillé" resume={resumeDuCircuit(workflow)}>
+          <CongressDetailView enSection partie="frise" detail={detail} workflow={workflow} canInvolveThirdParty={false} entityType="CONGRESS_NATIONAL" entityId={detail.id} missionUsers={missionUsers} />
+        </SectionRepliable>
+      </PlusDInformations>
 
     </div>
   );

@@ -42,7 +42,7 @@ interface Proposition {
 
 type Etape = "fichier" | "lecture" | "relecture";
 
-export function PostesDepuisFichier({ parent, parentId, tardif, verrouille, masquerLeBouton = false, onFait, assistantes = [], marketing = false }: {
+export function PostesDepuisFichier({ parent, parentId, tardif, verrouille, masquerLeBouton = false, onFait, assistantes = [], marketing = false, libelle = "Créer les postes depuis un fichier" }: {
   parent: AdProParent;
   parentId: string;
   /** Les assistantes de direction — la Direction Marketing choisit celle qui prospecte (dans le formulaire du poste). */
@@ -57,6 +57,8 @@ export function PostesDepuisFichier({ parent, parentId, tardif, verrouille, masq
   masquerLeBouton?: boolean;
   /** Un poste a été créé : le panneau le dit et se rafraîchit. */
   onFait: (r: { ok: boolean; text: string; crees: number }) => void;
+  /** Le libellé du bouton — « Depuis un cahier des charges » dans l'en-tête du tableau des postes (24/11/2026). */
+  libelle?: string;
 }) {
   const [ouvert, setOuvert] = React.useState(false);
   const [etape, setEtape] = React.useState<Etape>("fichier");
@@ -148,7 +150,7 @@ export function PostesDepuisFichier({ parent, parentId, tardif, verrouille, masq
     <>
       {!masquerLeBouton && (
         <Button size="sm" variant="outline" className="h-10 w-full sm:h-8 sm:w-auto" disabled={verrouille} onClick={() => setOuvert(true)}>
-          <Sparkles className="h-4 w-4" /> Créer les postes depuis un fichier
+          <Sparkles className="h-4 w-4" /> {libelle}
         </Button>
       )}
       <Sheet

@@ -38,8 +38,14 @@ async function aller(page: Page, url: string) {
   await page.goto(url);
   await page.waitForLoadState("networkidle");
 }
-function carte(page: Page, libelle: string) {
-  return page.locator("li").filter({ has: page.getByRole("button", { name: `Autres actions — ${libelle}` }) }).last();
+async function carte(page: Page, libelle: string) {
+  const c = page.locator("li").filter({ has: page.getByRole("button", { name: `Autres actions — ${libelle}` }) }).last();
+  // LE TABLEAU DES POSTES (fiche simplifiée, 24/11/2026) : la carte d'un poste se déplie depuis sa ligne, « Ouvrir ».
+  if ((await c.count()) === 0) {
+    const ouvrir = page.getByRole("button", { name: `Ouvrir — ${libelle}`, exact: true });
+    if (await ouvrir.count()) await ouvrir.first().click();
+  }
+  return c;
 }
 async function attendre<T>(lire: () => Promise<T>, ok: (v: T) => boolean, quoi: string): Promise<T> {
   const debut = Date.now();
@@ -145,7 +151,7 @@ test("LIGNES : cocher deux références, les valider, générer le BC — Word e
   test.setTimeout(180_000);
   await login(page, KAM_EMAIL);
   await aller(page, `/events/${eventId}`);
-  const c = carte(page, `${P}Brochures`);
+  const c = await carte(page, `${P}Brochures`);
 
   // Rien n'est validé : la carte ne propose pas de générer.
   await expect(c.getByRole("button", { name: /Générer le BC/ })).toHaveCount(0);

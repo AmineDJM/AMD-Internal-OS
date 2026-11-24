@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { ITEM_KIND_LABELS } from "../../domaine/postes";
 import { etapesDuPoste, faitsDuPoste } from "../../domaine/poste-etapes";
 import { etapeAgence, friseAgence, LIBELLE_ETAPE_AGENCE } from "../../domaine/parcours-agence";
-import { faitsAgenceDuPoste } from "./parcours-agence";
+import { faitsAgenceDuPoste } from "./resume-poste";
 import type { ItemRow } from "../items-panel";
 import { DiscussionDuPoste } from "./discussion-poste";
 

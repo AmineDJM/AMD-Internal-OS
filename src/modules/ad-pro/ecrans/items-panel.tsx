@@ -32,6 +32,8 @@ import { PosteCarte } from "./postes/poste-carte";
 import { estPosteStock, RAFRAICHISSEMENT } from "./postes/elements";
 import { AddItemForm, Figure } from "./postes/formulaires";
 import { PostesDepuisFichier } from "./postes-depuis-fichier";
+import { porteSignalSeule, regardDuPoste, type DroitsDesPostes } from "./postes/resume-poste";
+import { TableauDesPostes } from "./postes/tableau-postes";
 
 export type { LigneStockVue } from "./materiel-stock";
 
@@ -169,6 +171,12 @@ interface Props {
   plan?: { hasBooth?: boolean | null; hasSymposium?: boolean | null };
   /** Faux : la fiche porte déjà l'enveloppe et ce qui est affecté dans un bandeau commun (Direction, 07/10). */
   resume?: boolean;
+  /**
+   * LE TABLEAU DES POSTES (maquette « Fiche Ad & Pro », 24/11/2026) : une ligne par poste — ce qu'il est, où il en est (chez
+   * qui), son montant — et « Ouvrir » déplie sa carte COMPLÈTE, avec tous ses gestes. L'en-tête porte « Postes · N » et, à
+   * droite, « Ajouter un poste » et « Depuis un cahier des charges ». Faux : la liste des cartes, comme avant.
+   */
+  tableau?: boolean;
   /** (Sous-)catégories budgétaires proposées pour imputer un poste accordé. */
   budgetOptions?: { id: string; label: string }[];
   /** Les Finances émettent le bon de commande visé par la Direction. */
@@ -243,7 +251,7 @@ const PARENT_PATH: Record<AdProParent, string> = {
 
 export function AdProItemsPanel({
   parent, parentId, items, amountGranted, decided, tardif = decided, fige = false, canEdit: canEditBrut, canAllocate: canAllocateBrut, promoOptions, plan,
-  budgetOptions = [], canIssueOrder = false, canViserBC = false, materiel, contexte, resume = true,
+  budgetOptions = [], canIssueOrder = false, canViserBC = false, materiel, contexte, resume = true, tableau = false,
 }: Props) {
   // CLÔTURÉE : on ne décrit, ne chiffre, ne décide et ne réimpute plus — l'action le refuserait
   // (`refusSiClos`), et un bouton qu'une action refuse n'est pas un bouton. Les gestes
@@ -263,6 +271,34 @@ export function AdProItemsPanel({
   // Le chemin de l'opération porteuse : la demande de pièce y renvoie, pour que celui qui a
   // demandé retrouve son dossier depuis le fil.
   const parentLink = `${PARENT_PATH[parent]}/${parentId}`;
+
+  // LE REGARD DE LA PERSONNE QUI REGARDE — le même pour la carte d'un poste et pour sa ligne dans le tableau.
+  const droits: DroitsDesPostes = { canEdit: canEditBrut, canAllocate: canAllocateBrut, canViserBC, canIssueOrder, fige, decided, contexte };
+
+  // LES LIGNES DÉPLIÉES du tableau. Une adresse qui vise un poste (`#poste-…`, celle des notifications et de la carte « À
+  // vous ») le déplie et y mène : sans cela, le lien aboutirait sur une ligne fermée.
+  const [deplies, setDeplies] = React.useState<ReadonlySet<string>>(() => new Set());
+  const basculer = (id: string) => setDeplies((cur) => {
+    const n = new Set(cur);
+    if (n.has(id)) n.delete(id); else n.add(id);
+    return n;
+  });
+  // Relu quand la LISTE des postes change (un poste ajouté peut être celui que vise l'adresse), pas à chaque rafraîchissement :
+  // un poste refermé à la main ne se rouvre pas tout seul après un geste.
+  const idsDesPostes = items.map((x) => x.id).join(",");
+  React.useEffect(() => {
+    if (!tableau) return;
+    const lire = () => {
+      const cible = decodeURIComponent(window.location.hash.slice(1));
+      const id = idsDesPostes.split(",").find((x) => x && ancrePoste(x) === cible);
+      if (!id) return;
+      setDeplies((cur) => (cur.has(id) ? cur : new Set(cur).add(id)));
+      requestAnimationFrame(() => document.getElementById(cible)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    };
+    lire();
+    window.addEventListener("hashchange", lire);
+    return () => window.removeEventListener("hashchange", lire);
+  }, [tableau, idsDesPostes]);
 
   const b = breakdown(items, amountGranted);
   const gaps = plannedGaps(items, plan ?? {});
@@ -304,19 +340,7 @@ export function AdProItemsPanel({
       item={it}
       parent={parent}
       parentId={parentId}
-      regard={{
-        canEdit: canEditBrut, canAllocate: canAllocateBrut, canViserBC,
-        // ANNULER UN ORDRE ÉMIS non réglé : les Finances, ou qui arbitre.
-        canEmettre: canIssueOrder || canAllocateBrut,
-        fige, operationDecidee: decided,
-        validation: contexte.validation,
-        secondTempsParOperations: contexte.secondTempsParOperations,
-        // C'est celle qui a DEMANDÉ le BC qui vérifie la pièce que l'assistante a déposée.
-        verifieLeBC: Boolean(it.demandeBC) && it.demandeBC?.askedById === contexte.userId,
-        // LE BC D'UN DEVIS se vérifie, se modifie et se valide par la personne qui a ajouté le devis (Direction, 11/2026).
-        moiId: contexte.userId,
-        superAdmin: contexte.superAdmin,
-      }}
+      regard={regardDuPoste(it, droits)}
       freres={items.filter((x) => x.id !== it.id && !estPosteStock(x) && x.status !== "REJECTED").map((x) => ({ id: x.id, label: x.label, kind: x.kind }))}
       assistantes={contexte.assistantes}
       budgetOptions={budgetOptions}
@@ -333,16 +357,75 @@ export function AdProItemsPanel({
     />
   );
 
+  // AJOUTER — le formulaire, et ses deux portes : à la main, ou depuis un cahier des charges. Montés en bas de la liste des
+  // cartes, ou dans l'en-tête du tableau (24/11/2026) ; les mêmes, jamais recopiés.
+  const phraseAjoutFerme = canEdit && contexte.ajoutFerme ? (
+    <p className="rounded-xl bg-muted/50 px-3 py-2 text-xs text-muted-foreground">{contexte.ajoutFerme}</p>
+  ) : null;
+  const formulaireAjout = adding ? (
+    <AddItemForm
+      parent={parent}
+      parentId={parentId}
+      decided={tardif}
+      assistantes={contexte.assistantes}
+      marketing={contexte.validation.marketing}
+      busy={busy === "add"}
+      onCancel={() => setAdding(false)}
+      onSubmit={(fd) => void run("add", () => addAdProItem(undefined, fd).then((r) => {
+        if (r.ok) setAdding(false);
+        return r;
+      }), "Poste ajouté.")}
+    />
+  ) : null;
+  const boutonsAjout = (
+    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+      {!adding && (
+        <Button size="sm" variant="outline" className="h-10 w-full sm:h-8 sm:w-auto" onClick={() => setAdding(true)}>
+          <Plus className="h-4 w-4" /> Ajouter un poste
+        </Button>
+      )}
+      {/* LES POSTES DEPUIS UN FICHIER (recette 24/11/2026) : la même porte que « Ajouter un poste » ; chaque ligne
+          relue se crée par `addAdProItem`, et le panneau se rafraîchit dès qu'un poste est créé. Toujours monté :
+          une proposition en attente survit à l'ouverture du formulaire manuel ; seul son bouton se retire. */}
+      <PostesDepuisFichier
+        parent={parent}
+        parentId={parentId}
+        tardif={tardif}
+        verrouille={Boolean(busy)}
+        masquerLeBouton={adding}
+        assistantes={contexte.assistantes}
+        marketing={contexte.validation.marketing}
+        onFait={(r) => { setMsg({ ok: r.ok, text: r.text }); if (r.crees > 0) rafraichir(); }}
+        libelle={tableau ? "Depuis un cahier des charges" : undefined}
+      />
+    </div>
+  );
+  const enTete = tableau ? <h2 className="text-base font-semibold">Postes · {items.length}</h2> : null;
+
   // LE DÉLÉGUÉ SUIT SANS LES DÉTAILS (Direction, 15/11/2026) : les étapes de ses postes, pas leurs montants ni leurs pièces.
-  if (contexte.suiviSimple) return <SuiviSimple items={items} moiId={contexte.userId} chemin={parentLink} />;
+  if (contexte.suiviSimple) {
+    const suivi = <SuiviSimple items={items} moiId={contexte.userId} chemin={parentLink} />;
+    return enTete ? <div className="space-y-3">{enTete}{suivi}</div> : suivi;
+  }
 
   return (
     <div className="space-y-4">
+      {/* ── L'en-tête du tableau : « Postes · N » ; à droite, les deux portes d'ajout — ou la phrase qui dit pourquoi pas encore. ── */}
+      {tableau && (
+        <div className="space-y-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            {enTete}
+            {canEdit && !contexte.ajoutFerme && boutonsAjout}
+          </div>
+          {phraseAjoutFerme}
+          {formulaireAjout}
+        </div>
+      )}
       {/* ── La porte du DG sur le total (27/10/2026) : visible dès qu'elle est requise. ── */}
       {contexte.porteDg && (
         <CartePorteDg
           parent={parent} parentId={parentId} porte={contexte.porteDg}
-          signalSeul={items.some((i) => i.voie === "AGENCE") && items.every((i) => i.voie === "AGENCE" || i.kind === "STOCK_MATERIAL" || i.status === "REJECTED")}
+          signalSeul={porteSignalSeule(items)}
         />
       )}
       {/* ── La ventilation, avant la liste : c'est la question qu'on se pose en arrivant. ── */}
@@ -429,6 +512,10 @@ export function AdProItemsPanel({
             ? "Aucun poste. Ajoutez ce que couvre l'opération : appui, stand, imprimerie, billetterie, prestation…"
             : "Aucun poste pour l'instant."}
         </p>
+      ) : tableau ? (
+        <TableauDesPostes
+          groupes={groupes} droits={droits} deplies={deplies} basculer={basculer} carte={carte}
+        />
       ) : (
         <ul className="space-y-3">
           {groupes.map((g) => {
@@ -460,46 +547,11 @@ export function AdProItemsPanel({
       )}
 
       {/* ── Ajouter ── (fermé dès que les postes sont déclarés à l'information médicale : l'action le refuserait) */}
-      {canEdit && contexte.ajoutFerme && (
-        <p className="rounded-xl bg-muted/50 px-3 py-2 text-xs text-muted-foreground">{contexte.ajoutFerme}</p>
-      )}
-      {canEdit && !contexte.ajoutFerme && (
+      {!tableau && phraseAjoutFerme}
+      {!tableau && canEdit && !contexte.ajoutFerme && (
         <div className="space-y-2">
-          {adding && (
-            <AddItemForm
-              parent={parent}
-              parentId={parentId}
-              decided={tardif}
-              assistantes={contexte.assistantes}
-              marketing={contexte.validation.marketing}
-              busy={busy === "add"}
-              onCancel={() => setAdding(false)}
-              onSubmit={(fd) => void run("add", () => addAdProItem(undefined, fd).then((r) => {
-                if (r.ok) setAdding(false);
-                return r;
-              }), "Poste ajouté.")}
-            />
-          )}
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-            {!adding && (
-              <Button size="sm" variant="outline" className="h-10 w-full sm:h-8 sm:w-auto" onClick={() => setAdding(true)}>
-                <Plus className="h-4 w-4" /> Ajouter un poste
-              </Button>
-            )}
-            {/* LES POSTES DEPUIS UN FICHIER (recette 24/11/2026) : la même porte que « Ajouter un poste » ; chaque ligne
-                relue se crée par `addAdProItem`, et le panneau se rafraîchit dès qu'un poste est créé. Toujours monté :
-                une proposition en attente survit à l'ouverture du formulaire manuel ; seul son bouton se retire. */}
-            <PostesDepuisFichier
-              parent={parent}
-              parentId={parentId}
-              tardif={tardif}
-              verrouille={Boolean(busy)}
-              masquerLeBouton={adding}
-              assistantes={contexte.assistantes}
-              marketing={contexte.validation.marketing}
-              onFait={(r) => { setMsg({ ok: r.ok, text: r.text }); if (r.crees > 0) rafraichir(); }}
-            />
-          </div>
+          {formulaireAjout}
+          {boutonsAjout}
         </div>
       )}
     </div>

@@ -187,7 +187,8 @@ export function IconeGeste({ cle }: { cle: CleGeste }) {
 }
 
 /** Une étiquette sur la ligne du poste (« Rallonge », « Ajouté après décision ») — un mot, pas une phrase. */
-export const ETIQUETTE = "rounded-md bg-warning/10 px-1.5 py-0.5 text-[0.6875rem] font-medium text-warning";
+// Une étiquette d'INFORMATION (bloc principal, paiement direct, rallonge) : grise — l'orange est réservé aux vraies alertes.
+export const ETIQUETTE = "rounded-md bg-secondary px-1.5 py-0.5 text-[0.6875rem] font-medium text-muted-foreground";
 
 /** Le rendu d'un état d'étape — le même partout sur la carte : fait, en cours, à venir, refusé. */
 export const STYLE_ETAPE: Record<EtatEtape, { texte: string; barre: string; icone: React.ReactNode; dit: string }> = {
