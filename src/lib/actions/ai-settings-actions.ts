@@ -31,6 +31,7 @@ export async function updateAiSettings(formData: FormData): Promise<ActionResult
     lecturePiecesEnabled: fdBool(formData, "lecturePiecesEnabled"),
     conseilPiecesEnabled: fdBool(formData, "conseilPiecesEnabled"),
     ocrVisionEnabled: fdBool(formData, "ocrVisionEnabled"),
+    visitePvDetectionEnabled: fdBool(formData, "visitePvDetectionEnabled"),
     updatedById: admin.id,
   };
   // Le plafond MENSUEL de l'OCR vision (décision 0019) : seulement s'il est envoyé — une bascule rejouée ailleurs

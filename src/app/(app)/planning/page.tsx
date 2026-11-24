@@ -11,11 +11,14 @@ import {
 } from "@/lib/force-de-vente/calculs";
 import { peutAdministrerLeCoaching } from "@/lib/coaching/acces";
 import { viewsAllReports } from "@/lib/queries/field-reports";
-import { lienRapportsDeDelegue } from "@/lib/chemins/rapports-terrain";
+import { CHEMIN_RAPPORTS_TERRAIN, lienCasPvKam, lienRapportsDeDelegue } from "@/lib/chemins/rapports-terrain";
+import { chargerEquipeTerrain, chargerRapportARelire, lignesDeLEquipe } from "@/lib/queries/equipe-terrain";
+import { autresActions, lignesARelire, type EntreeFile } from "@/lib/force-de-vente/file-actions";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { LettreBadge } from "@/app/(app)/segmentation/lettre-badge";
 import { EnteteFdv, lireParametres, lienFdv } from "./entete";
 import { RangeeLien, PanneauAdresse, BoutonEcrire, LienAction } from "./pilotage-client";
+import { FileActionsEquipe, RapportEnRelecture, TableauEquipe } from "./mon-equipe";
 
 export const dynamic = "force-dynamic";
 
@@ -26,9 +29,13 @@ export const dynamic = "force-dynamic";
  * secteurs sans délégué, coachings en retard). Une ligne ouvre la fiche du délégué. Le requis est UN seul nombre : la
  * segmentation (lettre × In/Out × fréquence du secteur) — plus de « planifié », de « capacité » ni de « fréquence
  * cible » concurrents. L'effort × ventes reste, replié, pour qui le lisait.
+ *
+ * LE SUPERVISEUR D'UNE BU y trouve « MON ÉQUIPE TERRAIN » (Visite médicale 11/2026) : la file d'actions de son équipe en
+ * tête (rapports à relire triés par l'IA, plans à décider, retards, panels vides, coaching, pharmacovigilance), puis le
+ * tableau réduit de ses délégués. La Direction garde le pilotage d'ensemble. Le panneau `?relire=` sert aux deux.
  */
 export default async function PilotagePage(
-  props: { searchParams?: Promise<{ bu?: string; y?: string; m?: string; kam?: string; liste?: string }> }
+  props: { searchParams?: Promise<{ bu?: string; y?: string; m?: string; kam?: string; liste?: string; relire?: string }> }
 ) {
   const searchParams = await props.searchParams;
   const user = await requireModule("SALES_PLANNING");
@@ -49,11 +56,44 @@ export default async function PilotagePage(
   // « Voir ses rapports » : la liste des Rapports filtrée sur ce délégué — le filtre n'existe que pour qui voit les rapports de tous.
   const voirRapports = userCan(user, "FIELD_REPORTS", "VIEW") && viewsAllReports(user);
   const enCours = jour > 0 && jour < total;
+  const maintenant = new Date();
+
+  // MON ÉQUIPE TERRAIN — seulement pour qui supervise une BU, sur les délégués de SES BU.
+  const lignesEquipe = scope.isSupervisor ? lignesDeLEquipe(lignes, scope, user.id) : null;
+  const equipe = lignesEquipe ? await chargerEquipeTerrain({ user, lignes: lignesEquipe, aTraiter, maintenant }) : null;
+  const relire = searchParams?.relire ? await chargerRapportARelire(user, scope, searchParams.relire) : null;
+  const dansLEquipe = new Set(lignesEquipe?.map((l) => l.repId) ?? []);
+  const entreeFile: EntreeFile | null = equipe && lignesEquipe ? {
+    maintenant,
+    aRelire: equipe.aRelire,
+    plansSoumis: equipe.plansSoumis,
+    retards: lignesEquipe,
+    panelsVides: equipe.panelsVides,
+    coachings: aTraiter.coachingsEnRetard.filter((c) => dansLEquipe.has(c.repId)),
+    casPv: equipe.casPv,
+    ciblesNonVues: aTraiter.ciblesNonVues,
+    secteursVacants: aTraiter.secteursVacants,
+    liens: {
+      relire: (id) => lienFdv("/planning", p, { relire: id }),
+      plan: (planId) => (planId ? `/medical/plan-de-tournee?plan=${planId}` : "/medical/plan-de-tournee"),
+      rapports: voirRapports ? lienRapportsDeDelegue : null,
+      territoire: peutConfigurerBu(user) ? (bu) => (bu ? `/business-units?bu=${bu}&etape=kams` : "/business-units") : null,
+      coaching: peutCoacher ? (repId) => `/medical/coaching/nouvelle?collaborateur=${repId}` : null,
+      casPv: (premierId, n) => (n === 1 && premierId ? lienCasPvKam(premierId) : CHEMIN_RAPPORTS_TERRAIN),
+      nonVues: lienFdv("/planning", p, { liste: "non-vues" }),
+    },
+  } : null;
 
   return (
     <div className="space-y-4">
       <EnteteFdv user={user} scope={scope} bus={bus} chemin="/planning" buId={buId} year={year} month={month} exporter={lignes.length > 0} />
 
+      {entreeFile && lignesEquipe ? (
+        <>
+          <FileActionsEquipe aRelire={lignesARelire(entreeFile)} totalARelire={entreeFile.aRelire.total} autres={autresActions(entreeFile)} tousLesRapports={voirRapports ? CHEMIN_RAPPORTS_TERRAIN : null} />
+          <TableauEquipe lignes={lignesEquipe} lienFiche={(repId) => lienFdv("/planning", p, { kam: repId })} maintenant={maintenant} kamOuvert={searchParams?.kam ?? null} />
+        </>
+      ) : (<>
       <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
         <Tuile titre="Cibles H · A · B vues à fréquence" info="Part des praticiens classés H, A ou B dans les panels qui ont reçu au moins leur nombre de visites requis ce cycle. L'écart se lit face au cycle précédent, avec les lettres d'aujourd'hui."
           valeur={tuiles.couverture.pct === null ? "—" : `${tuiles.couverture.pct} %`}
@@ -118,6 +158,7 @@ export default async function PilotagePage(
           <ATraiter aTraiter={aTraiter} canConfigure={peutConfigurerBu(user)} peutCoacher={peutCoacher} nonVuesHref={lienFdv("/planning", p, { liste: "non-vues" })} />
         </section>
       </div>
+      </>)}
 
       {ventesLisibles && effort.length > 0 && (
         <details className="surface rounded-xl">
@@ -160,6 +201,16 @@ export default async function PilotagePage(
       {fiche && (
         <PanneauAdresse titre={fiche.ligne.nom} description={[fiche.ligne.buNom, fiche.ligne.secteurNom, fiche.superviseur ? `superviseur ${fiche.superviseur}` : null].filter(Boolean).join(" · ")} fermer={lienFdv("/planning", p)}>
           <FicheDelegueVue fiche={fiche} jour={jour} enCours={enCours} peutCoacher={peutCoacher && fiche.ligne.repId !== user.id} ecrire={ecrire && fiche.ligne.repId !== user.id} voirRapports={voirRapports} />
+        </PanneauAdresse>
+      )}
+
+      {relire && (
+        <PanneauAdresse
+          titre={relire.visite.doctor?.name ?? "Praticien non précisé"}
+          description={[relire.visite.date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }), relire.visite.delegate?.name, relire.visite.doctor?.specialty].filter(Boolean).join(" · ")}
+          fermer={lienFdv("/planning", p)}
+        >
+          <RapportEnRelecture r={relire} />
         </PanneauAdresse>
       )}
 

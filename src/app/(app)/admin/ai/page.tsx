@@ -51,6 +51,7 @@ const FEATURE_LABEL: Record<AiFeature, string> = {
   attestation_travail: "Luna — attestation de travail (lecture du contrat)",
   postes_luna: "Luna — postes d'une demande Ad & Pro (lecture de la description)",
   nature_depense: "Luna — nature des dépenses des moyens généraux",
+  visite_pv_detection: "Visite médicale — pharmacovigilance dans les comptes rendus",
 };
 // Les fonctions journalisées SANS bascule à elles (`AiFeatureJournalisee`) — l'Assistant IA est tenu par
 // l'interrupteur général et ses plafonds (écran Consommation IA), pas par une bascule de cette page.

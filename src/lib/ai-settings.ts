@@ -78,7 +78,13 @@ export type AiFeature =
    * catégorie budgétaire des moyens généraux, ou en nomme une nouvelle ; les mots-clés prennent le relais sans elle
    * (`natures-depenses-ia.ts`). Suit la bascule de l'assistant.
    */
-  | "nature_depense";
+  | "nature_depense"
+  /**
+   * LE COMPTE RENDU D'UNE VISITE LU PAR L'IA (Visite médicale, Super Admin 11/2026) : possible cas de pharmacovigilance
+   * (aucun / possible / probable, raison, citation exacte) et priorité du rapport pour le superviseur. Elle PRÉVIENT le
+   * délégué et le superviseur, elle ne crée jamais un cas (`visite-pv-ia.ts`). Bascule à elle, COUPÉE par défaut.
+   */
+  | "visite_pv_detection";
 
 export interface AiSettingsView {
   masterEnabled: boolean;
@@ -93,6 +99,8 @@ export interface AiSettingsView {
   conseilPiecesEnabled: boolean;
   /** OCR vision des conversions (décision 0019) — COUPÉ par défaut, comme sa colonne. */
   ocrVisionEnabled: boolean;
+  /** Le compte rendu de visite lu par l'IA (pharmacovigilance, priorité) — COUPÉ par défaut, comme sa colonne. */
+  visitePvDetectionEnabled: boolean;
 }
 
 const DEFAULTS: AiSettingsView = {
@@ -112,6 +120,9 @@ const DEFAULTS: AiSettingsView = {
   // (`@default(true)`, migration `20270106100000_conseil_pieces`).
   conseilPiecesEnabled: true,
   ocrVisionEnabled: false,
+  // COUPÉE PAR DÉFAUT, comme sa colonne (migration `20270246500000_pharmacovigilance_visite`) : chaque compte rendu lu est
+  // un appel au fournisseur ; l'allumer est une décision de la Direction, sur l'écran.
+  visitePvDetectionEnabled: false,
 };
 
 /** Quelle bascule gouverne quelle fonction. */
@@ -136,6 +147,7 @@ const FEATURE_KEY: Record<AiFeature, keyof AiSettingsView> = {
   attestation_travail: "assistantEnabled",
   postes_luna: "assistantEnabled",
   nature_depense: "assistantEnabled",
+  visite_pv_detection: "visitePvDetectionEnabled",
 };
 
 /**
@@ -160,6 +172,7 @@ export async function getAiSettings(): Promise<AiSettingsView> {
       lecturePiecesEnabled: row.lecturePiecesEnabled,
       conseilPiecesEnabled: row.conseilPiecesEnabled,
       ocrVisionEnabled: row.ocrVisionEnabled,
+      visitePvDetectionEnabled: row.visitePvDetectionEnabled,
     };
   } catch {
     return DEFAULTS;

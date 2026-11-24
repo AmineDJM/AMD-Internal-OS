@@ -118,6 +118,33 @@ function FicheRapport({ ligne }: { ligne: LigneRapport }) {
       </Bloc>
       {ligne.retour && <Bloc titre="Retour du médecin"><p className="whitespace-pre-wrap">{ligne.retour}</p></Bloc>}
       {ligne.suite && <Bloc titre="Ce qu'il reste à faire"><p className="whitespace-pre-wrap">{ligne.suite}</p></Bloc>}
+      {ligne.alertePv && (
+        <div className="space-y-1.5 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
+          <p className="font-medium">{ligne.alertePv.libelle} <span className="font-normal text-muted-foreground">— relevé par l&apos;IA, à confirmer</span></p>
+          {ligne.alertePv.raison && <p className="text-muted-foreground">{ligne.alertePv.raison}</p>}
+          {ligne.alertePv.extrait && <p className="italic [overflow-wrap:anywhere]">« {ligne.alertePv.extrait} »</p>}
+          {ligne.alertePv.signaler && (
+            <Link href={ligne.alertePv.signaler} className="inline-flex h-11 items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 sm:h-9">
+              Signaler <ArrowRight className="h-4 w-4" />
+            </Link>
+          )}
+        </div>
+      )}
+      {ligne.casPv && ligne.casPv.length > 0 && (
+        <Bloc titre="Pharmacovigilance">
+          <ul className="space-y-1">
+            {ligne.casPv.map((c) => (
+              <li key={c.reference}>{c.lien ? <Link href={c.lien} className="text-primary hover:underline">{c.reference}</Link> : c.reference}</li>
+            ))}
+          </ul>
+        </Bloc>
+      )}
+      {ligne.relecture && (
+        <Bloc titre="Relecture">
+          <p>Relu{ligne.relecture.par ? ` par ${ligne.relecture.par}` : ""} le {jour(ligne.relecture.le)}.</p>
+          {ligne.relecture.commentaire && <p className="mt-1 whitespace-pre-wrap rounded-lg bg-secondary/50 px-3 py-2 [overflow-wrap:anywhere]">{ligne.relecture.commentaire}</p>}
+        </Bloc>
+      )}
       {(ligne.lien || ligne.suppression) && (
         <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
           {ligne.lien && (
