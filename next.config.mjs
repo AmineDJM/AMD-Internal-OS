@@ -111,6 +111,10 @@ const nextConfig = {
     // Super Admin (AppSetting → validateUpload). Les très gros fichiers passent par le Drive
     // (routes en flux, jusqu'à la limite Drive configurée).
     serverActions: { bodySizeLimit: "256mb" },
+    // Le MIDDLEWARE recopie le corps de chaque requête qu'il voit et le coupe à 10 Mo par défaut : un envoi plus gros
+    // arrivait tronqué (pertes de fichiers, 08/11 → 24/11/2026). Même plafond que les actions serveur ; les routes de
+    // dépôt de fichiers sont, elles, hors du middleware (`src/middleware.ts`, garde : `corps-middleware.test.ts`).
+    middlewareClientMaxBodySize: "256mb",
     // ADVENTUM IA (`APP_MODE=adventum-ia`, instance Starter de 512 Mo) : Next 15 PRÉCHARGE au démarrage le code serveur
     // de TOUTES les routes — 319 Mo de bundles, 747 Mo de RSS avant la première requête, mort à la limite de tas par
     // défaut (~250 Mo) au premier contrôle de santé (Render, 31/10/2026). L'app ne sert qu'une poignée de routes : elles

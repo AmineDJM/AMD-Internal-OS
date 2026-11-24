@@ -20,9 +20,19 @@ export default function middleware(req: NextRequest, ev: NextFetchEvent) {
   return auth(req, ev);
 }
 
+/**
+ * LES ROUTES QUI REÇOIVENT DES FICHIERS N'ENTRENT PAS DANS LE MIDDLEWARE (24/11/2026).
+ *
+ * Dès qu'un middleware s'applique à une requête, Next RECOPIE son corps pour pouvoir le rejouer, et coupe cette copie à
+ * `experimental.middlewareClientMaxBodySize` (10 Mo par défaut). Le middleware s'appliquant depuis le 08/11 à toutes les
+ * routes, tout envoi de plus de 10 Mo arrivait TRONQUÉ (« Failed to parse body as FormData ») : fichiers du Drive et des
+ * documents de 10 à 25 Mo, audio des rapports terrain et des réunions, pièces de la messagerie. Ces routes vérifient
+ * elles-mêmes la session ; le middleware ne sert qu'au mode Adventum IA. Le plafond relevé (`next.config.mjs`) couvre le
+ * reste (actions serveur avec pièce jointe, 256 Mo comme `serverActions.bodySizeLimit`).
+ * Garde-fou : `src/lib/config/corps-middleware.test.ts`.
+ */
 export const config = {
-  // Run on all routes except Next internals, the auth API, and static assets.
   matcher: [
-    "/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!api/auth|api/drive|api/documents|api/messaging|api/meetings|api/field-reports|api/onlyoffice|api/regulatory|api/rh|api/prises-en-charge|api/donnees-marche|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };
