@@ -1,23 +1,23 @@
+import Link from "next/link";
+import { ArrowUpRight } from "lucide-react";
 import { requireModule } from "@/lib/session";
 import { PageHeader } from "@/components/shared/page-header";
-import { InfoBulle } from "@/components/ui/info-bulle";
 import { Onglets } from "@/components/produits/ui-360";
 import { userCan, hasGlobalView, hasRole, type SessionUser } from "@/lib/rbac";
-import { CIRCUIT_LABEL, CIRCUIT_HINT } from "@/lib/medical-info/circuits";
+import { CHEMIN_CONFORMITE } from "@/lib/chemins/ad-pro";
 import { declarationsAFaire } from "@/lib/queries/information-medicale-a-faire";
 import { fileConformite } from "@/modules/ad-pro/api";
 import { CreateDeclarationButton } from "./[id]/panels";
 import { Registre } from "./registre";
-import { BatAControler } from "./bat-a-controler";
 import { DeclarationsAFaire } from "./declarations-a-faire";
+import { AncreBatVersConformite } from "./ancre-bat";
 
 export const dynamic = "force-dynamic";
 
 /**
- * INFORMATION MÉDICALE — deux onglets (Direction, 23/11/2026) :
- *   • « À faire » (par défaut pour le pharmacien) : les BAT à contrôler, décidés sur la ligne, puis ses déclarations
- *     rangées par TOUR — à lui, chez d'autres, à venir — chacune avec UNE phrase et UN geste ;
- *   • « Registre » : tous les dossiers et leurs tuiles (`registre.tsx`), comme avant.
+ * INFORMATION MÉDICALE — les DOSSIERS et leurs déclarations, en deux onglets : « À faire » (par défaut pour le pharmacien),
+ * rangé par tour, et « Registre » (tous les dossiers). Les BAT ne s'y répètent plus (Super Admin, 24/11/2026) : ils vivent
+ * dans « Contrôles de conformité », vers lequel « À faire » renvoie d'une ligne quand il y en a à contrôler.
  */
 export default async function MedicalInfoPage(props: { searchParams?: Promise<{ vue?: string }> }) {
   const user = await requireModule("MEDICAL_INFO");
@@ -30,17 +30,8 @@ export default async function MedicalInfoPage(props: { searchParams?: Promise<{ 
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        title="Information médicale"
-        description="Déclarations à l'ANPP, visas publicitaires, bons de versement, contrôle des BAT"
-      >
-        <InfoBulle label="Les deux circuits">
-          <strong>{CIRCUIT_LABEL.EVENT}</strong> — {CIRCUIT_HINT.EVENT}
-          <br /><br />
-          <strong>{CIRCUIT_LABEL.PROMO}</strong> — {CIRCUIT_HINT.PROMO}
-        </InfoBulle>
-        {/* LE PHARMACIEN N'ATTEND PAS TOUJOURS QU'UN DOSSIER LUI ARRIVE : une obligation se
-            découvre aussi de son côté, et ce qui n'entre pas dans l'ERP se traite dans un carnet. */}
+      <AncreBatVersConformite />
+      <PageHeader title="Information médicale">
         {canOpen && <CreateDeclarationButton />}
       </PageHeader>
 
@@ -59,12 +50,18 @@ export default async function MedicalInfoPage(props: { searchParams?: Promise<{ 
 
 async function AFaire({ user }: { user: SessionUser }) {
   const [bat, declarations] = await Promise.all([fileConformite(user), declarationsAFaire(user)]);
-  const peutDecider = hasRole(user, "MEDICAL_INFO_PHARMACIST") || hasRole(user, "SUPER_ADMIN");
+  const nbBat = bat?.aControler.length ?? 0;
   return (
-    <div className="space-y-8">
-      {bat && <BatAControler file={bat} peutDecider={peutDecider} />}
+    <div className="space-y-5">
+      {nbBat > 0 && (
+        <Link
+          href={CHEMIN_CONFORMITE}
+          className="flex items-center justify-between gap-2 rounded-xl border border-primary/40 bg-primary/[0.03] px-3 py-2.5 text-sm font-medium hover:bg-primary/[0.06] sm:px-4"
+        >
+          {nbBat} BAT à contrôler <span className="inline-flex items-center gap-1 text-primary">Contrôles de conformité <ArrowUpRight className="h-4 w-4" /></span>
+        </Link>
+      )}
       <DeclarationsAFaire tours={declarations.tours} aVenir={declarations.aVenir} gestionnaire={declarations.gestionnaire} />
     </div>
   );
 }
-

@@ -131,10 +131,10 @@ export const NATURES: Record<NatureLot, DefNature> = {
     sousTitre: "Devis, bon de commande, BAT — c'est à vous", verbe: "Ouvrir", liste: "/ad-pro", decision: false,
   },
   // LES BAT DE L'INFORMATION MÉDICALE (23/11/2026) : contrôler un BAT n'est pas « un geste du parcours agence » — c'est le
-  // travail du pharmacien, qu'il fait sur SON écran (« À faire — Information médicale »), décision sur la ligne.
+  // travail du pharmacien, qu'il fait sur SON écran (« Contrôles de conformité »), décision sur la ligne.
   bat: {
     chapeau: "Information médicale", titre: (n) => `${n} BAT à contrôler`,
-    sousTitre: "Conformité avant impression — décidez sur la ligne", verbe: "Contrôler", liste: "/information-medicale#bat", decision: true,
+    sousTitre: "Conformité avant impression — décidez sur la ligne", verbe: "Contrôler", liste: "/information-medicale/conformite", decision: true,
   },
   // LE TOTAL D'UNE DEMANDE AU-DESSUS DU SEUIL (recette du 21/11/2026) : le DG ne le voyait que sur la fiche.
   "total-dg": {

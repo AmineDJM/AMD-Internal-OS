@@ -124,7 +124,6 @@ export function FulfillForm({ requestId }: { requestId: string }) {
       action={(fd) => { fd.set("requestId", requestId); run(() => fulfillDocRequest(undefined, fd)); }}
       className="mt-2 space-y-2 rounded-lg border border-dashed border-primary/40 bg-primary/5 p-3"
     >
-      <p className="text-xs font-medium text-primary">Cette pièce vous est demandée — déposez-la ici.</p>
       <Input name="file" type="file" required className="text-sm" />
       <Input name="note" placeholder="Note (optionnel)" className="text-sm" />
       <Err msg={err} />
@@ -195,8 +194,8 @@ export function DeclareDecisionCard({
             </Select>
           </div>
           <div className="space-y-1">
-            <Label>Motif / note</Label>
-            <Textarea name="note" className="min-h-[60px]" placeholder="Ce que lira le Directeur des Opérations — exigé si le dossier ne se déclare pas." />
+            <Label>Motif (exigé si sans déclaration)</Label>
+            <Textarea name="note" className="min-h-[60px]" />
           </div>
           <Err msg={err} />
           <Button type="submit" size="sm" disabled={saving}>
@@ -247,7 +246,7 @@ export function SlipsCard({
   if (skipReason) {
     return (
       <p className="flex items-start gap-2 text-sm text-muted-foreground">
-        <PackageCheck className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden />
+        <PackageCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
         <span>Ce dossier a été déclaré <strong>sans versement</strong> — {skipReason}</span>
       </p>
     );
@@ -298,7 +297,7 @@ export function SlipsCard({
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{sl.amount != null ? formatCurrency(sl.amount) : "—"}</td>
                   <td className="whitespace-nowrap px-3 py-2">
-                    <span className={etape === "REMIS" ? "text-success" : etape === "REFUSE" || etape === "RENVOYE" || etape === "ANNULE" ? "text-destructive" : "text-muted-foreground"}>
+                    <span className={etape === "REFUSE" || etape === "RENVOYE" || etape === "ANNULE" ? "text-destructive" : "text-muted-foreground"}>
                       {SLIP_STAGE_LABEL[etape]}
                     </span>
                   </td>
@@ -428,7 +427,7 @@ export function SlipsCard({
               className="w-full space-y-2 rounded-lg border border-warning/40 bg-warning/5 p-3"
             >
               <Label>Pourquoi ce dossier n&apos;appelle aucun versement</Label>
-              <Textarea name="reason" required className="min-h-[60px]" placeholder="C'est ce que lira l'audit." />
+              <Textarea name="reason" required className="min-h-[60px]" />
               <div className="flex gap-2">
                 <Button type="submit" size="sm" variant="outline" disabled={saving}>
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />} Déclarer sans versement
@@ -473,7 +472,7 @@ export function CreateDeclarationButton() {
 
   if (!open) {
     return (
-      <Button size="sm" onClick={() => setOpen(true)}>
+      <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
         <Plus className="h-4 w-4" /> Nouvelle déclaration
       </Button>
     );
@@ -491,14 +490,18 @@ export function CreateDeclarationButton() {
       }}
       className="w-full space-y-3 rounded-xl border border-primary/30 bg-primary/5 p-3"
     >
-      <p className="text-sm font-medium">Ouvrir un dossier d&apos;information médicale</p>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <div className="space-y-1">
           <Label>Objet</Label>
-          <Input name="label" required placeholder="Ce qu'il y a à déclarer, viser ou verser" className="h-9" />
+          <Input name="label" required className="h-9" />
         </div>
         <div className="space-y-1">
-          <Label>Nature</Label>
+          {/* LA NATURE DÉCIDE DU CIRCUIT, et on le dit AVANT de créer — à la demande (ⓘ) : le découvrir après coup obligerait
+              à supprimer le dossier pour en rouvrir un autre. */}
+          <span className="flex items-center gap-1">
+            <Label>Nature</Label>
+            <InfoBulle label="Le circuit de cette nature" align="left">{DECLARATION_KIND_HINT[kind as keyof typeof DECLARATION_KIND_HINT] ?? ""}</InfoBulle>
+          </span>
           <Select name="kind" value={kind} onChange={(e) => setKind(e.target.value)}>
             {/* DEUX NATURES. « Bon de versement » n'est pas un dossier qu'on ouvre : c'est une
                 ÉTAPE du circuit du matériel, à l'intérieur du dossier. Le proposer ici faisait
@@ -515,11 +518,6 @@ export function CreateDeclarationButton() {
           <Input name="amount" inputMode="decimal" className="h-9 text-right tabular-nums" />
         </div>
       </div>
-      {/* LA NATURE DÉCIDE DU CIRCUIT, et on le dit AVANT de créer : le découvrir après coup
-          obligerait à supprimer le dossier pour en rouvrir un autre. */}
-      <p className="text-xs text-muted-foreground">
-        {DECLARATION_KIND_HINT[kind as keyof typeof DECLARATION_KIND_HINT] ?? ""}
-      </p>
       <Err msg={err} />
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={saving}>
@@ -562,11 +560,11 @@ export function AuthorityForm({ id, authorityRef, authorityNotes }: { id: string
     <form action={(fd) => { fd.set("id", id); run(() => recordAuthorityDeclaration(fd)); }} className="space-y-3">
       <div className="space-y-1">
         <Label>Référence ANPP / récépissé</Label>
-        <Input name="authorityRef" defaultValue={authorityRef ?? ""} placeholder="Référence du dépôt à l'ANPP" />
+        <Input name="authorityRef" defaultValue={authorityRef ?? ""} />
       </div>
       <div className="space-y-1">
         <Label>Notes de déclaration</Label>
-        <Textarea name="authorityNotes" defaultValue={authorityNotes ?? ""} className="min-h-[60px]" placeholder="Date du dépôt, interlocuteur ANPP, observations…" />
+        <Textarea name="authorityNotes" defaultValue={authorityNotes ?? ""} className="min-h-[60px]" />
       </div>
       <Err msg={err} />
       <Button type="submit" disabled={saving} size="sm" variant="outline">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />} Enregistrer la déclaration</Button>
@@ -584,10 +582,7 @@ export function ValidateButton({ id, hasPending }: { id: string; hasPending: boo
       {hasPending && <p className="text-xs text-warning">Des pièces sont encore attendues — vous pouvez tout de même valider.</p>}
       <Err msg={err} />
       {!confirm ? (
-        <div className="flex items-center gap-1">
-          <Button onClick={() => setConfirm(true)} disabled={saving} className="h-auto min-h-10 w-full whitespace-normal py-2 sm:w-auto"><BadgeCheck className="h-4 w-4 shrink-0" /> Valider et transmettre au Directeur des Opérations</Button>
-          <InfoBulle label="Ce que fait la validation" align="left">Votre validation transmet la déclaration au Directeur des Opérations (à défaut, au Super Admin), qui la valide pour le comptable — ou la refuse avec son motif, et elle vous revient.</InfoBulle>
-        </div>
+        <Button onClick={() => setConfirm(true)} disabled={saving} className="h-auto min-h-10 w-full whitespace-normal py-2 sm:w-auto"><BadgeCheck className="h-4 w-4 shrink-0" /> Valider et transmettre au Directeur des Opérations</Button>
       ) : (
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => { const fd = new FormData(); fd.set("id", id); run(() => validateDeclaration(fd)); }} disabled={saving}>
@@ -610,20 +605,15 @@ export function DirectionValidateButton({ id, amount }: { id: string; amount: nu
   const [motif, setMotif] = React.useState("");
   return (
     <div className="space-y-2">
-      <p className="text-xs text-muted-foreground">
-        {amount && amount > 0
-          ? `Votre validation déclenche l'ordre de dépense (${amount.toLocaleString("fr-FR")} DZD) vers le comptable — sauf si les postes de l'opération portent déjà la dépense.`
-          : "Aucun ordre de dépense n'est émis ici (la dépense est portée ailleurs, ou il n'y en a pas) : la validation clôt la déclaration."}
-      </p>
       <div className="space-y-1">
         <Label>Commentaire (facultatif)</Label>
-        <Textarea value={comment} onChange={(e) => setComment(e.target.value)} className="min-h-[56px]" placeholder="Observation à destination du comptable / des parties prenantes…" />
+        <Textarea value={comment} onChange={(e) => setComment(e.target.value)} className="min-h-[56px]" />
       </div>
       <Err msg={err} />
       {refus ? (
         <div className="space-y-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
-          <Label>Motif du refus</Label>
-          <Textarea value={motif} onChange={(e) => setMotif(e.target.value)} className="min-h-[56px]" placeholder="Ce que lira le pharmacien pour reprendre le dossier (exigé)." />
+          <Label>Motif du refus (exigé)</Label>
+          <Textarea value={motif} onChange={(e) => setMotif(e.target.value)} className="min-h-[56px]" />
           <div className="flex flex-wrap gap-2">
             <Button
               variant="destructive"
@@ -636,9 +626,14 @@ export function DirectionValidateButton({ id, amount }: { id: string; amount: nu
           </div>
         </div>
       ) : !confirm ? (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button onClick={() => setConfirm(true)} disabled={saving} className="w-full sm:w-auto"><BadgeCheck className="h-4 w-4" /> Valider pour le comptable</Button>
           <Button variant="outline" onClick={() => setRefus(true)} disabled={saving} className="w-full sm:w-auto"><XCircle className="h-4 w-4" /> Refuser</Button>
+          <InfoBulle label="Ce que déclenche la validation" align="left">
+            {amount && amount > 0
+              ? `Votre validation déclenche l'ordre de dépense (${amount.toLocaleString("fr-FR")} DZD) vers le comptable — sauf si les postes de l'opération portent déjà la dépense.`
+              : "Aucun ordre de dépense n'est émis ici (la dépense est portée ailleurs, ou il n'y en a pas) : la validation clôt la déclaration."}
+          </InfoBulle>
         </div>
       ) : (
         <div className="flex flex-wrap gap-2">

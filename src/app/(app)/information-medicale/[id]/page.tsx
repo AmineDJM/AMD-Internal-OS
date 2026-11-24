@@ -212,7 +212,7 @@ export default async function DeclarationDetailPage(props: { params: Promise<{ i
             </p>
             {r.note && <p className="mt-0.5 text-xs text-muted-foreground">Note : {r.note}</p>}
             {r.status === "FULFILLED" && r.documentId && docById.has(r.documentId) && (
-              <p className="mt-1 inline-flex items-center gap-1.5 text-xs text-success"><FileText className="h-3.5 w-3.5" /> {docById.get(r.documentId)}</p>
+              <p className="mt-1 inline-flex items-center gap-1.5 text-xs text-muted-foreground"><FileText className="h-3.5 w-3.5" /> {docById.get(r.documentId)}</p>
             )}
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -286,7 +286,7 @@ export default async function DeclarationDetailPage(props: { params: Promise<{ i
       {/* UN SEUL DÉPÔT, TOUJOURS PARTAGÉ (23/11/2026) : la déclaration et son récépissé se téléchargent aussi depuis la demande
           (le KAM compris) — la même marque que la carte Ad & Pro et l'écran « À faire ». */}
       <div className="space-y-1.5 border-t border-border pt-3">
-        <p className="text-xs text-muted-foreground">Joindre la déclaration ou le récépissé ANPP — partagés avec la demande</p>
+        <p className="text-xs font-medium">Déclaration et récépissé ANPP</p>
         <DocumentUpload entityType="MEDICAL_INFO_DECLARATION" entityId={decl.id} categories={["SUPPORTING_DOC", "OTHER"]} compact stepKey={ETAPE_DECLARATION_PARTAGEE} />
       </div>
     </div>
@@ -383,7 +383,7 @@ export default async function DeclarationDetailPage(props: { params: Promise<{ i
               </p>
             )}
             {isValidated && (
-              <p className="flex items-center gap-2 text-sm text-success">
+              <p className="flex items-center gap-2 text-sm text-muted-foreground">
                 <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
                 Dossier validé{decl.validatedAt ? ` le ${formatDate(decl.validatedAt.toISOString())}` : ""}
                 {decl.expenseOrderId ? " — ordre de dépense transmis au comptable" : ""}
@@ -400,11 +400,11 @@ export default async function DeclarationDetailPage(props: { params: Promise<{ i
 
       <Card>
         <CardContent className="divide-y divide-border py-1">
-          <Repli titre={`L'événement${amount != null ? ` · ${formatCurrency(amount)}` : ""}`}>
+          {/* Le montant et la nature sont dans l'en-tête : ils ne se répètent pas ici (Super Admin, 24/11/2026). */}
+          <Repli titre="L'événement">
             <div className="space-y-2 text-sm">
-              <Row label="Type" value={sourceLabel} />
+              {isDeclarationKind(decl.declarationKind) && <Row label="Type" value={sourceLabel} />}
               <Row label="Demandeur (à la source)" value={requesterUser?.name ?? "—"} />
-              <Row label="Budget accordé" value={amount != null ? formatCurrency(amount) : "—"} />
               <Row label="Bénéficiaire" value={decl.beneficiary ?? "—"} />
               <div className="flex items-start justify-between gap-3">
                 <span className="shrink-0 text-muted-foreground">Produit</span>
@@ -477,7 +477,7 @@ export default async function DeclarationDetailPage(props: { params: Promise<{ i
           </Repli>
 
           {blocBons && !bonsDansLaCarte && (canManage || carteFinances) && (
-            <Repli titre={`Bons de versement · ${etat.summary.delivered}/${etat.summary.count} remis`}>{blocBons}</Repli>
+            <Repli titre="Bons de versement">{blocBons}</Repli>
           )}
 
           <Repli titre={`Discussion · ${commentItems.length}`}>
