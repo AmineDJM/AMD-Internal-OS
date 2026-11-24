@@ -6,6 +6,8 @@ import { FolderPlus, FileText, FileSpreadsheet, Presentation, RefreshCw, Loader2
 import { createFolder, createOfficeNode } from "@/lib/actions/drive-actions";
 import { executerCreationOffice } from "@/lib/office/creation-ui";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { lireDepot } from "@/components/documents/envoi-document";
+import { useDepotDrive } from "./depot-drive";
 
 type NewKind = "folder" | "word" | "cell" | "slide";
 
@@ -47,6 +49,11 @@ export function DriveCanvas({
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
+  // LE GLISSER-DÉPOSER DEPUIS LE BUREAU (audit Drive, C8) : fichiers ET dossiers, lus comme dans
+  // les Documents (`lireDepot`), envoyés par le même chemin que « Importer » (question des doublons comprise).
+  const depot = useDepotDrive({ parentId, spaceId });
+  const [survol, setSurvol] = React.useState(false);
+  const deBureau = (e: React.DragEvent) => canCreate && Array.from(e.dataTransfer.types).includes("Files");
 
   const close = React.useCallback(() => { setMenu(null); setNaming(null); setValue(""); setErr(null); }, []);
 
@@ -102,8 +109,15 @@ export function DriveCanvas({
   };
 
   return (
-    <div onContextMenu={onContextMenu} className="min-h-[16rem]">
+    <div
+      onContextMenu={onContextMenu}
+      onDragOver={(e) => { if (!deBureau(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = "copy"; setSurvol(true); }}
+      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setSurvol(false); }}
+      onDrop={(e) => { if (!deBureau(e)) return; e.preventDefault(); setSurvol(false); void lireDepot(e.dataTransfer).then(depot.deposerEntrees); }}
+      className={`min-h-[16rem] rounded-xl transition-colors ${survol ? "bg-primary/5 ring-2 ring-inset ring-primary" : ""}`}
+    >
       {children}
+      {depot.dialogue}
 
       {menu && (
         <>

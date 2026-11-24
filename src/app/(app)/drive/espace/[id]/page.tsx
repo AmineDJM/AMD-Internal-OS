@@ -13,8 +13,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { formatDateTime } from "@/lib/utils";
 import { UploadButton } from "../../upload-button";
-import { NewFolderButton } from "../../new-folder-button";
-import { NewOfficeButton } from "../../new-office-button";
+import { NouveauMenu } from "../../nouveau-menu";
 import { SpaceSettingsButton } from "../../drive-space-manager";
 import { DriveTable, type DriveRow } from "../../drive-table";
 import { DriveCanvas } from "../../drive-canvas";
@@ -108,15 +107,16 @@ export default async function DriveSpacePage(
             rangé ici est souvent ailleurs — c'est justement pour cela qu'on le cherche. */}
         <DriveSearch />
         <DriveToolbar
-          trashHref={trash ? base : `${base}?trash=1`}
-          trashLabel={trash ? "Fichiers" : "Corbeille"}
+          // La corbeille d'une catégorie n'est ouverte qu'à ses gestionnaires : aux autres, pas de lien
+          // vers une page introuvable (audit Drive, C1) — ce qu'ils ont supprimé est dans LEUR Corbeille.
+          trashHref={space.canManage ? (trash ? base : `${base}?trash=1`) : undefined}
+          trashLabel={trash ? space.name : "Corbeille de la catégorie"}
           settings={spaceRow ? <SpaceSettingsButton space={spaceRow} users={users} canDelete={user.role === "SUPER_ADMIN"} /> : undefined}
           primary={!trash && canEditHere ? (
             <>
               {/* `spaceId` sert de repli quand on crée à la RACINE de la catégorie ; dans un
                   sous-dossier, `parentId` prime (le nouveau nœud hérite de la catégorie du parent). */}
-              <NewFolderButton parentId={folderId} spaceId={spaceId} />
-              <NewOfficeButton parentId={folderId} spaceId={spaceId} officeEnabled={onlyofficeConfigured()} letterheads={letterheads} companyId={letterheadCompanyId} />
+              <NouveauMenu parentId={folderId} spaceId={spaceId} officeEnabled={onlyofficeConfigured()} letterheads={letterheads} companyId={letterheadCompanyId} />
               <UploadButton parentId={folderId} spaceId={spaceId} users={users} />
             </>
           ) : undefined}
@@ -145,8 +145,10 @@ export default async function DriveSpacePage(
               <EmptyState
                 icon="FolderOpen"
                 title={trash ? "Corbeille vide" : "Catégorie vide"}
-                description={trash ? "Aucun élément supprimé." : canEditHere ? "Importez des fichiers, ou faites un clic droit ici pour créer un dossier." : "Aucun fichier n'a encore été déposé ici."}
-              />
+                description={trash ? "Aucun élément supprimé." : canEditHere ? "Importez des fichiers, ou glissez-les ici depuis votre ordinateur." : "Aucun fichier n'a encore été déposé ici."}
+              >
+                {!trash && canEditHere && <UploadButton parentId={folderId} spaceId={spaceId} />}
+              </EmptyState>
             ) : (
               <DriveTable rows={rows} moveTargets={moveTargets} trash={trash} users={canEditHere ? users : undefined} spaceId={spaceId} categories={dropCategories} folderId={folderId} ancestorIds={listing.breadcrumb.map((c) => c.id)} officeApiJs={officeApiJs} />
             )}

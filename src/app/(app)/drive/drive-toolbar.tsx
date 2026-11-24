@@ -46,8 +46,9 @@ export function DriveToolbar({
 }: {
   /** Les commandes de tous les jours : créer, importer. Rendues telles quelles. */
   primary?: React.ReactNode;
-  trashHref: string;
-  trashLabel: string;
+  /** Absent : pas d'entrée — un lien vers une corbeille qu'on ne peut pas ouvrir menait à une page introuvable (audit Drive, C1). */
+  trashHref?: string;
+  trashLabel?: string;
   /** Bouton « Accès & réglages » de la catégorie, quand il y a lieu. */
   settings?: React.ReactNode;
   /** Outils rares (papeterie de la société…) : une entrée de menu, une feuille. */
@@ -103,7 +104,7 @@ export function DriveToolbar({
               <button
                 type="button"
                 onClick={() => { setFocusMode(true); setOpen(false); }}
-                className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2.5 sm:py-2text-left text-sm hover:bg-secondary"
+                className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2.5 sm:py-2 text-left text-sm hover:bg-secondary"
               >
                 <Maximize2 className="h-4 w-4 text-muted-foreground" />
                 Plein écran
@@ -111,18 +112,20 @@ export function DriveToolbar({
               <button
                 type="button"
                 onClick={() => { toggleWide(); setOpen(false); }}
-                className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2.5 sm:py-2text-left text-sm hover:bg-secondary"
+                className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2.5 sm:py-2 text-left text-sm hover:bg-secondary"
               >
                 <MoveHorizontal className="h-4 w-4 text-muted-foreground" />
                 {wide ? "Largeur de lecture" : "Pleine largeur"}
               </button>
-              <Link
-                href={trashHref}
-                onClick={() => setOpen(false)}
-                className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2.5 sm:py-2text-sm hover:bg-secondary"
-              >
-                <Trash2 className="h-4 w-4 text-muted-foreground" /> {trashLabel}
-              </Link>
+              {trashHref && (
+                <Link
+                  href={trashHref}
+                  onClick={() => setOpen(false)}
+                  className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2.5 sm:py-2 text-sm hover:bg-secondary"
+                >
+                  <Trash2 className="h-4 w-4 text-muted-foreground" /> {trashLabel}
+                </Link>
+              )}
               {tools.map((t) => t.href ? (
                 <Link
                   key={t.key}
@@ -141,7 +144,7 @@ export function DriveToolbar({
                   key={t.key}
                   type="button"
                   onClick={() => { setTool(t.key); setOpen(false); }}
-                  className="flex w-full items-start gap-2.5 rounded-md px-2.5 py-2.5 sm:py-2text-left text-sm hover:bg-secondary"
+                  className="flex w-full items-start gap-2.5 rounded-md px-2.5 py-2.5 sm:py-2 text-left text-sm hover:bg-secondary"
                 >
                   <span className="mt-0.5 shrink-0 text-muted-foreground">{t.icon}</span>
                   <span>

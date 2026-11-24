@@ -7,6 +7,7 @@ import {
 } from "@/lib/storage/envoi-direct-client";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { sansBloquer } from "@/lib/journal";
+import { decisionRafraichir } from "@/lib/drive/depot-regles";
 
 /**
  * GESTIONNAIRE D'ENVOIS GÉNÉRIQUE, GLOBAL — n'importe quel téléversement de la plateforme
@@ -22,7 +23,7 @@ import { sansBloquer } from "@/lib/journal";
 type FileStatus = "pending" | "checking" | "uploading" | "done" | "error" | "cancelled";
 /** Un message de REFUS (droit, type, catégorie, taille) — par opposition à une coupure réseau qu'une relance répare. */
 function estUnRefus(message: string): boolean {
-  return /autoris|catégorie|type de fichier|trop volumineux|choisissez|mot de passe|interdit|refus/i.test(message);
+  return /autoris|catégorie|type de fichier|trop volumineux|choisissez|mot de passe|interdit|refus|déposer ici|dépasse/i.test(message);
 }
 
 interface BgFile {
@@ -141,9 +142,26 @@ function postFormXhr(
   });
 }
 
-export function BackgroundUploadProvider({ children }: { children: React.ReactNode }) {
+export function BackgroundUploadProvider({ children, diagnostic = false }: {
+  children: React.ReactNode;
+  /** Super Admin : la ligne « Le plus lent… » (diagnostic du serveur) s'affiche. Aux autres, elle n'apprend rien (audit Drive, C15). */
+  diagnostic?: boolean;
+}) {
   // Fin de lot en tâche de fond : `enCours` n'est lu nulle part — aucun geste n'est bloqué.
   const { rafraichir } = useRafraichir();
+  // LA LISTE SE RAFRAÎCHIT À CHAQUE FICHIER ARRIVÉ (audit Drive, C4), pas seulement en fin de lot —
+  // au plus une fois par seconde et demie (`decisionRafraichir`) : trois cents fichiers ne font pas trois cents rechargements.
+  const rafraichirRef = React.useRef(rafraichir);
+  React.useEffect(() => { rafraichirRef.current = rafraichir; }, [rafraichir]);
+  const cadence = React.useRef<{ dernier: number | null; programme: boolean }>({ dernier: null, programme: false });
+  const rafraichirFichier = React.useCallback(() => {
+    const d = decisionRafraichir(cadence.current, Date.now());
+    if (d.action === "maintenant") { cadence.current.dernier = Date.now(); rafraichirRef.current(); }
+    else if (d.action === "plus-tard") {
+      cadence.current.programme = true;
+      window.setTimeout(() => { cadence.current = { dernier: Date.now(), programme: false }; rafraichirRef.current(); }, d.dans);
+    }
+  }, []);
   const [jobs, setJobs] = React.useState<BgJob[]>([]);
   // L'état de chaque fichier, tenu AUSSI hors de React : le bilan de fin de lot (`onJobDone`) se lit
   // ici, de façon synchrone — l'état React n'est pas lisible depuis la boucle d'envoi.
@@ -151,8 +169,9 @@ export function BackgroundUploadProvider({ children }: { children: React.ReactNo
 
   const patchFile = React.useCallback((jobId: string, idx: number, p: Partial<BgFile>) => {
     if (p.status) { const s = statuts.current.get(jobId); if (s) s[idx] = p.status; }
+    if (p.status === "done") rafraichirFichier();
     setJobs((js) => js.map((j) => (j.id === jobId ? { ...j, files: j.files.map((f, i) => (i === idx ? { ...f, ...p } : f)) } : j)));
-  }, []);
+  }, [rafraichirFichier]);
   const dismiss = React.useCallback((jobId: string) => { statuts.current.delete(jobId); setJobs((js) => js.filter((j) => j.id !== jobId)); }, []);
 
   // ANNULATION — le drapeau arrête la file, l'avortement coupe ce qui est déjà en vol. Les deux
@@ -407,7 +426,7 @@ export function BackgroundUploadProvider({ children }: { children: React.ReactNo
   return (
     <BgUploadContext.Provider value={value}>
       {children}
-      <BgUploadWidget jobs={jobs} onDismiss={dismiss} onRetry={retryFailed} onCancel={cancelJob} />
+      <BgUploadWidget jobs={jobs} onDismiss={dismiss} onRetry={retryFailed} onCancel={cancelJob} diagnostic={diagnostic} />
     </BgUploadContext.Provider>
   );
 }
@@ -417,7 +436,7 @@ export function BackgroundUploadProvider({ children }: { children: React.ReactNo
  * **réductible** en une petite bulle (bouton −). Un bouton **Réessayer** relance les fichiers en
  * échec sans perdre la file. Position par défaut : bas-gauche (n'écrase ni l'assistant ni le CTD).
  */
-function BgUploadWidget({ jobs, onDismiss, onRetry, onCancel }: { jobs: BgJob[]; onDismiss: (id: string) => void; onRetry: (id: string) => void; onCancel: (id: string) => void }) {
+function BgUploadWidget({ jobs, onDismiss, onRetry, onCancel, diagnostic }: { jobs: BgJob[]; onDismiss: (id: string) => void; onRetry: (id: string) => void; onCancel: (id: string) => void; diagnostic: boolean }) {
   const [minimized, setMinimized] = React.useState(false);
   // UN ÉCHEC S'AFFICHE (Direction, 06/10) : réduit, le widget ne disait que « Échecs » — la raison restait cachée.
   const nbEchecs = jobs.filter((j) => j.phase === "error").length;
@@ -526,6 +545,8 @@ function BgUploadWidget({ jobs, onDismiss, onRetry, onCancel }: { jobs: BgJob[];
                       <span>{debitLisible(j.debit ?? 0)}</span>
                       <span>{resteLisible(j.resteS ?? null)}</span>
                     </p>
+                    {/* Au téléphone, mettre l'application en arrière-plan suspend l'envoi (audit Drive, C15). */}
+                    <p className="mt-1 text-[0.6875rem] text-warning sm:hidden">Gardez l&apos;application ouverte pendant l&apos;envoi.</p>
                   </div>
                 )}
                 {failed > 0 && j.phase !== "error" && erreurs.length > 0 && (
@@ -545,7 +566,7 @@ function BgUploadWidget({ jobs, onDismiss, onRetry, onCancel }: { jobs: BgJob[];
                     {done > 0 ? `, ${done} déjà enregistré·s (à supprimer depuis la liste si besoin)` : ""}.
                   </p>
                 )}
-                {j.slowest && (
+                {diagnostic && j.slowest && (
                   <p className="mt-1 rounded bg-secondary/60 px-2 py-1 text-[0.6875rem] leading-snug text-muted-foreground" title={j.slowest.name}>
                     Le plus lent : {j.slowest.line}
                   </p>

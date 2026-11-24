@@ -11,6 +11,7 @@ import { useBackgroundUpload } from "@/components/layout/background-upload";
 import { useLimitesEnvoi } from "@/components/layout/use-limites-envoi";
 import { envoiDocument, construireEnvoi, lireDepot, FICHIER_PARASITE, type EntreeDepot } from "./envoi-document";
 import { cn } from "@/lib/utils";
+import { phraseLimite } from "@/lib/drive/depot-regles";
 
 interface DocumentUploadProps {
   entityType: EntityType;
@@ -47,7 +48,7 @@ let uid = 0;
 /**
  * Téléversement de documents : un ou plusieurs **fichiers de tout type**, **un dossier entier** (avec
  * son arborescence — plus besoin de le compresser) ou **une archive ZIP**, **sans limite de nombre**,
- * jusqu'à 10 Go par fichier (envoi direct au bucket au-delà du seuil). L'envoi est
+ * jusqu'à la limite RÉELLE annoncée (`phraseLimite` : 10 Go avec stockage objet, moins sans). L'envoi est
  * confié au **gestionnaire d'envois global** (arrière-plan) : dès qu'on clique « Téléverser », on
  * peut **changer de module et continuer à travailler** — les fichiers montent en parallèle et la
  * pastille flottante suit la progression partout. En contexte Regulatory, tout est en plus répliqué
@@ -75,6 +76,8 @@ export function DocumentUpload({ entityType, entityId, categories, stepKey, comp
   const limites = useLimitesEnvoi();
   const [refuses, setRefuses] = React.useState<{ id: string; path: string; raison: string }[]>([]);
 
+  // LA LIMITE RÉELLE, pas « 10 Go » en dur (audit Drive, C9) : sans stockage objet, elle est bien plus basse.
+  const limiteLue = phraseLimite(limites, "documents");
   const refusDe = limites ? envoiDocument({ entityType, entityId, category, confidentiality, stepKey, ctd }, limites, () => null).refus : undefined;
 
   function addEntries(list: EntreeDepot[]) {
@@ -156,7 +159,7 @@ export function DocumentUpload({ entityType, entityId, categories, stepKey, comp
             </Button>
           </div>
         </div>
-        {!compact && <p className="mt-1.5 text-xs text-muted-foreground">Des <strong>fichiers de tout type</strong>, un <strong>dossier entier</strong> (arborescence conservée) ou une archive <strong>.ZIP</strong> · jusqu&apos;à 10 Go par fichier · envoi en arrière-plan</p>}
+        {!compact && <p className="mt-1.5 text-xs text-muted-foreground">Des <strong>fichiers de tout type</strong>, un <strong>dossier entier</strong> (arborescence conservée) ou une archive <strong>.ZIP</strong>{limiteLue ? <> · {limiteLue}</> : null} · envoi en arrière-plan</p>}
         <input ref={filesRef} type="file" multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
         {/* Sélecteur de DOSSIER : `webkitdirectory` (non standard mais pris en charge par tous les navigateurs courants). */}
         <input

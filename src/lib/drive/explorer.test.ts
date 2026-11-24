@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  fileTypeLabel, explorerSize, extensionOf, sortRows, parseView, VIEW_TITLE, QUICK_ACCESS,
+  fileTypeLabel, explorerSize, extensionOf, sortRows, parseView, VIEW_TITLE, QUICK_ACCESS, MES_FICHIERS,
   type ExplorerRow,
 } from "./explorer";
 
@@ -95,13 +95,14 @@ describe("Les vues de l'explorateur", () => {
     expect(parseView("recent", false)).toBe("recent");
   });
 
-  it("« Téléchargements » EST l'espace personnel, plus un journal séparé", () => {
-    // Deux entrées pour un seul endroit (« Drive » et « Téléchargements ») ne se distinguaient
-    // pas au premier regard. Chez Windows, Téléchargements est un vrai dossier : on a fondu
-    // les deux, et l'ancienne vue-journal retombe donc sur la navigation normale.
+  it("l'espace personnel s'appelle « Mes fichiers » partout (audit Drive, C6)", () => {
+    // Quatre noms pour un seul endroit (« Téléchargements », « Mes fichiers », « Racine (Drive) »,
+    // « Drive ») : on cherchait son fichier au mauvais. L'ancienne vue-journal retombe sur la navigation.
     expect(parseView("downloads", false)).toBe("browse");
     expect(QUICK_ACCESS.map((e) => e.key)).toEqual(["recent", "root"]);
-    expect(QUICK_ACCESS.find((e) => e.key === "root")?.href).toBe("/drive");
+    expect(QUICK_ACCESS.find((e) => e.key === "root")).toMatchObject({ href: "/drive", label: MES_FICHIERS });
+    expect(MES_FICHIERS).toBe("Mes fichiers");
+    expect(VIEW_TITLE.browse).toBe(MES_FICHIERS);
   });
 
   it("la corbeille l'emporte sur tout", () => {

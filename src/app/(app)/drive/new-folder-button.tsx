@@ -10,14 +10,18 @@ import { Input, Label } from "@/components/ui/input";
 import { Retour } from "@/components/ui/retour";
 import { useFormAction } from "@/components/shared/use-action";
 
-export function NewFolderButton({ parentId, spaceId }: { parentId: string | null; spaceId?: string | null }) {
-  const [open, setOpen] = React.useState(false);
+/** `ouvert`/`onFermer` : piloté par le menu « Nouveau » (pas de bouton à soi). */
+export function NewFolderButton({ parentId, spaceId, ouvert, onFermer }: { parentId: string | null; spaceId?: string | null; ouvert?: boolean; onFermer?: () => void }) {
+  const [interne, setInterne] = React.useState(false);
+  const pilote = ouvert !== undefined;
+  const open = pilote ? ouvert : interne;
+  const setOpen = (v: boolean) => { if (!pilote) setInterne(v); else if (!v) onFermer?.(); };
   const creation = React.useCallback((fd: FormData) => createFolder(undefined, fd), []);
   const { action, busy: saving, err } = useFormAction(creation, { onOk: () => setOpen(false) });
 
   return (
     <>
-      <Button variant="outline" type="button" onClick={() => setOpen(true)}><FolderPlus className="h-4 w-4" /> Nouveau dossier</Button>
+      {!pilote && <Button variant="outline" type="button" onClick={() => setOpen(true)}><FolderPlus className="h-4 w-4" /> Nouveau dossier</Button>}
       <Sheet open={open} onClose={() => setOpen(false)} title="Nouveau dossier" width="md">
         <form
           action={action}

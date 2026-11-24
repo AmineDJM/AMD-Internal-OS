@@ -6,6 +6,7 @@ import { browseDrive, type BrowseNode } from "@/lib/actions/drive-browse-actions
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { MES_FICHIERS } from "@/lib/drive/explorer";
 
 /**
  * L'EXPLORATEUR DU DRIVE, OUVERT EN PLACE — pour désigner un fichier ou un dossier existant
@@ -129,7 +130,7 @@ export function DriveExplorerSheet({ onClose, onPick }: { onClose: () => void; o
               spaceId === null ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-secondary",
             )}
           >
-            Mon Drive
+            {MES_FICHIERS}
           </button>
           {spaces.map((s) => (
             <button
@@ -147,7 +148,7 @@ export function DriveExplorerSheet({ onClose, onPick }: { onClose: () => void; o
         {/* Fil d'Ariane — il défile SEUL sur un écran étroit, sans pousser la page. */}
         <div className="-mx-1 flex items-center gap-1 overflow-x-auto px-1 pb-1 text-xs text-muted-foreground">
           <button type="button" onClick={() => goto(null)} className="flex shrink-0 items-center gap-1 rounded px-1.5 py-2 hover:bg-secondary sm:py-1">
-            <House className="h-3.5 w-3.5" /> Racine
+            <House className="h-3.5 w-3.5" /> {spaceId === null ? MES_FICHIERS : (spaces.find((s) => s.id === spaceId)?.name ?? "Racine")}
           </button>
           {crumbs.map((c) => (
             <React.Fragment key={c.id}>

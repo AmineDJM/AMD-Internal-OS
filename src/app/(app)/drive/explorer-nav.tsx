@@ -5,7 +5,7 @@ import Link from "next/link";
 
 import { Share2 } from "lucide-react";
 import { Icon } from "@/components/ui/icon";
-import { QUICK_ACCESS, TRASH_ENTRY } from "@/lib/drive/explorer";
+import { QUICK_ACCESS, TRASH_ENTRY, MES_FICHIERS } from "@/lib/drive/explorer";
 import { moveNodes } from "@/lib/actions/drive-actions";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { actionFailureMessage } from "@/lib/action-outcome";
@@ -24,7 +24,7 @@ interface UserLite { id: string; name: string }
  * colonne de gauche dit où l'on est, la liste de droite dit ce qu'il y a.
  *
  * Restent les deux gestes qui n'ont de sens que là :
- *   • **le dépôt** — on attrape un fichier dans la liste et on le lâche sur « Téléchargements »
+ *   • **le dépôt** — on attrape un fichier dans la liste et on le lâche sur « Mes fichiers »
  *     ou sur une catégorie, en un seul geste, sans naviguer d'abord jusqu'à la destination ;
  *   • **les accès d'une catégorie** (clic droit), parce que c'est là qu'on y pense.
  *
@@ -109,14 +109,14 @@ export function ExplorerNav({
       <p className="hidden px-2 pb-1 pt-1 text-[0.6875rem] font-medium uppercase tracking-wide text-muted-foreground lg:block">Accès rapide</p>
       <ul className="flex shrink-0 gap-1 lg:block lg:space-y-0.5">
         {QUICK_ACCESS.map((e) => {
-          // « Téléchargements » est l'espace personnel : on y dépose comme dans un vrai dossier.
+          // « Mes fichiers » est l'espace personnel : on y dépose comme dans un vrai dossier.
           const isRoot = e.key === "root";
           return (
             <li key={e.key} className="shrink-0">
               <div
                 className={rowClass(e.key, active === e.key)}
                 style={{ paddingLeft: "0.5rem" }}
-                {...(isRoot ? dropProps(e.key, { spaceId: "", label: "Téléchargements" }) : {})}
+                {...(isRoot ? dropProps(e.key, { spaceId: "", label: `« ${MES_FICHIERS} »` }) : {})}
               >
                 <span className="hidden w-4 shrink-0 lg:block" />
                 <Link href={e.href} className="flex min-w-0 flex-1 items-center gap-1.5">

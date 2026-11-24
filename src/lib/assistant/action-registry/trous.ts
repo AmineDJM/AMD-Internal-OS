@@ -12,6 +12,7 @@ export function classerTrous(): void {
     "drive-actions:deleteNode", "drive-actions:shareNode", "drive-actions:shareNodeWithMany", "drive-actions:unshareNode",
     "drive-actions:createOfficeNode", "drive-actions:convertNodeToPdf", "drive-actions:trashNodes",
     "drive-actions:shareNodesWithMany", "drive-actions:copyNodes", "drive-actions:moveNodes",
+    "drive-actions:restoreNodes",
     "drive-space-actions:createDriveSpace", "drive-space-actions:updateDriveSpace",
     "drive-space-actions:archiveDriveSpace", "drive-space-actions:deleteDriveSpace",
     "drive-comment-actions:postDriveComment", "drive-comment-actions:deleteDriveComment",

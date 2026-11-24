@@ -3,10 +3,10 @@
 import * as React from "react";
 import Link from "next/link";
 
-import { Download, Loader2, GripVertical, ChevronUp, ChevronDown, Trash2, Share2, FolderOpen, Check, Search, ClipboardPaste, Copy, Scissors } from "lucide-react";
+import { Download, Loader2, GripVertical, ChevronUp, ChevronDown, Trash2, Share2, FolderOpen, Check, Search, ClipboardPaste, Copy, Scissors, RotateCcw } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { FileGlyph } from "@/components/drive/file-glyph";
-import { moveNode, moveNodes, copyNodes, trashNodes, shareNodesWithMany } from "@/lib/actions/drive-actions";
+import { moveNode, moveNodes, copyNodes, trashNodes, restoreNodes, shareNodesWithMany } from "@/lib/actions/drive-actions";
 import {
   CLIPBOARD_KEY, parseClipboard, serializeClipboard, clipboardLabel, canPasteInto, clipShortcut,
   type Clipboard,
@@ -40,7 +40,10 @@ export interface DriveRow {
   updatedAt: string;
   updatedLabel: string;
   canEdit: boolean;
-  href: string;
+  /** `null` : l'élément ne s'ouvre plus (corbeille d'un fichier qu'on ne peut plus lire) — le nom n'est pas un lien. */
+  href: string | null;
+  /** Corbeille : d'où il a été supprimé (« Mes fichiers », une catégorie, un dossier). */
+  supprimeDe?: string;
   /** Partages, commentaires, versions — les icônes de la ligne et l'en-tête du menu « ⋯ ». */
   counts?: { shares: number; comments: number; versions: number };
   /** « Convertir en PDF » proposé (format Office, convertisseur, droit de créer). */
@@ -106,7 +109,7 @@ export function DriveTable({
   const [shareOpen, setShareOpen] = React.useState(false);
   const [dragId, setDragId] = React.useState<string | null>(null);
   const [overId, setOverId] = React.useState<string | null>(null); // cible survolée (dossier id, ou "cat:<id>", ou "root")
-  const [moveMsg, setMoveMsg] = React.useState<{ ok: boolean; text: string } | null>(null);
+  const [moveMsg, setMoveMsg] = React.useState<{ ok: boolean; text: string; annuler?: string[] } | null>(null);
   const [clip, setClip] = React.useState<Clipboard | null>(null);
   const [pasting, setPasting] = React.useState(false);
   const order = React.useMemo(() => sorted.map((r) => r.id), [sorted]);
@@ -141,10 +144,32 @@ export function DriveTable({
     const fd = new FormData();
     for (const id of sel.ids) fd.append("id", id);
     try {
+      const ids = [...sel.ids];
       const r = await trashNodes(fd);
+      // « ANNULER » JUSTE APRÈS (audit Drive, C13) : le geste se défait sans aller chercher la corbeille.
       setMoveMsg(r.ok
-        ? { ok: true, text: `${r.done} élément·s mis à la corbeille${r.denied ? `, ${r.denied} refusé·s` : ""}.` }
+        ? { ok: true, text: `${r.done} élément·s mis à la corbeille${r.denied ? `, ${r.denied} refusé·s` : ""}.`, annuler: ids }
         : { ok: false, text: r.error ?? "Suppression impossible." });
+      if (r.ok) { clear(); rafraichir(); }
+    } catch {
+      setMoveMsg({ ok: false, text: actionFailureMessage("THROWN") });
+    } finally {
+      setBusy(false);
+    }
+    window.setTimeout(() => setMoveMsg(null), 8000);
+  };
+
+  /** « Restaurer » sur toute la sélection (corbeille), ou « Annuler » une mise à la corbeille. */
+  const bulkRestore = async (ids: readonly string[]) => {
+    if (ids.length === 0 || busy) return;
+    setBusy(true);
+    const fd = new FormData();
+    for (const id of ids) fd.append("id", id);
+    try {
+      const r = await restoreNodes(fd);
+      setMoveMsg(r.ok
+        ? { ok: true, text: `${r.done} élément·s restauré·s à leur place${r.denied ? `, ${r.denied} refusé·s` : ""}.` }
+        : { ok: false, text: r.error ?? "Restauration impossible." });
       if (r.ok) { clear(); rafraichir(); }
     } catch {
       setMoveMsg({ ok: false, text: actionFailureMessage("THROWN") });
@@ -341,7 +366,14 @@ export function DriveTable({
           {!trash && canActOnAll && (
             <button type="button" onClick={() => void bulkTrash()} disabled={busy}
               className="inline-flex items-center gap-1.5 rounded-lg border border-destructive/40 px-2.5 py-2 text-sm font-medium sm:py-1.5 text-destructive hover:bg-destructive/10 disabled:opacity-60">
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} Supprimer
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} Mettre à la corbeille
+            </button>
+          )}
+
+          {trash && canActOnAll && (
+            <button type="button" onClick={() => void bulkRestore(sel.ids)} disabled={busy}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-input px-2.5 py-2 text-sm font-medium sm:py-1.5 hover:bg-secondary disabled:opacity-60">
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />} Restaurer
             </button>
           )}
 
@@ -372,7 +404,12 @@ export function DriveTable({
       )}
 
       {moveMsg && (
-        <p className={`rounded-lg px-3 py-2 text-sm ${moveMsg.ok ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>{moveMsg.text}</p>
+        <p className={`flex flex-wrap items-center gap-x-3 rounded-lg px-3 py-2 text-sm ${moveMsg.ok ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>
+          {moveMsg.text}
+          {moveMsg.annuler && (
+            <button type="button" onClick={() => void bulkRestore(moveMsg.annuler!)} disabled={busy} className="font-semibold underline underline-offset-2">Annuler</button>
+          )}
+        </p>
       )}
 
       {shareOpen && users && (
@@ -393,13 +430,10 @@ export function DriveTable({
             Drive ») — Partage, Commentaires, et « ⋯ » qui porte tout le reste, informations en tête.
             Résultat : le nom dispose de presque toute la largeur, et plus rien ne se chevauche.
 
-            POLICE RÉDUITE D'ENVIRON 30 % (0,875 rem → 0,625 rem ; en-têtes 0,75 → 0,5625 rem), avec
-            des lignes resserrées en proportion — sans quoi on aurait un texte petit dans des lignes
-            hautes, ce qui est simplement moins lisible, pas plus dense. Les deux valeurs sont ici,
-            en un seul endroit, si l'on veut les rouvrir.
-            AU TÉLÉPHONE, cette densité de bureau tombait sous les 11 px : la liste y garde une
-            police lisible et des lignes au pouce ; la réduction ne s'applique qu'à partir de sm. */}
-        <Table className="table-fixed text-sm sm:text-[0.625rem] [&_th]:h-9 [&_th]:px-2 [&_th]:text-[0.6875rem] sm:[&_th]:h-8 sm:[&_th]:text-[0.5625rem] [&_td]:px-2 [&_td]:py-2.5 sm:[&_td]:py-1.5">
+            POLICE DE BUREAU À 13 PX (audit Drive du 24/11, C14) : la réduction à 10 px rendait la
+            liste illisible sans rien gagner. Les lignes restent resserrées au bureau (sm), et au
+            téléphone la liste garde ses lignes au pouce. */}
+        <Table className="table-fixed text-sm sm:text-[0.8125rem] [&_th]:h-9 [&_th]:px-2 [&_th]:text-xs sm:[&_th]:h-8 [&_td]:px-2 [&_td]:py-2.5 sm:[&_td]:py-1.5">
           <TableHeader>
             <TableRow>
               <TableHead className="w-9 sm:w-7">
@@ -460,23 +494,31 @@ export function DriveTable({
                       {/* La poignée ne sert qu'à la souris : au doigt, elle ne ferait que voler de la place au nom. */}
                       {dndEnabled && n.canEdit && <GripVertical className="hidden h-3 w-3 shrink-0 cursor-grab text-muted-foreground/40 sm:block" aria-hidden />}
                       {/* CLIQUER LE NOM, C'EST ÊTRE DANS LE FICHIER — et l'éditeur se prépare dès le survol. */}
-                      <Link
-                        href={n.href} draggable={false} title={n.name}
-                        onMouseEnter={n.office ? () => prechargerEditeur(officeApiJs) : undefined}
-                        onTouchStart={n.office ? () => prechargerEditeur(officeApiJs) : undefined}
-                        className="flex min-w-0 items-center gap-1.5 font-medium hover:underline"
-                      >
-                        <FileGlyph name={n.name} isFile={n.isFile} />
-                        <span className="truncate">{n.name}</span>
-                      </Link>
-                      {n.isFile && n.category && (
-                        <span className="hidden shrink-0 rounded-full bg-secondary px-1.5 py-0.5 text-[0.5625rem] font-medium text-muted-foreground md:inline">{n.category}</span>
+                      {n.href ? (
+                        <Link
+                          href={n.href} draggable={false} title={n.name}
+                          onMouseEnter={n.office ? () => prechargerEditeur(officeApiJs) : undefined}
+                          onTouchStart={n.office ? () => prechargerEditeur(officeApiJs) : undefined}
+                          className="flex min-w-0 items-center gap-1.5 font-medium hover:underline"
+                        >
+                          <FileGlyph name={n.name} isFile={n.isFile} />
+                          <span className="truncate">{n.name}</span>
+                        </Link>
+                      ) : (
+                        <span className="flex min-w-0 items-center gap-1.5 font-medium" title={n.name}>
+                          <FileGlyph name={n.name} isFile={n.isFile} />
+                          <span className="truncate">{n.name}</span>
+                        </span>
                       )}
-                      {!n.isFile && isFolderTarget && <span className="shrink-0 text-[0.5625rem] font-medium text-primary">déposer ici</span>}
+                      {n.isFile && n.category && (
+                        <span className="hidden shrink-0 rounded-full bg-secondary px-1.5 py-0.5 text-[0.6875rem] font-medium text-muted-foreground md:inline">{n.category}</span>
+                      )}
+                      {!n.isFile && isFolderTarget && <span className="shrink-0 text-[0.6875rem] font-medium text-primary">déposer ici</span>}
                     </div>
                     {/* Sous le nom, sur ÉCRAN ÉTROIT : la date n'a plus de colonne, mais elle reste
                         l'information qu'on cherche le plus après le nom. */}
                     <span className="mt-0.5 block truncate text-xs text-muted-foreground sm:hidden">{n.updatedLabel}</span>
+                    {n.supprimeDe && <span className="mt-0.5 block truncate text-xs text-muted-foreground">Supprimé de : {n.supprimeDe}</span>}
                   </TableCell>
                   <TableCell className="hidden whitespace-nowrap text-muted-foreground sm:table-cell">{n.updatedLabel}</TableCell>
                   <TableCell className="text-right">
@@ -485,6 +527,7 @@ export function DriveTable({
                       moveTargets={n.canEdit && !trash ? moveTargets : undefined} users={n.canEdit && !trash ? users : undefined} spaceId={spaceId}
                       infos={{ sizeLabel: n.sizeLabel, typeLabel: n.typeLabel, updatedLabel: n.updatedLabel }}
                       counts={n.counts} convertible={n.convertible}
+                      onMisALaCorbeille={(id, nom) => { setMoveMsg({ ok: true, text: `« ${nom} » mis à la corbeille.`, annuler: [id] }); window.setTimeout(() => setMoveMsg(null), 8000); }}
                     />
                   </TableCell>
                 </TableRow>
@@ -553,7 +596,7 @@ function BulkShareSheet({
               key={a} type="button" onClick={() => setAccess(a)}
               className={`px-3 py-1.5 text-sm font-medium transition-colors ${access === a ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary"}`}
             >
-              {a === "VIEW" ? "Lecture" : "Modification"}
+              {a === "VIEW" ? "Voir" : "Modifier"}
             </button>
           ))}
         </div>

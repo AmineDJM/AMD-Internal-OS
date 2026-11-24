@@ -3,6 +3,8 @@ import { canManageDriveSpace, canViewDriveSpace, userCan, type SessionUser } fro
 import { prisma } from "@/lib/prisma";
 import { resolveDriveAccess, driveBreadcrumb, type DriveAccessLevel } from "@/lib/drive";
 import { estEspaceAdamDAutrui } from "@/lib/drive/espace-adam";
+import { MES_FICHIERS } from "@/lib/drive/explorer";
+import { matchesQuery } from "@/lib/drive/search";
 
 /** Ligne du Drive prête pour l'UI, avec le droit d'édition **résolu par nœud**. */
 export interface DriveNodeRow {
@@ -19,6 +21,10 @@ export interface DriveNodeRow {
   canEdit: boolean;
   /** Compteurs des icônes de la ligne (Partage, Commentaires) et de l'en-tête du menu « ⋯ ». */
   counts: { shares: number; comments: number; versions: number };
+  /** Corbeille : l'endroit d'où l'élément a été supprimé (« Mes fichiers », une catégorie, un dossier). */
+  supprimeDe?: string;
+  /** Corbeille : la personne peut-elle encore OUVRIR l'élément ? Sinon, son nom n'est pas un lien. */
+  ouvrable?: boolean;
 }
 
 export interface DriveListing {
@@ -82,7 +88,7 @@ export async function getDriveTabs(user: SessionUser): Promise<{ label: string; 
   // « Drive » = le Drive personnel. L'onglet « Documents » a été retiré : tout passe par le Drive
   // et les catégories. Depuis le Drive, on glisse des dossiers vers une catégorie.
   return [
-    { label: "Drive", href: "/drive", show: userCan(user, "DRIVE", "VIEW") },
+    { label: MES_FICHIERS, href: "/drive", show: userCan(user, "DRIVE", "VIEW") },
     ...spaces.map((s) => ({ label: s.name, href: `/drive/espace/${s.id}`, show: true })),
   ];
 }
@@ -166,10 +172,10 @@ export async function getDriveListing(
   }
 
   if (trash) {
-    // La corbeille d'une catégorie est réservée à ses gestionnaires.
-    if (spaceId && !spaceManage) return null;
-    // Un élément personnel SANS PROPRIÉTAIRE (compte supprimé, reprise de données) n'apparaissait dans aucune
-    // corbeille : ni restaurable, ni destructible (audit Drive du 24/11, A9). Il figure dans celle du Super Admin.
+    // LA corbeille de la personne : tout ce qu'ELLE a supprimé, de ses fichiers comme des catégories.
+    if (!spaceId) return { folder: null, breadcrumb: [], nodes: await getCorbeille(user), level: "EDIT", trash: true, space: null };
+    // La corbeille d'une catégorie (tout ce qui y a été supprimé, par qui que ce soit) reste à ses gestionnaires.
+    if (!spaceManage) return null;
     const proprietaire = user.role === "SUPER_ADMIN" ? { OR: [{ ownerId: user.id }, { ownerId: null }] } : { ownerId: user.id };
     const where = spaceId
       ? { spaceId, isTrashed: true, OR: [{ parentId: null }, { parent: { isTrashed: false } }] }
@@ -236,3 +242,59 @@ export async function getDriveListing(
   return { folder: null, breadcrumb: [], nodes: merged.map((n) => toRow(user, n, false)), level: "EDIT", trash: false, space: null };
 }
 
+
+/** Le haut de la corbeille : un élément dont le parent n'y est pas (le contenu d'un dossier supprimé part avec lui). */
+const HAUT_DE_CORBEILLE = { isTrashed: true, OR: [{ parentId: null }, { parent: { isTrashed: false } }] } satisfies Prisma.DriveNodeWhereInput;
+
+/**
+ * LA CORBEILLE UNIFIÉE (audit Drive du 24/11, C1) — « ce que J'AI supprimé ».
+ *
+ * La corbeille de gauche ne montrait que les fichiers PERSONNELS dont on est propriétaire : un fichier
+ * supprimé dans une catégorie disparaissait de la vue de celui qui l'avait supprimé (la corbeille de
+ * la catégorie est réservée à ses gestionnaires), et un nœud sans propriétaire n'était visible nulle
+ * part. On retient désormais l'AUTEUR de la mise à la corbeille (le journal l'écrit à chaque geste),
+ * plus ses fichiers personnels supprimés avant ce journal — et chaque ligne dit d'où elle vient.
+ */
+export async function getCorbeille(user: SessionUser): Promise<DriveNodeRow[]> {
+  const traces = await prisma.auditLog.findMany({
+    where: { actorId: user.id, entityType: "DRIVE_NODE", field: "isTrashed", newValue: "true" },
+    select: { entityId: true }, orderBy: { createdAt: "desc" }, take: 2000,
+  });
+  const tracesIds = [...new Set(traces.map((t) => t.entityId).filter((x): x is string => !!x))];
+  const candidats = (await prisma.driveNode.findMany({
+    where: { AND: [HAUT_DE_CORBEILLE, { OR: [{ id: { in: tracesIds } }, { ownerId: user.id, spaceId: null }, ...(user.role === "SUPER_ADMIN" ? [{ ownerId: null, spaceId: null }] : [])] }] },
+    include: { ...nodeInclude(user.id), parent: { select: { name: true } }, space: { select: { name: true, accessRoles: true, accessUserIds: true, managerRoles: true, managerUserIds: true, isArchived: true } } },
+    orderBy: { updatedAt: "desc" },
+  })) as (RawNode & { parent: { name: string } | null; space: (Parameters<typeof canManageDriveSpace>[1] & { name: string }) | null })[];
+  if (candidats.length === 0) return [];
+
+  // Supprimé à nouveau par QUELQU'UN D'AUTRE depuis (restauré puis remis) : c'est dans SA corbeille.
+  const derniers = new Map<string, string | null>();
+  for (const t of await prisma.auditLog.findMany({
+    where: { entityType: "DRIVE_NODE", field: "isTrashed", newValue: "true", entityId: { in: candidats.map((c) => c.id) } },
+    select: { entityId: true, actorId: true }, orderBy: { createdAt: "desc" },
+  })) if (t.entityId && !derniers.has(t.entityId)) derniers.set(t.entityId, t.actorId);
+
+  const rows: DriveNodeRow[] = [];
+  for (const n of candidats) {
+    const auteur = derniers.get(n.id);
+    // Un élément personnel SANS PROPRIÉTAIRE (compte supprimé, reprise de données) va dans la corbeille du Super Admin (audit Drive A9).
+    const sansProprietaire = n.ownerId === null && !n.spaceId && user.role === "SUPER_ADMIN";
+    if (!sansProprietaire && (auteur !== undefined ? auteur !== user.id : n.ownerId !== user.id)) continue;
+    // Le droit est relu sur le nœud même : la règle d'accès d'un élément à la corbeille vit dans `resolveDriveAccess`.
+    const level = await resolveDriveAccess(user, n.id);
+    const gestionnaire = !!n.space && canManageDriveSpace(user, n.space);
+    rows.push({
+      ...toRow(user, n, level === "EDIT"),
+      canEdit: level === "EDIT",
+      supprimeDe: n.parent?.name ?? n.space?.name ?? MES_FICHIERS,
+      ouvrable: level !== "NONE" && (n.ownerId === user.id || gestionnaire || user.role === "SUPER_ADMIN"),
+    });
+  }
+  return rows;
+}
+
+/** Combien d'éléments de MA corbeille portent ce mot — la recherche le signale (« 2 résultats dans la corbeille »). */
+export async function compterDansLaCorbeille(user: SessionUser, query: string): Promise<number> {
+  return (await getCorbeille(user)).filter((n) => matchesQuery(n.name, query)).length;
+}

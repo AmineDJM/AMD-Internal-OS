@@ -14,7 +14,7 @@ import type { ActionResult } from "@/lib/actions/types";
 
 export interface ShareItem { userId: string; name: string; access: string }
 
-/** Ligne d'un partage : l'accès est **modifiable** (Lecture / Éditeur / Aucun accès). */
+/** Ligne d'un partage : l'accès est **modifiable** (Voir / Modifier / Retirer — un seul vocabulaire, audit Drive C12). */
 function ShareRow({ nodeId, share, canEdit, onChanged }: { nodeId: string; share: ShareItem; canEdit: boolean; onChanged?: () => void }) {
   const { rafraichir } = useRafraichir();
   // Le sélecteur d'une ligne n'a pas de place pour parler : un refus part en avis flottant.
@@ -56,13 +56,13 @@ function ShareRow({ nodeId, share, canEdit, onChanged }: { nodeId: string; share
             disabled={busy}
             className="h-9 w-32 text-xs sm:h-8"
           >
-            <option value="VIEW">Lecture</option>
-            <option value="EDIT">Éditeur</option>
-            <option value="NONE">Aucun accès</option>
+            <option value="VIEW">Voir</option>
+            <option value="EDIT">Modifier</option>
+            <option value="NONE">Retirer</option>
           </Select>
         </span>
       ) : (
-        <span className="text-xs text-muted-foreground">{share.access === "EDIT" ? "Éditeur" : "Lecture"}</span>
+        <span className="text-xs text-muted-foreground">{share.access === "EDIT" ? "Modifier" : "Voir"}</span>
       )}
     </li>
   );
@@ -143,8 +143,8 @@ export function SharePanel({
 
           <div className="flex flex-wrap items-end gap-2">
             <Select name="access" defaultValue="VIEW" className="h-9 w-32 text-sm">
-              <option value="VIEW">Lecture</option>
-              <option value="EDIT">Éditeur</option>
+              <option value="VIEW">Voir</option>
+              <option value="EDIT">Modifier</option>
             </Select>
             <Button type="submit" size="sm" disabled={saving || picked.size === 0}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}

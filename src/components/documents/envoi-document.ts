@@ -46,7 +46,7 @@ export function envoiDocument(
     refus: (f) => {
       if (limites.stockageObjet) return refusTeleversement(f.name, f.size, LIMITE_FICHIER_MO);
       return refusTeleversement(f.name, f.size, limites.maxUploadMb)
-        ?? (f.size > limites.maxSansStockageObjetMo * MO ? refusSansStockageObjet(f.size, limites.maxSansStockageObjetMo) : null);
+        ?? (f.size > limites.maxSansStockageObjetMo * MO ? refusSansStockageObjet(f.size, limites.maxSansStockageObjetMo, limites.technique) : null);
     },
     direct: (f) => {
       if (!limites.stockageObjet || f.size < seuil) return null;

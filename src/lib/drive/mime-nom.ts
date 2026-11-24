@@ -55,3 +55,9 @@ export function nomPourCle(nom: string | null | undefined): string {
     .slice(0, 180);
   return propre && propre !== "." ? propre : "fichier";
 }
+
+/** L'extension d'un type MIME connu (« application/pdf » → « pdf »), ou `null`. La première de la table gagne (jpg avant jpeg). */
+export function extensionDuMime(mime: string): string | null {
+  const m = mime.split(";")[0].trim().toLowerCase();
+  return Object.entries(EXT_MIME).find(([, v]) => v === m)?.[0] ?? null;
+}

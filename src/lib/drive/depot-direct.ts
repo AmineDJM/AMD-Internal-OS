@@ -47,7 +47,7 @@ export function empreinteFichier(nom: string, taille: number, modifieLe: number)
 
 const cibleCanonique = (c: CibleDepot): string => JSON.stringify({
   nodeId: c.nodeId ?? null, parentId: c.parentId ?? null, spaceId: c.spaceId ?? null, category: c.category ?? null,
-  viewers: [...(c.viewers ?? [])].sort(), editors: [...(c.editors ?? [])].sort(),
+  viewers: [...(c.viewers ?? [])].sort(), editors: [...(c.editors ?? [])].sort(), siExiste: c.siExiste ?? null,
 });
 
 export async function ouvrirDepotDirect(
@@ -56,7 +56,7 @@ export async function ouvrirDepotDirect(
   client: ClientS3Direct = CLIENT_S3,
 ): Promise<ResultatOuverture> {
   const { nom, taille } = entree;
-  if (!objectStorageConfigured()) return { ok: false, status: 413, error: refusSansStockageObjet(taille, MAX_SANS_STOCKAGE_OBJET_MO) };
+  if (!objectStorageConfigured()) return { ok: false, status: 413, error: refusSansStockageObjet(taille, MAX_SANS_STOCKAGE_OBJET_MO, user.role === "SUPER_ADMIN") };
 
   const refus = await refusDepotDrive(user, entree.cible);
   if (refus) return { ok: false, ...refus };

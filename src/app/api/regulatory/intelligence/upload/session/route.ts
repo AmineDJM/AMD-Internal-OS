@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
   // SANS STOCKAGE OBJET, un très gros dossier ne s'écrit PAS en base : il remplirait Postgres
   // (≈ 1 Go sur l'offre gratuite) et ferait tomber l'application. Le refus nomme les variables.
   if (Number(body.totalBytes) > MAX_SANS_STOCKAGE_OBJET_MO * 1024 * 1024) {
-    return NextResponse.json({ error: refusSansStockageObjet(Number(body.totalBytes), MAX_SANS_STOCKAGE_OBJET_MO) }, { status: 413 });
+    return NextResponse.json({ error: refusSansStockageObjet(Number(body.totalBytes), MAX_SANS_STOCKAGE_OBJET_MO, user.role === "SUPER_ADMIN") }, { status: 413 });
   }
 
   const r = await startUploadSession({

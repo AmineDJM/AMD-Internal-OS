@@ -7,6 +7,7 @@ import { refusTeleversement } from "@/lib/files/politique-televersement";
 import { refusSansStockageObjet } from "@/lib/storage/phrases-stockage";
 import { fingerprintFile } from "@/lib/drive/fingerprint";
 import { sansBloquer } from "@/lib/journal";
+import type { ChoixDoublon } from "@/lib/drive/depot-regles";
 
 /** Où va le fichier dans le Drive — les mêmes champs que le chemin habituel. */
 export interface CibleDrive {
@@ -16,6 +17,8 @@ export interface CibleDrive {
   category?: string | null;
   viewers?: string[];
   editors?: string[];
+  /** Un fichier du même nom existe déjà : nouvelle version, ou garder les deux (`lib/drive/depot-regles`). */
+  siExiste?: ChoixDoublon | null;
 }
 
 async function json<T>(res: Response): Promise<T> {
@@ -35,7 +38,7 @@ export function envoiDrive(cible: CibleDrive, limites: LimitesEnvoi | null): { r
   return {
     refus: (f) => refusTeleversement(f.name, f.size, limites.maxDriveUploadMb)
       ?? (!limites.stockageObjet && f.size > limites.maxSansStockageObjetMo * 1024 * 1024
-        ? refusSansStockageObjet(f.size, limites.maxSansStockageObjetMo) : null),
+        ? refusSansStockageObjet(f.size, limites.maxSansStockageObjetMo, limites.technique) : null),
     direct: (f) => {
       if (!limites.stockageObjet || f.size < limites.seuilDirectOctets) return null;
       return {
@@ -73,7 +76,7 @@ export function envoiDrive(cible: CibleDrive, limites: LimitesEnvoi | null): { r
  * qui ne répond pas : on retombe simplement sur l'envoi normal. Connu, rend le corps du serveur
  * (`{ known, id }`), que le gestionnaire d'envois remet à `onFileDone`.
  */
-export function preflightDrive(target: { parentId?: string | null; spaceId?: string | null; category?: string; viewers?: string[]; editors?: string[] }) {
+export function preflightDrive(target: { parentId?: string | null; spaceId?: string | null; category?: string; viewers?: string[]; editors?: string[]; siExiste?: ChoixDoublon | null }) {
   return async (file: File): Promise<false | Record<string, unknown>> => {
     const sha256 = await fingerprintFile(file);
     if (!sha256) return false;

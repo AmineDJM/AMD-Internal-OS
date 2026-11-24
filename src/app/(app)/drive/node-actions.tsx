@@ -10,7 +10,11 @@ import {
 } from "lucide-react";
 import {
   renameNode, trashNode, restoreNode, deleteNode, moveNode, getDriveNodeShares, getDriveNodeVersions, convertNodeToPdf,
+  restaurerVersionDrive,
 } from "@/lib/actions/drive-actions";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { extensionDuMime } from "@/lib/drive/mime-nom";
+import { avertissementExtension } from "@/lib/drive/depot-regles";
 import { listDriveComments } from "@/lib/actions/drive-comment-actions";
 import { entreesMenu, iconesLigne, libellePartage, pastilleCompteur, type EntreeMenu } from "@/lib/drive/menu-fichier";
 import { explorerSize } from "@/lib/drive/explorer";
@@ -54,6 +58,8 @@ interface Props {
   counts?: { shares: number; comments: number; versions: number };
   /** « Convertir en PDF » proposé (format Office, convertisseur configuré, droit de créer). */
   convertible?: boolean;
+  /** Après une mise à la corbeille réussie : la LISTE propose « Annuler » (la ligne, elle, disparaît). */
+  onMisALaCorbeille?: (id: string, name: string) => void;
   /** Le FICHIER OUVERT : on revient au dossier après la corbeille, et le menu sait basculer en plein écran. */
   ouvert?: {
     retour: string;
@@ -85,7 +91,7 @@ function AccessSheet({ nodeId, name, users, open, onClose }: { nodeId: string; n
   React.useEffect(() => { if (open) { setLoading(true); load(); } }, [open, load]);
 
   return (
-    <Sheet open={open} onClose={onClose} title={`Partage — « ${name} »`} description="Lecture : voir. Éditeur : modifier. Sur un dossier, l'accès descend sur tout son contenu." width="md">
+    <Sheet open={open} onClose={onClose} title={`Partage — « ${name} »`} description="Voir ou Modifier. Sur un dossier, l'accès descend sur tout son contenu." width="md">
       {loading
         ? <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
         : <SharePanel nodeId={nodeId} users={candidats} shares={shares} canEdit={canEdit} onChanged={load} />}
@@ -112,14 +118,47 @@ function CommentsSheet({ nodeId, name, open, onClose }: { nodeId: string; name: 
   );
 }
 
-/** Panneau « Historique des versions ». */
-function VersionsSheet({ nodeId, name, open, onClose }: { nodeId: string; name: string; open: boolean; onClose: () => void }) {
-  const [versions, setVersions] = React.useState<{ id: string; version: number; size: number; createdAt: string }[] | null>(null);
-  React.useEffect(() => {
-    if (!open) return;
+type VersionLue = { id: string; version: number; size: number; createdAt: string; mimeType: string | null; auteur: string | null };
+
+/**
+ * Panneau « Historique des versions » — chaque version se TÉLÉCHARGE et se RESTAURE (audit Drive, C3).
+ * Restaurer n'écrase rien : le contenu choisi devient une nouvelle version, l'actuelle reste dans la liste.
+ * Une version d'un autre type se confirme (le fichier changera d'extension).
+ */
+function VersionsSheet({ nodeId, name, open, onClose, onRestauree }: { nodeId: string; name: string; open: boolean; onClose: () => void; onRestauree: (message: string) => void }) {
+  const confirmer = useConfirmer();
+  const [versions, setVersions] = React.useState<VersionLue[] | null>(null);
+  const [peutModifier, setPeutModifier] = React.useState(false);
+  const [enCours, setEnCours] = React.useState<number | null>(null);
+  const [err, setErr] = React.useState<string | null>(null);
+  const charger = React.useCallback(() => {
     setVersions(null);
-    getDriveNodeVersions(nodeId).then((r) => setVersions(r.ok ? r.versions ?? [] : []));
-  }, [open, nodeId]);
+    getDriveNodeVersions(nodeId).then((r) => { setVersions(r.ok ? r.versions ?? [] : []); setPeutModifier(Boolean(r.canEdit)); });
+  }, [nodeId]);
+  React.useEffect(() => { if (open) { setErr(null); charger(); } }, [open, charger]);
+
+  const restaurer = async (v: VersionLue, actuelle: VersionLue) => {
+    const ext = v.mimeType && v.mimeType !== actuelle.mimeType ? extensionDuMime(v.mimeType) : null;
+    const ok = await confirmer(ext
+      ? { titre: `Restaurer la version ${v.version} ?`, message: avertissementExtension(name, `x.${ext}`), confirmer: "Restaurer", ton: "neutre" }
+      : { titre: `Restaurer la version ${v.version} ?`, message: "Elle devient la version actuelle. L'actuelle reste dans l'historique.", confirmer: "Restaurer", ton: "neutre" });
+    if (!ok) return;
+    setEnCours(v.version); setErr(null);
+    const fd = new FormData();
+    fd.set("nodeId", nodeId);
+    fd.set("version", String(v.version));
+    try {
+      const r = await restaurerVersionDrive(fd);
+      if (!r.ok) { setErr(r.error ?? "Restauration impossible."); return; }
+      onRestauree(r.message ?? "Version restaurée.");
+      charger();
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setEnCours(null);
+    }
+  };
+
   return (
     <Sheet open={open} onClose={onClose} title={`Historique des versions — « ${name} »`} width="md">
       {versions === null
@@ -127,11 +166,24 @@ function VersionsSheet({ nodeId, name, open, onClose }: { nodeId: string; name: 
         : versions.length === 0
           ? <p className="text-sm text-muted-foreground">Aucune version enregistrée.</p>
           : (
-            <ul className="space-y-1.5 text-sm">
+            <ul className="divide-y divide-border text-sm">
+              {err && <li className="rounded-lg bg-destructive/10 px-3 py-2 text-destructive">{err}</li>}
               {versions.map((v, i) => (
-                <li key={v.id} className="flex flex-wrap items-center justify-between gap-x-3">
-                  <span className="flex items-center gap-2">v{v.version}{i === 0 && <Badge tone="success" dot={false}>actuelle</Badge>}</span>
-                  <span className="tabular-nums text-muted-foreground">{explorerSize(v.size, true)} · {formatDateTime(v.createdAt)}</span>
+                <li key={v.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-2">
+                  <span className="min-w-0">
+                    <span className="flex items-center gap-2 font-medium">v{v.version}{i === 0 && <Badge tone="success" dot={false}>actuelle</Badge>}</span>
+                    <span className="block text-xs tabular-nums text-muted-foreground">{formatDateTime(v.createdAt)}{v.auteur ? ` · ${v.auteur}` : ""} · {explorerSize(v.size, true)}</span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-1">
+                    <a href={`/api/drive/${nodeId}/raw?dl=1&v=${v.version}`} className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs hover:bg-secondary" aria-label={`Télécharger la version ${v.version}`}>
+                      <Download className="h-3.5 w-3.5" /> Télécharger
+                    </a>
+                    {i > 0 && peutModifier && (
+                      <button type="button" disabled={enCours !== null} onClick={() => void restaurer(v, versions[0])} className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs hover:bg-secondary disabled:opacity-60">
+                        {enCours === v.version ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />} Restaurer cette version
+                      </button>
+                    )}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -273,7 +325,7 @@ function InfoLigne({ label, value }: { label: string; value: string }) {
  * (garde-fou `menu-portal-guard.test.ts`). La confirmation de corbeille, elle, vit DANS le menu : elle n'a pas
  * à survivre à sa fermeture — fermer, c'est annuler.
  */
-export function NodeActions({ id, name, isFile, canEdit, owner, trash, moveTargets, users, spaceId, infos, counts, convertible, ouvert }: Props) {
+export function NodeActions({ id, name, isFile, canEdit, owner, trash, moveTargets, users, spaceId, infos, counts, convertible, ouvert, onMisALaCorbeille }: Props) {
   const router = useRouter();
   const { rafraichir } = useRafraichir();
   const [renaming, setRenaming] = React.useState(false);
@@ -292,7 +344,7 @@ export function NodeActions({ id, name, isFile, canEdit, owner, trash, moveTarge
   const [pending, setPending] = React.useState(false);
   const [moveErr, setMoveErr] = React.useState<string | null>(null);
   const [confirm, setConfirm] = React.useState<null | "corbeille" | "supprimer">(null);
-  const [toast, setToast] = React.useState<string | null>(null);
+  const [toast, setToast] = React.useState<{ texte: string; ok?: boolean } | null>(null);
   const versionInput = React.useRef<HTMLInputElement>(null);
   const envoyerVersion = useNouvelleVersion();
   // On ne peut pas déplacer un dossier dans lui-même.
@@ -304,7 +356,7 @@ export function NodeActions({ id, name, isFile, canEdit, owner, trash, moveTarge
   });
   const nbComments = pastilleCompteur(counts?.comments ?? 0);
 
-  const dire = (texte: string) => { setToast(texte); window.setTimeout(() => setToast(null), 4500); };
+  const dire = (texte: string, ok = false) => { setToast({ texte, ok }); window.setTimeout(() => setToast(null), 4500); };
 
   /** Une action serveur simple (corbeille, restauration, suppression) lancée depuis le menu. */
   const run = async (action: (fd: FormData) => Promise<{ ok: boolean; error?: string } | unknown>, close: () => void, quitter = false) => {
@@ -322,6 +374,9 @@ export function NodeActions({ id, name, isFile, canEdit, owner, trash, moveTarge
       setPending(false);
     }
     if (r && r.ok === false) { dire(r.error ?? "L'opération n'a pas abouti."); return; }
+    // « Annuler » juste après la corbeille ; le lieu de restauration dit après « Restaurer » (audit Drive, C13).
+    if (action === trashNode) onMisALaCorbeille?.(id, name);
+    else if (r && (r as { message?: string }).message) dire((r as { message?: string }).message!, true);
     // Le fichier ouvert vient de partir à la corbeille : on retourne à son dossier.
     if (quitter && ouvert) { router.push(ouvert.retour); return; }
     rafraichir();
@@ -444,7 +499,7 @@ export function NodeActions({ id, name, isFile, canEdit, owner, trash, moveTarge
       {isFile && canEdit && (
         <input
           ref={versionInput} type="file" hidden
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) envoyerVersion(id, f); e.target.value = ""; }}
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) void envoyerVersion(id, f, name); e.target.value = ""; }}
         />
       )}
 
@@ -509,7 +564,7 @@ export function NodeActions({ id, name, isFile, canEdit, owner, trash, moveTarge
 
       {icones.partage && <AccessSheet nodeId={id} name={name} users={users} open={sharing} onClose={() => setSharing(false)} />}
       {icones.commentaires && <CommentsSheet nodeId={id} name={name} open={commenting} onClose={() => setCommenting(false)} />}
-      {isFile && <VersionsSheet nodeId={id} name={name} open={history} onClose={() => setHistory(false)} />}
+      {isFile && <VersionsSheet nodeId={id} name={name} open={history} onClose={() => setHistory(false)} onRestauree={(m) => { dire(m, true); rafraichir(); }} />}
       {ouvert?.champs && (
         <Sheet open={fields} onClose={() => setFields(false)} title={`Champs personnalisés — « ${name} »`} width="md">
           {ouvert.champs}
@@ -531,8 +586,8 @@ export function NodeActions({ id, name, isFile, canEdit, owner, trash, moveTarge
       {isFile && mail && <SendToMailSheet open={mail} nodeId={id} name={name} onClose={() => setMail(false)} />}
 
       {toast && typeof document !== "undefined" && createPortal(
-        <p role="alert" className="fixed bottom-4 left-1/2 z-[60] max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-lg bg-destructive px-3 py-2 text-sm text-destructive-foreground shadow-lg">
-          {toast}
+        <p role={toast.ok ? "status" : "alert"} className={`fixed bottom-4 left-1/2 z-[60] flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-3 rounded-lg px-3 py-2 text-sm shadow-lg ${toast.ok ? "bg-foreground text-background" : "bg-destructive text-destructive-foreground"}`}>
+          {toast.texte}
         </p>,
         document.body,
       )}

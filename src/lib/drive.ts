@@ -24,7 +24,14 @@ export async function resolveDriveAccess(user: SessionUser, nodeId: string): Pro
   // du 24/11, F11) : la portée ALL, un partage ou un message ouvraient encore — par l'adresse directe, l'aperçu ou
   // l'éditeur — un fichier que son propriétaire croyait retiré.
   if (withSpace?.isTrashed) {
-    return withSpace.ownerId === user.id || (withSpace.space && canManageDriveSpace(user, withSpace.space)) ? "EDIT" : "NONE";
+    if (withSpace.ownerId === user.id || (withSpace.space && canManageDriveSpace(user, withSpace.space))) return "EDIT";
+    // CELUI QUI L'A MIS À LA CORBEILLE la retrouve dans SA corbeille (corbeille unifiée, audit C1) et peut l'en sortir :
+    // il avait le droit de modifier l'élément au moment du geste. Lu sur la dernière trace de mise à la corbeille.
+    const trace = await prisma.auditLog.findFirst({
+      where: { entityType: "DRIVE_NODE", entityId: nodeId, field: "isTrashed", newValue: "true" },
+      orderBy: { createdAt: "desc" }, select: { actorId: true },
+    });
+    return trace?.actorId === user.id ? "EDIT" : "NONE";
   }
   if (withSpace?.space) {
     if (canManageDriveSpace(user, withSpace.space)) return "EDIT";

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserPourEcrire } from "@/lib/session";
 import { ouvrirDepotDirect } from "@/lib/drive/depot-direct";
+import { lireChoixDoublon } from "@/lib/drive/depot-regles";
 import { attendu } from "@/lib/journal";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
       nom, taille, type: str(b.type) ?? "application/octet-stream", modifieLe: Number(b.lastModified ?? 0),
       cible: {
         nodeId: str(b.nodeId), parentId: str(b.parentId), spaceId: str(b.spaceId), category: str(b.category),
-        viewers: liste(b.viewers), editors: liste(b.editors),
+        viewers: liste(b.viewers), editors: liste(b.editors), siExiste: lireChoixDoublon(b.siExiste),
       },
     });
     if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.status });
