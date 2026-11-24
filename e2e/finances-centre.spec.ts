@@ -216,7 +216,9 @@ test("COMPTES ANCRÉS : le Super Admin ouvre un compte depuis un relevé — ban
   test.setTimeout(120_000);
   await login(page, SA_EMAIL);
   await aller(page, "/finances/comptabilite");
-  await page.getByRole("button", { name: "Comptes de trésorerie" }).click();
+  // Rangés sous « ⋯ » depuis la refonte de l'écran (maquette validée, 24/11/2026).
+  await page.getByRole("button", { name: "Autres actions" }).click();
+  await page.getByRole("menuitem", { name: "Comptes de trésorerie" }).click();
   const panneau = page.getByRole("dialog");
   await panneau.getByRole("button", { name: "Ouvrir un compte" }).click();
   await panneau.getByLabel("Nom du compte").fill(COMPTE);

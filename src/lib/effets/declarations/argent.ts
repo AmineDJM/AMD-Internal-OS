@@ -129,4 +129,9 @@ export const DECLARATIONS_ARGENT: Readonly<Record<string, DeclarationAnnulation>
   "ventes-pch-actions:rattacherEtablissementVentesPch": RETOUR,
   "ventes-pch-actions:rattacherPosteVentesPch": RETOUR,
   "ventes-pch-actions:reglerFournisseurVentesPch": RETOUR,
+  // Comptabilité (24/11/2026) : la contre-passation se compense à son tour ; joindre, rattacher et demander se retirent.
+  "comptabilite-actions:contrePasserEcriture": ARGENT,
+  "comptabilite-actions:demanderPieceEcriture": RETOUR,
+  "comptabilite-actions:joindreJustificatifEcriture": RETOUR,
+  "finance-actions:apercuReleve": { annulation: "retour", mecanisme: "sans-effet", raison: "lecture : l'aperçu d'un relevé lit les lignes et le livre, sans rien écrire — rien à défaire" },
 };

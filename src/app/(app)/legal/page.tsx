@@ -26,7 +26,7 @@ import { nonRetenusDesPieces } from "@/lib/bons-de-commande/retenue-bc";
 import { libelleNonRetenu } from "@/lib/bons-de-commande/copie-signee";
 import { perimetreLegal } from "@/lib/queries/visibilite-listes";
 import { ComposerPieceButton, type TypePieceComposable } from "@/components/pieces/composer-piece";
-import { compositionDesPieces } from "@/lib/queries/composition-pieces";
+import { compositionDesPieces, TYPES_COMPOSES_DANS_LEGAL } from "@/lib/queries/composition-pieces";
 import { piecesAmontProposees } from "@/lib/queries/legal-chain";
 import { cn } from "@/lib/utils";
 import { ROLE_LABELS, LEGAL_DOC_KIND } from "@/lib/labels";
@@ -87,9 +87,11 @@ export default async function LegalPage(
   // LE BOUTON « COMPOSER » : les natures que cette personne a le droit d'ÉMETTRE — la même règle
   // que la fabrique et qu'Adam (`legalWriteAllowed`), rejouée par le serveur au moment d'émettre.
   // Calculée UNE fois pour Legal et pour le module « Bons de commande » (`compositionDesPieces`).
-  const composition = await compositionDesPieces(user);
+  // LA FACTURE SE COMPOSE DANS COMPTABILITÉ › RECETTES (Super Admin, 24/11/2026) : Legal propose les bons de commande et
+  // les devis ; une facture émise de là-bas s'enregistre toujours ici, au registre.
+  const composition = await compositionDesPieces(user, TYPES_COMPOSES_DANS_LEGAL);
   const typesComposables: TypePieceComposable[] = composition?.types ?? [];
-  const typeCompose: TypePieceComposable = nature === "PURCHASE_ORDER" ? "BON_DE_COMMANDE" : nature === "QUOTE" ? "DEVIS" : "FACTURE";
+  const typeCompose: TypePieceComposable = nature === "QUOTE" ? "DEVIS" : "BON_DE_COMMANDE";
   const typeInitialCompose = typesComposables.includes(typeCompose) ? typeCompose : typesComposables[0];
 
   // LES LECTEURS DÉSIGNÉS, en plus du cloisonnement d'entité. Un document restreint n'apparaît
@@ -207,7 +209,7 @@ export default async function LegalPage(
       <PageHeader
         title={facturesSeules ? "Factures et bons de commande" : "Legal"}
         description={facturesSeules
-          ? "Les factures et les bons de commande de la société, dans le registre des engagements : une facture y suit le bon de commande dont elle découle. « Composer » produit la pièce au format de la société, sur son papier en-tête, en Word et en PDF ; renseigner la date de règlement d'une facture suffit à la déclarer réglée."
+          ? "Les factures et les bons de commande de la société, dans le registre des engagements : une facture y suit le bon de commande dont elle découle. « Composer » produit un bon de commande au format de la société, sur son papier en-tête, en Word et en PDF (une facture se compose dans Comptabilité › Recettes) ; renseigner la date de règlement d'une facture suffit à la déclarer réglée."
           : "Les engagements de la société : contrats, devis, bons de commande, factures, conventions, assurances, baux. Le fichier reste dans le Drive — Legal porte les dates, l'échéance et ce qu'il advient du document."}
       >
         {/* LE BOUTON DES BONS DE COMMANDE (§118.149) — « le bouton pour les BC c'est dans Legal ».

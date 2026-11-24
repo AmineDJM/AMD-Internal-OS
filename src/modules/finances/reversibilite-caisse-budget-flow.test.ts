@@ -327,7 +327,10 @@ suite("K10a — caisse, budgets et paie se défont d'un geste", () => {
         categories: { create: [{ name: `${RUN} Frais`, module: "FINANCES", allocated: 1_000_000 }] } },
       include: { categories: true },
     });
-    const t = await createTransaction(undefined, fd({ label: `${RUN} à classer`, amount: "8000", direction: "OUT", companyId: soc, treasuryAccountId: compte }));
+    // Une dépense porte son justificatif (Super Admin, 24/11/2026) — le champ de la saisie, pas celui des demandes.
+    const avecPiece = fd({ label: `${RUN} à classer`, amount: "8000", direction: "OUT", companyId: soc, treasuryAccountId: compte });
+    avecPiece.set("justificatif", pdf("facture.pdf"));
+    const t = await createTransaction(undefined, avecPiece);
     expect(t.ok, t.error).toBe(true);
     const a = await attributeTransaction(fd({ transactionId: t.id!, budgetCategoryId: env.categories[0].id }));
     expect(a.ok, a.error).toBe(true);

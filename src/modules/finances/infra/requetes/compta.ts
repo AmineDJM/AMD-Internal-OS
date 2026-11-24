@@ -21,7 +21,7 @@ import { FINANCE_CATEGORY, posteDeLOrdre } from "@/lib/labels";
  *   • un petit historique mensuel.
  */
 
-export interface ComptaItem {
+interface ComptaItem {
   id: string;
   reference: string;
   label: string;
@@ -171,18 +171,25 @@ const cleMois = (year: number, month: number) => `${year}-${String(month).padSta
  * du livre (`clauseEcrituresVisibles`), la paie sans écriture dans celle des salariés
  * (`clauseSalariesVisibles`) : la même entité, au sens strict.
  */
-export async function getResultatMensuel(userId: string, periode: Periode): Promise<ResultatPeriode> {
-  const [visibles, salariesVisibles, depuisLeCentre] = await Promise.all([
+export async function getResultatMensuel(
+  userId: string, periode: Periode,
+  /** UNE SEULE SOCIÉTÉ (Comptabilité › Résultat) — déjà vérifiée par l'appelant parmi les siennes ; `null` = les écritures sans société. */
+  opts: { societeId?: string | null } = {},
+): Promise<ResultatPeriode> {
+  const [portee, porteeSalaries, depuisLeCentre] = await Promise.all([
     clauseEcrituresVisibles(userId),
     clauseSalariesVisibles(userId),
     instantDuCentreDePaie(),
   ]);
+  const uneSociete = opts.societeId !== undefined;
+  const visibles = uneSociete ? { companyId: opts.societeId ?? null } : portee;
+  const salariesVisibles = uneSociete ? { companyId: opts.societeId ?? null } : porteeSalaries;
   const dansPeriode = new Set(periode.mois);
   const annees = [...new Set(periode.mois.map((m) => Number(m.slice(0, 4))))];
 
   const datees = await prisma.financeTransaction.findMany({
     where: { AND: [visibles, { status: "SETTLED", date: { gte: debutDuMoisAlger(periode.debut), lt: finDeLaPeriodeAlger(periode) } }] },
-    select: { id: true, date: true, direction: true, amount: true },
+    select: { id: true, date: true, direction: true, amount: true, category: true },
   });
   const ids = datees.map((e) => e.id);
 
@@ -231,13 +238,13 @@ export async function getResultatMensuel(userId: string, periode: Periode): Prom
   const reglesAilleurs = horsPeriode.length
     ? await prisma.financeTransaction.findMany({
         where: { AND: [visibles, { status: "SETTLED", id: { in: horsPeriode } }] },
-        select: { id: true, date: true, direction: true, amount: true },
+        select: { id: true, date: true, direction: true, amount: true, category: true },
       })
     : [];
 
   return resultatParMois({
     periode,
-    ecritures: [...datees, ...reglesAilleurs].map((e) => ({ id: e.id, date: e.date, direction: e.direction, amount: toNumber(e.amount) })),
+    ecritures: [...datees, ...reglesAilleurs].map((e) => ({ id: e.id, date: e.date, direction: e.direction, amount: toNumber(e.amount), category: e.category })),
     moisDePaie,
     paieSansEcriture: versesSansEcriture
       .filter((l) => etatSalaire({

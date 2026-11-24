@@ -6168,6 +6168,12 @@ model FinanceTransaction {
   compensations    FinanceTransaction[] @relation("CompensationEcriture")
   compensation     String?
 
+  /// LA FACTURE DU REGISTRE QUI JUSTIFIE CE PAIEMENT (Comptabilité, 24/11/2026) — rattachée après coup à une dépense
+  /// déjà faite. Distincte de `settledInvoice` (l'écriture NÉE du règlement direct d'une facture, que dé-marquer retire
+  /// du livre) : un rattachement ne crée ni ne retire aucun mouvement. Une facture ne justifie qu'un paiement.
+  justificatifFactureId String?        @unique
+  justificatifFacture   LegalDocument? @relation("JustificatifEcriture", fields: [justificatifFactureId], references: [id], onDelete: SetNull)
+
   @@index([date])
   @@index([direction])
   @@index([category])
@@ -14364,6 +14370,8 @@ model LegalDocument {
   /// fois. La règle vit dans `lib/finances/settlement.ts`, testée.
   settlementTxId           String?               @unique
   settlementTx             FinanceTransaction?   @relation("LegalSettlement", fields: [settlementTxId], references: [id], onDelete: SetNull)
+  /// Le paiement déjà fait que cette facture justifie (Comptabilité › Rattacher) — voir `FinanceTransaction.justificatifFactureId`.
+  justifieEcriture         FinanceTransaction?   @relation("JustificatifEcriture")
   /// LES LECTEURS AUTORISÉS — qui, en plus du déposant, a le droit d'ouvrir ce document.
   ///
   /// Un engagement de la société n'est pas une pièce d'équipe : un bail, un contrat de travail

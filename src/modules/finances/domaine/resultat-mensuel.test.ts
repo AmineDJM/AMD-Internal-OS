@@ -100,4 +100,31 @@ describe("resultatParMois", () => {
     });
     expect(r.lignes[0]!.depenses).toBe(1);
   });
+
+  it("LE DÉTAIL D'UN MOIS (Comptabilité › Résultat) : par catégorie, la plus grosse d'abord — la somme des catégories EST le total ; la paie se lit « Salaires »", () => {
+    const r = resultatParMois({
+      periode,
+      ecritures: [
+        { id: "v1", date: sept, direction: "IN", amount: 800_000, category: "RECETTE" },
+        { id: "v2", date: sept, direction: "IN", amount: 200_000, category: "RECETTE" },
+        { id: "cca", date: sept, direction: "IN", amount: 50_000, category: "CCA" },
+        { id: "f1", date: sept, direction: "OUT", amount: 120_000, category: "FOURNISSEUR" },
+        { id: "cp", date: sept, direction: "OUT", amount: -20_000, category: "FOURNISSEUR" },
+        { id: "i1", date: sept, direction: "OUT", amount: 300_000, category: "IMPOT" },
+        { id: "paie", date: oct, direction: "OUT", amount: 500_000, category: "AUTRE" },
+        { id: "sans-cat", date: sept, direction: "OUT", amount: 1_000 },
+      ],
+      moisDePaie: new Map([["paie", "2026-09"]]),
+      paieSansEcriture: [{ mois: "2026-09", montant: 40_000 }],
+    });
+    const s = r.lignes[0]!;
+    expect(s.parCategorie.recettes).toEqual([{ categorie: "RECETTE", montant: 1_000_000 }, { categorie: "CCA", montant: 50_000 }]);
+    expect(s.parCategorie.depenses).toEqual([
+      { categorie: "SALAIRE", montant: 540_000 }, { categorie: "IMPOT", montant: 300_000 },
+      { categorie: "FOURNISSEUR", montant: 100_000 }, { categorie: "AUTRE", montant: 1_000 },
+    ]);
+    expect(s.parCategorie.depenses.reduce((a, c) => a + c.montant, 0)).toBe(s.depenses);
+    expect(s.parCategorie.recettes.reduce((a, c) => a + c.montant, 0)).toBe(s.recettes);
+    expect(r.lignes[1]!.parCategorie).toEqual({ recettes: [], depenses: [] });
+  });
 });

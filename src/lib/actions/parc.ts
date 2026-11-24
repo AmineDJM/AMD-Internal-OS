@@ -93,6 +93,8 @@ export const ACTIONS_DES_MODULES: Readonly<Record<string, string | readonly stri
   "personnes-actions": "src/modules/referentiels/actions-personnes.ts",
   "refonte-reprise-actions": "src/modules/referentiels/actions-reprises.ts",
   "relance-paiement-actions": "src/modules/finances/actions-relances.ts",
+  // Comptabilité (maquette validée, 24/11/2026) : contre-passer, joindre un justificatif, demander la pièce.
+  "comptabilite-actions": "src/modules/finances/actions-comptabilite.ts",
   "sponsoring-actions": "src/modules/ad-pro/actions-sponsoring.ts",
 };
 

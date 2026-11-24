@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { doubleEcrireCoffre } from "@/modules/coffre/api";
-import { FinanceCategory, FinanceMethod, type FinanceDirection, type FinanceStatus, type PayrollStatus, type Prisma } from "@prisma/client";
+import { FinanceCategory, FinanceMethod, type DocumentCategory, type FinanceDirection, type FinanceStatus, type PayrollStatus, type Prisma } from "@prisma/client";
 import { requireUser } from "@/lib/session";
 import { anyRoleFilter, userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
@@ -18,6 +18,8 @@ import { compteDeLEcriture, comptesTresorerie, resoudreCompte } from "@/modules/
 import { relierALaPersonne } from "@/modules/referentiels/api";
 import { sansBloquer } from "@/lib/journal";
 import { annulable } from "@/lib/effets/ecran";
+import { attachFiles, validateAttachments } from "@/lib/attach-files";
+import { categorieDuTypePiece, NOTE_IMPORT_RELEVE, refusDepenseSansJustificatif } from "./domaine/comptabilite-vue";
 
 const IN_CATEGORIES = ["RECETTE", "CCA", "PRET"];
 
@@ -46,6 +48,19 @@ export async function createTransaction(
   const direction = (fdStr(formData, "direction") as FinanceDirection) ??
     (IN_CATEGORIES.includes(category) ? "IN" : "OUT");
 
+  // LE JUSTIFICATIF D'UNE DÉPENSE (Super Admin, 24/11/2026 — « tout paiement porte une pièce ») : refusée sans lui, et
+  // le fichier est contrôlé AVANT l'écriture — une dépense créée puis privée de sa pièce serait ressaisie en double.
+  const justificatifs = formData.getAll("justificatif").filter((f): f is File => f instanceof File && (f.size > 0 || (f.name !== "" && f.name !== "undefined")));
+  const sansPiece = refusDepenseSansJustificatif(direction, justificatifs.length);
+  if (sansPiece) return { ok: false, error: sansPiece };
+  const fichierRefuse = await validateAttachments(justificatifs);
+  if (fichierRefuse) return { ok: false, error: fichierRefuse };
+  // LE BUDGET IMPUTÉ, s'il est choisi — une catégorie qui existe, sinon le choix est refusé plutôt qu'ignoré.
+  const budgetCategoryId = fdStr(formData, "budgetCategoryId") || null;
+  if (budgetCategoryId && !(await prisma.budgetCategoryLine.count({ where: { id: budgetCategoryId } }))) {
+    return { ok: false, error: "Catégorie budgétaire introuvable : choisissez-en une dans la liste, ou laissez « Non imputé »." };
+  }
+
   // Référence SAISIE acceptée (les encaissements portent souvent celle du reçu ou du virement) ;
   // à défaut, on continue de la générer. Une référence déjà prise repart en auto plutôt que de
   // faire échouer la saisie sur une contrainte d'unicité.
@@ -71,9 +86,17 @@ export async function createTransaction(
       treasuryAccountId: await compteDeLEcriture({
         compteId: fdStr(formData, "treasuryAccountId"), compte: fdStr(formData, "account") ?? "Banque", societeId: fdStr(formData, "companyId") || null,
       }),
+      budgetCategoryId,
       createdById: user.id,
     },
   });
+  // La pièce se range SUR l'écriture (le même endroit que « Joindre un justificatif »), sous la catégorie de son type.
+  const jointes = justificatifs.length
+    ? await attachFiles({
+        files: justificatifs, entityType: "FINANCE_TRANSACTION", entityId: created.id, uploadedById: user.id,
+        category: categorieDuTypePiece(fdStr(formData, "typePiece")) as DocumentCategory,
+      })
+    : { saved: 0 };
 
   await recordAudit({
     actorId: user.id, action: "CREATE", module: "Finances",
@@ -81,7 +104,8 @@ export async function createTransaction(
     summary: `${direction === "IN" ? "Encaissement" : "Décaissement"} ${created.reference} — ${label}`,
   });
   revalidatePath("/finances");
-  return { ok: true, id: created.id };
+  // L'écriture existe : un fichier perdu en route se DIT (et la personne le rejoint depuis le panneau), jamais en silence.
+  return { ok: true, id: created.id, ...(jointes.error ? { message: `Écriture ${created.reference} enregistrée, mais ${jointes.error}` } : {}) };
 }); }
 
 /**
@@ -301,6 +325,56 @@ function bilanImport(importes: number, ecartees: LigneEcartee[]): string {
   return [`${tete} ; ${k} ligne${s(k)} écartée${s(k)} : ${dites}${reste}.`, ...aide].join(" ");
 }
 
+/** Une ligne de l'APERÇU d'un relevé : lue (et prête à importer), écartée (avec sa raison), ou déjà au livre. */
+export interface LigneApercuReleve {
+  numero: number;
+  /** Le texte brut de la ligne — c'est lui que l'import reçoit si la ligne reste cochée. */
+  texte: string;
+  ok: boolean;
+  raison: string | null;
+  date: string | null;
+  sens: "IN" | "OUT" | null;
+  libelle: string;
+  montant: number | null;
+  tiers: string | null;
+  /** La référence de l'écriture identique déjà au livre (même jour, même sens, même montant, même libellé). */
+  deja: string | null;
+}
+
+/**
+ * L'APERÇU LIGNE À LIGNE D'UN RELEVÉ (Comptabilité, 24/11/2026) — la MÊME lecture que l'import (`lireLigneReleve`),
+ * sans rien écrire : chaque ligne dit ce qu'elle deviendra, la raison d'un écart, et si une écriture identique est
+ * déjà au livre (elle arrive décochée : l'importer la doublerait). Seules les lignes cochées partent à l'import.
+ */
+export async function apercuReleve(formData: FormData): Promise<{ ok: boolean; error?: string; entete?: string; lignes?: LigneApercuReleve[] }> {
+  const user = await requireUser();
+  if (!userCan(user, "FINANCES_COMPTABILITE", "CREATE")) return { ok: false, error: "Importer un relevé demande « Créer » sur Comptabilité — un Super Admin l'accorde dans Administration › Accès." };
+  const csv = fdStr(formData, "csv");
+  if (!csv) return { ok: false, error: "Choisissez le fichier CSV du relevé, ou collez son contenu." };
+  const nonVides = csv.split(/\r?\n/).map((texte, i) => ({ texte: texte.trim(), numero: i + 1 })).filter((l) => l.texte.length > 0);
+  if (nonVides.length < 2) return { ok: false, error: "Aucune ligne à lire : la première ligne est l'en-tête des colonnes, et rien ne la suit." };
+  const separateur = nonVides[0]!.texte.includes(";") ? ";" : ",";
+  const lues = nonVides.slice(1, 501).map(({ texte, numero }) => ({ texte, numero, lue: lireLigneReleve(texte.split(separateur).map((x) => x.trim())) }));
+  const valides = lues.flatMap((l) => (l.lue.ok ? [l.lue] : []));
+  // LE LIVRE AUTOUR DES DATES DU RELEVÉ, dans la portée de la personne — une lecture, pas une par ligne.
+  const existantes = valides.length
+    ? await prisma.financeTransaction.findMany({
+        where: await companyScopedWhere(user.id, {
+          status: { not: "CANCELLED" as const },
+          date: { gte: new Date(Math.min(...valides.map((v) => v.date.getTime())) - 86_400_000), lte: new Date(Math.max(...valides.map((v) => v.date.getTime())) + 86_400_000) },
+        }),
+        select: { reference: true, date: true, direction: true, amount: true, label: true },
+      })
+    : [];
+  const jour = (d: Date) => d.toISOString().slice(0, 10);
+  const lignes: LigneApercuReleve[] = lues.map(({ texte, numero, lue }) => {
+    if (!lue.ok) return { numero, texte, ok: false, raison: lue.raison, date: null, sens: null, libelle: texte, montant: null, tiers: null, deja: null };
+    const deja = existantes.find((x) => jour(x.date) === jour(lue.date) && x.direction === lue.direction && toNumber(x.amount) === lue.amount && x.label.trim().toLowerCase() === lue.label.trim().toLowerCase());
+    return { numero, texte, ok: true, raison: null, date: lue.date.toISOString(), sens: lue.direction === "IN" ? "IN" : "OUT", libelle: lue.label, montant: lue.amount, tiers: lue.counterparty, deja: deja?.reference ?? null };
+  });
+  return { ok: true, entete: nonVides[0]!.texte, lignes };
+}
+
 /** CSV import: date,direction(IN/OUT),category,label,amount,method,account,counterparty */
 export async function importTransactions(
   _prev: ActionResult | undefined,
@@ -321,6 +395,14 @@ export async function importTransactions(
   // devenait un montant de 90 000 et un mode de paiement « 50 ».
   const separateur = nonVides[0].texte.includes(";") ? ";" : ",";
 
+  // LE COMPTE DU RELEVÉ (Comptabilité, 24/11/2026) : choisi une fois pour tout le fichier — il fige le compte ET la
+  // société de chaque ligne. Il doit être l'un de ceux que la personne voit ; sans lui, la colonne « compte » décide.
+  const compteChoisi = fdStr(formData, "treasuryAccountId");
+  const compteDuReleve = compteChoisi
+    ? await prisma.treasuryAccount.findFirst({ where: { AND: [{ id: compteChoisi }, await companyScopedWhere(user.id, {})] }, select: { id: true, name: true, companyId: true } })
+    : null;
+  if (compteChoisi && !compteDuReleve) return { ok: false, error: "Compte du relevé introuvable ou hors de votre périmètre : choisissez-en un dans la liste." };
+
   let n = 0;
   const ecartees: LigneEcartee[] = [];
   const comptes = await comptesTresorerie();
@@ -338,11 +420,14 @@ export async function importTransactions(
           label: lue.label,
           amount: lue.amount,
           method: lue.method,
-          account: lue.account,
+          account: compteDuReleve?.name ?? lue.account,
           counterparty: lue.counterparty,
           status: "SETTLED",
           // La colonne « compte » du relevé désigne le compte par son NOM ; sinon la règle (§118.176).
-          treasuryAccountId: resoudreCompte(comptes, { compte: lue.account, societeId: null }),
+          treasuryAccountId: compteDuReleve?.id ?? resoudreCompte(comptes, { compte: lue.account, societeId: null }),
+          companyId: compteDuReleve?.companyId ?? null,
+          // La marque de l'import : c'est par elle que l'origine « Import relevé » se lit sur la ligne.
+          notes: NOTE_IMPORT_RELEVE,
           createdById: user.id,
         },
       });

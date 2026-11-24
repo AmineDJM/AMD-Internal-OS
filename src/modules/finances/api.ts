@@ -45,9 +45,14 @@ export { type LienDepense, type PieceDepense, piecesDesEcritures } from "./infra
 export { chargerCentre, type EntiteDuCentre } from "./infra/requetes/centre-paiement";
 export { chargerOrdresDesFinances, HISTORIQUE_MAX } from "./infra/requetes/paiements-a-faire";
 export {
-  chargerTresorerie, type CompteLu, getFinanceData, type LedgerRow, ORDRES_AUTORISES_NON_REGLES,
+  chargerTresorerie, type CompteLu, ORDRES_AUTORISES_NON_REGLES,
 } from "./infra/requetes/finance";
-export { type ComptaItem, getComptaData, getResultatMensuel } from "./infra/requetes/compta";
+export { getComptaData, getResultatMensuel } from "./infra/requetes/compta";
+// L'écran « Comptabilité » (maquette validée, 24/11/2026) : la société, l'onglet, la recherche, les panneaux, le Résultat.
+export {
+  type CandidatRattachement, chargerComptabilite, type ControleCompta, type DetailEcriture, type DonneesComptabilite,
+  type EtapeChaine, type FactureCompta, type LigneCompta, type ParamsComptabilite, type PieceCompta, SANS_SOCIETE,
+} from "./infra/requetes/comptabilite";
 export { fileAInstruire, instruitLesDemandes, myPaymentRequests } from "./infra/requetes/my-payment-requests";
 export {
   peutSupprimerUneDemandePaiement, refusSuppressionDemandePaiement,
