@@ -87,7 +87,7 @@ export async function clauseFormationsVisibles(user: SessionUser): Promise<Prism
   };
 }
 
-/** Le livre des Finances (`getFinanceData`, `getComptaData`) — l'entité au sens strict. */
+/** Le livre des Finances (`getComptaData`, `getResultatMensuel`) — l'entité au sens strict. */
 export async function clauseEcrituresVisibles(userId: string): Promise<Prisma.FinanceTransactionWhereInput> {
   return (await platformScope(userId)) as Prisma.FinanceTransactionWhereInput;
 }

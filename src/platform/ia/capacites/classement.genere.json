@@ -3881,6 +3881,33 @@
   "annulation": "compensation",
   "appelable": false
  },
+ "comptabilite-actions:contrePasserEcriture": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "compensation",
+  "appelable": true
+ },
+ "comptabilite-actions:demanderPieceEcriture": {
+  "risque": "R2",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "comptabilite-actions:joindreJustificatifEcriture": {
+  "risque": "R4",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": false
+ },
  "conge-discussion-actions:commenterConge": {
   "risque": "R2",
   "familles": [
@@ -5492,6 +5519,15 @@
   ],
   "simulable": "oui",
   "annulation": "retour",
+  "appelable": true
+ },
+ "finance-actions:apercuReleve": {
+  "risque": "R0",
+  "familles": [
+   "BUDGETS"
+  ],
+  "simulable": "oui",
+  "annulation": "aucune",
   "appelable": true
  },
  "finance-actions:corrigerAncrageTresorerie": {

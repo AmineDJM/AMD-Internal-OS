@@ -47,7 +47,8 @@ describe("le compositeur envoie la pièce amont qu'il propose — et seulement c
   it("chaque montage du compositeur lui passe les pièces amont", () => {
     // « Bons de commande à signer » ne compose plus (Direction, 10/2026) : seul le registre Legal monte le compositeur.
     expect(lire("src/app/(app)/bons-de-commande/page.tsx")).not.toMatch(/<ComposerPieceButton\b/);
-    for (const page of ["src/app/(app)/legal/page.tsx"]) {
+    // « Composer une facture » vit dans Comptabilité › Recettes (Super Admin, 24/11/2026) : même compositeur, mêmes pièces amont.
+    for (const page of ["src/app/(app)/legal/page.tsx", "src/app/(app)/finances/comptabilite/page.tsx"]) {
       const src = lire(page);
       const montages = src.match(/<ComposerPieceButton\b/g)?.length ?? 0;
       expect(montages, page).toBeGreaterThan(0);

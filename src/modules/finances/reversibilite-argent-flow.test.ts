@@ -10,7 +10,7 @@ vi.mock("@/lib/session", async (orig) => ({
 }));
 
 import { prisma } from "@/lib/prisma";
-import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { retablirGeste } from "@/lib/effets/retablissement";
 import { gestesRecents } from "@/lib/effets/ecran";
@@ -32,11 +32,13 @@ const RUN = `${TAG}${Date.now().toString(36)}`;
 /** Les effets que l'annulation n'a pas pu défaire — hors la notification poussée déjà partie (effet sortant, K10b). */
 const bloquants = (c: CompteRenduAnnulation) => c.details.filter((d) => d.issue === "IMPOSSIBLE" && !/^notification poussée/.test(d.quoi)).map((d) => `${d.quoi} : ${d.pourquoi}`);
 
-const fd = (champs: Record<string, string>) => {
+const fd = (champs: Record<string, string | File>) => {
   const f = new FormData();
   for (const [k, v] of Object.entries(champs)) f.set(k, v);
   return f;
 };
+/** Une dépense ne s'enregistre pas sans justificatif (Super Admin, 24/11/2026) : chaque saisie de dépense porte sa pièce. */
+const piece = () => new File([new Uint8Array([0x25, 0x50, 0x44, 0x46, Math.floor(Math.random() * 250)])], "facture.pdf", { type: "application/pdf" });
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -88,6 +90,8 @@ suite("K10a — les actions d'argent se défont d'un geste", () => {
   afterAll(async () => {
     await prisma.assistantGesteJournal.deleteMany({ where: { principalId: { in: Object.values(u) } } }).catch(() => {});
     await prisma.expenseOrder.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
+    const ecritures = (await prisma.financeTransaction.findMany({ where: { treasuryAccountId: compte }, select: { id: true } })).map((e) => e.id);
+    await retirerDocumentsEtContenu({ where: { entityType: "FINANCE_TRANSACTION", entityId: { in: ecritures } } }).catch(() => {});
     await prisma.financeTransaction.updateMany({ where: { treasuryAccountId: compte }, data: { compensationDeId: null } }).catch(() => {});
     await prisma.financeTransaction.deleteMany({ where: { treasuryAccountId: compte } }).catch(() => {});
     await prisma.treasuryAccount.deleteMany({ where: { name: { startsWith: RUN } } }).catch(() => {});
@@ -101,7 +105,7 @@ suite("K10a — les actions d'argent se défont d'un geste", () => {
 
   it("SAISIR une écriture réalisée → annuler la CONTRE-PASSE (le solde revient, les deux lignes restent) → rétablir la contre-passe à son tour", async () => {
     const avant = await soldeDuCompte();
-    const r = await createTransaction(undefined, fd({ label: `${TAG} loyer`, amount: "50000", category: "AUTRE", direction: "OUT", companyId: soc, treasuryAccountId: compte }));
+    const r = await createTransaction(undefined, fd({ label: `${TAG} loyer`, amount: "50000", category: "AUTRE", direction: "OUT", justificatif: piece(), companyId: soc, treasuryAccountId: compte }));
     expect(r.ok, r.error).toBe(true);
     expect(await soldeDuCompte()).toBe(avant - 50_000);
     // La barre « Annuler » (K10b) le propose : le geste porte son action et sa phrase.
@@ -123,12 +127,14 @@ suite("K10a — les actions d'argent se défont d'un geste", () => {
 
     // RÉTABLIR = annuler l'annulation : la contre-passation est contre-passée, le solde redescend.
     const retabli = await retablirGeste(compteRendu.gesteId, ACTOR!);
-    expect("refus" in retabli ? retabli.refus : retabli.compte.ANNULE).toBe(1);
+    // La saisie d'une dépense porte sa pièce (24/11/2026) : rétablir remet AUSSI le fichier et ses suites (bibliothèque,
+    // Drive) — au moins l'écriture ; c'est le solde qui dit que l'argent est rétabli.
+    expect("refus" in retabli ? retabli.refus : retabli.compte.ANNULE).toBeGreaterThanOrEqual(1);
     expect(await soldeDuCompte()).toBe(avant - 50_000);
   });
 
   it("une écriture PRÉVUE n'a pas touché au solde : annuler la passe à « annulée » (la trace reste)", async () => {
-    const r = await createTransaction(undefined, fd({ label: `${TAG} prévue`, amount: "7000", direction: "OUT", status: "PENDING", companyId: soc, treasuryAccountId: compte }));
+    const r = await createTransaction(undefined, fd({ label: `${TAG} prévue`, amount: "7000", direction: "OUT", justificatif: piece(), status: "PENDING", companyId: soc, treasuryAccountId: compte }));
     expect(r.ok, r.error).toBe(true);
     const c = await annulerDernier();
     expect(c.compte.COMPENSE).toBe(1);
@@ -142,7 +148,7 @@ suite("K10a — les actions d'argent se défont d'un geste", () => {
     expect((await annulerDernier()).compte.COMPENSE).toBe(1);
     expect(await soldeDuCompte()).toBe(avant);
 
-    const t = await createTransaction(undefined, fd({ label: `${TAG} à corriger`, amount: "3000", direction: "OUT", companyId: soc, treasuryAccountId: compte }));
+    const t = await createTransaction(undefined, fd({ label: `${TAG} à corriger`, amount: "3000", direction: "OUT", justificatif: piece(), companyId: soc, treasuryAccountId: compte }));
     const m = await updateTransaction(fd({ id: t.id!, label: `${TAG} corrigée`, amount: "3500", direction: "OUT", category: "AUTRE" }));
     expect(m.ok, m.error).toBe(true);
     expect((await annulerDernier()).compte.ANNULE).toBe(1);
@@ -156,7 +162,7 @@ suite("K10a — les actions d'argent se défont d'un geste", () => {
   });
 
   it("SUPPRIMER une écriture → annuler la RECRÉE à l'identique, même identifiant (le solde revient)", async () => {
-    const t = await createTransaction(undefined, fd({ label: `${TAG} supprimée`, amount: "900", direction: "OUT", companyId: soc, treasuryAccountId: compte }));
+    const t = await createTransaction(undefined, fd({ label: `${TAG} supprimée`, amount: "900", direction: "OUT", justificatif: piece(), companyId: soc, treasuryAccountId: compte }));
     const avant = await soldeDuCompte();
     const d = await deleteTransaction(fd({ id: t.id! }));
     expect(d.ok, d.error).toBe(true);

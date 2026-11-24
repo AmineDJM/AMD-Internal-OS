@@ -7,7 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
-import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import {
   setTreasuryOpeningBalance, modifierCompteTresorerie, corrigerAncrageTresorerie, deleteTreasuryAccount, createTransaction,
@@ -80,6 +80,8 @@ suite("Trésorerie ancrée — comptes, règlement, solde et disponible", () => 
   afterAll(async () => {
     const comptes = (await prisma.treasuryAccount.findMany({ where: { name: { startsWith: TAG } }, select: { id: true } })).map((c) => c.id);
     await prisma.expenseOrder.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
+    const ecritures = (await prisma.financeTransaction.findMany({ where: { OR: [{ treasuryAccountId: { in: comptes } }, { label: { startsWith: TAG } }] }, select: { id: true } })).map((e) => e.id);
+    await retirerDocumentsEtContenu({ where: { entityType: "FINANCE_TRANSACTION", entityId: { in: ecritures } } }).catch(() => {});
     await prisma.financeTransaction.deleteMany({ where: { OR: [{ treasuryAccountId: { in: comptes } }, { label: { startsWith: TAG } }] } }).catch(() => {});
     // Défensif : une écriture d'un banc voisin qui nommerait l'un de nos comptes ne doit pas bloquer
     // le nettoyage — elle perd son compte, rien d'autre (la règle de lecture la rattachera ailleurs).
@@ -206,7 +208,10 @@ suite("Trésorerie ancrée — comptes, règlement, solde et disponible", () => 
   it("LE SOLDE : l'ancrage plus ce qui vient APRÈS — le jour même est déjà dans le relevé ; le comptable ne voit que SES comptes", async () => {
     ACTOR = await acteur(u.finA, "FINANCE_BUDGET_MANAGER");
     // Une écriture datée du jour d'ancrage : déjà dans le relevé du 28, elle ne compte pas.
-    const jourMeme = await createTransaction(undefined, fd({ label: `${TAG} frais du 28`, amount: "777", direction: "OUT", date: "2026-09-28", companyId: socA }));
+    // Une dépense porte son justificatif (Super Admin, 24/11/2026).
+    const saisie = fd({ label: `${TAG} frais du 28`, amount: "777", direction: "OUT", date: "2026-09-28", companyId: socA });
+    saisie.set("justificatif", new File([new Uint8Array([0x25, 0x50, 0x44, 0x46])], "frais.pdf", { type: "application/pdf" }));
+    const jourMeme = await createTransaction(undefined, saisie);
     expect(jourMeme.ok, jourMeme.error).toBe(true);
     expect((await prisma.financeTransaction.findUniqueOrThrow({ where: { id: jourMeme.id! } })).treasuryAccountId, "fige le principal d'Adventum").toBe(sga);
 

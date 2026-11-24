@@ -35,9 +35,18 @@ const NATURES: readonly (readonly ["INVOICE" | "PURCHASE_ORDER" | "QUOTE", TypeP
   ["INVOICE", "FACTURE"], ["PURCHASE_ORDER", "BON_DE_COMMANDE"], ["QUOTE", "DEVIS"],
 ];
 
-export async function compositionDesPieces(user: CurrentUser): Promise<CompositionPieces | null> {
+/**
+ * OÙ SE COMPOSE QUOI (décision du Super Admin, 24/11/2026) : la FACTURE se compose dans Comptabilité › Recettes ; Legal
+ * garde les bons de commande et les devis. Le DROIT d'émettre ne change pas (`legalWriteAllowed`) — seul l'endroit du
+ * bouton : chaque écran demande les types qu'il porte.
+ */
+export const TYPES_COMPOSES_DANS_LEGAL: readonly TypePieceComposable[] = ["BON_DE_COMMANDE", "DEVIS"];
+export const TYPES_COMPOSES_EN_COMPTABILITE: readonly TypePieceComposable[] = ["FACTURE"];
+
+export async function compositionDesPieces(user: CurrentUser, seulement?: readonly TypePieceComposable[]): Promise<CompositionPieces | null> {
   const droits = { onLegal: userCan(user, "LEGAL", "CREATE"), onFinances: userCan(user, "FINANCES", "CREATE") };
-  const types = NATURES.filter(([kind]) => legalWriteAllowed({ ...droits, kind })).map(([, type]) => type);
+  const types = NATURES.filter(([kind]) => legalWriteAllowed({ ...droits, kind })).map(([, type]) => type)
+    .filter((t) => !seulement || seulement.includes(t));
   if (types.length === 0) return null;
   // Les natures que l'on peut SUIVRE avec ce qu'on a le droit d'émettre : un devis ne suit rien, un BC suit un
   // devis, une facture suit un devis ou un BC — la table de la fabrique (`NATURES_AMONT`), pas une recopie.

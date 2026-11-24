@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { companyScopedWhere } from "@/lib/company";
-import { clauseEcrituresVisibles } from "@/lib/queries/visibilite-listes";
 import { toNumber } from "@/lib/utils";
 import { jourAlger, soldesTresorerie, disponible, type FluxTresorerie, type SoldeCompte } from "../../domaine/tresorerie";
 import { lireComptes, versCompte } from "../comptes";
@@ -15,94 +14,6 @@ export const ORDRES_AUTORISES_NON_REGLES = {
   status: "PENDING" as const,
   centralStatus: { in: (Object.keys(CENTRAL_STATUS_LABEL) as CentralStatus[]).filter(canDisburse) },
 };
-
-const MONTHS_FR = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Aoû", "Sep", "Oct", "Nov", "Déc"];
-
-export interface LedgerRow {
-  id: string;
-  reference: string;
-  date: string;
-  direction: string;
-  category: string;
-  label: string;
-  amount: number;
-  signedAmount: number;
-  method: string;
-  account: string;
-  counterparty: string;
-  invoiceRef: string;
-  notes: string;
-  status: string;
-}
-
-/**
- * LE LIVRE — ses écritures et leurs agrégats du mois.
- *
- * La TRÉSORERIE n'est plus calculée ici (§118.176) : « ouverture + TOUS les flux réglés » comptait
- * deux fois tout ce qui précédait l'ouverture. Elle vit dans `chargerTresorerie`, et nulle part
- * ailleurs — deux calculs du même solde donneraient deux soldes au moment précis où il faut
- * décider si l'on peut payer (§118.5).
- */
-export async function getFinanceData(userId: string) {
-  const txs = await prisma.financeTransaction.findMany({ where: await clauseEcrituresVisibles(userId), orderBy: { date: "desc" } });
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-
-  let encMonth = 0;
-  let decMonth = 0;
-  let pendingIn = 0;
-  let pendingOut = 0;
-  const byCategoryOut = new Map<string, number>();
-  const monthlyIn = new Array(12).fill(0);
-  const monthlyOut = new Array(12).fill(0);
-
-  for (const t of txs) {
-    const amt = toNumber(t.amount);
-    if (t.status === "SETTLED") {
-      if (t.date.getFullYear() === now.getFullYear()) {
-        if (t.direction === "IN") monthlyIn[t.date.getMonth()] += amt;
-        else monthlyOut[t.date.getMonth()] += amt;
-      }
-      if (t.date >= monthStart) {
-        if (t.direction === "IN") encMonth += amt;
-        else decMonth += amt;
-      }
-      if (t.direction === "OUT") byCategoryOut.set(t.category, (byCategoryOut.get(t.category) ?? 0) + amt);
-    } else if (t.status === "PENDING") {
-      if (t.direction === "IN") pendingIn += amt;
-      else pendingOut += amt;
-    }
-  }
-
-  // Last 6 months: recettes vs dépenses + cumulative treasury.
-  const cm = now.getMonth();
-  const recVsDep: { label: string; recettes: number; depenses: number }[] = [];
-  for (let i = 5; i >= 0; i--) {
-    const idx = (cm - i + 12) % 12;
-    recVsDep.push({ label: MONTHS_FR[idx], recettes: Math.round(monthlyIn[idx]), depenses: Math.round(monthlyOut[idx]) });
-  }
-
-  const rows: LedgerRow[] = txs.map((t) => {
-    const amt = toNumber(t.amount);
-    return {
-      id: t.id, reference: t.reference, date: t.date.toISOString(), direction: t.direction,
-      category: t.category, label: t.label, amount: amt,
-      signedAmount: t.direction === "IN" ? amt : -amt, method: t.method, account: t.account,
-      counterparty: t.counterparty ?? "", invoiceRef: t.invoiceRef ?? "", notes: t.notes ?? "", status: t.status,
-    };
-  });
-
-  return {
-    encMonth,
-    decMonth,
-    pendingIn,
-    pendingOut,
-    count: txs.length,
-    byCategoryOut: [...byCategoryOut.entries()].sort((a, b) => b[1] - a[1]).map(([category, amount]) => ({ category, amount })),
-    recVsDep,
-    rows,
-  };
-}
 
 // ───────────────────────────── La trésorerie ancrée (§118.176) ─────────────────────────────
 

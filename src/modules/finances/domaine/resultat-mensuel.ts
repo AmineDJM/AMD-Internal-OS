@@ -150,7 +150,12 @@ export interface EcritureReglee {
   date: Date;
   direction: "IN" | "OUT";
   amount: number;
+  /** La catégorie comptable (`FinanceCategory`) — le détail d'un mois par catégorie. Absente : « AUTRE ». */
+  category?: string;
 }
+
+/** Un montant d'une catégorie, dans un mois. */
+export interface MontantCategorie { categorie: string; montant: number }
 
 export interface LigneResultat {
   mois: string;
@@ -160,6 +165,8 @@ export interface LigneResultat {
   /** La part de la paie dans les dépenses du mois — déjà comprise dans `depenses`. */
   dontPaie: number;
   resultat: number;
+  /** LE DÉTAIL DU MOIS (maquette Comptabilité › Résultat) — recettes et dépenses par catégorie, la plus grosse d'abord. */
+  parCategorie: { recettes: MontantCategorie[]; depenses: MontantCategorie[] };
 }
 
 export interface ResultatPeriode {
@@ -186,6 +193,10 @@ export function resultatParMois(input: {
   const rec = input.periode.mois.map(() => 0);
   const dep = input.periode.mois.map(() => 0);
   const paie = input.periode.mois.map(() => 0);
+  // Le détail par catégorie, en centimes comme les totaux : la somme des catégories d'un mois EST son total.
+  const catRec = input.periode.mois.map(() => new Map<string, number>());
+  const catDep = input.periode.mois.map(() => new Map<string, number>());
+  const ajouter = (m: Map<string, number>, cle: string, c: number) => m.set(cle, (m.get(cle) ?? 0) + c);
   const vues = new Set<string>();
   for (const e of input.ecritures) {
     if (vues.has(e.id)) continue;
@@ -194,9 +205,12 @@ export function resultatParMois(input: {
     const i = index.get(moisPaie ?? moisAlger(e.date));
     if (i === undefined) continue;
     const c = Math.round(e.amount * 100);
-    if (e.direction === "IN") rec[i]! += c;
+    // Une écriture de paie (rangée dans son mois de paie) se lit « Salaires », quelle que soit sa catégorie saisie.
+    const categorie = moisPaie ? "SALAIRE" : e.category ?? "AUTRE";
+    if (e.direction === "IN") { rec[i]! += c; ajouter(catRec[i]!, categorie, c); }
     else {
       dep[i]! += c;
+      ajouter(catDep[i]!, categorie, c);
       if (moisPaie) paie[i]! += c;
     }
   }
@@ -206,7 +220,10 @@ export function resultatParMois(input: {
     const c = Math.round(p.montant * 100);
     dep[i]! += c;
     paie[i]! += c;
+    ajouter(catDep[i]!, "SALAIRE", c);
   }
+  const detail = (m: Map<string, number>): MontantCategorie[] =>
+    [...m.entries()].filter(([, c]) => c !== 0).sort((a, b) => b[1] - a[1]).map(([categorie, c]) => ({ categorie, montant: c / 100 }));
   const lignes = input.periode.mois.map((m, i) => ({
     mois: m,
     libelle: libelleMois(m),
@@ -214,6 +231,7 @@ export function resultatParMois(input: {
     depenses: dep[i]! / 100,
     dontPaie: paie[i]! / 100,
     resultat: (rec[i]! - dep[i]!) / 100,
+    parCategorie: { recettes: detail(catRec[i]!), depenses: detail(catDep[i]!) },
   }));
   const somme = (t: number[]) => t.reduce((a, b) => a + b, 0);
   return {

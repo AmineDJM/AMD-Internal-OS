@@ -34,6 +34,10 @@ export function classerTrous(): void {
     "finance-actions:deleteTreasuryAccount", "finance-actions:createQuickIncome",
     "finance-actions:createEmployee", "finance-actions:createPayroll",
   ]);
+  X("GESTES DU PANNEAU D'UNE ÉCRITURE (Comptabilité, maquette validée le 24/11/2026) — contre-passer se décide pièce en main, devant l'écriture et sa chaîne, avec un motif ; joindre un justificatif est le dépôt d'un FICHIER (ou le choix d'une facture du registre, vue à l'écran) ; demander la pièce part du constat « ✕ manquant » sur la ligne ; l'aperçu d'un relevé est une LECTURE de l'écran d'import, qui précède l'import (lui, couvert). Aucun n'a de sens hors de l'écran ; la saisie et l'import restent proposables.", [
+    "comptabilite-actions:contrePasserEcriture", "comptabilite-actions:joindreJustificatifEcriture",
+    "comptabilite-actions:demanderPieceEcriture", "finance-actions:apercuReleve",
+  ]);
   G("factures (créer/payer/supprimer)", ["invoice-actions:createInvoice", "invoice-actions:updateInvoice", "invoice-actions:setInvoicePaid", "invoice-actions:deleteInvoice"]);
   G("budgets & enveloppes (créer/attribuer/dépenser)", [
     "budget-actions:createBudget", "budget-envelope-actions:setBudgetTotal", "budget-envelope-actions:createEnvelope",

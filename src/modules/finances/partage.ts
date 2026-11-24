@@ -78,7 +78,14 @@ export {
   COMMENTAIRE_RELANCE_MAX, commentaireDeRelance, etatDuPaiement, type EtatPaiement, messageDeRelance,
   PHRASE_ETAT_PAIEMENT, QUI_A_LA_MAIN, refusDeRelance, relancable,
 } from "./domaine/relance-paiement";
-export { CHOIX_PERIODE, lirePeriode, moisAlger, type Periode, type ResultatPeriode } from "./domaine/resultat-mensuel";
+export { CHOIX_PERIODE, lirePeriode, moisAlger, type MontantCategorie, type Periode, type ResultatPeriode } from "./domaine/resultat-mensuel";
+export {
+  CATEGORIES_SAISIE, categorieDuTypePiece, choixDePeriode, etatDeLaFacture, type EtatFacture, LIBELLE_ETAT_FACTURE, libelleJustificatif,
+  libelleMoisCourt, libelleMoisLong, libelleTiers, lirePeriodeListe, lireVueCompta, montantRecherche, MOTIFS_CONTRE_PASSATION,
+  motifDeContrePassation, NOTE_IMPORT_RELEVE, origineDeLEcriture, origineSansDossier, type PeriodeListe, peutDemanderLePaiement,
+  peutRattacherAUnPaiement, REFUS_CONTRE_PASSATION_SANS_MOTIF, REFUS_DEPENSE_SANS_JUSTIFICATIF, refusDepenseSansJustificatif,
+  SENS_DE_LA_VUE, texteRecherche, TYPES_PIECE, type VueCompta,
+} from "./domaine/comptabilite-vue";
 export { ENTITE_SANS } from "./domaine/entite-centre";
 export {
   REFUS_AUTORISER_SA_DEMANDE, REFUS_AUTORISER_SON_APPROBATION, REFUS_REGLER_SA_DEMANDE, REFUS_REGLER_SON_AUTORISATION,

@@ -164,21 +164,22 @@ suite("Import CSV des mouvements de trésorerie — compter ce qui est écrit, n
 });
 
 describe("l'écran d'import affiche le bilan RENDU par l'action", () => {
-  // Composant client : aucun banc ne le rend. On tient donc son POINT D'APPEL (§118.49) — le
-  // message de l'action est affiché, plus la phrase fixe, et un panneau qui écarte des lignes
-  // reste ouvert pour qu'on les lise.
-  const src = readFileSync(join(process.cwd(), "src/app/(app)/finances/import-transactions.tsx"), "utf8")
+  // Composant client : aucun banc ne le rend. On tient donc son POINT D'APPEL (§118.49) — le message de l'action est
+  // affiché, plus la phrase fixe ; l'aperçu ligne à ligne passe par la MÊME lecture que l'import ; et une fois importé,
+  // le panneau montre le bilan sans plus offrir le bouton d'import (un relevé ne se réimporte pas d'un clic).
+  const src = readFileSync(join(process.cwd(), "src/app/(app)/finances/comptabilite/panneau-import.tsx"), "utf8")
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .replace(/^\s*\/\/[^\n]*$/gm, "");
 
   it("le message de l'action est rendu, et la phrase fixe « Import réussi. » a disparu", () => {
-    expect(src).toMatch(/\{bilan\.message \?\? "Import terminé\."\}/);
+    expect(src).toMatch(/bilan: r\.message \?\? "Import terminé\."/);
     expect(src).not.toContain("Import réussi.");
   });
 
-  it("le panneau ne se referme seul que si RIEN n'a été écarté — et un texte importé ne se réimporte pas d'un clic", () => {
-    expect(src).toMatch(/if \(!state\.ecartees\) setTimeout\(/);
-    expect(src).toMatch(/disabled=\{pending \|\| dejaImporte\}/);
+  it("l'aperçu lit le relevé par l'action serveur, et seules les lignes cochées partent à l'import", () => {
+    expect(src).toMatch(/await apercuReleve\(fd\)/);
+    expect(src).toMatch(/\[etape\.entete, \.\.\.retenues\.map\(\(l\) => l\.texte\)\]/);
+    expect(src).toMatch(/etape\.k === "fait"/);
   });
 });
 

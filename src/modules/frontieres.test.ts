@@ -411,7 +411,6 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/finances/infra/requetes/compta.ts → src/lib/company",
     "src/modules/finances/infra/requetes/finance.ts → src/lib/company",
     "src/modules/finances/infra/requetes/compta.ts → src/lib/queries/visibilite-listes",
-    "src/modules/finances/infra/requetes/finance.ts → src/lib/queries/visibilite-listes",
     // Les pièces : dépôt d'un fichier (`documents`, `storage`), lien vers la fiche d'origine (`entity-href`),
     // fichiers émis et avoirs lus par les lecteurs de Legal, la corbeille. Cible = `@/modules/pieces/api`.
     "src/modules/finances/actions-demandes.ts → src/lib/documents",
@@ -449,6 +448,21 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/finances/actions-questions.ts → src/lib/queries/porte-ecriture", // la porte de l'ordre, comme le règlement
     "src/modules/finances/actions-tresorerie.ts → src/lib/queries/porte-ecriture",
     "src/modules/finances/actions-sieges.ts → src/lib/admin/garde-comptes",
+    // L'ÉCRAN « COMPTABILITÉ » (maquette validée, 24/11/2026) — les MÊMES couplages que les fichiers voisins, sans
+    // service nouveau : la notification au demandeur, la porte d'écriture, le dépôt d'une pièce (`attach-files`), le lien
+    // vers le dossier d'origine, les lecteurs désignés et les fichiers émis de Legal, les sociétés de la personne, et la
+    // règle unique des doublons de factures (`factures/recensement`). Cibles : celles des blocs ci-dessus.
+    "src/modules/finances/actions-comptabilite.ts → src/lib/attach-files",
+    "src/modules/finances/actions-comptabilite.ts → src/lib/entity-href",
+    "src/modules/finances/actions-comptabilite.ts → src/lib/lecteurs/legal",
+    "src/modules/finances/actions-comptabilite.ts → src/lib/notify",
+    "src/modules/finances/actions-comptabilite.ts → src/lib/queries/porte-ecriture",
+    "src/modules/finances/actions-tresorerie.ts → src/lib/attach-files",
+    "src/modules/finances/infra/requetes/comptabilite.ts → src/lib/company",
+    "src/modules/finances/infra/requetes/comptabilite.ts → src/lib/entity-href",
+    "src/modules/finances/infra/requetes/comptabilite.ts → src/lib/factures/recensement",
+    "src/modules/finances/infra/requetes/comptabilite.ts → src/lib/lecteurs/fichiers-emis",
+    "src/modules/finances/infra/requetes/comptabilite.ts → src/lib/lecteurs/legal",
   ],
   referentiels: [
     // Les normalisations NIF / RC / e-mail vivent chez la qualité des données et la lecture des pièces.
