@@ -24,6 +24,9 @@ import { onlyofficeConfigured } from "@/lib/onlyoffice";
 import { RegulatoryProcess } from "./anpp-process";
 import { regProgress, regChecklistProgress, BV_REQUEST_STEPS, type RegWorkflowState, type RegChecklistState } from "@/lib/regulatory-workflow";
 import { natureDeLEtape, ordreQuiDitLEtat, type SuiviBvVue } from "@/lib/regulatory/bv-circuit";
+import { demandeQuiDitLEtat, natureDeLObjetBv, OBJETS_BV_REGULATORY, paiementBvDeverrouille, type SuiviDemandeBvVue } from "@/lib/regulatory/bv-validation";
+import { budgetBvDuDossier } from "@/lib/queries/budget-bv-acceptes";
+import { BudgetBvCard } from "./bv-budget";
 import { ETAPES_BV } from "@/lib/budget-regulatory/bv";
 import { StatusEditor } from "./status-editor";
 import { DossierMenu } from "./dossier-menu";
@@ -106,7 +109,7 @@ export default async function RegulatoryDetailPage(
   // Supervision (Super Admin + rôles configurés) : dates cibles + demande de MàJ de statut.
   const canSupervise = isRegulatorySupervisor(user, (await getAppSettings()).regulatorySupervisorRoles);
 
-  const [documents, comments, fieldDefs, suppliers, bvOrders, users, companies] = await Promise.all([
+  const [documents, comments, fieldDefs, suppliers, bvOrders, users, companies, bvDemandes] = await Promise.all([
     prisma.document.findMany({
       where: { entityType: "REGULATORY_PRODUCT", entityId: product.id },
       include: { uploadedBy: { select: { name: true } } },
@@ -123,7 +126,7 @@ export default async function RegulatoryDetailPage(
       where: { sourceType: "REGULATORY_PRODUCT", sourceId: product.id },
       select: {
         id: true, reference: true, label: true, amount: true, status: true, dueDate: true, paidDate: true,
-        centralStatus: true, centralDecidedAt: true, createdAt: true,
+        centralStatus: true, centralDecidedAt: true, createdAt: true, budgetCategoryId: true, transactionId: true,
         // Le motif du refus, tel que le centre l'a écrit — l'étape « Demande du BV » le dit.
         centralMessages: { where: { decision: "REFUSE" }, orderBy: { createdAt: "desc" }, take: 1, select: { body: true } },
       },
@@ -134,7 +137,18 @@ export default async function RegulatoryDetailPage(
       : Promise.resolve([] as { id: string; name: string; role: string }[]),
     // L'entité du dossier est modifiable : elle détermine qui le voit.
     getMyCompanies(user.id),
+    // LES DEMANDES DE BV AU CENTRE DE VALIDATIONS (nouveau circuit) — l'état de l'étape se lit dessus.
+    prisma.validationRequest.findMany({
+      where: { objectType: { in: [...OBJETS_BV_REGULATORY] }, entityType: "REGULATORY_PRODUCT", entityId: product.id },
+      select: {
+        id: true, reference: true, objectType: true, status: true, amount: true, createdAt: true, decidedAt: true,
+        steps: { where: { status: { in: ["APPROVED", "REJECTED", "CHANGES_REQUESTED"] } }, select: { reason: true, validator: { select: { name: true } } } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
   ]);
+  // L'ENCADRÉ BUDGET : les mêmes chiffres que la page Budget Regulatory, pour ce dossier.
+  const budgetBv = await budgetBvDuDossier({ id: product.id, status: product.status }, bvOrders);
 
   // LA CTD INITIALE (§118.213) : ce que la personne peut en faire (la porte du dépôt, jamais plus large), et la
   // dernière CTD retirée de ce dossier — dite sur le bloc, restaurable par le Super Admin depuis la corbeille.
@@ -219,11 +233,29 @@ export default async function RegulatoryDetailPage(
 
   // L'ÉTAT DE CHAQUE BV, LU SUR SON ORDRE — demandé (au centre), autorisé (chez les Finances), payé (avec
   // la quittance déposée sur l'étape de paiement), refusé (avec le motif, et l'on peut redemander).
+  //
+  // DEUX CIRCUITS COHABITENT (Super Admin, 24/11/2026) : une demande au Centre de validations (nouveau) l'emporte, sauf
+  // si elle est refusée alors qu'un ancien ordre vit encore ou est plus récent. Le paiement reste verrouillé tant que
+  // rien n'est accepté (`paiementBvDeverrouille` — un ancien ordre autorisé ou payé vaut acceptation).
   const bvSuivi: Record<string, SuiviBvVue | null> = {};
+  const bvCentre: Record<string, SuiviDemandeBvVue | null> = {};
+  const paiementVerrouille: Record<string, boolean> = {};
   for (const reqKey of Object.keys(BV_REQUEST_STEPS)) {
     const nature = natureDeLEtape(reqKey);
-    const lu = nature ? ordreQuiDitLEtat(bvOrders, nature) : null;
-    if (!nature || !lu) { bvSuivi[reqKey] = null; continue; }
+    if (!nature) continue;
+    paiementVerrouille[ETAPES_BV[nature].paiement] = !paiementBvDeverrouille(nature, { demandes: bvDemandes, ordres: bvOrders });
+    const lue = demandeQuiDitLEtat(bvDemandes.filter((d) => natureDeLObjetBv(d.objectType) === nature));
+    const ancien = ordreQuiDitLEtat(bvOrders, nature);
+    const parLeCentre = lue && (lue.etat !== "REFUSE" || !ancien || (ancien.etat === "REFUSE" && lue.demande.createdAt > ancien.ordre.createdAt));
+    bvCentre[reqKey] = parLeCentre ? {
+      etat: lue.etat, validationId: lue.demande.id, reference: lue.demande.reference,
+      montant: lue.demande.amount === null ? 0 : toNumber(lue.demande.amount),
+      demandeLe: lue.demande.createdAt.toISOString(), decideLe: lue.demande.decidedAt?.toISOString() ?? null,
+      decideur: lue.demande.steps[0]?.validator.name ?? null,
+      motifRefus: lue.etat === "REFUSE" ? lue.demande.steps[0]?.reason ?? null : null,
+    } : null;
+    const lu = parLeCentre ? null : ancien;
+    if (!lu) { bvSuivi[reqKey] = null; continue; }
     const o = lu.ordre;
     const quittance = lu.etat === "PAYE"
       ? documents.find((d) => d.category === "BV_RECEIPT" && d.stepKey === ETAPES_BV[nature].paiement && d.createdAt >= o.createdAt) ?? null
@@ -457,6 +489,8 @@ export default async function RegulatoryDetailPage(
                 canDelete={canDelete}
                 stepDocs={stepDocs}
                 bvSuivi={bvSuivi}
+                bvCentre={bvCentre}
+                paiementVerrouille={paiementVerrouille}
                 ctd={{
                   docs: ctdDocs,
                   canUpload: droitsCtd.deposer,
@@ -548,8 +582,12 @@ export default async function RegulatoryDetailPage(
             </Card>
           )}
 
-          {/* Les BV existants, s'il y en a — la DEMANDE, elle, se fait depuis l'étape
-              « Demande du BV » du processus, pas depuis cette carte. */}
+          {/* LE BUDGET DU DOSSIER (Super Admin, 24/11/2026) — BV 25 % / 75 % : demandé, engagé, consommé, et
+              l'enveloppe où ils comptent ; les mêmes chiffres que la page Budget Regulatory. */}
+          <BudgetBvCard lignes={budgetBv} lienBudget={userCan(user, "BUDGET_REGULATORY", "VIEW")} />
+
+          {/* Les BV de l'ANCIEN circuit (ordres de dépense), s'il y en a — la DEMANDE, elle, se fait depuis
+              l'étape « Demande du BV » du processus, et part désormais au Centre de validations. */}
           {bvItems.length > 0 && (
             <Card>
               <CardHeader className="flex-row items-center justify-between">

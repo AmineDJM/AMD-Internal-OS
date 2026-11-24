@@ -4,6 +4,8 @@ import { getDepartmentSubtreeIds } from "@/lib/departments";
 import { CATEGORIES_BV, lignesBv, natureDuLibelle, type DossierBv, type OrdreBv } from "@/lib/budget-regulatory/bv";
 import { projeter12Mois, type DomaineCampagne, type LignePrefill } from "./regles";
 import { categoriesGouvernees, consommationIntegree, contextesDesCategories } from "@/lib/queries/budget-integration";
+import { lireBvAcceptes } from "@/lib/queries/budget-bv-acceptes";
+import { LIBELLE_NATURE_BV } from "@/lib/regulatory/bv-circuit";
 
 /**
  * « PRÉ-REMPLIR DEPUIS L'ANNÉE EN COURS » — jamais une page blanche (maquette validée).
@@ -179,19 +181,31 @@ async function prefillBv(e: EntreePrefill, debut: Date, fin: Date, projete: (m: 
     select: { id: true, reference: true, dci: true, brandName: true, status: true, workflow: true },
     take: 2000,
   });
+  // LES BV ACCEPTÉS AU CENTRE DE VALIDATIONS (nouveau circuit, sans ordre) comptent comme les ordres : payés quand leur
+  // paiement est « fait », engagés sinon — lus comme tels par `lignesBv` (`circuit: "VALIDATION"`).
+  const acceptes = (await lireBvAcceptes()).filter((b) => !e.companyId || !b.companyId || b.companyId === e.companyId);
   const realise = { "25": 0, "75": 0 };
   const connus25: number[] = [];
-  for (const o of ordres) {
-    const n = natureDuLibelle(o.label);
-    if (!n || o.status !== "PAID") continue;
-    if (n === "25") connus25.push(toNumber(o.amount));
-    if (o.paidDate && o.paidDate >= debut && o.paidDate <= fin) realise[n] += toNumber(o.amount);
+  const payes = [
+    ...ordres.filter((o) => o.status === "PAID").map((o) => ({ n: natureDuLibelle(o.label), montant: toNumber(o.amount), le: o.paidDate })),
+    ...acceptes.filter((b) => b.paiementFait).map((b) => ({ n: b.nature, montant: b.montant, le: b.payeLe })),
+  ];
+  for (const p of payes) {
+    if (!p.n) continue;
+    if (p.n === "25") connus25.push(p.montant);
+    if (p.le && p.le >= debut && p.le <= fin) realise[p.n] += p.montant;
   }
   const dossiers: DossierBv[] = dossiersRaw.map((d) => ({ id: d.id, reference: d.reference, dci: d.dci, nom: d.brandName, status: d.status, workflow: (d.workflow as DossierBv["workflow"]) ?? null }));
   const ordresBv: OrdreBv[] = ordres.filter((o) => o.sourceId).map((o) => ({
     id: o.id, productId: o.sourceId as string, label: o.label, amount: toNumber(o.amount), status: o.status,
     paidDate: o.paidDate, createdAt: o.createdAt, budgetCategoryId: o.budgetCategoryId, transactionCategoryId: null,
   }));
+  for (const b of acceptes) {
+    ordresBv.push({
+      id: b.validationId, productId: b.productId, label: LIBELLE_NATURE_BV[b.nature], amount: b.montant, status: b.paiementFait ? "PAID" : "PENDING",
+      paidDate: b.payeLe, createdAt: b.accepteLe, budgetCategoryId: b.categoryId, transactionCategoryId: null, circuit: "VALIDATION",
+    });
+  }
   const parDossier = lignesBv({ dossiers, ordres: ordresBv, saisies: [], categories: { bv25: null, bv75: null } });
   const actifs = new Set(parDossier.map((l) => l.dossierId));
   const prevision75 = parDossier.reduce((a, l) => a + l.prevision75, 0);

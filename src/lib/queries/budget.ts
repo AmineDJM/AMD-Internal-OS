@@ -8,6 +8,7 @@ import { getAppSettings } from "@/lib/settings";
 import { dansLaPortee, totaliser, type PorteeBudget } from "@/lib/budget/domaines";
 import { masseSalarialeConsumption } from "@/lib/queries/budget-operations";
 import { fraisMissionConsumption } from "@/lib/missions-equipe/imputation-serveur";
+import { bvAcceptesConsumption } from "@/lib/queries/budget-bv-acceptes";
 import { datesReellesDesEcritures, engagementsDesCategories } from "@/lib/queries/budget-sources";
 import { dansLaPeriode } from "@/lib/budget/engage";
 import { lienMission } from "@/lib/chemins/espace";
@@ -297,6 +298,10 @@ export async function getEnvelopesGrandTotal(viewer: SessionUser, opts: OptionsP
   for (const [catId, amount] of missions.consumed) {
     consumedByCat.set(catId, (consumedByCat.get(catId) ?? 0) + amount);
   }
+  // …et les BV des dossiers réglementaires acceptés au Centre de validations, paiement « fait » (sans ordre ni écriture).
+  for (const [catId, amount] of (await bvAcceptesConsumption(catIds)).consumed) {
+    consumedByCat.set(catId, (consumedByCat.get(catId) ?? 0) + amount);
+  }
 
   const items: EnvelopeSummaryItem[] = visible.map((e) => {
     const total = toNumber(e.totalAmount);
@@ -473,6 +478,16 @@ export async function getBudgetOverview(
   for (const [catId, amount] of fraisMission.committed) {
     committedByCat.set(catId, (committedByCat.get(catId) ?? 0) + amount);
   }
+  // LES BV ACCEPTÉS AU CENTRE DE VALIDATIONS (Super Admin, 24/11/2026) : sans ordre de dépense ni écriture, ils pèsent
+  // pourtant sur leur ligne BV 25 % / 75 % — engagés dès l'acceptation, consommés quand le paiement est « fait » (le même
+  // montant change de colonne). Seules les catégories BV d'une enveloppe Regulatory les lisent.
+  const bvAcceptes = await bvAcceptesConsumption(catIds, from, to);
+  for (const [catId, amount] of bvAcceptes.consumed) {
+    consumedByCat.set(catId, (consumedByCat.get(catId) ?? 0) + amount);
+  }
+  for (const [catId, amount] of bvAcceptes.committed) {
+    committedByCat.set(catId, (committedByCat.get(catId) ?? 0) + amount);
+  }
 
   const categories: BudgetCategoryView[] = envelope.categories.map((c) => {
     const allocated = toNumber(c.allocated);
@@ -571,6 +586,7 @@ export async function getBudgetOverview(
     ...generalMeans.rows.map((r) => ({ date: r.date, amount: r.amount })),
     ...paie.rows.map((r) => ({ date: r.date, amount: r.amount })),
     ...fraisMission.rows.map((r) => ({ date: dansLaPeriode(r.date, from, to), amount: r.amount })),
+    ...bvAcceptes.rows.map((r) => ({ date: r.date, amount: r.amount })),
     ...(integ?.historiques ?? []).map((h) => ({ date: h.payeLe, amount: h.montant })),
   ]);
 

@@ -5,6 +5,7 @@ import { OBJET_BC, MODULE_BC, CHEMIN_BC_A_SIGNER } from "@/lib/bons-de-commande/
 import { LIBELLE_CENTRE_BC, reserveDeLAiguillage } from "@/lib/bons-de-commande/regle";
 import { signalerSiASigner } from "@/lib/bons-de-commande/etat";
 import { suiteDecisionInfoMed } from "@/lib/queries/suite-decision-info-med";
+import { apresDecisionBv, etapeDuCentrePourLeBv, suiteDecisionBv } from "@/lib/regulatory/bv-centre";
 import { LIBELLE_SOURCE_BC, OBJET_PREVALIDATION_BC, lireSourceBC, refusSoumissionBC, refusValidationFinale, validateursDuFormulaire } from "@/lib/bons-de-commande/prevalidation";
 import { bcASoumettre, libererPrevalidation, peutCreerUnBC, retenirPourPrevalidation } from "@/lib/bons-de-commande/retenue-bc";
 import { createLegalDocument } from "@/lib/actions/legal-actions";
@@ -354,8 +355,14 @@ export async function decideValidation(formData: FormData): Promise<ActionResult
     // et le motif ne l'est QUE pour renvoyer ou refuser — valider sans commentaire reste possible (§118.138).
     if (motifExige(decision as DecisionEtape) && reason === null) return { ok: false, error: MOTIF_EXIGE };
 
+    const lue = await prisma.validationStep.findUnique({ where: { id: stepId }, include: { request: { select: { id: true, objectType: true, requesterId: true } } } });
+    if (!lue) return { ok: false, error: "Étape introuvable." };
+    // UN BV DE DOSSIER se tranche par l'ACCÈS au Centre de validations, sur l'étape de qui décide (`bv-centre.ts`).
+    const centre = await etapeDuCentrePourLeBv(user, lue.request);
+    if (centre && "refus" in centre) return { ok: false, error: centre.refus };
+    const etapeId = centre ? centre.stepId : stepId;
     const step = await prisma.validationStep.findUnique({
-      where: { id: stepId },
+      where: { id: etapeId },
       include: { request: { include: { steps: true } } },
     });
     if (!step) return { ok: false, error: "Étape introuvable." };
@@ -363,7 +370,7 @@ export async function decideValidation(formData: FormData): Promise<ActionResult
     // sans cela, les validations s'empilent trois semaines et l'on découvre au retour qu'une
     // demande attendait depuis quinze jours. La délégation est validée par les RH et s'éteint
     // seule à la fin du congé — voir `lib/hr/stand-in.ts`. Jamais sur sa propre demande (I18).
-    const droit = await droitSurLEtape(user, step.validatorId, step.request.requesterId);
+    const droit = centre ? "VALIDATEUR" : await droitSurLEtape(user, step.validatorId, step.request.requesterId);
     if (!droit) {
       return { ok: false, error: "Vous n'êtes pas le validateur de cette étape." };
     }
@@ -394,13 +401,13 @@ export async function decideValidation(formData: FormData): Promise<ActionResult
       }
       if (frais.mode === "SEQUENTIAL" && step.order !== frais.currentOrder) return { ok: false as const, error: "Ce n'est pas encore votre tour." };
       const ecrite = await tx.validationStep.updateMany({
-        where: { id: stepId, status: "PENDING" },
+        where: { id: etapeId, status: "PENDING" },
         data: { status: decision, reason, decidedAt: new Date() },
       });
       if (ecrite.count === 0) return { ok: false as const, error: "Étape déjà traitée." };
-      const etapes = frais.steps.map((e) => (e.id === stepId ? { ...e, status: decision } : e));
+      const etapes = frais.steps.map((e) => (e.id === etapeId ? { ...e, status: decision } : e));
       const unSeul = unSeulSuffit(req.objectType);
-      const r = issueDeLaDecision({ mode: frais.mode, currentOrder: frais.currentOrder, steps: etapes, unSeulSuffit: unSeul }, stepId, decision as DecisionEtape);
+      const r = issueDeLaDecision({ mode: frais.mode, currentOrder: frais.currentOrder, steps: etapes, unSeulSuffit: unSeul }, etapeId, decision as DecisionEtape);
       const finalisee = r.status !== "PENDING";
       await tx.validationRequest.update({
         where: { id: req.id },
@@ -409,7 +416,7 @@ export async function decideValidation(formData: FormData): Promise<ActionResult
       // UN SEUL A TRANCHÉ POUR TOUS : les autres saisis n'ont plus rien à décider — leur étape se clôt
       // (« sans objet »), sans quoi elle resterait « à valider » dans leur file pour une demande close.
       if (unSeul && finalisee) {
-        await tx.validationStep.updateMany({ where: { requestId: req.id, status: "PENDING", id: { not: stepId } }, data: { status: "SKIPPED" } });
+        await tx.validationStep.updateMany({ where: { requestId: req.id, status: "PENDING", id: { not: etapeId } }, data: { status: "SKIPPED" } });
       }
       const suivante = r.suivanteId ? etapes.find((e) => e.id === r.suivanteId) ?? null : null;
       return { ok: true as const, status: r.status, finalisee, currentOrder: r.currentOrder, suivanteValidatorId: suivante?.validatorId ?? null, suivanteStepId: suivante?.id ?? null };
@@ -437,7 +444,7 @@ export async function decideValidation(formData: FormData): Promise<ActionResult
       // sans dire quoi, vers la liste de toutes les validations, faisait chercher deux fois.
       const motif = reason ? ` Motif : « ${reason} ».` : "";
       // L'INFORMATION MÉDICALE (23/11/2026) : la notification mène au DOSSIER et dit le geste suivant (`queries/suite-decision-info-med.ts`).
-      const infoMed = await suiteDecisionInfoMed(req, newStatus);
+      const infoMed = (await suiteDecisionInfoMed(req, newStatus)) ?? suiteDecisionBv(req, newStatus);
       const suite = newStatus === "CHANGES_REQUESTED"
         ? (resoumissionSurPlace(req)
           ? " Corrigez-la puis « Resoumettre » sur la demande : elle reviendra à la même étape."
@@ -555,6 +562,8 @@ export async function decideValidation(formData: FormData): Promise<ActionResult
     // CHAQUE DÉCISION, pas seulement la dernière (Direction, 06/10) : la fiche d'origine montre ce que
     // chaque validateur a dit — le premier accord d'un circuit à deux doit s'y lire aussi.
     for (const chemin of cheminsDeLObjetLie(req)) revalidatePath(chemin);
+    // UN BV DE DOSSIER TRANCHÉ : son étape « Demande du BV » suit, le niveau de process aussi, le budget le lit.
+    if (finalized) await apresDecisionBv(req, newStatus, user.id).catch(sansBloquer("validation-actions.decideValidation.apresDecisionBv"));
 
     // UN BON DE COMMANDE VALIDÉ PASSE À LA SIGNATURE DES FINANCES (§118.149) — elles en sont
     // prévenues, sans quoi la file « à signer » se remplirait en silence. Relu, jamais supposé :

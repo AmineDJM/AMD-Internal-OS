@@ -91,10 +91,10 @@ export const OPS_REGULATORY: OpMeta[] = [
   },
   {
     tool: "regulatory_operation", op: "request_bv", module: "Regulatory",
-    uiLabel: "Demander un BV (ordre de dépense ANPP)",
+    uiLabel: "Demander l'autorisation d'un BV 25 % / 75 % (Centre de validations)",
     aliases: ["demande un bv", "paiement du bv anpp", "bulletin de versement du dossier"],
     risk: "SENSITIVE",
-    summary: "Crée l'ORDRE DE DÉPENSE du BV ANPP (montant DZD, échéance) — il part dans le circuit Finances/Centre de paiement, rien n'est décaissé ici.",
+    summary: "Demande l'AUTORISATION du BV 25 % ou 75 % d'un dossier (montant DZD) au Centre de validations — acceptée, elle engage le montant au budget Regulatory et déverrouille le paiement ; rien n'est décaissé ici.",
     gate: (u) => userCan(u, "REGULATORY", "UPDATE"),
     covers: ["regulatory-actions:requestBV"],
   },

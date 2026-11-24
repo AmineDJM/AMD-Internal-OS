@@ -4,7 +4,7 @@ import * as React from "react";
 
 import {
   Check, Loader2, CircleDot, ArrowRight, ChevronDown, Paperclip, MessageSquare,
-  ReceiptText, ListChecks, Repeat, Ban,
+  ReceiptText, ListChecks, Repeat, Ban, Lock,
 } from "lucide-react";
 import {
   REG_PHASES, REG_STEPS, REG_STEP_STATE, REG_CHECKLIST,
@@ -24,11 +24,12 @@ import { useRetours } from "@/components/ui/retour";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { actionFailureMessage } from "@/lib/action-outcome";
 import type { ActionResult } from "@/lib/actions/types";
-import { BvRequestSheet } from "./bv-requests";
+import { BvRequestSheet, SuiviCentreBv } from "./bv-requests";
 import { DossierTimeline, type TimelineStepView } from "./dossier-timeline";
 import { CtdInitiale } from "./ctd-initiale";
 import { CTD_INITIALE_ETAPE, CTD_INITIALE_CATEGORIE } from "@/lib/regulatory/ctd-initiale";
 import { ETAT_BV, type SuiviBvVue } from "@/lib/regulatory/bv-circuit";
+import type { SuiviDemandeBvVue } from "@/lib/regulatory/bv-validation";
 
 const STATE_OPTS: RegStepState[] = ["TODO", "DOING", "DONE", "BLOCKED"];
 
@@ -93,15 +94,22 @@ function Dot({ state, n }: { state: RegStepState; n: number }) {
  *     réception n'est pas qu'une case, c'est la pièce elle-même ;
  *   • la **check-list de présoumission est l'étape 2**, à part — la liste se déplie sous elle ;
  *   • **demander un BV** se fait sur l'étape « Demande du BV 25 / 75 % », avec montant,
- *     échéance, note et pièces ; la demande EST l'étape, elle la coche ;
+ *     note et pièces ; la demande part au Centre de validations, et l'étape suit sa décision ;
  *   • les **allers-retours avec l'ANPP** (réserves → réponses → redépôt, autant de fois qu'il
  *     le faut) sont la SEULE trace du cycle des réserves : la frise du dossier vit entre
  *     l'évaluation et le dépôt des réponses — les anciennes cases-jalons ont été retirées.
  */
 export function RegulatoryProcess({
   productId, workflow, checklist, canUpdate, canUpload, canDelete, stepDocs, path,
-  dossierSteps, reference, ctd, bvSuivi = {},
+  dossierSteps, reference, ctd, bvSuivi = {}, bvCentre = {}, paiementVerrouille = {},
 }: {
+  /**
+   * L'état de chaque BV demandé au CENTRE DE VALIDATIONS (nouveau circuit), par étape de DEMANDE — en attente, accepté,
+   * refusé (motif). Quand il est présent, il l'emporte sur `bvSuivi` (ancien circuit, ordre de dépense).
+   */
+  bvCentre?: Record<string, SuiviDemandeBvVue | null>;
+  /** Les étapes de PAIEMENT verrouillées (`bv25_pay`, `bv75_pay`) : la demande n'est pas encore acceptée. */
+  paiementVerrouille?: Record<string, boolean>;
   /**
    * L'état de chaque BV, par étape de DEMANDE (`bv25_req`, `bv75_req`) — lu sur son ordre de dépense :
    * demandé (au centre), autorisé (chez les Finances), payé (quittance), refusé (motif). `null` : rien
@@ -180,7 +188,11 @@ export function RegulatoryProcess({
     // le centre : on redemande). Une demande en cours, autorisée ou payée ne se double pas : le serveur
     // le refuse aussi (`requestBV`), l'écran ne propose donc pas le geste.
     const suivi = bvType ? bvSuivi[s.key] ?? null : null;
-    const peutDemanderBv = Boolean(bvType && canUpdate && (suivi ? suivi.etat === "REFUSE" : !bvPaid));
+    const centre = bvType ? bvCentre[s.key] ?? null : null;
+    const vu = centre ?? suivi;
+    const peutDemanderBv = Boolean(bvType && canUpdate && (vu ? vu.etat === "REFUSE" : !bvPaid));
+    // LE PAIEMENT EST VERROUILLÉ tant que la demande n'est pas acceptée — le serveur le refuse aussi.
+    const verrouille = paiementVerrouille[s.key] === true;
     // L'étape de PAIEMENT rappelle la quittance déposée par les Finances.
     const reqDuPaiement = Object.keys(BV_PAYMENT_STEPS).find((k) => BV_PAYMENT_STEPS[k] === s.key);
     const quittance = reqDuPaiement ? bvSuivi[reqDuPaiement]?.quittance ?? null : null;
@@ -226,10 +238,11 @@ export function RegulatoryProcess({
                 <Select
                   value={st}
                   onChange={(e) => setStep(s.key, e.target.value as RegStepState)}
-                  disabled={busy === s.key}
+                  disabled={busy === s.key || (verrouille && st === "TODO")}
+                  title={verrouille ? "Verrouillé : la demande du BV doit d'abord être acceptée au Centre de validations" : undefined}
                   className="h-9 w-full text-xs sm:h-8 sm:w-32"
                 >
-                  {STATE_OPTS.map((o) => <option key={o} value={o}>{REG_STEP_STATE[o].label}</option>)}
+                  {STATE_OPTS.map((o) => <option key={o} value={o} disabled={verrouille && o !== "TODO"}>{REG_STEP_STATE[o].label}</option>)}
                 </Select>
               ) : (
                 <Badge tone={REG_STEP_STATE[st].tone} dot={false}>{busy === s.key ? <Loader2 className="h-3 w-3 animate-spin" /> : REG_STEP_STATE[st].label}</Badge>
@@ -241,8 +254,13 @@ export function RegulatoryProcess({
           {/* LA DEMANDE DE BV SE FAIT ICI — l'étape elle-même est le geste (montant, pièce jointe et
               commentaire facultatifs), puis elle raconte où en est le bon : au centre, chez les
               Finances, payé avec sa quittance, ou refusé avec le motif — et l'on redemande. */}
-          {bvType && (suivi || peutDemanderBv) && (
-            <BvEtape suivi={suivi} bvType={bvType} peutDemander={peutDemanderBv} onDemander={() => setBvStep(s.key)} />
+          {bvType && (vu || peutDemanderBv) && (
+            <BvEtape suivi={centre ? null : suivi} centre={centre} bvType={bvType} peutDemander={peutDemanderBv} onDemander={() => setBvStep(s.key)} />
+          )}
+          {verrouille && (
+            <p className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground">
+              <Lock className="h-3 w-3 shrink-0" /> Verrouillé tant que la demande du BV n&apos;est pas acceptée au Centre de validations.
+            </p>
           )}
           {quittance && (
             <a
@@ -392,16 +410,18 @@ const fmtJour = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(
 /**
  * LE BV DANS SON ÉTAPE — « Demande du BV 25 % » se clique, puis dit où en est le bon.
  *
- * Demandé (au centre de paiement) → Autorisé (chez les Finances) → Payé (la quittance, déposée par les
- * Finances, s'ouvre d'ici) ; ou Refusé, avec le motif écrit par le centre (« Non prioritaire »…), et
- * le geste pour redemander. L'état est lu sur l'ordre de dépense, jamais saisi à part.
+ * Depuis le 24/11/2026, la demande part au CENTRE DE VALIDATIONS : en attente → accepté (montant engagé au budget,
+ * le paiement se déverrouille) ou refusé (motif), et l'on redemande. L'ANCIEN circuit reste lisible pour les BV déjà
+ * émis en ordres : demandé (au centre de paiement) → autorisé (chez les Finances) → payé (quittance), ou refusé.
+ * L'état est lu sur la demande ou sur l'ordre, jamais saisi à part.
  */
 function BvEtape({
-  suivi, bvType, peutDemander, onDemander,
-}: { suivi: SuiviBvVue | null; bvType: string; peutDemander: boolean; onDemander: () => void }) {
+  suivi, centre, bvType, peutDemander, onDemander,
+}: { suivi: SuiviBvVue | null; centre: SuiviDemandeBvVue | null; bvType: string; peutDemander: boolean; onDemander: () => void }) {
   const e = suivi ? ETAT_BV[suivi.etat] : null;
   return (
     <div className="mt-2 space-y-2">
+      {centre && <SuiviCentreBv centre={centre} />}
       {suivi && e && (
         <div className={cn(
           "rounded-md border px-2.5 py-2 text-xs",
@@ -438,9 +458,9 @@ function BvEtape({
         >
           <span className="inline-flex items-center gap-2">
             <ReceiptText className="h-4 w-4 shrink-0" />
-            {suivi?.etat === "REFUSE" ? `Redemander le ${bvType}` : `Demander le ${bvType}`}
+            {(centre ?? suivi)?.etat === "REFUSE" ? `Redemander l'autorisation du ${bvType}` : `Demander l'autorisation du ${bvType}`}
           </span>
-          <span className="text-xs font-normal text-muted-foreground">pièce jointe et commentaire facultatifs →</span>
+          <span className="text-xs font-normal text-muted-foreground">montant, pièces et commentaire → Centre de validations</span>
         </button>
       )}
     </div>

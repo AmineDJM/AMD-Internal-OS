@@ -1,7 +1,7 @@
 /**
  * REGULATORY — les CORPS des gestes sur la fiche d'un dossier : la création (et son annonce), la modification, le
- * chargé, le classement, une étape, le niveau demandé, la relance de statut, une variation (déposée, actée), la
- * demande de BV.
+ * chargé, le classement, une étape, le niveau demandé, la relance de statut, une variation (déposée, actée). La
+ * demande de BV a son propre corps (`bv.ts`).
  *
  * Sortis de `actions/regulatory-actions.ts` (lot V4). Chaque action garde sa porte (session, droits, dossier),
  * sa trace d'audit et ses annonces ; elle passe le FORMULAIRE à son corps, qui lit, contrôle et écrit. Pour le
@@ -23,16 +23,11 @@ import { ensureProduitDuDossier } from "@/lib/products/canonique";
 import { phraseProduitDuDossier } from "@/lib/products/produit-du-dossier";
 import { creerDossierDriveProduit } from "@/lib/regulatory-drive-dossier";
 import { regSupervisorRoles } from "@/lib/regulatory/sync-status";
-import { createExpenseOrder } from "@/modules/finances/api";
-import { categorieBvPourOrdre } from "@/lib/queries/budget-regulatory";
-import { natureDuLibelle } from "@/lib/budget-regulatory/bv";
-import { deposerPieceDeModule } from "@/lib/storage";
 import { REGULATORY_STEP_ORDER, VARIATION_TARGETS } from "@/lib/labels";
-import { BV_REQUEST_STEPS } from "@/lib/regulatory-workflow";
 import { parseProductChannel, upperMolecules, normalizeDci } from "@/lib/actions/internes/regulatory/dossier";
 import { annoncerLaFabrication, guardStructural } from "@/lib/actions/internes/regulatory/structurel";
 import {
-  avancerJusquAuJalon, emettreSousVerrou, refusBvDejaDemande, refusDesPieces, segmentsAdmis,
+  avancerJusquAuJalon, segmentsAdmis,
 } from "@/lib/actions/internes/regulatory/processus";
 
 /** L'arrêt de l'action, avec ce qu'elle rend — un type nommé, pour que `"fini" in …` le distingue de la suite. */
@@ -433,73 +428,6 @@ export async function deposerLaVariation(formData: FormData, ctx: { user: Sessio
     },
   });
   return { ok: true as const, toStatus };
-}
-
-/**
- * `requestBV`, après la porte : la nature et le montant du BV, les pièces jugées AVANT l'ordre, l'ordre émis
- * (sous verrou pour une nature connue), puis les justificatifs. L'action garde l'audit et l'étape cochée.
- */
-export async function emettreLeBv(
-  formData: FormData, ctx: { user: SessionUser; productId: string; product: { reference: string; dci: string }; etapeValide: string | null },
-) {
-  const { user, productId, product, etapeValide } = ctx;
-  const bvType = (etapeValide && BV_REQUEST_STEPS[etapeValide]) || str(formData, "bvType") || "BV";
-  const nature = natureDuLibelle(bvType);
-  const amount = Number(str(formData, "amount"));
-  if (!Number.isFinite(amount) || amount <= 0) return { ok: false, error: "Montant invalide." } as Refus;
-  const dueRaw = str(formData, "dueDate");
-  const note = str(formData, "note");
-
-  // LES PIÈCES SE JUGENT AVANT L'ORDRE (§118.202) : un fichier refusé après la création laissait un
-  // ordre au centre de paiement — sans pièce, et qu'une seconde tentative doublait.
-  const files = [...formData.getAll("files"), formData.get("file")]
-    .filter((f): f is File => f instanceof File && f.size > 0);
-  const refusPiece = await refusDesPieces(files);
-  if (refusPiece) return { ok: false, error: refusPiece } as Refus;
-
-  // L'ORDRE NAÎT EN ATTENTE DU CENTRE DE PAIEMENT (`initialCentralStatus`, aucune exemption de
-  // module) ; les Finances ne le voient qu'une fois autorisé. Son entité est celle du DOSSIER.
-  const label = `${bvType} — ${product.reference} ${product.dci}`;
-  const emettre = async () => createExpenseOrder({
-    label,
-    amount,
-    category: "IMPOT",
-    beneficiary: "ANPP",
-    sourceType: "REGULATORY_PRODUCT",
-    sourceId: productId,
-    requestedById: user.id,
-    notes: note,
-    dueDate: dueRaw ? new Date(dueRaw) : null,
-    // BUDGET REGULATORY (08/10) : le BV naît rangé dans la catégorie de SA part (25 % ou 75 %) de l'enveloppe
-    // Regulatory active — il s'y imputera à son règlement. Aucune enveloppe → le chemin ordinaire.
-    budgetCategoryId: await categorieBvPourOrdre(label),
-  });
-
-  // UN BV DE CETTE NATURE À LA FOIS, PAR DOSSIER. Un double clic (ou deux personnes sur le même
-  // dossier) émettait deux ordres — deux paiements du même bon à l'ANPP au centre. Le contrôle et
-  // l'émission se font SOUS UN VERROU propre au couple (dossier, nature) : la seconde demande attend
-  // la première, puis lit son ordre et s'arrête. Seuls un refus du centre ou une annulation rendent
-  // la main — redemander un BV refusé est le geste prévu (`bloqueUneNouvelleDemande`).
-  let order: Awaited<ReturnType<typeof emettre>>;
-  if (nature) {
-    const issue = await emettreSousVerrou(productId, nature, emettre);
-    if (issue.deja) return { ok: false, error: refusBvDejaDemande(bvType, issue.deja) } as Refus;
-    if (!issue.cree) return { ok: false, error: "La demande n'a pas pu être émise : réessayez." } as Refus;
-    order = issue.cree;
-  } else {
-    order = await emettre();
-  }
-
-  // JUSTIFICATIFS — UNE OU PLUSIEURS PIÈCES. Un BV arrive rarement seul : proforma, courrier
-  // de l'agence, calcul du montant. N'en accepter qu'une obligeait à choisir laquelle compte,
-  // puis à déposer le reste ailleurs — c'est-à-dire nulle part.
-  if (files.length > 0) {
-    for (const file of files) {
-      // Fichier au coffre, fiche, inscription à la bibliothèque (J1) — une écriture ratée garde la fiche (métadonnées seules).
-      await deposerPieceDeModule(file, { entityType: "EXPENSE_ORDER", entityId: order.id, category: "PROFORMA", confidentiality: "INTERNAL", uploadedById: user.id, journal: "requestBV" });
-    }
-  }
-  return { ok: true as const, order, bvType, amount, pieces: files.length };
 }
 
 /** `setVariationStatus`, après la porte : la décision datée et, à l'obtention, le statut de fabrication promu. */

@@ -262,18 +262,23 @@ suite("K10c — circuits : exécuter, annuler (cascade comprise), rétablir", ()
     await traceeDe(g);
   });
 
-  it("demande de BV : l'ordre, son dossier compagnon et l'étape du processus sont défaits", async () => {
+  it("demande de BV : la demande au Centre de validations et l'étape du processus sont défaites", async () => {
+    // Un membre du Centre de validations (ouvert par la console) pour trancher : on ne tranche pas sa propre demande.
+    await prisma.userAccess.create({ data: { userId: karim, module: "VALIDATION_CENTRE", canView: true } });
     const soc = await prisma.company.create({ data: { name: `${TAG} Société` } });
     const p = await prisma.regulatoryProduct.create({ data: { dci: `${TAG}dci`, brandName: `${TAG}Marque`, reference: `${TAG}REF`, companyId: soc.id } });
+    const demandes = () => prisma.validationRequest.findMany({ where: { entityId: p.id, status: { not: "CANCELLED" } } });
     const g = gesteDe(nonVide(await requestBV(fd({ productId: p.id, amount: "120000", stepKey: "bv25_req" }))));
-    const [ordre] = await ordresDe(p.id);
-    expect(ordre).toBeTruthy();
+    expect(await demandes()).toHaveLength(1);
+    expect(await ordresDe(p.id), "plus d'ordre de dépense").toHaveLength(0);
     const c = await annuler(g);
     await completEnBase(g, c);
-    expect(await ordresDe(p.id)).toHaveLength(0);
+    expect(await demandes()).toHaveLength(0);
     const wf = (await prisma.regulatoryProduct.findUniqueOrThrow({ where: { id: p.id } })).workflow as Record<string, { status?: string }> | null;
-    expect(wf?.bv25_req?.status ?? null).not.toBe("DONE");
+    expect(wf?.bv25_req?.status ?? "TODO").toBe("TODO");
     await traceeDe(g);
+    await prisma.validationRequest.deleteMany({ where: { entityId: p.id } });
+    await prisma.userAccess.deleteMany({ where: { userId: karim, module: "VALIDATION_CENTRE" } });
     await prisma.regulatoryProduct.delete({ where: { id: p.id } });
     await prisma.company.delete({ where: { id: soc.id } }).catch(() => undefined);
   });

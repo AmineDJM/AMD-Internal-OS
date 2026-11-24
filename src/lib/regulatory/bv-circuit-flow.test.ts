@@ -11,18 +11,19 @@ import { getAccess, type SessionUser } from "@/lib/rbac";
 import { requestBV } from "@/lib/actions/regulatory-actions";
 import { decidePayment } from "@/modules/finances/actions-centre";
 import { settleExpenseOrder } from "@/modules/finances/actions-depenses";
+import { createExpenseOrder } from "@/modules/finances/api";
 import { canAccessEntity } from "@/lib/entity-access";
 import type { RegWorkflowState } from "@/lib/regulatory-workflow";
 import { natureDeLOrdreBv, ordreQuiDitLEtat, etatDeLOrdreBv, bloqueUneNouvelleDemande } from "./bv-circuit";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LE BV D'UN DOSSIER, DE L'ÉTAPE AU PAIEMENT — par les VRAIS points d'entrée (Direction, 10/2026).
+ * LE BV D'UN DOSSIER DE L'ANCIEN CIRCUIT (Direction, 10/2026), QUI FINIT SON PARCOURS — par les VRAIS points d'entrée.
  *
- * « Demande du BV 25 % » se clique (pièce jointe et commentaire facultatifs) → le centre de paiement voit
- * de quel produit elle vient → autorisée, elle va aux Finances → payée, les Finances déposent la quittance
- * et l'étape « Paiement du BV » se coche. Le centre peut refuser (« Non prioritaire ») : l'étape le dit,
- * et l'on redemande. Un double clic ne fait pas deux ordres.
+ * Depuis le 24/11/2026, une demande de BV part au Centre de validations (`bv-centre-flow.test.ts`). Les ordres déjà
+ * émis, eux, continuent : le centre de paiement les autorise ou les refuse (« Non prioritaire ») → autorisés, ils vont
+ * aux Finances → payés avec la quittance, l'étape « Paiement du BV » se coche. Tant qu'un tel ordre vit, aucune
+ * nouvelle demande ; refusé, la redemande part au Centre de validations.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 let dbOk = false;
@@ -83,6 +84,7 @@ suite("BV d'un dossier réglementaire — étape → centre de paiement → Fina
     await prisma.expenseOrder.deleteMany({ where: { id: { in: oIds } } }).catch(() => undefined);
     const tx = ordres.map((o) => o.transactionId).filter((t): t is string => Boolean(t));
     await prisma.financeTransaction.deleteMany({ where: { id: { in: tx } } }).catch(() => undefined);
+    await prisma.validationRequest.deleteMany({ where: { entityId: produitId } }).catch(() => undefined);
     const comptes = [raId, dirId, saId, siegeId, tiersId];
     await prisma.notification.deleteMany({ where: { userId: { in: comptes } } }).catch(() => undefined);
     await prisma.auditLog.deleteMany({ where: { actorId: { in: comptes } } }).catch(() => undefined);
@@ -92,51 +94,33 @@ suite("BV d'un dossier réglementaire — étape → centre de paiement → Fina
     await retirerComptesEtSemis({ where: { id: { in: comptes } } }).catch(() => undefined);
   });
 
-  it("demande depuis l'étape, avec commentaire et pièce : ordre EN ATTENTE du centre, produit lisible, pièce ouverte au siège", async () => {
-    ACTOR = await actorFor(raId, "SUPER_ADMIN");
-    const r = await requestBV(form(
-      { productId: produitId, stepKey: "bv25_req", bvType: "BV 75 %", amount: "150000", note: "Échéance ANPP le 30 — urgent" },
-      { files: pdf("proforma-bv.pdf") },
-    ));
-    expect(r.ok, r.ok ? "" : r.error).toBe(true);
+  /** Un BV de l'ANCIEN circuit, tel que `requestBV` l'émettait avant le 24/11/2026 : il finit son parcours d'avant. */
+  const ancienOrdre = (nature: "25" | "75", montant: number) => createExpenseOrder({
+    label: `BV ${nature} % — ${TAG}REG ${TAG}PARACETAMOL`, amount: montant, category: "IMPOT", beneficiary: "ANPP",
+    sourceType: "REGULATORY_PRODUCT", sourceId: produitId, requestedById: raId, notes: "Échéance ANPP le 30 — urgent",
+  });
 
+  it("un ordre de BV de l'ancien circuit naît EN ATTENTE du centre de paiement, produit lisible ; il empêche une nouvelle demande", async () => {
+    await ancienOrdre("25", 150000);
+    await ancienOrdre("75", 450000);
     const ordres = await ordresDuDossier(produitId);
-    expect(ordres).toHaveLength(1);
-    const o = ordres[0]!;
+    expect(ordres).toHaveLength(2);
+    const o = ordres.find((x) => natureDeLOrdreBv(x) === "25")!;
     expect(o.centralStatus, "le centre d'abord").toBe("AWAITING");
-    // L'ÉTAPE décide de la nature, pas le `bvType` envoyé à côté.
-    expect(natureDeLOrdreBv(o)).toBe("25");
     expect(o.label).toContain(`${TAG}REG`);
-    expect(o.notes).toBe("Échéance ANPP le 30 — urgent");
     expect(etatDeLOrdreBv(o)).toBe("DEMANDE");
-
-    const pieces = await prisma.document.findMany({ where: { entityType: "EXPENSE_ORDER", entityId: o.id } });
-    expect(pieces.map((p) => p.name)).toEqual(["proforma-bv.pdf"]);
-    // Le siège NOMMÉ du centre (sans module Finances) ouvre la pièce ; un tiers, non.
+    // Le siège NOMMÉ du centre (sans module Finances) ouvre l'ordre ; un tiers, non.
     expect(await canAccessEntity(await actorFor(siegeId, "COORDINATOR"), "EXPENSE_ORDER", o.id, "VIEW")).toBe(true);
     expect(await canAccessEntity(await actorFor(tiersId, "COORDINATOR"), "EXPENSE_ORDER", o.id, "VIEW")).toBe(false);
 
-    const p = await prisma.regulatoryProduct.findUniqueOrThrow({ where: { id: produitId }, select: { workflow: true } });
-    expect((p.workflow as RegWorkflowState).bv25_req?.status, "la demande EST l'étape").toBe("DONE");
-  });
-
-  it("une seconde demande du même BV est refusée — y compris deux clics simultanés sur l'autre BV", async () => {
     ACTOR = await actorFor(raId, "SUPER_ADMIN");
     const r = await requestBV(form({ productId: produitId, stepKey: "bv25_req", amount: "150000" }));
     expect(r.ok).toBe(false);
     expect(r.error).toContain("déjà demandé");
-    expect(await prisma.expenseOrder.count({ where: { sourceId: produitId } })).toBe(1);
-
-    const [a, b] = await Promise.all([
-      requestBV(form({ productId: produitId, stepKey: "bv75_req", amount: "450000" })),
-      requestBV(form({ productId: produitId, stepKey: "bv75_req", amount: "450000" })),
-    ]);
-    expect([a.ok, b.ok].filter(Boolean), "un seul ordre pour deux clics").toHaveLength(1);
-    const bv75 = (await ordresDuDossier(produitId)).filter((o) => natureDeLOrdreBv(o) === "75");
-    expect(bv75).toHaveLength(1);
+    expect(await prisma.validationRequest.count({ where: { entityId: produitId } }), "rien n'est posé au centre de validations").toBe(0);
   });
 
-  it("refus « Non prioritaire » : l'étape le dit avec le motif, et l'on peut redemander", async () => {
+  it("refus « Non prioritaire » : l'étape le dit avec le motif ; la redemande part au CENTRE DE VALIDATIONS (plus d'ordre)", async () => {
     const o25 = (await ordresDuDossier(produitId)).find((o) => natureDeLOrdreBv(o) === "25")!;
     ACTOR = await actorFor(dirId, "DIRECTION");
     const r = await decidePayment(form({ id: o25.id, decision: "REFUSE", body: "Non prioritaire" }));
@@ -150,39 +134,38 @@ suite("BV d'un dossier réglementaire — étape → centre de paiement → Fina
     ACTOR = await actorFor(raId, "SUPER_ADMIN");
     const re = await requestBV(form({ productId: produitId, stepKey: "bv25_req", amount: "150000", note: "Relance : dépôt bloqué sans ce BV" }));
     expect(re.ok, re.ok ? "" : re.error).toBe(true);
-    const apres = ordreQuiDitLEtat(await ordresDuDossier(produitId), "25");
-    expect(apres?.etat, "la nouvelle demande prend la place du refus").toBe("DEMANDE");
-    expect(apres?.ordre.id).not.toBe(o25.id);
+    expect((await ordresDuDossier(produitId)).filter((o) => natureDeLOrdreBv(o) === "25"), "aucun nouvel ordre").toHaveLength(1);
+    expect(await prisma.validationRequest.count({ where: { entityId: produitId, status: "PENDING" } })).toBe(1);
   });
 
-  it("autorisé → chez les Finances ; payé avec la quittance → l'étape « Paiement du BV 25 % » est cochée", async () => {
-    const o25 = ordreQuiDitLEtat(await ordresDuDossier(produitId), "25")!.ordre;
+  it("ancien ordre autorisé → chez les Finances ; payé avec la quittance → l'étape « Paiement du BV 75 % » est cochée", async () => {
+    const o75 = ordreQuiDitLEtat(await ordresDuDossier(produitId), "75")!.ordre;
     ACTOR = await actorFor(dirId, "DIRECTION");
-    const ok = await decidePayment(form({ id: o25.id, decision: "APPROVE", body: "" }));
+    const ok = await decidePayment(form({ id: o75.id, decision: "APPROVE", body: "" }));
     expect(ok.ok, ok.ok ? "" : ok.error).toBe(true);
-    expect(ordreQuiDitLEtat(await ordresDuDossier(produitId), "25")?.etat).toBe("AUTORISE");
+    expect(ordreQuiDitLEtat(await ordresDuDossier(produitId), "75")?.etat).toBe("AUTORISE");
 
     ACTOR = await actorFor(saId, "SUPER_ADMIN");
     const categorie = await prisma.budgetCategoryLine.findFirst({ where: { envelope: { isActive: true } }, select: { id: true } });
-    const base = { id: o25.id, ...(categorie ? { budgetCategoryId: categorie.id } : {}) };
+    const base = { id: o75.id, ...(categorie ? { budgetCategoryId: categorie.id } : {}) };
 
     const sansPiece = await settleExpenseOrder(form(base));
     expect(sansPiece.ok).toBe(false);
     expect(sansPiece.error).toContain("Quittance obligatoire");
-    expect((await prisma.expenseOrder.findUniqueOrThrow({ where: { id: o25.id } })).status).toBe("PENDING");
+    expect((await prisma.expenseOrder.findUniqueOrThrow({ where: { id: o75.id } })).status).toBe("PENDING");
 
-    const paye = await settleExpenseOrder(form(base, { quittance: pdf("quittance-bv25.pdf") }));
+    const paye = await settleExpenseOrder(form(base, { quittance: pdf("quittance-bv75.pdf") }));
     expect(paye.ok, paye.ok ? "" : paye.error).toBe(true);
-    expect((await prisma.expenseOrder.findUniqueOrThrow({ where: { id: o25.id } })).status).toBe("PAID");
+    expect((await prisma.expenseOrder.findUniqueOrThrow({ where: { id: o75.id } })).status).toBe("PAID");
 
     const quittances = await prisma.document.findMany({
       where: { entityType: "REGULATORY_PRODUCT", entityId: produitId, category: "BV_RECEIPT" },
       select: { name: true, stepKey: true },
     });
-    expect(quittances).toEqual([{ name: "quittance-bv25.pdf", stepKey: "bv25_pay" }]);
+    expect(quittances).toEqual([{ name: "quittance-bv75.pdf", stepKey: "bv75_pay" }]);
     const p = await prisma.regulatoryProduct.findUniqueOrThrow({ where: { id: produitId }, select: { workflow: true } });
-    expect((p.workflow as RegWorkflowState).bv25_pay?.status).toBe("DONE");
-    expect(ordreQuiDitLEtat(await ordresDuDossier(produitId), "25")?.etat).toBe("PAYE");
+    expect((p.workflow as RegWorkflowState).bv75_pay?.status).toBe("DONE");
+    expect(ordreQuiDitLEtat(await ordresDuDossier(produitId), "75")?.etat).toBe("PAYE");
 
     // Rejouer le règlement ne paie ni ne dépose une seconde fois.
     const encore = await settleExpenseOrder(form(base, { quittance: pdf("doublon.pdf") }));
@@ -190,7 +173,7 @@ suite("BV d'un dossier réglementaire — étape → centre de paiement → Fina
     expect(await prisma.document.count({ where: { entityType: "REGULATORY_PRODUCT", entityId: produitId, category: "BV_RECEIPT" } })).toBe(1);
     // Payé : la demande ne se refait plus.
     ACTOR = await actorFor(raId, "SUPER_ADMIN");
-    const redemande = await requestBV(form({ productId: produitId, stepKey: "bv25_req", amount: "150000" }));
+    const redemande = await requestBV(form({ productId: produitId, stepKey: "bv75_req", amount: "450000" }));
     expect(redemande.ok).toBe(false);
   });
 });

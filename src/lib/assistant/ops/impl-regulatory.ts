@@ -17,6 +17,8 @@ import { opStr } from "./types";
 import { fold } from "@/platform/ia/outils/arguments";
 import { resolvePeopleList } from "./impl-drive";
 import { montantDzd } from "@/lib/utils";
+import { ETAPES_BV, natureDuLibelle } from "@/lib/budget-regulatory/bv";
+import { LIBELLE_NATURE_BV } from "@/lib/regulatory/bv-circuit";
 
 /**
  * OPS REGULATORY — la longue traîne du dossier AMM au-delà des champs simples (déjà natifs) :
@@ -490,33 +492,38 @@ export const REGULATORY_OPS_IMPL: Record<string, OpImpl> = {
       if ("error" in product) return product;
       const amount = amountOf(input, "amount");
       if (amount === null || amount <= 0) return { error: "Donnez le montant du BV en DZD (champ « amount »)." };
-      const bvType = opStr(input, "bvType") || "BV";
+      // LA PART DU BV (25 % ou 75 %) EST OBLIGATOIRE : la demande ouvre SON étape et engage SA ligne du budget Regulatory.
+      const brut = opStr(input, "bvType") ?? "";
+      const nature = natureDuLibelle(brut) ?? (/\b25\b/.test(brut) ? "25" : /\b75\b/.test(brut) ? "75" : null);
+      if (!nature) return { error: "Précisez le BV demandé : « BV 25 % » ou « BV 75 % » (champ « bvType »)." };
+      const bvType = LIBELLE_NATURE_BV[nature];
       const dueDate = iso(opStr(input, "dueDate"));
       return {
-        title: `Demander un ${bvType} — ${product.reference} (${montantDzd(amount)})`,
+        title: `Demander l'autorisation du ${bvType} — ${product.reference} (${montantDzd(amount)})`,
         fields: [
           { label: "Dossier", value: `${product.reference} — ${product.dci}` },
-          { label: "Type", value: bvType },
+          { label: "BV", value: bvType },
           { label: "Montant", value: montantDzd(amount) },
-          ...(dueDate ? [{ label: "Échéance", value: dueDate }] : []),
+          ...(dueDate ? [{ label: "Échéance souhaitée", value: dueDate }] : []),
         ],
-        warnings: ["Un ORDRE DE DÉPENSE (bénéficiaire ANPP) est créé dans le circuit Finances / Centre de paiement — rien n'est décaissé ici."],
-        args: { productId: product.id, bvType, amount: String(amount), dueDate, note: opStr(input, "note"), reference: product.reference },
-        successMessage: `${bvType} demandé sur ${product.reference} — ordre de dépense de ${montantDzd(amount)} créé.`,
+        warnings: [`La demande part au CENTRE DE VALIDATIONS : acceptée, elle ENGAGE ${montantDzd(amount)} au budget Regulatory (ligne ${bvType}) et déverrouille l'étape de paiement — rien n'est décaissé ici.`],
+        args: { productId: product.id, stepKey: ETAPES_BV[nature].demande, bvType, amount: String(amount), dueDate, note: opStr(input, "note"), reference: product.reference },
+        successMessage: `Demande d'autorisation du ${bvType} envoyée au Centre de validations pour ${product.reference} (${montantDzd(amount)}).`,
         link: productLink(product.id),
-        revalidate: [...REG_REVALIDATE, "/finances"],
+        revalidate: [...REG_REVALIDATE, "/centre-de-validations", "/validations"],
       };
     },
     async execute(args) {
       const fd = new FormData();
       fd.set("productId", args.productId ?? "");
-      fd.set("bvType", args.bvType ?? "BV");
+      if (args.stepKey) fd.set("stepKey", args.stepKey);
+      fd.set("bvType", args.bvType ?? "");
       fd.set("amount", args.amount ?? "");
       if (args.dueDate) fd.set("dueDate", args.dueDate);
       if (args.note) fd.set("note", args.note);
       const r = await requestBV(fd);
       if (!r.ok) return { ok: false, error: r.error ?? "La demande de BV a été refusée." };
-      return { ok: true, revalidate: [...REG_REVALIDATE, "/finances"] };
+      return { ok: true, revalidate: [...REG_REVALIDATE, "/centre-de-validations", "/validations"] };
     },
   },
 

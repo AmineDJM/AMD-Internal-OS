@@ -11,7 +11,11 @@ import { Badge } from "@/components/ui/badge";
 import { Retour } from "@/components/ui/retour";
 import { useAction } from "@/components/shared/use-action";
 import { etatDeLOrdreBv, ETAT_BV } from "@/lib/regulatory/bv-circuit";
-import { montantDzd } from "@/lib/utils";
+import type { SuiviDemandeBvVue } from "@/lib/regulatory/bv-validation";
+import { ETAT_DEMANDE_BV } from "@/lib/labels";
+import { StatusBadge } from "@/components/shared/status-badge";
+import { cn, montantDzd } from "@/lib/utils";
+import Link from "next/link";
 
 export interface BvItem {
   id: string;
@@ -64,8 +68,8 @@ export function BvRequestSheet({
     <Sheet
       open
       onClose={() => !busy && onClose()}
-      title={`Demander le ${bvType}`}
-      description="La demande part au centre de paiement, qui voit de quel produit elle vient ; autorisée, elle va aux Finances, qui la paient et déposent la quittance. L'étape du processus est cochée du même geste."
+      title={`Demander l'autorisation du ${bvType}`}
+      description="La demande part au Centre de validations : toute personne qui y a accès peut l'accepter ou la refuser. Acceptée, son montant est engagé au budget Regulatory et l'étape « Paiement » se déverrouille ; refusée, vous pourrez redemander."
     >
       <form
         action={async (fd) => {
@@ -89,7 +93,7 @@ export function BvRequestSheet({
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="note">Commentaire (facultatif)</Label>
-          <Textarea id="note" name="note" placeholder="Lu par le centre de paiement : urgence, échéance ANPP, précisions…" />
+          <Textarea id="note" name="note" placeholder="Lu par le Centre de validations : urgence, échéance ANPP, précisions…" />
         </div>
 
         {/* UNE OU PLUSIEURS PIÈCES : un BV arrive rarement seul (proforma, courrier de
@@ -137,11 +141,44 @@ export function BvRequestSheet({
         <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
           <Button type="button" variant="outline" onClick={onClose} disabled={busy}>Annuler</Button>
           <Button type="submit" disabled={busy}>
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ReceiptText className="h-4 w-4" />} Envoyer au centre de paiement
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ReceiptText className="h-4 w-4" />} Demander l&apos;autorisation
           </Button>
         </div>
       </form>
     </Sheet>
+  );
+}
+
+const fmtJour = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("fr-FR") : null);
+
+/**
+ * LE BV AU CENTRE DE VALIDATIONS, DANS SON ÉTAPE — en attente, accepté (montant engagé au budget Regulatory), ou
+ * refusé avec le motif écrit par le validateur. Lu sur la demande de validation, jamais saisi à part.
+ */
+export function SuiviCentreBv({ centre }: { centre: SuiviDemandeBvVue }) {
+  const e = ETAT_DEMANDE_BV[centre.etat];
+  return (
+    <div className={cn(
+      "rounded-md border px-2.5 py-2 text-xs",
+      centre.etat === "REFUSE" ? "border-destructive/30 bg-destructive/5"
+        : centre.etat === "ACCEPTE" ? "border-success/30 bg-success/5" : "border-border bg-secondary/30",
+    )}>
+      <p className="flex flex-wrap items-center gap-1.5">
+        <StatusBadge map={ETAT_DEMANDE_BV} value={centre.etat} dot={false} />
+        <span className="text-muted-foreground [overflow-wrap:anywhere]">
+          {e?.detail} · <Link href={`/validations/${centre.validationId}`} className="font-mono hover:underline">{centre.reference}</Link> · {montantDzd(centre.montant)}
+        </span>
+      </p>
+      <p className="mt-1 text-muted-foreground">
+        Demandé le {fmtJour(centre.demandeLe)}
+        {centre.decideLe && centre.etat !== "EN_ATTENTE" && <> · {centre.etat === "REFUSE" ? "refusé" : "accepté"} le {fmtJour(centre.decideLe)}{centre.decideur && <> par {centre.decideur}</>}</>}
+      </p>
+      {centre.etat === "REFUSE" && (
+        <p className="mt-1 whitespace-pre-wrap text-destructive [overflow-wrap:anywhere]">
+          <span className="font-medium">Motif : </span>{centre.motifRefus ?? "non précisé"}
+        </p>
+      )}
+    </div>
   );
 }
 

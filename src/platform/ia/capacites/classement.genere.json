@@ -10632,7 +10632,7 @@
   "appelable": true
  },
  "regulatory-actions:requestBV": {
-  "risque": "R4",
+  "risque": "R1",
   "familles": [
    "REGLEMENTAIRE",
    "ECRITURES"

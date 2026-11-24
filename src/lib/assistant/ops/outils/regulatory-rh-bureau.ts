@@ -47,7 +47,7 @@ export const OUTILS_REGULATORY_RH_BUREAU: Record<string, DomainToolSpec> = {
           target: { type: "string", description: "create_variation : cible (secondary/primary packaging, full process)." },
           manufacturer: { type: "string", description: "create_variation : fabricant (obligatoire pour une fabrication locale)." },
           amount: { type: "string", description: "request_bv : montant ATTENDU du bon (DZD) ; request_quittance : montant RÉEL de la quittance (DZD)." },
-          bvType: { type: "string", description: "request_bv : BV, BV1, BV2… (défaut BV)." },
+          bvType: { type: "string", description: "request_bv : la part du BV — « BV 25 % » ou « BV 75 % » (obligatoire)." },
           segments: { type: "string", description: "set_classification : segments thérapeutiques séparés par des virgules (liste REMPLACÉE)." },
           project: { type: "string", description: "set_classification : PROJET BD du dossier — le nom d'un projet de Business Development › Projets. « aucun » retire le classement. Un nom qui correspond à plusieurs projets est refusé, pas deviné." },
           brandName: { type: "string", description: "create_product : nom de marque." },

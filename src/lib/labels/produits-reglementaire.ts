@@ -94,6 +94,16 @@ export const REGULATORY_STATUS: Record<string, Display> = {
   CLOSED: { label: "Clôturé", tone: "success" },
 };
 
+/**
+ * LE BV D'UN DOSSIER AU CENTRE DE VALIDATIONS (Super Admin, 24/11/2026) — ce que l'étape « Demande du BV » affiche de
+ * sa demande (`EtatDemandeBv`, `regulatory/bv-validation.ts`). L'ancien circuit (ordre de dépense) garde `ETAT_BV`.
+ */
+export const ETAT_DEMANDE_BV: Record<string, Display & { detail: string }> = {
+  EN_ATTENTE: { label: "En attente", tone: "warning", detail: "au Centre de validations" },
+  ACCEPTE: { label: "Accepté", tone: "success", detail: "montant engagé au budget Regulatory" },
+  REFUSE: { label: "Refusé", tone: "danger", detail: "par le Centre de validations" },
+};
+
 /** Statut SIMPLIFIÉ visible par le fournisseur dans le portail externe. */
 export const EXTERNAL_REGULATORY_STATUS: Record<string, Display> = {
   IN_PREPARATION: { label: "Dossier en préparation", tone: "info" },

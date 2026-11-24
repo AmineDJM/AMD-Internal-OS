@@ -234,8 +234,12 @@ Marketing aura développées » ; puis « un Budget Regulatory » (« Regulatory
 - **BV 25 % / 75 %** (`lib/budget-regulatory/bv.ts`, pur + tests ; requêtes `queries/budget-regulatory.ts`) : les deux
   bons de versement des **frais d'enregistrement ANPP** d'un dossier — BV 25 % aux étapes `bv25_req`/`bv25_pay`
   (préparation, avant la présoumission), BV 75 % aux étapes `bv75_req`/`bv75_pay` (constitution administrative,
-  **avant le dépôt**). Chaque demande émet un ordre de dépense (`requestBV`, bénéficiaire ANPP, libellé « BV 25 % — REF
-  DCI ») dont le règlement écrit la dépense. Catégories d'office `BV_25` / `BV_75` (`BudgetCategoryLine.cle`,
+  **avant le dépôt**). **Depuis le 24/11/2026**, la demande (`requestBV`) part au **Centre de validations** (nature
+  `REGULATORY_BV_25`/`_75`, toute personne ayant l'accès `VALIDATION_CENTRE` tranche, une décision suffit) ; l'acceptation
+  ENGAGE le montant sur la ligne BV de l'enveloppe Regulatory couvrant la date d'acceptation, le paiement « fait » le
+  CONSOMME — sans ordre ni écriture (`budget-regulatory/bv-acceptes.ts`, `queries/budget-bv-acceptes.ts`) ; le paiement
+  reste verrouillé tant que la demande n'est pas acceptée. Avant, chaque demande émettait un ordre de dépense (bénéficiaire
+  ANPP, libellé « BV 25 % — REF DCI ») dont le règlement écrit la dépense — ces ordres finissent leur parcours. Catégories d'office `BV_25` / `BV_75` (`BudgetCategoryLine.cle`,
   « Compléter les catégories ») ; prévision du 75 % à partir du 25 % ; un libellé qui ne dit pas sa part est rangé à
   part, jamais deviné ; **saisir un BV payé hors circuit** (`saisirBvManuel`, `BudgetExpenseLine.regulatoryProductId`)
   et **ranger un BV** demandé ou payé dans l'enveloppe (`imputerBv`). Ce ne sont PAS les bons de versement de

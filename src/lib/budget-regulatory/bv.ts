@@ -6,8 +6,10 @@
  *   • BV 25 % — étapes 4-5 « Demande / Paiement du BV 25 % », en PRÉPARATION, avant la demande de présoumission ;
  *   • BV 75 % — étapes 9-12 « Demande / Paiement du BV 75 % », à la CONSTITUTION ADMINISTRATIVE, après l'étude des
  *     modules 3-4-5 et AVANT le dépôt du dossier (et non à la décision).
- * Chaque demande émet un ORDRE DE DÉPENSE (`requestBV` : source `REGULATORY_PRODUCT`, bénéficiaire ANPP, libellé
- * « BV 25 % — REF DCI ») ; son règlement par les Finances écrit la dépense. Ce ne sont PAS les « bons de versement » de
+ * Jusqu'au 24/11/2026, chaque demande émettait un ORDRE DE DÉPENSE (source `REGULATORY_PRODUCT`, bénéficiaire ANPP,
+ * libellé « BV 25 % — REF DCI ») réglé par les Finances ; ceux-là finissent leur parcours. Depuis, la demande passe par
+ * le CENTRE DE VALIDATIONS (`regulatory/bv-validation.ts`) : acceptée, elle engage ; son paiement « fait » la consomme
+ * (`bv-acceptes.ts`) — lue ici comme un ordre (`circuit: "VALIDATION"`). Ce ne sont PAS les « bons de versement » de
  * l'Information médicale (visas publicitaires / MIP), qui suivent leur propre circuit.
  *
  * Module PUR, sans aucun import : lu par les requêtes, par les actions et testé.
@@ -61,6 +63,11 @@ export interface OrdreBv {
   budgetCategoryId: string | null;
   /** Payé : la catégorie de l'écriture qu'il a produite. */
   transactionCategoryId: string | null;
+  /**
+   * VALIDATION = un BV accepté au Centre de validations (nouveau circuit, sans ordre) : « PENDING » = engagé, « PAID » =
+   * paiement fait ; sa catégorie se déduit, il n'est jamais « à ranger ». Absent = un ordre de dépense (ancien circuit).
+   */
+  circuit?: "ORDRE" | "VALIDATION";
 }
 
 /** Un BV saisi à la main dans l'enveloppe (ligne budgétaire liée au dossier). */
@@ -121,9 +128,10 @@ function cellule(
   const montantDemande = demandes.reduce((a, o) => a + o.amount, 0);
   const dansEnveloppe = payes.filter((o) => categorieIci !== null && o.transactionCategoryId === categorieIci).reduce((a, o) => a + o.amount, 0)
     + saisies.reduce((a, s) => a + s.amount, 0);
+  const rangeable = (o: OrdreBv) => o.circuit !== "VALIDATION";
   const aImputer = categorieIci === null ? [] : [
-    ...payes.filter((o) => o.transactionCategoryId !== categorieIci).map((o) => ({ orderId: o.id, montant: o.amount, paye: true })),
-    ...demandes.filter((o) => o.budgetCategoryId !== categorieIci).map((o) => ({ orderId: o.id, montant: o.amount, paye: false })),
+    ...payes.filter((o) => rangeable(o) && o.transactionCategoryId !== categorieIci).map((o) => ({ orderId: o.id, montant: o.amount, paye: true })),
+    ...demandes.filter((o) => rangeable(o) && o.budgetCategoryId !== categorieIci).map((o) => ({ orderId: o.id, montant: o.amount, paye: false })),
   ];
   const datePaye = [...payes.map((o) => o.paidDate).filter((d): d is Date => d !== null), ...saisies.map((s) => s.date)]
     .sort((a, b) => b.getTime() - a.getTime())[0];
