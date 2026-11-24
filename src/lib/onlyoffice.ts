@@ -48,7 +48,11 @@ export function signJwt(payload: Record<string, unknown>, expiresInSec = 300): s
   return `${data}.${sig}`;
 }
 
-/** Vérifie la signature + l'expiration d'un JWT HS256. Renvoie le payload ou null. */
+/**
+ * Vérifie la signature + l'expiration d'un JWT HS256. Renvoie le payload ou null. Un jeton SANS `exp`
+ * est refusé (audit Drive F14) : signé une fois, il ouvrirait le fichier pour toujours. Nos jetons
+ * (`signJwt`) et ceux du Document Server portent tous une expiration.
+ */
 export function verifyJwt<T = Record<string, unknown>>(token: string | null | undefined): T | null {
   const key = secret();
   if (!key || !token) return null;
@@ -60,8 +64,8 @@ export function verifyJwt<T = Record<string, unknown>>(token: string | null | un
   const b = Buffer.from(expected);
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
   try {
-    const payload = JSON.parse(Buffer.from(p, "base64").toString("utf8")) as { exp?: number };
-    if (typeof payload.exp === "number" && payload.exp < Math.floor(Date.now() / 1000)) return null;
+    const payload = JSON.parse(Buffer.from(p, "base64").toString("utf8")) as { exp?: unknown };
+    if (typeof payload.exp !== "number" || !Number.isFinite(payload.exp) || payload.exp < Math.floor(Date.now() / 1000)) return null;
     return payload as T;
   } catch {
     return null;

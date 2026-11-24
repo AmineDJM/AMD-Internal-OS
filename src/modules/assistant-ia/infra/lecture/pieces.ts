@@ -16,7 +16,7 @@ import { appelVoix, jetonsAudio, jetonsTexte, type IssueVoix } from "../consomma
 import { transcrireAvecSegments, type OptionsStt } from "@/lib/media/stt";
 import {
   CARACTERES_PAR_MESSAGE, CARACTERES_PAR_PIECE, CONSIGNE_PIECES_LUES, couper, extensionDe, genreDe, IMAGES_CLES_VIDEO,
-  IMAGES_PAR_MESSAGE, mimeImage, nomAnnonceLeCoffre, OCTETS_MAX_LECTURE, PAGES_VISION_MAX, phraseCoupe, phraseImagesMessage,
+  IMAGES_PAR_MESSAGE, estDansUnMiroir, mimeImage, nomAnnonceLeCoffre, phraseNonClassee, REFUS_MIROIR, OCTETS_MAX_LECTURE, PAGES_VISION_MAX, phraseCoupe, phraseImagesMessage,
   phrasePagesVision, phrasePiecesMax, phraseTropGros, PIECES_LUES_MAX, REFUS_COFFRE, REFUS_CONTROLE_LOCAL, resumeLecture,
   type GenrePiece, type LecturePiece,
 } from "../../domaine/lecture/regles";
@@ -32,7 +32,9 @@ import {
  *   1. les DROITS : la pièce est relue sous les droits de la personne (`resoudrePiece`) ;
  *   2. le COFFRE : une pièce que l'enrichissement a classée d'une nature LOCALE (passeport, CNI,
  *      permis, visa, bulletin de paie, RIB — `NATURES_LOCALES`), une pièce CONFIDENTIELLE, ou un nom
- *      qui l'annonce, est refusée sans être ouverte ;
+ *      qui l'annonce, est refusée sans être ouverte ; une COPIE rangée dans un dossier miroir (« Mes documents
+ *      importés », Regulatory, RH — `estDansUnMiroir`) aussi : sa confidentialité est celle de son module ;
+ *      un nœud NON CLASSÉ (aucune Pièce) se lit sur ce serveur seulement — ni vision, ni transcription ;
  *   3. la TAILLE : au-delà de 40 Mo, rien n'est chargé — et c'est dit ;
  *   4. la LECTURE LOCALE (texte du fichier, OCR sur ce serveur — `cloud: false`), puis le CLASSEMENT
  *      local (`classerPiece`, `natureSensible`) : une pièce d'identité ou une fiche de paie reconnue
@@ -127,6 +129,13 @@ export interface PieceChargee {
   /** La nature posée par l'enrichissement (`Piece.nature`), si la pièce a été classée. */
   nature: string | null;
   confidentialite: string | null;
+  /**
+   * Aucune Pièce ne classe ce nœud (audit Drive F16) : sa confidentialité est INCONNUE. Il se lit sur ce
+   * serveur seulement — texte du fichier, OCR local, classement local — jamais par la vision ni la transcription.
+   */
+  nonClassee?: boolean;
+  /** Le nœud est une copie rangée dans un dossier miroir (`estDansUnMiroir`) : il ne se lit pas du tout. */
+  miroir?: boolean;
   /** Chargés seulement si la taille le permet. */
   octets: () => Promise<Buffer | null>;
 }
@@ -153,17 +162,33 @@ export interface DependancesLecture {
 
 const NATURES = new Set<string>(NATURES_PIECE);
 
+/** Les noms des dossiers, de la racine jusqu'au parent direct — bornés (un cycle ne fait pas tourner en rond). */
+async function ancetresDe(parentId: string | null): Promise<string[]> {
+  const noms: string[] = [];
+  const vus = new Set<string>();
+  for (let id = parentId; id && !vus.has(id) && vus.size < 64;) {
+    vus.add(id);
+    const d = await prisma.driveNode.findUnique({ where: { id }, select: { name: true, parentId: true } });
+    if (!d) break;
+    noms.unshift(d.name);
+    id = d.parentId;
+  }
+  return noms;
+}
+
 export const DEPENDANCES_REELLES: DependancesLecture = {
   async charger(user, id) {
     const piece = await resoudrePiece(user, id);
     if ("erreur" in piece) return piece;
     const n = await prisma.driveNode.findUnique({
       where: { id: piece.id },
-      select: { mimeType: true, size: true, piece: { select: { nature: true, confidentiality: true } } },
+      select: { mimeType: true, size: true, parentId: true, space: { select: { name: true } }, piece: { select: { nature: true, confidentiality: true } } },
     });
     return {
       piece, mime: n?.mimeType ?? null, taille: Number(n?.size ?? 0),
       nature: n?.piece?.nature ?? null, confidentialite: n?.piece?.confidentiality ?? null,
+      nonClassee: !n?.piece,
+      miroir: estDansUnMiroir(await ancetresDe(n?.parentId ?? null), n?.space?.name ?? null),
       async octets() {
         const v = await prisma.fileVersion.findFirst({ where: { nodeId: piece.id }, orderBy: { version: "desc" }, select: { blobId: true } });
         return v ? getBlob(v.blobId) : null;
@@ -249,6 +274,8 @@ class Compteur {
 
 async function lireUne(c: PieceChargee, genre: GenrePiece, deps: DependancesLecture, images: Compteur, question: string): Promise<Issue> {
   const { nom } = c.piece;
+  // NON CLASSÉE (F16) : rien ne part à la vision ni à la transcription ; le texte lu ici, seul, passe.
+  const localSeulement = c.nonClassee === true;
   const ext = extensionDe(nom);
   const octets = await c.octets();
   if (!octets?.length) return echec(`« ${nom} » : le contenu du fichier est illisible dans le stockage.`);
@@ -274,6 +301,10 @@ async function lireUne(c: PieceChargee, genre: GenrePiece, deps: DependancesLect
     if (local.raisonOcr && !local.texte.trim()) return refus(REFUS_CONTROLE_LOCAL);
     const r = refusLocal(nom, c.mime, local.texte);
     if (r) return refus(r);
+    if (localSeulement) {
+      if (!local.texte.trim()) return echec(`« ${nom} » : aucun texte lisible sur ce serveur (scan illisible). ${phraseNonClassee(nom)}`);
+      return { statut: "contenu", texte: local.texte, methode: "OCR de ce serveur", limites: [phraseNonClassee(nom)] };
+    }
     const { pages, total } = await deps.rasteriser(octets, PAGES_VISION_MAX);
     const accordees = images.prendre(pages.length);
     const limites: string[] = [];
@@ -293,6 +324,10 @@ async function lireUne(c: PieceChargee, genre: GenrePiece, deps: DependancesLect
     if (local.raisonOcr) return refus(REFUS_CONTROLE_LOCAL);
     const r = refusLocal(nom, c.mime, local.texte);
     if (r) return refus(r);
+    if (localSeulement) {
+      if (!local.texte.trim()) return refus(phraseNonClassee(nom));
+      return { statut: "contenu", texte: local.texte, methode: "OCR de ce serveur", limites: [phraseNonClassee(nom)] };
+    }
     if (!images.prendre(1)) return echec(phraseImagesMessage(nom));
     const v = await deps.regarder([{ octets, mime: mimeImage(nom, c.mime) }], contexte);
     if (v.ok && v.sensible) return refus(REFUS_COFFRE);
@@ -301,6 +336,7 @@ async function lireUne(c: PieceChargee, genre: GenrePiece, deps: DependancesLect
   }
 
   if (genre === "audio" || genre === "video") {
+    if (localSeulement) return refus(phraseNonClassee(nom));
     const t = await deps.transcrire(octets, nom);
     const parties: string[] = [];
     const limites: string[] = [];
@@ -359,6 +395,7 @@ export async function lirePieces(
     try {
       const c = await deps.charger(user, p.id);
       if ("erreur" in c) issue = echec(`« ${p.nom} » : ${c.erreur}`);
+      else if (c.miroir) issue = refus(REFUS_MIROIR);
       else if (c.nature && NATURES.has(c.nature) && estNatureLocale(c.nature as NaturePiece)) issue = refus(REFUS_COFFRE);
       else if (c.confidentialite === "CONFIDENTIAL") issue = refus("Pièce classée CONFIDENTIELLE : elle ne se lit que sur ce serveur, jamais par le modèle.");
       else if (c.taille > OCTETS_MAX_LECTURE) issue = echec(phraseTropGros(p.nom, c.taille));

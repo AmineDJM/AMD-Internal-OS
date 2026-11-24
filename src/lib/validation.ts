@@ -6,6 +6,7 @@ import { notifyUser } from "@/lib/notify";
 import { createWithRetry, enSerie, referenceDeSerie } from "@/lib/refs";
 import { lienDemandeDeValidation, lienEtapeAValider } from "@/lib/chemins/validations";
 import { inscrireDocumentEcrit } from "@/modules/bibliotheque/api-inscription";
+import { nomPourCle, typeDeDepot } from "@/lib/drive/mime-nom";
 
 /**
  * Moteur de validation transversal. Le Super Admin définit des règles
@@ -282,7 +283,7 @@ export function verifierPiecesValidation(files: readonly File[], maxMb: number):
 
 export async function joindrePiecesValidation(requestId: string, files: readonly File[], auteurId: string): Promise<number> {
   for (const file of files) {
-    const key = `VALIDATION_REQUEST/${requestId}/${randomUUID()}__${file.name}`;
+    const key = `VALIDATION_REQUEST/${requestId}/${randomUUID()}__${nomPourCle(file.name)}`;
     let ecrit: { blobId: string; sha256: string } | null = null;
     try {
       ecrit = await saveFile(key, Buffer.from(await file.arrayBuffer()));
@@ -292,7 +293,7 @@ export async function joindrePiecesValidation(requestId: string, files: readonly
     const docEcrit = await prisma.document.create({
       data: {
         name: file.name, category: "OTHER", entityType: "VALIDATION_REQUEST", entityId: requestId,
-        fileKey: key, mimeType: file.type || null, sizeBytes: file.size, confidentiality: "INTERNAL", uploadedById: auteurId,
+        fileKey: key, mimeType: typeDeDepot(file.name, file.type), sizeBytes: file.size, confidentiality: "INTERNAL", uploadedById: auteurId,
       },
     });
     // La pièce entre à la bibliothèque (J1) : registre, clé du document, file de lecture. Ne lève jamais.

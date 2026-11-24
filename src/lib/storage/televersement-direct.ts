@@ -36,8 +36,11 @@ export const PARTIES_EN_PARALLELE = (() => {
 /** En deçà, le chemin habituel (le serveur reçoit le fichier) reste plus simple et aussi rapide. */
 export const SEUIL_DIRECT_OCTETS = Math.max(1, Number(process.env.S3_DIRECT_THRESHOLD_MB ?? 20)) * MO;
 
-/** Durée de validité d'une adresse de partie : assez pour une liaison lente, sans être un passe-droit. */
-export const VALIDITE_URL_S = 6 * 3600;
+/**
+ * Durée de validité d'une adresse de partie : 1 h (audit Drive F12). Une liaison lente qui dépasse l'heure
+ * ne perd rien : une adresse expirée fait redemander un plan neuf (`envoyerParties` → `renouveler`).
+ */
+export const VALIDITE_URL_S = 3600;
 
 export interface ClientS3Direct {
   ouvrir(cle: string, type: string): Promise<string>;

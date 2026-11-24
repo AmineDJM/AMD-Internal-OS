@@ -17,6 +17,7 @@ import {
   type ClientS3Direct, type PlanEnvoi,
 } from "@/lib/storage/televersement-direct";
 import { sansBloquer } from "@/lib/journal";
+import { typeDeDepot } from "@/lib/drive/mime-nom";
 
 /**
  * GROS FICHIERS DES DOCUMENTS (checklist Regulatory, dossiers, pièces des objets métier) — déposés
@@ -104,11 +105,11 @@ export async function ouvrirDepotDirectDocument(
   }
 
   const cle = `direct/${user.id}/${randomBytes(12).toString("hex")}`;
-  const { uploadId, plan } = await ouvrirEnvoi(cle, taille, entree.type, client);
+  const { uploadId, plan } = await ouvrirEnvoi(cle, taille, typeDeDepot(nom, entree.type), client);
   const session = await prisma.directUpload.create({
     data: {
       userId: user.id, purpose: "DOCUMENT", objectKey: cle, uploadId, fileName: nom.slice(0, 255),
-      mimeType: entree.type || null, totalBytes: BigInt(taille), partSize: plan.taillePartie,
+      mimeType: typeDeDepot(nom, entree.type), totalBytes: BigInt(taille), partSize: plan.taillePartie,
       fingerprint, target: JSON.parse(cibleCanonique(cible)),
     },
     select: { id: true },

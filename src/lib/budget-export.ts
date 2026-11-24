@@ -2,6 +2,7 @@ import * as XLSX from "xlsx";
 import type { BudgetOverview, EnvelopesGrandTotal } from "@/lib/queries/budget";
 import type { LigneDepense } from "@/lib/queries/budget-marketing-rapport";
 import type { LigneCategorie, VueFiltree } from "@/lib/budget/marketing-vue";
+import { celluleCsv } from "@/lib/formats/csv-cellule";
 
 /**
  * EXPORT EXCEL (.xlsx) du budget avec le TAUX DE CONSOMMATION actuel. Feuille 1 : l'enveloppe
@@ -145,10 +146,8 @@ export function buildRapportMarketingWorkbook(e: ExportMarketing): Buffer {
 
 /** Le CSV des dépenses (séparateur « ; », virgule décimale, BOM : il s'ouvre tel quel dans un tableur français). */
 export function csvDepensesMarketing(depenses: readonly LigneDepense[]): string {
-  const cel = (s: string | number) => {
-    const t = typeof s === "number" ? s.toFixed(2).replace(".", ",") : s;
-    return /[";\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
-  };
+  // Un montant est formaté ici ; un texte passe par `celluleCsv`, qui neutralise `= + - @` en tête (formule).
+  const cel = (s: string | number) => (typeof s === "number" ? s.toFixed(2).replace(".", ",") : celluleCsv(s));
   const lignes = [
     ["Date", "Référence", "Libellé", "Catégorie", "Nature", "Demande", "Origine", "Montant (DZD)"],
     ...depenses.map((d) => [d.date, d.reference, d.libelle, d.categorie, d.nature, d.demande, d.origine, d.montant]),

@@ -21,6 +21,7 @@ import { MIME_DOCX } from "@/lib/artifact/adapters/docx/adapter";
 import { sansBloquer } from "@/lib/journal";
 import { inscrireDocumentRh } from "@/modules/bibliotheque/api-inscription";
 import { annulable } from "@/lib/effets/ecran";
+import { typeDeDepot } from "@/lib/drive/mime-nom";
 
 const PATH = "/rh/paie";
 /** Marge avant de notifier l'employé (en cas d'erreur de saisie, les RH peuvent annuler). */
@@ -85,14 +86,14 @@ async function deposerFicheDePaie(
       const pdf = await creer(pdfFileName(file.name), conv.pdf, "application/pdf", true);
       // La source, gardée et NON visible du salarié : deux bulletins pour le même mois lui
       // feraient deviner lequel fait foi.
-      await creer(`${file.name} (source Word)`, octets, file.type || MIME_DOCX, false).catch(sansBloquer("payroll-hr-actions.deposerFicheDePaie.creer", null));
+      await creer(`${file.name} (source Word)`, octets, typeDeDepot(file.name, file.type, MIME_DOCX), false).catch(sansBloquer("payroll-hr-actions.deposerFicheDePaie.creer", null));
       return { id: pdf.id };
     }
     // Conversion impossible : on garde le Word plutôt que de bloquer la paie.
     console.warn("[payroll] fiche de paie non convertie, dépôt du Word d'origine :", conv.error);
   }
 
-  const doc = await creer(file.name, octets, file.type || "application/pdf", true);
+  const doc = await creer(file.name, octets, typeDeDepot(file.name, file.type, "application/pdf"), true);
   return { id: doc.id };
 }
 

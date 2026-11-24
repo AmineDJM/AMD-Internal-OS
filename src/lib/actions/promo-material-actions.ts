@@ -37,6 +37,7 @@ import { mirrorDocumentsToDrive } from "@/lib/drive/document-mirror";
 import { deleteFileByKey } from "@/lib/storage";
 import { sansBloquer } from "@/lib/journal";
 import { actionReversible } from "@/lib/effets/reversible";
+import { typeDeDepot } from "@/lib/drive/mime-nom";
 
 const PATH = "/promo-material";
 
@@ -417,7 +418,7 @@ export async function chooseAgency(formData: FormData): Promise<ActionResult> {
     const contenu = Buffer.from(await file.arrayBuffer());
     const r = await persistUploadedDocument(user.id, { entityType: "PROMO_MATERIAL", entityId: id, category: "QUOTE", confidentiality: "INTERNAL", stepKey: "agency_choice", file, buffer: contenu, mirrorToDrive: false });
     if (!r.ok || !r.documentId) return { ok: false, error: await refusDePiece(user.id, id, pieces, file.name, r.error) };
-    pieces.push({ documentId: r.documentId, nom: file.name, contenu, mime: file.type || null });
+    pieces.push({ documentId: r.documentId, nom: file.name, contenu, mime: typeDeDepot(file.name, file.type) });
   }
   const attached = pieces.length;
 
@@ -470,7 +471,7 @@ export async function submitBcForFinance(formData: FormData): Promise<ActionResu
     const contenu = Buffer.from(await file.arrayBuffer());
     const r = await persistUploadedDocument(user.id, { entityType: "PROMO_MATERIAL", entityId: id, category: "PURCHASE_ORDER", confidentiality: "INTERNAL", stepKey: "bc_finance", file, buffer: contenu, mirrorToDrive: false });
     if (!r.ok || !r.documentId) return { ok: false, error: await refusDePiece(user.id, id, pieces, file.name, r.error) };
-    pieces.push({ documentId: r.documentId, nom: file.name, contenu, mime: file.type || null });
+    pieces.push({ documentId: r.documentId, nom: file.name, contenu, mime: typeDeDepot(file.name, file.type) });
   }
   const attached = pieces.length;
 

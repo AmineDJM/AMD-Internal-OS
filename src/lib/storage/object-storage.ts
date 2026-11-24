@@ -96,16 +96,26 @@ export function hostAndPath(cfg: S3Config, key: string): { protocol: string; hos
  * `UNSIGNED-PAYLOAD`, seul l'en-tête `host` signé → le navigateur envoie juste le corps. Null si non configuré.
  */
 export function presignPutUrl(key: string, expiresSec = 3600, extraQuery: Record<string, string> = {}): string | null {
-  return presign("PUT", key, expiresSec, extraQuery);
+  return presign("PUT", key, Math.min(expiresSec, VALIDITE_MAX_DEPOT_S), extraQuery);
 }
+
+/**
+ * DURÉES MAXIMALES DES ADRESSES SIGNÉES (audit Drive F12, 24/11/2026). Une adresse signée est un
+ * passe-droit au porteur : copiée, transférée ou restée dans un historique, elle ouvre le fichier sans
+ * session. Dépôt : 1 h (le navigateur redemande des adresses fraîches pour les parties restantes) ;
+ * lecture : 5 min (le droit vient d'être vérifié par la route, qui en signe une nouvelle à chaque ouverture).
+ * Les plafonds valent quoi que demande l'appelant.
+ */
+export const VALIDITE_MAX_DEPOT_S = 3600;
+export const VALIDITE_MAX_LECTURE_S = 300;
 
 /**
  * URL PRÉSIGNÉE pour un GET — le navigateur TÉLÉCHARGE directement depuis le bucket. Utilisée pour
  * les gros fichiers déposés en direct : les servir par l'application les ferait passer entiers en
  * mémoire. `response-content-disposition` donne au fichier son nom (accents compris).
  */
-export function presignGetUrl(key: string, expiresSec = 900, extraQuery: Record<string, string> = {}): string | null {
-  return presign("GET", key, expiresSec, extraQuery);
+export function presignGetUrl(key: string, expiresSec = VALIDITE_MAX_LECTURE_S, extraQuery: Record<string, string> = {}): string | null {
+  return presign("GET", key, Math.min(expiresSec, VALIDITE_MAX_LECTURE_S), extraQuery);
 }
 
 function presign(method: "PUT" | "GET", key: string, expiresSec: number, extraQuery: Record<string, string>): string | null {

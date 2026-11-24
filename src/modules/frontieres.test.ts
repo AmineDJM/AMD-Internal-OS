@@ -711,6 +711,12 @@ const SOCLE = [
   // Le geste RÉVERSIBLE (K10c, décision 0044) : l'enveloppe qui fait entrer une action au journal des effets — comme
   // l'audit, toute action d'écran y passe ; ce n'est pas un métier.
   "src/lib/effets/reversible",
+  // La cellule de CSV qui ne devient pas une formule (audit Drive F15) : primitive de format, pure et sans import,
+  // que tout export emprunte — pas un métier.
+  "src/lib/formats/csv-cellule",
+  // Le type et le nom d'un fichier DÉPOSÉ (`typeDeDepot`, `nomPourCle` — audit Drive F1/F6) : primitive pure, sans
+  // import, que tout dépôt de pièce emprunte — pas un métier.
+  "src/lib/drive/mime-nom",
 ];
 /** Les actions serveur de `src/lib/actions/` : un écran de module peut les appeler (Next les remplace par un appel distant). */
 const ACTIONS = "src/lib/actions/";

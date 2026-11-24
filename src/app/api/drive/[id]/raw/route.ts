@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { getBlob, cleObjetDirect, infoBlob } from "@/lib/drive-storage";
-import { presignGetUrl } from "@/lib/storage/object-storage";
+import { presignGetUrl, VALIDITE_MAX_LECTURE_S } from "@/lib/storage/object-storage";
 import { contentDisposition } from "@/lib/http/content-disposition";
-import { dispositionPourBucket } from "@/lib/http/types-actifs";
+import { dispositionPourBucket, typeAEmettre } from "@/lib/http/types-actifs";
 import { resolveDriveAccess, canViewDrive } from "@/lib/drive";
 import { collecterPourZip, entreesDeDrive } from "@/lib/drive-zip";
 import { qualiteDeLaRequete, repondreArchive, repondreEstimationArchive, repondreFichier } from "@/lib/http/telechargement";
@@ -54,7 +54,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
 
   const dl = req.nextUrl.searchParams.get("dl") === "1";
   // GROS FICHIER DÉPOSÉ EN DIRECT : le navigateur le lit dans le bucket, sur une adresse signée
-  // pour quinze minutes. Le servir d'ici le ferait passer entier par la mémoire de l'instance —
+  // pour cinq minutes (audit Drive F12 ; `presignGetUrl` ne signe jamais plus long). Le servir d'ici le ferait passer entier par la mémoire de l'instance —
   // plusieurs gigaoctets sur 512 Mo. Les droits viennent d'être vérifiés, c'est eux qui signent.
   const direct = await cleObjetDirect(version.blobId);
   const mime = node.mimeType ?? version.mimeType ?? "application/octet-stream";
@@ -70,7 +70,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
       entetes: { "Cache-Control": "private, no-store" },
       redirection: () => direct
         // Le bucket ne porte pas de CSP : un type actif (HTML, SVG, XML) s'y télécharge (`lib/http/types-actifs.ts`).
-        ? presignGetUrl(direct, 900, { "response-content-disposition": contentDisposition(node.name, dispositionPourBucket(mime, dl ? "attachment" : "inline")), "response-content-type": mime })
+        ? presignGetUrl(direct, VALIDITE_MAX_LECTURE_S, { "response-content-disposition": contentDisposition(node.name, dispositionPourBucket(mime, dl ? "attachment" : "inline")), "response-content-type": typeAEmettre(mime) })
         : null,
     },
   );

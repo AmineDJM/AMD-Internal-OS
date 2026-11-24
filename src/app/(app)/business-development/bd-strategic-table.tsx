@@ -17,6 +17,7 @@ import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { actionFailureMessage } from "@/lib/action-outcome";
 import { cn, formatCompact, formatNumber } from "@/lib/utils";
 import type { BdProjectDTO, BdRangeDTO, BdProductDTO } from "@/lib/queries/bd";
+import { celluleCsv } from "@/lib/formats/csv-cellule";
 
 type NumKey =
   | "marketSizeDzd" | "marketSizeUsd" | "unitPrice" | "totalMarketVolume"
@@ -506,10 +507,8 @@ function downloadCsv(projects: BdProjectDTO[]) {
     "Volume / concurrent", "Prix / concurrent", "Invest. A1", "Invest. A2", "Invest. A3",
     "Revenus A1", "Revenus A2", "Revenus A3", "Commentaire",
   ];
-  const esc = (v: unknown) => {
-    const s = v === null || v === undefined ? "" : String(v);
-    return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
+  // Neutralise aussi `= + - @` en tête de texte : une saisie ne devient pas une formule dans le tableur.
+  const esc = (v: unknown) => celluleCsv(v);
   const lines = [headers.join(";")];
   for (const p of projects) {
     const status = BD_PROJECT_STATUS[p.status]?.label ?? p.status;

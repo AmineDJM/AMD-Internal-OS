@@ -21,6 +21,7 @@ import { validateLetterheadFile, KIND_LABEL } from "@/lib/office/letterhead";
 import type { CurrentUser } from "@/lib/session";
 import { peutGererDirectionArtistique } from "@/lib/direction-artistique/droits";
 import { avecModeleParType, lireModelesParType, LIBELLE_TYPE_MODELE, papiersUtilisables, type ModeleLu, type TypeModele } from "@/lib/direction-artistique/modeles";
+import { typeDeDepot } from "@/lib/drive/mime-nom";
 
 export type { ModeleLu };
 
@@ -70,7 +71,7 @@ export async function deposerPapier(
   const created = await prisma.officeLetterhead.create({
     data: {
       name, kind, companyId,
-      blobId, mime: file.type || "application/octet-stream", size,
+      blobId, mime: typeDeDepot(file.name, file.type), size,
       uploadedById: user.id,
     },
     select: { id: true },

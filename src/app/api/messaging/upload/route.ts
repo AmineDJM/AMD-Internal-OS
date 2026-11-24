@@ -5,6 +5,7 @@ import { putBlob } from "@/lib/drive-storage";
 import { validateDriveUpload } from "@/lib/storage";
 import { getAppSettings } from "@/lib/settings";
 import { canAccessConversation, signBlob } from "@/lib/messaging";
+import { typeDeDepot } from "@/lib/drive/mime-nom";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest) {
 
   const buf = Buffer.from(await file.arrayBuffer());
   const { blobId, size } = await putBlob(buf);
-  const mime = file.type || "application/octet-stream";
+  const mime = typeDeDepot(file.name, file.type);
 
   return NextResponse.json({
     blobId,

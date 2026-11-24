@@ -17,6 +17,7 @@ import {
   type DetectionLocale, type Encodage, type LocaleNombre, type Separateur,
   decouperLigne, detecterEncodage, detecterEntete, detecterLocale, detecterSeparateur, nomSeparateur, versDateIso, versNombre,
 } from "./detection";
+import { neutraliserFormuleCsv } from "@/lib/formats/csv-cellule";
 
 export const LIGNES_TABLEUR_MAX = 200_000;
 
@@ -233,10 +234,11 @@ export function ecrireCsv(lignes: readonly Record<string, unknown>[], options: O
     if (v === null || v === undefined) return "";
     if (typeof v === "number") return locale === "fr" ? String(v).replace(".", ",") : String(v);
     if (v instanceof Date) return v.toISOString().slice(0, 10);
-    return String(v);
+    // Un TEXTE qui commence par `= + - @` serait une formule dans le tableur de qui ouvre le fichier.
+    return neutraliserFormuleCsv(String(v));
   };
   const echapper = (s: string): string => (s.includes(separateur) || s.includes('"') || /[\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
-  const out = [colonnes.map((c) => echapper(c)).join(separateur)];
+  const out = [colonnes.map((c) => echapper(neutraliserFormuleCsv(c))).join(separateur)];
   for (const l of lignes) out.push(colonnes.map((c) => echapper(format(l[c]))).join(separateur));
   const corps = out.join("\r\n");
   if (options.bom !== false) notes.push("Marque d'ordre UTF-8 ajoutée : sans elle, un tableur ouvre les accents de travers.");

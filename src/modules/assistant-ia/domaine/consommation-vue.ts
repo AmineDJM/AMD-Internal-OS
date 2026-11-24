@@ -9,6 +9,8 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
+import { celluleCsv } from "@/lib/formats/csv-cellule";
+
 export type Perimetre = "moi" | "entreprise";
 
 /** Les totaux d'un ensemble d'appels — tous les types de jetons et unités, et le coût. */
@@ -235,9 +237,6 @@ export function ligneExport(a: AppelDetaille): (string | number)[] {
 
 /** CSV (séparateur « ; », lisible par Excel en français), BOM UTF-8 compris. */
 export function versCsv(lignes: (string | number)[][]): string {
-  const cell = (v: string | number) => {
-    const s = String(v);
-    return /[;"\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
+  const cell = (v: string | number) => celluleCsv(v); // neutralise aussi `= + - @` en tête de texte
   return `﻿${lignes.map((l) => l.map(cell).join(";")).join("\r\n")}\r\n`;
 }

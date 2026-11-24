@@ -14,6 +14,7 @@ import {
 } from "@/modules/ad-pro/partage";
 import { sansBloquer } from "@/lib/journal";
 import { inscrireDocumentEcrit } from "@/modules/bibliotheque/api-inscription";
+import { nomPourCle } from "@/lib/drive/mime-nom";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -199,7 +200,7 @@ export async function deposerLettreDevis(
   ];
   for (const c of cibles) {
     for (const f of fichiers) {
-      const cle = `${c.entityType}/${c.entityId}/${randomUUID()}__${f.nom}`;
+      const cle = `${c.entityType}/${c.entityId}/${randomUUID()}__${nomPourCle(f.nom)}`;
       const ecrit = await saveFile(cle, f.octets);
       const docEcrit = await prisma.document.create({
         data: {

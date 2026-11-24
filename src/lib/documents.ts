@@ -13,6 +13,7 @@ import { cheminSur, refusDepotCtd } from "@/lib/regulatory/ctd-initiale";
 import { signalerDocumentDepose } from "@/lib/enrichissement/signalement";
 import { inscrireDocument } from "@/modules/bibliotheque/api-inscription";
 import { sansBloquer } from "@/lib/journal";
+import { nomPourCle, typeDeDepot } from "@/lib/drive/mime-nom";
 
 /**
  * Chemin de dossier SÛR : jamais de « .. », jamais de chemin absolu, séparateur « / », borné.
@@ -67,7 +68,7 @@ export async function persistUploadedDocument(
   const invalid = validateDocumentUpload(file.name, file.size, maxMb);
   if (invalid) return { ok: false, error: invalid };
 
-  const key = `${entityType}/${entityId}/${randomUUID()}__${file.name}`;
+  const key = `${entityType}/${entityId}/${randomUUID()}__${nomPourCle(file.name)}`;
   const content: Buffer = input.buffer ?? Buffer.from(await file.arrayBuffer());
 
   // UNE RELANCE N'EST PAS UNE VERSION 2 (audit du 04/10, constat 13). Une requête dont la réponse
@@ -110,7 +111,7 @@ export async function persistUploadedDocument(
         stepKey,
         folder,
         fileKey: key,
-        mimeType: file.type || null,
+        mimeType: typeDeDepot(file.name, file.type),
         sizeBytes: file.size,
         version: previous + 1,
         confidentiality,
@@ -140,12 +141,12 @@ export async function persistUploadedDocument(
   // l'enrichissement, une fois le document acquis. Interrupteur fermé : rien. Ne lève jamais.
   await signalerDocumentDepose({
     documentId, entityType, entityId, category, confidentiality, blobId: ecrit.blobId, sha256: ecrit.sha256,
-    nom: file.name, mime: file.type || null, taille: file.size, deposeParId: userId,
+    nom: file.name, mime: typeDeDepot(file.name, file.type), taille: file.size, deposeParId: userId,
   });
   // LA BIBLIOTHÈQUE (J1) : la pièce entre au registre, sous la clé du document, et en file de lecture. Ne lève jamais.
   await inscrireDocument({
     documentId, entityType, category, confidentiality, blobId: ecrit.blobId, sha256: ecrit.sha256,
-    nom: file.name, mime: file.type || null, taille: file.size, deposeParId: userId,
+    nom: file.name, mime: typeDeDepot(file.name, file.type), taille: file.size, deposeParId: userId,
   });
 
   // MIROIR DRIVE, en arrière-plan : le document est déjà enregistré, c'est ce que la personne
@@ -157,8 +158,8 @@ export async function persistUploadedDocument(
     // l'écarte ; sans cette branche, une pièce posée par un autre chemin que la route de lot n'arrivait
     // dans aucun Drive.
     const miroir = entityType === "REGULATORY_PRODUCT"
-      ? mirrorRegulatoryUpload({ productId: entityId, ownerId: userId, documentIds: [documentId], files: [{ name: folder ? `${folder}/${file.name}` : file.name, data, mime: file.type || undefined }] })
-      : mirrorDocumentsToDrive({ ownerId: userId, entityType, entityId, confidentiality, files: [{ name: file.name, data, mime: file.type || null }] });
+      ? mirrorRegulatoryUpload({ productId: entityId, ownerId: userId, documentIds: [documentId], files: [{ name: folder ? `${folder}/${file.name}` : file.name, data, mime: typeDeDepot(file.name, file.type) }] })
+      : mirrorDocumentsToDrive({ ownerId: userId, entityType, entityId, confidentiality, files: [{ name: file.name, data, mime: typeDeDepot(file.name, file.type) }] });
     void miroir.catch((e) => console.error("[upload] miroir Drive échoué (non bloquant)", e));
   }
   return { ok: true, documentId };
@@ -183,7 +184,7 @@ export async function inscrireDocumentDirect(
   const refusCtd = refusDepotCtd({ entityType, stepKey: input.stepKey, category: input.category }, input.ctd === true);
   if (refusCtd) throw new Error(refusCtd);
   const folder = dossierSur(input.folder);
-  const key = `${entityType}/${entityId}/${randomUUID()}__${name}`;
+  const key = `${entityType}/${entityId}/${randomUUID()}__${nomPourCle(name)}`;
   await prisma.storedFile.create({ data: { key, blobId: input.blobId, size: input.size } });
   try {
     const previous = await prisma.document.count({ where: { entityType, entityId, name, folder } });

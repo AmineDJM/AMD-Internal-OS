@@ -17,6 +17,7 @@ import { createDossierRecord } from "@/lib/dossiers-core";
 import { fdStr, fdDate, type ActionResult } from "@/lib/actions/types";
 import { sansBloquer } from "@/lib/journal";
 import { inscrirePieceJointe } from "@/modules/bibliotheque/api-inscription";
+import { typeDeDepot } from "@/lib/drive/mime-nom";
 
 const MAX_MSG_ATTACHMENT = 25 * 1024 * 1024; // 25 Mo par pièce jointe de message (chat)
 
@@ -148,7 +149,7 @@ export async function postDossierMessage(formData: FormData): Promise<ActionResu
     const buf = Buffer.from(await f.arrayBuffer());
     const ecrit = await putBlob(buf);
     const pj = await prisma.dossierMessageAttachment.create({
-      data: { messageId: msg.id, blobId: ecrit.blobId, name: (f.name || "fichier").slice(0, 200), mime: f.type || "application/octet-stream", size: ecrit.size },
+      data: { messageId: msg.id, blobId: ecrit.blobId, name: (f.name || "fichier").slice(0, 200), mime: typeDeDepot(f.name, f.type), size: ecrit.size },
       select: { id: true, name: true, mime: true },
     });
     // La pièce entre à la bibliothèque (J1), ouverte par la règle de sa famille. Ne lève jamais.

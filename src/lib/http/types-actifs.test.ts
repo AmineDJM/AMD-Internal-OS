@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { CSP_BAC_A_SABLE, dispositionPourBucket, entetesAntiExecution, estTypeActif, typeDeBase } from "./types-actifs";
+import { CSP_BAC_A_SABLE, dispositionPourBucket, entetesAntiExecution, estTypeActif, estTypePassif, typeAEmettre, typeDeBase } from "./types-actifs";
 import { repondreFichier } from "./telechargement";
 
 /**
@@ -16,25 +16,44 @@ describe("types actifs — ce qu'un navigateur exécuterait", () => {
       expect(estTypeActif(t), t).toBe(true);
     }
   });
-  it("laisse passifs PDF, images bitmap, vidéo, Office, texte brut et l'inconnu", () => {
-    for (const t of ["application/pdf", "image/png", "image/jpeg", "video/mp4", "text/plain", "text/csv",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/octet-stream", "", null, undefined]) {
-      expect(estTypeActif(t), String(t)).toBe(false);
+  it("seule la LISTE FERMÉE est passive : PDF, PNG/JPEG/GIF/WebP, audio, vidéo, texte brut", () => {
+    for (const t of ["application/pdf", "image/png", "image/jpeg", "image/gif", "image/webp", "video/mp4", "audio/mpeg", "text/plain",
+      "Text/Plain; charset=utf-8", "APPLICATION/PDF"]) {
+      expect(estTypePassif(t), t).toBe(true);
+      expect(estTypeActif(t), t).toBe(false);
     }
   });
-  it("typeDeBase retire paramètres et casse", () => {
-    expect(typeDeBase(" Image/SVG+XML ; foo=bar")).toBe("image/svg+xml");
+  it("F1 — tout le reste part au bac à sable : type mal formé, majuscules + paramètres, inconnu, script", () => {
+    for (const t of ["text/plain,text/html", "TEXT/HTML ;x", "application/unknown", "text/javascript", "text/csv",
+      "application/octet-stream", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "image/svg+xml", "text/html x", "image/png,text/html", " /pdf", "", null, undefined]) {
+      expect(estTypeActif(t), String(t)).toBe(true);
+      expect(entetesAntiExecution(t)["Content-Security-Policy"], String(t)).toBe(CSP_BAC_A_SABLE);
+    }
   });
-  it("un type actif reçoit le bac à sable et nosniff ; un type passif, rien", () => {
+  it("typeDeBase retire paramètres et casse, et rend vide un type mal formé", () => {
+    expect(typeDeBase(" Image/SVG+XML ; foo=bar")).toBe("image/svg+xml");
+    expect(typeDeBase("text/plain,text/html")).toBe("");
+    expect(typeDeBase("text/html x")).toBe("");
+  });
+  it("le Content-Type émis est le type de base bien formé (charset gardé), jamais la chaîne déposée", () => {
+    expect(typeAEmettre("text/plain,text/html")).toBe("application/octet-stream");
+    expect(typeAEmettre("TEXT/HTML ;x")).toBe("text/html");
+    expect(typeAEmettre("Text/Plain; Charset=UTF-8")).toBe("text/plain; charset=utf-8");
+    expect(typeAEmettre(null)).toBe("application/octet-stream");
+  });
+  it("hors liste : bac à sable et nosniff ; dans la liste : nosniff seul", () => {
     expect(entetesAntiExecution("image/svg+xml")).toEqual({ "Content-Security-Policy": CSP_BAC_A_SABLE, "X-Content-Type-Options": "nosniff" });
     expect(CSP_BAC_A_SABLE).toMatch(/(^|;\s*)sandbox(\s*;|$)/);
     expect(CSP_BAC_A_SABLE).toContain("default-src 'none'");
-    expect(entetesAntiExecution("application/pdf")).toEqual({});
+    expect(entetesAntiExecution("application/pdf")).toEqual({ "X-Content-Type-Options": "nosniff" });
   });
   it("vers le bucket (pas de CSP possible), un type actif se télécharge toujours", () => {
     expect(dispositionPourBucket("text/html", "inline")).toBe("attachment");
     expect(dispositionPourBucket("application/pdf", "inline")).toBe("inline");
     expect(dispositionPourBucket("image/png", "attachment")).toBe("attachment");
+    expect(dispositionPourBucket("text/plain,text/html", "inline")).toBe("attachment");
+    expect(dispositionPourBucket("application/unknown", "inline")).toBe("attachment");
   });
 });
 
@@ -51,6 +70,11 @@ describe("la porte du téléchargement applique la règle (`repondreFichier`)", 
   it("un HTML téléchargé aussi (le bac à sable ne gêne pas un téléchargement)", async () => {
     const r = await servir("text/html", true);
     expect(r.headers.get("content-security-policy")).toBe(CSP_BAC_A_SABLE);
+  });
+  it("F1 — un type mal formé déposé (`text/plain,text/html`) part au bac à sable, en octet-stream", async () => {
+    const r = await servir("text/plain,text/html");
+    expect(r.headers.get("content-security-policy")).toBe(CSP_BAC_A_SABLE);
+    expect(r.headers.get("content-type")).toBe("application/octet-stream");
   });
   it("un PDF reste servi en ligne SANS bac à sable — la visionneuse du navigateur en dépend", async () => {
     const r = await servir("application/pdf");

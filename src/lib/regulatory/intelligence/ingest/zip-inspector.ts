@@ -13,12 +13,16 @@ import type { Entry, ZipFile } from "yauzl";
  * et entrées chiffrées, et produit un **manifest** (chemin/nom d'origine, taille, SHA-256,
  * ratio, statut de sécurité). Fonction PURE (aucune base) → unitairement testable.
  *
- * Note d'implémentation : JSZip charge en mémoire ; le durcissement « lecture en flux »
- * (yauzl) est prévu en Phase 1.b (voir SECURITY_RISK_ASSESSMENT). Ici on rejette les bombes
- * via les tailles déclarées du répertoire central + un plafond par fichier en défense.
+ * Les tailles DÉCLARÉES du répertoire central ne sont qu'une annonce (un fichier hostile peut mentir) :
+ * chaque entrée se décompresse EN FLUX avec un compteur des octets RÉELS, coupé net au plafond par
+ * entrée (≤ 256 Mo) — jamais une entrée décompressée entière en mémoire avant d'être mesurée
+ * (audit Drive F10, 24/11/2026). Les gros dossiers passent par `inspectZipFile` (yauzl, depuis le disque).
  */
 
 const MB = 1024 * 1024;
+
+/** Le plafond DUR d'une entrée décompressée (audit Drive F10) : ni une variable, ni un appelant ne le relèvent. */
+export const PLAFOND_ENTREE_OCTETS = 256 * MB;
 
 export interface ZipLimits {
   maxArchiveBytes: number;
@@ -40,7 +44,9 @@ export const DEFAULT_ZIP_LIMITS: ZipLimits = {
   maxArchiveBytes: Number(process.env.REG_ZIP_MAX_ARCHIVE_MB ?? "10240") * MB, // 10 Go compressés
   maxEntries: Number(process.env.REG_ZIP_MAX_ENTRIES ?? "50000"),
   maxTotalUncompressed: Number(process.env.REG_ZIP_MAX_TOTAL_MB ?? "16384") * MB, // 16 Go décompressés
-  maxFileUncompressed: Number(process.env.REG_ZIP_MAX_FILE_MB ?? "4096") * MB, // 4 Go / fichier
+  // Par ENTRÉE : 256 Mo au plus, quoi que dise la variable — une entrée se tient en mémoire le temps
+  // d'être empreintée et stockée ; au-delà, une seule entrée suffirait à faire tomber l'instance.
+  maxFileUncompressed: Math.min(PLAFOND_ENTREE_OCTETS, Number(process.env.REG_ZIP_MAX_FILE_MB ?? "256") * MB),
   maxRatio: Number(process.env.REG_ZIP_MAX_RATIO ?? "500"),
   maxDepth: Number(process.env.REG_ZIP_MAX_DEPTH ?? "16"),
 };
@@ -123,9 +129,35 @@ function declaredSizes(file: JSZip.JSZipObject): { compressed?: number; uncompre
   return { compressed: d?.compressedSize, uncompressed: d?.uncompressedSize };
 }
 
+/** Les plafonds effectifs : ceux de l'appelant, l'entrée jamais au-delà du plafond dur. */
+function limites(limOpts: Partial<ZipLimits>): ZipLimits {
+  const lim = { ...DEFAULT_ZIP_LIMITS, ...limOpts };
+  return { ...lim, maxFileUncompressed: Math.min(lim.maxFileUncompressed, PLAFOND_ENTREE_OCTETS) };
+}
+
+/**
+ * Décompresse UNE entrée JSZip EN FLUX, en comptant les octets RÉELS : au-delà de `cap`, le flux est
+ * coupé et l'entrée rend « OVERSIZE » — rien de plus que `cap` octets n'est jamais tenu en mémoire.
+ */
+function lireEntreeBornee(f: JSZip.JSZipObject, cap: number): Promise<Buffer | "OVERSIZE"> {
+  return new Promise((resolve, rej) => {
+    const flux = f.nodeStream("nodebuffer") as NodeJS.ReadableStream & { destroy?: () => void };
+    const morceaux: Buffer[] = [];
+    let total = 0, fini = false;
+    flux.on("data", (c: Buffer) => {
+      if (fini) return;
+      total += c.length;
+      if (total > cap) { fini = true; morceaux.length = 0; flux.pause(); flux.destroy?.(); resolve("OVERSIZE"); return; }
+      morceaux.push(c);
+    });
+    flux.on("error", (e: Error) => { if (!fini) { fini = true; rej(e); } });
+    flux.on("end", () => { if (!fini) { fini = true; resolve(Buffer.concat(morceaux)); } });
+  });
+}
+
 export async function inspectZip(buffer: Buffer, opts: InspectOptions = {}): Promise<ZipInspection> {
   const { onStorableEntry, ...limOpts } = opts;
-  const lim = { ...DEFAULT_ZIP_LIMITS, ...limOpts };
+  const lim = limites(limOpts);
   const archiveBytes = buffer.length;
 
   if (archiveBytes === 0) return reject("EMPTY", "Archive vide.", archiveBytes);
@@ -183,16 +215,19 @@ export async function inspectZip(buffer: Buffer, opts: InspectOptions = {}): Pro
       return reject("TOTAL_TOO_LARGE", "Dépassement du volume total à l'extraction.", archiveBytes);
     }
 
-    // 4) Extraction bornée + hash. Entrée chiffrée → JSZip échoue → BLOCKED_ENCRYPTED.
-    let data: Buffer;
+    // 4) Extraction EN FLUX, bornée par le compteur RÉEL : au plus le plafond par entrée, et jamais
+    // au-delà de ce qui reste du volume total. Entrée chiffrée → JSZip échoue → BLOCKED_ENCRYPTED.
+    const cap = Math.min(lim.maxFileUncompressed, Math.max(0, lim.maxTotalUncompressed - accumulated));
+    let data: Buffer | "OVERSIZE";
     try {
-      data = await f.async("nodebuffer");
+      data = await lireEntreeBornee(f, cap);
     } catch {
       entries.push({ path, filename, ext, sizeBytes: declared.uncompressed ?? 0, sha256: "", securityStatus: "BLOCKED_ENCRYPTED", note: "Entrée chiffrée/illisible — non traitée." });
       continue;
     }
-    if (data.length > lim.maxFileUncompressed) {
-      entries.push({ path, filename, ext, sizeBytes: data.length, sha256: "", securityStatus: "BLOCKED_OVERSIZE", note: "Fichier trop volumineux — non conservé." });
+    if (data === "OVERSIZE") {
+      if (cap < lim.maxFileUncompressed) return reject("TOTAL_TOO_LARGE", "Dépassement du volume total à l'extraction.", archiveBytes);
+      entries.push({ path, filename, ext, sizeBytes: declared.uncompressed ?? 0, sha256: "", securityStatus: "BLOCKED_OVERSIZE", note: "Fichier trop volumineux — non conservé." });
       continue;
     }
     accumulated += data.length;
@@ -301,7 +336,7 @@ export async function inspectZipFile(zipPath: string, opts: InspectOptions = {})
 
 async function inspectZipFileInner(zipPath: string, opts: InspectOptions = {}): Promise<ZipInspection> {
   const { onStorableEntry, ...limOpts } = opts;
-  const lim = { ...DEFAULT_ZIP_LIMITS, ...limOpts };
+  const lim = limites(limOpts);
   const archiveBytes = (await stat(zipPath)).size;
 
   if (archiveBytes === 0) return reject("EMPTY", "Archive vide.", archiveBytes);
@@ -373,7 +408,9 @@ async function inspectZipFileInner(zipPath: string, opts: InspectOptions = {}): 
 
         // 5) Extraction EN FLUX bornée + hash. Toute erreur de décompression → marquée, on continue.
         let data: Buffer | "OVERSIZE";
-        try { data = await readEntryCapped(zip, e, lim.maxFileUncompressed); }
+        // Le compteur RÉEL borne aussi le volume total : une entrée qui ment sur sa taille ne le dépasse pas.
+        const cap = Math.min(lim.maxFileUncompressed, Math.max(0, lim.maxTotalUncompressed - accumulated));
+        try { data = await readEntryCapped(zip, e, cap); }
         catch (err) { console.error("[inspectZipFile] décompression échouée", path, err instanceof Error ? err.message : err); blocked("CORRUPTED", "Décompression impossible (format de compression non supporté ou fichier corrompu) — renvoyez ce fichier."); continue; }
         if (data === "OVERSIZE") { blocked("BLOCKED_OVERSIZE", "Fichier trop volumineux — non conservé."); continue; }
 

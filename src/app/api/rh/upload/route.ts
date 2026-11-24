@@ -17,6 +17,7 @@ import { clauseSalariesVisibles } from "@/lib/queries/visibilite-listes";
 import { synchroniserOrdreEmis } from "@/lib/missions-equipe/serveur";
 import { sansBloquer } from "@/lib/journal";
 import { inscrireDocumentRh } from "@/modules/bibliotheque/api-inscription";
+import { typeDeDepot } from "@/lib/drive/mime-nom";
 
 export const dynamic = "force-dynamic";
 
@@ -69,7 +70,7 @@ export async function POST(req: NextRequest) {
       category,
       name: (form.get("name") as string) || file.name,
       blobId,
-      mime: file.type || "application/octet-stream",
+      mime: typeDeDepot(file.name, file.type),
       size,
       period: (form.get("period") as string) || null,
       visibleToEmployee,
@@ -79,7 +80,7 @@ export async function POST(req: NextRequest) {
     select: { id: true, name: true },
   });
   // La pièce entre à la bibliothèque, CONFIDENTIELLE (J1) : ouverte par la règle de `/api/rh/document`, jamais à un modèle.
-  await inscrireDocumentRh({ id: doc.id, blobId, sha256, nom: doc.name, mime: file.type || "application/octet-stream", taille: size, deposeParId: user.id });
+  await inscrireDocumentRh({ id: doc.id, blobId, sha256, nom: doc.name, mime: typeDeDepot(file.name, file.type), taille: size, deposeParId: user.id });
 
   // Si le document répond à une demande : la marquer « prête » et prévenir l'employé — seulement si le graphe des statuts
   // le permet (audit sécurité 11/2026) : une pièce jointe à une demande annulée, remise, à un congé ou à une note de frais
@@ -108,7 +109,7 @@ export async function POST(req: NextRequest) {
   // ressources humaines — et non en refusant d'écrire. Best-effort, en arrière-plan : le miroir
   // ne doit jamais faire échouer le dépôt RH.
   if (shouldMirrorToDrive(category, visibleToEmployee)) {
-    void mirrorEmployeeContractToDrive({ ownerId: user.id, employeeName: employee.fullName, filename: doc.name, data: buf, mime: file.type || undefined })
+    void mirrorEmployeeContractToDrive({ ownerId: user.id, employeeName: employee.fullName, filename: doc.name, data: buf, mime: typeDeDepot(file.name, file.type) })
       .catch((e) => console.error("[rh upload] miroir contrat → Drive échoué", e));
   }
 

@@ -9,6 +9,7 @@ import { encryptSecret, getMailAccount, testImap, sendMail, closeMailConnection,
 import { validateUpload } from "@/lib/storage";
 import { getAppSettings } from "@/lib/settings";
 import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
+import { typeDeDepot } from "@/lib/drive/mime-nom";
 
 /** Connecte (ou met à jour) la boîte mail Infomaniak de l'utilisateur. Teste IMAP avant d'enregistrer. */
 export async function connectMailbox(formData: FormData): Promise<ActionResult> {
@@ -82,7 +83,7 @@ export async function sendMailAction(formData: FormData): Promise<ActionResult> 
       for (const f of rawFiles) {
         const invalid = validateUpload(f.name, f.size, maxMb);
         if (invalid) return { ok: false, error: `Pièce jointe « ${f.name} » : ${invalid}` };
-        attachments.push({ filename: f.name, content: Buffer.from(await f.arrayBuffer()), contentType: f.type || undefined });
+        attachments.push({ filename: f.name, content: Buffer.from(await f.arrayBuffer()), contentType: typeDeDepot(f.name, f.type) });
       }
     }
 

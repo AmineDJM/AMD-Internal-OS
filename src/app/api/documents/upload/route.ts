@@ -11,6 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { refusDevisLibre } from "@/lib/promo-material/rangement";
 import { gardeDuDepotLibre } from "@/lib/factures/connues";
 import { sansBloquer } from "@/lib/journal";
+import { typeDeDepot } from "@/lib/drive/mime-nom";
 
 /**
  * Téléversement de documents **en lot** (fichiers ET dossiers) pour un objet métier :
@@ -85,7 +86,7 @@ export async function POST(req: NextRequest) {
       if (r.ok) {
         created++;
         if (r.documentId) ids.push(r.documentId);
-        if (mirrorHere) toMirror.push({ name: isRegulatory && folder ? `${folder}/${file.name}` : file.name, data: buffer, mime: file.type || undefined });
+        if (mirrorHere) toMirror.push({ name: isRegulatory && folder ? `${folder}/${file.name}` : file.name, data: buffer, mime: typeDeDepot(file.name, file.type) });
       } else {
         errors.push({ name: file.name, error: r.error ?? "Échec du téléversement." });
       }

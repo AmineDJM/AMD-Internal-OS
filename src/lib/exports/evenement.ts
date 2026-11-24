@@ -5,8 +5,10 @@ import { recordAudit } from "@/lib/audit";
 import { PARTICIPANT_ROLE, REGISTRATION_STATUS } from "@/lib/labels";
 import { estIdentifiant } from "./filtres";
 import { exporte, MIME_CSV, refusExport, type ResultatExport } from "./types";
+import { celluleCsv } from "@/lib/formats/csv-cellule";
 
-const esc = (v: string | null | undefined) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+/** Toujours entre guillemets, et `= + - @` en tête neutralisés : une saisie ne devient pas une formule. */
+const esc = (v: string | null | undefined) => celluleCsv(v, { separateur: ",", guillemets: "toujours" });
 
 /**
  * LA LISTE DES INSCRITS D'UN ÉVÉNEMENT (présence, check-in), en CSV — partagée par `/api/events/[id]/export` et

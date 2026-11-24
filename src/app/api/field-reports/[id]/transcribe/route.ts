@@ -8,6 +8,7 @@ import { aiFeatureEnabled, logAiUsage } from "@/lib/ai-settings";
 import { getAppSettings } from "@/lib/settings";
 import { managesReports } from "@/lib/queries/field-reports";
 import { inscrirePiece } from "@/modules/bibliotheque/api-inscription";
+import { typeDeDepot } from "@/lib/drive/mime-nom";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   await prisma.fieldReport.update({ where: { id: params.id }, data: { audioBlobId: blobId } });
   // Le vocal entre à la bibliothèque (J1) ; sa transcription sera celle que cette route écrit (pas un second appel).
   await inscrirePiece({
-    blobId, empreinte: sha256, nom: file.name || "vocal.webm", mime: file.type || "audio/webm", taille: buf.length, source: "AUTRE",
+    blobId, empreinte: sha256, nom: file.name || "vocal.webm", mime: typeDeDepot(file.name || "vocal.webm", file.type, "audio/webm"), taille: buf.length, source: "AUTRE",
     objet: { famille: "TERRAIN_AUDIO", id: params.id }, proprietaireId: user.id, role: "vocal",
   });
 
