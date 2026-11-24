@@ -182,7 +182,7 @@ function FicheProfessionnel({ f, v }: { f: FicheVue; v: VueRegistreAvantages }) 
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Totaux titre="Par année" lignes={f.fiche.parAnnee.map((a) => ({ cle: String(a.annee), libelle: String(a.annee), ...a }))} />
-        <Totaux titre="Par nature" lignes={f.fiche.parNature.map((a) => ({ cle: a.nature, libelle: a.libelle, ...a }))} />
+        <Totaux titre="Par nature" lignes={f.fiche.parNature.map((a) => ({ cle: a.nature, ...a }))} />
       </div>
 
       <section className="surface min-w-0 overflow-hidden rounded-xl">
