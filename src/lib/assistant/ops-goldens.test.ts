@@ -581,7 +581,9 @@ suite("ops de domaine & lots — goldens (fixtures partagées)", () => {
       expect("error" in p).toBe(false);
       if ("error" in p) return;
       const payload = p.payload as Extract<AssistantActionPayload, { kind: "domain_op" }>;
-      expect(payload.args.sender).toBe("ANPP"); // rejoué, pas effacé
+      // L'action ne lit plus que les champs ENVOYÉS (`readFields` / `readParties`, « corriger sans effacer ») : l'op
+      // n'a donc plus à rejouer l'expéditeur, et ne doit pas le réécrire.
+      expect(payload.args.sender).toBeUndefined();
       expect(payload.args.title).toContain("commission");
     });
 
