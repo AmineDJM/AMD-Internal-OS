@@ -83,6 +83,11 @@ export function classerExclusionsAttestations(): void {
     // demandeur, ou de la personne arrêtée par « cette facture existe déjà » (jeton signé). Un clic sur le poste
     // Ad & Pro, le dossier de paiement ou le message de blocage.
     "relance-paiement-actions:relancerPaiement",
+    // LA QUESTION DES FINANCES AU DEMANDEUR (Banque & paiements, 24/11/2026) — même famille : elle presse le demandeur
+    // au nom d'un comptable (notification, ligne « Aujourd'hui », rappel). Et la RÉPONSE parle au nom du demandeur.
+    // Des clics sur /finances/paiements-a-faire (panneau de la ligne) et sur /validations/paiements/<id>.
+    "finances-questions:poserQuestionAuDemandeur", "finances-questions:relancerQuestionDemandeur",
+    "finances-questions:repondreAuxFinances", "finances-questions:marquerReponseLue",
   ]);
   X("MARQUER UN GROUPE DE DOUBLONS DE FACTURES « EXAMINÉ » est une ATTESTATION des Finances (Direction, 14/10/2026) : « nous avons regardé ces pièces, pièce en main ». La faire poser par Adam reviendrait à attester un examen que personne n'a fait — le groupe sortirait de « à examiner » sans qu'aucune personne n'ait comparé les factures. Un clic des Finances sur /finances/doublons-factures ; l'écran est en lecture, rien n'y est corrigé.", [
     "doublons-factures-actions:marquerExamenDoublon",

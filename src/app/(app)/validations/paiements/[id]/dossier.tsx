@@ -728,7 +728,7 @@ const EVENT_LABEL: Record<string, string> = {
   VALIDATION_ASKED: "Validation demandée",
   // Un code brut dans le fil se lit comme une panne : chaque geste porte son nom.
   CORRECTED: "Demande corrigée",
-  NUDGE: "Relance",
+  NUDGE: "Relance", QUESTION_FINANCES: "Question des Finances", REPONSE_FINANCES: "Réponse aux Finances", RAPPEL_QUESTION: "Rappel des Finances", REPONSE_LUE: "Réponse lue par les Finances",
   URGENT: "Urgence signalée",
   DOUBLON_POSSIBLE: "Doublon possible",
   ECART_MONTANT: "Écart avec la facture",

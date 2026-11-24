@@ -14,11 +14,12 @@ import { PAYMENT_REQUEST_STATUS, PAYMENT_URGENCY, ENTITY_TYPE_LABELS } from "@/l
 import {
   canApprove, canResubmit, isOverdue, deadlineLabel, isWithFinance, piecesEnVigueur, isCompanionDossier,
   CENTRAL_STATUS_LABEL, CENTRAL_DECISION_LABEL, sitsOnPaymentCentre, type CentralStatus, type CentralDecision,
-  deadlineNatureLabel, deadlineNatureOf, refusDeCorrection, refusDeRetrait, refusDeSuppression,
+  deadlineNatureLabel, deadlineNatureOf, refusDeCorrection, refusDeRetrait, refusDeSuppression, etatQuestion, EVT_QUESTION,
 } from "@/modules/finances/partage";
 import { entityHref } from "@/lib/entity-href";
 import { existingEntityIds } from "@/lib/entity-exists";
 import { PaymentDossier, type PieceView, type EventView } from "./dossier";
+import { QuestionFinances } from "./question-finances";
 import { getMyCompanies } from "@/lib/company";
 import { canAccessEntity } from "@/lib/entity-access";
 import { AskChief } from "@/components/shared/ask-chief";
@@ -113,6 +114,10 @@ export default async function PaymentRequestPage(props: { params: Promise<{ id: 
     actor: e.actorId ? names.get(e.actorId) ?? null : null,
     at: formatDateTime(e.at.toISOString()),
   }));
+
+  // La dernière question des Finances et son état, relus sur le fil (`etatQuestion`).
+  const derniereQuestion = [...req.events].filter((e) => e.kind === EVT_QUESTION).sort((a, b) => b.at.getTime() - a.at.getTime())[0] ?? null;
+  const question = derniereQuestion ? etatQuestion(req.events, req.requesterId) : null;
 
   // L'ORDRE DE DÉPENSE derrière ce dossier — sa référence se lit en tête d'un compagnon, pour
   // dire d'où il vient et où le paiement se décide.
@@ -280,6 +285,14 @@ export default async function PaymentRequestPage(props: { params: Promise<{ id: 
           )}
         </CardContent>
       </Card>
+
+      {/* LA QUESTION DES FINANCES (Banque & paiements, 24/11/2026) : en tête, là où le demandeur arrive par la notification. */}
+      {question && derniereQuestion && order?.status === "PENDING" && (req.requesterId === user.id || hasGlobalView(user.role)) && (
+        <QuestionFinances
+          requestId={req.id} question={derniereQuestion.message ?? ""} auteur={derniereQuestion.actorId ? names.get(derniereQuestion.actorId) ?? null : null}
+          le={formatDateTime(derniereQuestion.at.toISOString())} enAttente={question.etat === "EN_ATTENTE_DEMANDEUR"}
+        />
+      )}
 
       <PaymentDossier
         id={req.id}

@@ -8,6 +8,8 @@ import { dedoublonner, trierConges, PREFIXE_CONGE, PREFIXE_DEMANDE_ADMIN, PREFIX
 import { clausePlansADecider } from "@/lib/sfe/tournee";
 import { userCan, hasGlobalView, hasRole, scopeRegulatory, scopeDirectives, type SessionUser } from "@/lib/rbac";
 import { lignesInformationMedicale } from "@/lib/queries/action-center-info-med";
+import { lignesQuestionsDesFinances } from "@/lib/queries/action-center-questions-finances";
+import { ORDRES_AUTORISES_NON_REGLES } from "@/modules/finances/api";
 import { getPendingValidations } from "@/lib/queries/validations";
 import { dossiersPromoAMonTour } from "@/lib/queries/promo-circuit";
 import { clauseDemandesSecretariatVisibles } from "@/lib/queries/visibilite-listes";
@@ -615,7 +617,8 @@ export async function getActionCenter(user: SessionUser) {
   //    ouvrir l'écran), mais régler n'est pas leur travail quotidien : soixante ordres dans
   //    leur espace noyaient ce qui les attend vraiment. Le Super Admin, lui, voit tout.
   if (hasRole(user, "FINANCE_BUDGET_MANAGER") || user.role === "SUPER_ADMIN") {
-    const orders = await prisma.expenseOrder.findMany({ where: { status: "PENDING" }, orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }], take: 60 });
+    // Les seuls ordres PAYABLES (24/11/2026) : un ordre au centre, ou refusé par lui, n'est pas le travail des Finances.
+    const orders = await prisma.expenseOrder.findMany({ where: ORDRES_AUTORISES_NON_REGLES, orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }], take: 60 });
     for (const o of orders) {
       // Depuis l'autorisation du centre quand il y en a une — c'est elle qui le rend réglable —, sinon
       // depuis l'émission de l'ordre.
@@ -793,6 +796,8 @@ export async function getActionCenter(user: SessionUser) {
   // 6c. Information médicale — l'instruction du pharmacien À SON TOUR, la validation finale du Directeur des Opérations
   //     (`action-center-info-med.ts` : la ligne suit le tour de l'écran « À faire », pas le seul statut). Un échec n'éteint pas la file.
   items.push(...(await lignesInformationMedicale(user).catch(sansBloquer("action-center.lignesInformationMedicale", []))));
+  // 6c bis. Les QUESTIONS DES FINANCES au demandeur (Banque & paiements, 24/11/2026) — `action-center-questions-finances.ts`.
+  items.push(...(await lignesQuestionsDesFinances(user).catch(sansBloquer("action-center.lignesQuestionsDesFinances", []))));
 
   // 6d. Matériel promotionnel — étape en attente de l'acteur courant.
   //

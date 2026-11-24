@@ -100,10 +100,16 @@ export function canDisburse(status: CentralStatus): boolean {
   return status === "NOT_REQUIRED" || status === "APPROVED";
 }
 
-/** Le paiement est-il visible des Finances ? Tant qu'il attend le centre, il ne leur arrive pas. */
+/**
+ * Le paiement est-il visible des Finances ? SEULEMENT s'il est payable : autorisé par le centre (ou dispensé, pour
+ * les ordres anciens). C'est `canDisburse`, et rien d'autre.
+ *
+ * Un REFUSÉ restait visible « pour savoir qu'il ne faut pas payer » (Super Admin, 24/11/2026 : défaut) — or le refus
+ * laisse l'ordre « à régler » : il s'affichait dans la file avec un bouton « Payé », et comptait dans les montants. Ce
+ * que le centre refuse n'arrive pas aux Finances ; le demandeur, lui, l'apprend du centre.
+ */
 export function visibleToFinance(status: CentralStatus): boolean {
-  // Un REFUSÉ reste visible : les Finances doivent savoir qu'il ne faut pas payer, et pourquoi.
-  return status !== "AWAITING" && status !== "CHANGES_REQUESTED" && status !== "INFO_REQUESTED";
+  return canDisburse(status);
 }
 
 /**

@@ -48,6 +48,12 @@ export {
   type OrdrePourBrique,
 } from "./infra/requetes/contexte-decision";
 export { chargerOrdresDesFinances, HISTORIQUE_MAX } from "./infra/requetes/paiements-a-faire";
+export { chargerDossiersDesLignes, type DossierDeLigne, type MessageFil, type PieceVue } from "./infra/requetes/banque-paiements";
+// La question des Finances au demandeur, sur le fil du dossier compagnon (24/11/2026).
+export {
+  dossierDeLOrdre, etatsDesQuestions, lienQuestionDemandeur, lireQuestion, prevenirFinancesDeLaReponse,
+  rappelerQuestionsSansReponse,
+} from "./infra/questions-finances";
 export {
   chargerTresorerie, type CompteLu, getFinanceData, type LedgerRow, ORDRES_AUTORISES_NON_REGLES,
 } from "./infra/requetes/finance";

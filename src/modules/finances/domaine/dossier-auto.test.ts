@@ -120,19 +120,19 @@ describe("relancer, ou signaler une urgence", () => {
     expect(canNudge({ ...base, comment: null }).ok).toBe(true);
   });
 
-  it("PAS DEUX FOIS DANS L'HEURE — sinon la notification devient du bruit et la vraie passe", () => {
+  it("PAS DEUX FOIS EN 24 HEURES — sinon la notification devient du bruit et la vraie passe", () => {
     const now = new Date("2026-03-10T12:00:00Z");
     const recent = new Date("2026-03-10T11:30:00Z");
     const r = canNudge({ ...base, lastNudgeAt: recent, now });
     expect(r.ok).toBe(false);
-    expect(r.reason).toMatch(/moins d'une heure/);
-    expect(r.reason).toMatch(/30 min/);
-    expect(NUDGE_COOLDOWN_MINUTES).toBe(60);
+    expect(r.reason).toMatch(/moins de 24 heures/);
+    expect(r.reason).toMatch(/23 h 30 min/);
+    expect(NUDGE_COOLDOWN_MINUTES).toBe(24 * 60);
   });
 
   it("passé le délai, on relance de nouveau", () => {
     const now = new Date("2026-03-10T12:00:00Z");
-    expect(canNudge({ ...base, lastNudgeAt: new Date("2026-03-10T10:30:00Z"), now }).ok).toBe(true);
+    expect(canNudge({ ...base, lastNudgeAt: new Date("2026-03-09T11:30:00Z"), now }).ok).toBe(true);
     // Une date illisible ne bloque pas : on ne refuse pas un geste utile sur une donnée abîmée.
     expect(canNudge({ ...base, lastNudgeAt: "pas une date", now }).ok).toBe(true);
   });

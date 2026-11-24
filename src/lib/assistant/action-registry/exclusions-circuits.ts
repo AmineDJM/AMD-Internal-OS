@@ -116,6 +116,8 @@ export function classerExclusionsCircuits(): void {
     + "attestation de ce que dit la banque, qui réancre le compte : elle se donne devant l'écran de la demande "
     + "(`/finances/actualisation-soldes/[id]`), ouvert par sa notification. Adam est en pause de développement (Super Admin seul).", [
     "actualisation-soldes-actions:repondreActualisationSoldes",
+    // L'OUVERTURE de cette même saisie par les Finances (« Actualiser les soldes », Banque & paiements, 24/11/2026).
+    "actualisation-soldes-actions:ouvrirActualisationSoldes",
   ]);
   X("INFORMATION MÉDICALE › RELANCER UNE PIÈCE (Direction, 07/10) : une notification à la personne sollicitée, limitée à une "
     + "toutes les quatre heures. Le geste se décide en REGARDANT la fiche du dossier (depuis quand la pièce est attendue, "

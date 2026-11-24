@@ -9,7 +9,7 @@ import { ouvrirPourEcrire } from "@/lib/queries/porte-ecriture";
 import {
   refusSeparationDesTaches, ordreAFacture, nextFinanceRef, canDisburse, blockedReason, type CentralStatus,
   checkDeferral, budgetGate, dossierHrefByOrder, compteDeLEcriture, verserLaRemise, solderLeDossierCompagnon,
-  solderVirementPaie, STATUTS_SOLDES_PAR_UN_REGLEMENT,
+  solderVirementPaie, STATUTS_SOLDES_PAR_UN_REGLEMENT, lireSaisieReglement, noteDeReference,
 } from "@/modules/finances/api";
 import { pickAutoCategory } from "@/lib/budget/auto-category";
 import { prisma } from "@/lib/prisma";
@@ -60,6 +60,12 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
     return { ok: false, error: blockedReason(order.centralStatus as CentralStatus) ?? "Ce paiement n'est pas autorisé." };
   }
 
+  // LA SAISIE DU PANNEAU « PAYER » (Super Admin, 24/11/2026) : la date (pas dans le futur), le mode, la référence du
+  // virement ou du chèque. Champs absents = aujourd'hui, virement, sans référence — le geste d'avant, inchangé.
+  const lue = lireSaisieReglement({ date: fdStr(formData, "date"), mode: fdStr(formData, "mode"), reference: fdStr(formData, "reference") });
+  if (!lue.ok) return { ok: false, error: lue.error };
+  const saisie = lue.saisie;
+
   // Facture obligatoire pour les dépenses événementielles : la facture doit être là avant de
   // régler — à l'ordre, au dossier source, au poste, au dossier compagnon ou au registre Legal. La
   // règle vit dans `finance/facture-ordre.ts`, lue aussi par l'écran et par l'intelligence
@@ -96,6 +102,14 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
   const versementRemise = await verserLaRemise({ orderId: order.id, acteurId: user.id, compteId: fdStr(formData, "treasuryAccountId") });
   if (versementRemise) {
     if (!versementRemise.ok) return { ok: false, error: versementRemise.error };
+    // La remise sort en LIQUIDE par son seul écrivain ; la date et la référence saisies s'y reportent ensuite.
+    if (!versementRemise.dejaVersee && (saisie.reference || !saisie.duJour)) {
+      const regle = await prisma.expenseOrder.findUnique({ where: { id: order.id }, select: { transactionId: true } });
+      if (regle?.transactionId) {
+        await prisma.financeTransaction.update({ where: { id: regle.transactionId }, data: { date: saisie.date, notes: noteDeReference(saisie.reference) } });
+        await prisma.expenseOrder.update({ where: { id: order.id }, data: { paidDate: saisie.date } });
+      }
+    }
     if (order.requestedById && !versementRemise.dejaVersee) {
       await notifyUser({
         userId: order.requestedById, type: "GENERIC", title: "Ordre de dépense réglé",
@@ -200,15 +214,15 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
     // l'ANCIEN montant d'un ordre qui en dit désormais un autre.
     const reserve = await tx.expenseOrder.updateMany({
       where: { id, status: "PENDING", centralStatus: order.centralStatus, amount: order.amount, beneficiary: order.beneficiary },
-      data: { status: "PAID", paidById: user.id, paidDate: new Date() },
+      data: { status: "PAID", paidById: user.id, paidDate: saisie.date },
     });
     if (reserve.count === 0) return null;
     const ecriture = await tx.financeTransaction.create({
       data: {
-        reference, date: new Date(), direction: "OUT",
+        reference, date: saisie.date, direction: "OUT",
         category: order.category, label: order.label, amount: order.amount,
-        // Une remise sort en liquide (`finance/verser-remise.ts`) ; ici, tout part par virement.
-        method: "BANK_TRANSFER", account: "Banque", counterparty: order.beneficiary,
+        // Le mode et la référence saisis au panneau « Payer » ; une remise sort en liquide (`finance/verser-remise.ts`).
+        method: saisie.mode, notes: noteDeReference(saisie.reference), account: "Banque", counterparty: order.beneficiary,
         status: "SETTLED", budgetCategoryId, createdById: user.id,
         companyId: order.companyId,
         treasuryAccountId: compteDuReglement,

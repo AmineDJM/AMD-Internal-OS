@@ -93,8 +93,7 @@ const POINTS: Point[] = [
   ["src/app/(app)/legal/[id]/bc-gate.tsx", 'agir("RENVOYER")', 1],
   ["src/app/(app)/legal/[id]/emettre-avoir.tsx", "Émettre l&apos;avoir", 1],
   ["src/app/(app)/legal/[id]/send-to-settlement.tsx", "au règlement", 1],
-  ["src/app/(app)/finances/paiements-a-faire/orders-table.tsx", "Classer et régler", 1],
-  ["src/app/(app)/finances/paiements-a-faire/orders-table.tsx", "className={classes}", 1],
+  ["src/app/(app)/finances/paiements-a-faire/payer.tsx", "Marquer payé", 1],
   // Matériel promotionnel
   ["src/app/(app)/promo-material/[id]/circuit-card.tsx", "startPromoCircuit", 1],
   ["src/app/(app)/promo-material/[id]/circuit-card.tsx", "validatePromoStep", 1],
@@ -173,10 +172,11 @@ describe("les boutons décisifs restent décisifs", () => {
     expect(src, `${fichier} : une seule mécanique de confirmation`).not.toMatch(/(^|[^\w.])(window\.)?confirm\(/);
   });
 
-  it("« Payé » (règlement direct, Finances) passe par le petit bouton DÉCISIF, pas par le petit bouton nu", () => {
-    const src = sansCommentaires(readFileSync("src/app/(app)/finances/paiements-a-faire/orders-table.tsx", "utf8"));
-    expect(src).toContain('<MiniBtn tone="success" decisif><Banknote');
-    expect(src).toMatch(/if \(decisif\) return <BoutonDecisif brut type="submit"/);
+  it("« Marquer payé » (Banque & paiements) est le SEUL geste qui règle, dans le panneau « Payer » — la ligne n'en porte pas d'autre", () => {
+    const liste = sansCommentaires(readFileSync("src/app/(app)/finances/paiements-a-faire/orders-table.tsx", "utf8"));
+    expect(liste).not.toMatch(/settleExpenseOrder/);
+    const payer = sansCommentaires(readFileSync("src/app/(app)/finances/paiements-a-faire/payer.tsx", "utf8"));
+    expect(payer).toMatch(/useFormAction\(settleExpenseOrder/);
   });
 
   it("un seul composant : aucune copie du mécanisme ailleurs", () => {

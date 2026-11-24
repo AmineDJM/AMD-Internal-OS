@@ -505,14 +505,14 @@ test("6 · paiement du poste DIRECT : pro forma jointe, le PDG autorise au centr
   // LES FINANCES règlent.
   await login(page, "fin");
   await aller(page, "/finances/paiements-a-faire");
-  const rangee = page.locator("tr, li").filter({ hasText: INSTITUTION }).filter({ has: page.getByRole("button", { name: /Payé/ }) }).first();
+  // Banque & paiements (24/11/2026) : UN bouton « Payer » par ligne, puis le panneau — « Marquer payé ».
+  const rangee = page.locator("li[data-ordre]").filter({ hasText: INSTITUTION }).filter({ has: page.getByRole("button", { name: /^Payer$/ }) }).first();
   await expect(rangee).toBeVisible({ timeout: 20_000 });
-  const paye = rangee.getByRole("button", { name: /Payé/ });
-  if ((await paye.getAttribute("data-decisif")) !== null) await cliquerDecisif(paye);
-  else {
-    await paye.click();
-    await cliquerDecisif(page.getByRole("dialog").getByRole("button", { name: /Régler|Classer et régler/ }));
-  }
+  await rangee.getByRole("button", { name: /^Payer$/ }).click();
+  const panneau = page.getByRole("dialog");
+  const budget = panneau.getByLabel(/^Budget/);
+  if (await budget.count()) await budget.selectOption({ index: 1 });
+  await cliquerDecisif(panneau.getByRole("button", { name: /Marquer payé/ }));
   await expect.poll(async () => (await prisma.expenseOrder.findUniqueOrThrow({ where: { id: ordreId } })).status, { timeout: 30_000 }).toBe("PAID");
 
   // LE BUDGET : l'écriture OUT/SETTLED porte la catégorie et le montant au centime.

@@ -157,13 +157,13 @@ export const NUDGE_LABEL: Record<NudgeKind, string> = {
 };
 
 /**
- * LE DÉLAI DE COURTOISIE — on ne relance pas deux fois dans la même heure.
+ * LE DÉLAI DE COURTOISIE — une relance par 24 heures (Super Admin, 24/11/2026 ; une heure auparavant).
  *
  * Ce n'est pas une bride sur le demandeur : c'est ce qui empêche la relance de devenir du bruit.
  * Trois relances en cinq minutes ne font pas payer plus vite ; elles apprennent aux Finances à
  * ignorer la notification, et la quatrième — la vraie — passe inaperçue.
  */
-export const NUDGE_COOLDOWN_MINUTES = 60;
+export const NUDGE_COOLDOWN_MINUTES = 24 * 60;
 
 export interface NudgeCheck {
   /** L'état du dossier — la relance n'a de sens que s'il est chez les Finances. */
@@ -206,7 +206,8 @@ export function refusDelaiDeCourtoisie(lastAt: Date | string | null | undefined,
   const minutes = (now.getTime() - last.getTime()) / 60000;
   if (minutes >= NUDGE_COOLDOWN_MINUTES) return null;
   const reste = Math.max(1, Math.ceil(NUDGE_COOLDOWN_MINUTES - minutes));
-  return `Vous avez déjà relancé il y a moins d'une heure — réessayez dans ${reste} min.`;
+  const h = Math.floor(reste / 60);
+  return `Vous avez déjà relancé il y a moins de 24 heures — réessayez dans ${h > 0 ? `${h} h ${reste % 60} min` : `${reste} min`}.`;
 }
 
 /** Le message porté par la notification, tel que les Finances le liront. */

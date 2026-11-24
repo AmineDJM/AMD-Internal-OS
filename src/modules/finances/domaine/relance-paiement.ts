@@ -12,7 +12,7 @@ import { refusDelaiDeCourtoisie } from "./dossier-auto";
  *
  * L'état se lit sur l'ORDRE DE DÉPENSE quand il existe (c'est lui que le centre autorise et que les Finances règlent),
  * sur la demande de paiement sinon (anciennes demandes). Un paiement réglé, annulé ou refusé n'attend personne : rien à
- * relancer. Le délai de courtoisie est celui de la relance du dossier (`refusDelaiDeCourtoisie`, une heure).
+ * relancer. Le délai de courtoisie est celui de la relance du dossier (`refusDelaiDeCourtoisie`, 24 heures).
  *
  * Module PUR, lu par l'action (`relance-paiement-actions.ts`), par le blocage d'une facture déjà connue et par les
  * écrans qui proposent le bouton.
@@ -78,7 +78,7 @@ export function relancable(etat: EtatPaiement): boolean {
  * LA RELANCE EST-ELLE POSSIBLE ? — le refus, ou `null`.
  *   • rien n'attend : payé, clos, ou pas encore demandé — le refus dit lequel ;
  *   • le dossier est chez le demandeur et c'est lui qui relance : c'est à lui d'agir ;
- *   • déjà relancé par la même personne il y a moins d'une heure.
+ *   • déjà relancé par la même personne il y a moins de 24 heures.
  */
 export function refusDeRelance(i: {
   etat: EtatPaiement; parLeDemandeur: boolean; derniereRelance?: Date | string | null; now?: Date;

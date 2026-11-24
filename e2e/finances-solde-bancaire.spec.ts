@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { E2E } from "./global-setup";
 
 /**
- * Finances › Banque & paiements (§118.215) : « Solde bancaire » daté, « Montant à régler » à part,
+ * Finances › Banque & paiements (§118.215) : « Solde bancaire » daté (un seul chiffre), « Après les paiements à faire » à côté,
  * cases d'entités. Décor propre (préfixe `__e2e19__`), retiré au début et à la fin.
  */
 const prisma = new PrismaClient({
@@ -29,7 +29,7 @@ test.afterAll(async () => {
   await prisma.$disconnect();
 });
 
-test("la page porte « Solde bancaire », « Montant à régler » à part, et les cases d'entités", async ({ page }) => {
+test("la page porte « Solde bancaire », « Après les paiements à faire » à côté, et les cases d'entités", async ({ page }) => {
   await page.goto("/login");
   await page.getByLabel(/e-?mail/i).fill(EMAIL);
   await page.getByLabel(/mot de passe/i).fill(E2E.password);
@@ -37,7 +37,7 @@ test("la page porte « Solde bancaire », « Montant à régler » à part, et l
   await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 60_000 });
   await page.goto("/finances/paiements-a-faire");
   await expect(page.getByText("Solde bancaire").first()).toBeVisible();
-  await expect(page.getByText("Montant à régler").first()).toBeVisible();
+  await expect(page.getByText(/Après les \d+ paiements à faire/).first()).toBeVisible();
   await expect(page.getByText("Solde de trésorerie")).toHaveCount(0);
   const cases = page.locator("[data-entite]");
   expect(await cases.count()).toBeGreaterThan(0);

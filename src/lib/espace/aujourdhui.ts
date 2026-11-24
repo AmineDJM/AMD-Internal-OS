@@ -54,7 +54,7 @@ export type NatureLot =
   | "paiement" | "declaration" | "declaration-prete" | "declaration-pieces" | "declaration-finale"
   | "validation" | "conge" | "achat" | "demande" | "adpro" | "correction" | "plan" | "mission"
   | "invitation" | "formation" | "regulatory" | "piece" | "directive" | "tache" | "stock" | "promo"
-  | "prise-en-charge" | "support" | "dossier" | "agence" | "bat" | "total-dg" | "autre";
+  | "prise-en-charge" | "support" | "dossier" | "agence" | "bat" | "total-dg" | "question-finances" | "autre";
 
 interface DefNature {
   /** Le chapeau — le filtre de la file et l'étiquette du lot. */
@@ -188,6 +188,11 @@ export const NATURES: Record<NatureLot, DefNature> = {
     chapeau: "Dossiers", titre: (n) => `${n} ${pl(n, "dossier")} de suivi`,
     sousTitre: "Qui vous sont confiés", verbe: "Ouvrir", liste: "/dossiers", decision: false,
   },
+  // La question des Finances au demandeur d'un paiement (Banque & paiements, 24/11/2026) : il répond depuis sa demande.
+  "question-finances": {
+    chapeau: "Finances", titre: (n) => `${n} ${pl(n, "question")} des Finances`,
+    sousTitre: "Elles attendent votre réponse pour payer", verbe: "Répondre", liste: null, decision: false,
+  },
   autre: {
     chapeau: "Autres", titre: (n) => `${n} ${pl(n, "élément")} à traiter`,
     sousTitre: "", verbe: "Ouvrir", liste: null, decision: false,
@@ -201,6 +206,7 @@ const estReste = (e: ElementFile) => e.objet.startsWith(PREFIXE_RESTE) || e.obje
 /** LA NATURE D'UNE LIGNE — lue sur l'identité de l'objet d'abord, sur le module ensuite. */
 export function natureDe(e: ElementFile): NatureLot {
   const o = e.objet;
+  if (o.startsWith("QUESTION_FINANCES:")) return "question-finances";
   if (e.kind === "payment" || o.startsWith("EXPENSE_ORDER:")) return "paiement";
   if (o.startsWith("MEDICAL_INFO_DECLARATION:")) {
     if (e.statut === "AWAITING_DIRECTION") return "declaration-finale";

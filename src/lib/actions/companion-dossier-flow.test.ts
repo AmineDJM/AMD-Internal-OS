@@ -162,7 +162,7 @@ suite("Un ordre de dépense, un dossier — quelle que soit sa provenance", () =
     encore.set("id", dossier.id); encore.set("kind", "REMINDER");
     const r2 = await nudgePaymentRequest(encore);
     expect(r2.ok).toBe(false);
-    expect(r2.error).toMatch(/moins d'une heure/);
+    expect(r2.error).toMatch(/moins de 24 heures/);
 
     // Une urgence SANS motif n'est pas une urgence.
     const nu = new FormData();

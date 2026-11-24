@@ -6,7 +6,7 @@ import { anyRoleFilter, userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { broadcastNotification } from "@/lib/notify";
-import { companyScopedWhere } from "@/lib/company";
+import { companyScopedWhere, getMyCompanies } from "@/lib/company";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { toNumber } from "@/lib/utils";
 import {
@@ -162,4 +162,41 @@ export async function repondreActualisationSoldes(formData: FormData): Promise<A
       ? `Soldes actualisés pour ${nomEntite}. Le demandeur et les Super Admins sont prévenus.`
       : `Réponse enregistrée pour ${nomEntite} — les comptes « pas encore reçu » restent à compléter depuis cette même demande. Le demandeur et les Super Admins sont prévenus.`,
   };
+}); }
+
+/**
+ * « ACTUALISER LES SOLDES » PAR LES FINANCES ELLES-MÊMES (Banque & paiements, maquette validée le 24/11/2026).
+ *
+ * Le circuit reste celui de la demande (`requestTreasuryUpdate` du Super Admin → saisie compte par compte,
+ * `repondreActualisationSoldes`) : quand les Finances veulent actualiser sans qu'on le leur ait demandé, elles ouvrent
+ * la MÊME saisie — la demande ouverte de la société si elle existe, sinon une nouvelle, à leur nom, sans sonnerie (elles
+ * sont celles qui répondent). L'écran les conduit ensuite à la saisie (`/finances/actualisation-soldes/<id>`).
+ */
+export async function ouvrirActualisationSoldes(formData: FormData): Promise<ActionResult> { return annulable("actualisation-soldes-actions:ouvrirActualisationSoldes", "Ouvrir l'actualisation des soldes", async () => {
+  const user = await requireUser();
+  if (!userCan(user, "FINANCES_BANQUE", "UPDATE")) return { ok: false, error: "Actualiser un solde demande « Modifier » sur Banque & paiements — un Super Admin l'accorde dans Administration › Accès." };
+  const entiteId = fdStr(formData, "entite");
+  const societe = entiteId ? (await getMyCompanies(user.id)).find((c) => c.id === entiteId) ?? null : null;
+  if (entiteId && !societe) return { ok: false, error: "Société introuvable : rechargez la page." };
+  const ouverte = await prisma.demandeActualisationSoldes.findFirst({
+    where: { companyId: entiteId, termineeLe: null }, orderBy: { createdAt: "desc" }, select: { id: true },
+  });
+  if (ouverte) return { ok: true, id: ouverte.id };
+  const comptes = await prisma.treasuryAccount.findMany({
+    where: await companyScopedWhere(user.id, entiteId ? { companyId: entiteId } : {}),
+    select: { id: true, openingBalance: true, openingDate: true },
+    orderBy: [{ principal: "desc" }, { name: "asc" }],
+  });
+  const nom = societe ? societe.shortName || societe.name : "sans entité";
+  if (comptes.length === 0) return { ok: false, error: `Aucun compte de trésorerie pour ${nom} : ouvrez-en un depuis « ⋯ › Comptes de trésorerie ».` };
+  const demande = await prisma.demandeActualisationSoldes.create({
+    data: {
+      companyId: entiteId, demandeParId: user.id, note: "Actualisation ouverte par les Finances.",
+      lignes: { create: comptes.map((c) => ({ compteId: c.id, ancienSolde: c.openingBalance, ancienneDate: c.openingDate })) },
+    },
+    select: { id: true },
+  });
+  await recordAudit({ actorId: user.id, action: "UPDATE", module: "Finances", summary: `Actualisation des soldes ouverte par les Finances — ${nom}, ${comptes.length} compte(s)` });
+  revalidatePath("/finances/paiements-a-faire");
+  return { ok: true, id: demande.id };
 }); }
