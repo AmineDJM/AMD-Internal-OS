@@ -53,12 +53,18 @@ import { loadProductMarkets } from "@/lib/queries/market-360";
 import { ProductMarkets } from "./product-markets";
 import { estCtdInitiale, KIND_CORBEILLE_CTD } from "@/lib/regulatory/ctd-initiale";
 import { droitsSurLaCtd } from "@/lib/regulatory/ctd-initiale-corbeille";
+import { EnregistrementCard, type PieceVue } from "./enregistrement-card";
+import { ETAPE_DECISION, lecturesDuDossier } from "@/lib/regulatory/decision-lue";
+import { statutValidite } from "@/lib/regulatory/validite-enregistrement";
 
 const REG_DOC_CATEGORIES = [
   "CTD_FULL", "MODULE_1", "MODULE_2", "MODULE_3", "MODULE_4", "MODULE_5",
   "GMP_CERTIFICATE", "CPP", "ORIGIN_AMM", "SUBMISSION_LETTER", "BV_RECEIPT",
-  "REGISTRATION_DECISION", "OTHER",
+  "REGISTRATION_DECISION", "PRICE_ATTESTATION", "OTHER",
 ];
+
+// Les niveaux de process à partir desquels la carte « Décision d'enregistrement » s'ouvre : le dossier est déposé.
+const STATUTS_APRES_DEPOT = new Set(["SUBMITTED", "AWAITING_ANPP", "RESPONDING_TO_QUERIES", "DECISION_OBTAINED", "CLOSED"]);
 
 // Documents liés aux réserves de l'ANPP (réserves reçues + réponses du laboratoire).
 const REG_RESERVE_CATEGORIES = ["QUERY_RECEIVED", "QUERY_RESPONSE"];
@@ -270,6 +276,15 @@ export default async function RegulatoryDetailPage(
   }
 
 
+  // LA DÉCISION D'ENREGISTREMENT (Super Admin, 24/11/2026) : sa validité, ses deux pièces, ce que l'IA y a lu.
+  const lectures = lecturesDuDossier(product.registrationReading);
+  const jourIso = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
+  const statutDe = statutValidite(product.registrationValidUntil, new Date());
+  const piecesDe: PieceVue[] = documents
+    .filter((d) => d.stepKey === ETAPE_DECISION && (d.category === "REGISTRATION_DECISION" || d.category === "PRICE_ATTESTATION"))
+    .map((d) => ({ id: d.id, name: d.name, nature: d.category === "PRICE_ATTESTATION" ? "PRIX" : "DECISION" }));
+  const voitCarteDe = STATUTS_APRES_DEPOT.has(derived.status) || Boolean(product.registrationValidUntil || product.registrationDecisionDate || lectures.decision || lectures.prix || piecesDe.length);
+
   // DCI : molécule unique ou association (double/triple…).
   const molecules = Array.isArray(product.molecules)
     ? (product.molecules as unknown[]).map((m) => String(m)).filter(Boolean)
@@ -436,6 +451,25 @@ export default async function RegulatoryDetailPage(
               <Info label="Fabricant" value={product.manufacturer} />
             </CardContent>
           </Card>
+
+          {voitCarteDe && (
+            <EnregistrementCard
+              productId={product.id}
+              validite={{
+                numero: product.registrationDecisionNumber, dateDecision: jourIso(product.registrationDecisionDate),
+                debut: jourIso(product.registrationValidFrom), fin: jourIso(product.registrationValidUntil),
+                sources: { decision: product.registrationDecisionSource, debut: product.registrationValidFromSource, fin: product.registrationValidUntilSource },
+                statut: statutDe, confirmeLe: product.registrationConfirmedAt?.toISOString() ?? null,
+              }}
+              lectures={lectures}
+              pieces={piecesDe}
+              canUpload={canUpload}
+              canUpdate={canUpdate}
+              aUnProduit={Boolean(product.productId)}
+              // LE RENOUVELLEMENT (pas de circuit dédié) : le formulaire de création, prérempli depuis ce dossier.
+              renouvelerHref={(statutDe === "A_RENOUVELER" || statutDe === "EXPIREE") && !product.isLocked && userCan(user, "REGULATORY", "CREATE") ? `/regulatory?renouveler=${product.id}` : null}
+            />
+          )}
 
           <Card>
             <CardHeader><CardTitle>Variations de fabrication</CardTitle></CardHeader>

@@ -18,7 +18,7 @@ import { titreACompleter } from "@/lib/products/produit-du-dossier";
 import { regrouperParMotsCles, texteDuRapport, type VoixTerrain } from "@/lib/voix-terrain/pur";
 import { toNumber } from "@/lib/utils";
 import {
-  etapeCycle, stockActuel, moisDeCouverture, ecoulementMensuel, cleMois, echeanceDecision, montantCourt,
+  etapeCycle, stockActuel, moisDeCouverture, ecoulementMensuel, cleMois, echeanceDecision, echeanceDeLaFin, montantCourt,
   type EtapeCycle,
 } from "@/lib/products/fiche-360";
 import {
@@ -100,6 +100,15 @@ export function texteDosage(p: { dosage: string | null; dosageUnit: string | nul
 }
 export function texteForme(form: string | null): string | null {
   return form ? PHARMA_FORM[form] ?? form : null;
+}
+
+/**
+ * L'ÉCHÉANCE D'UN DOSSIER : la fin de validité CONFIRMÉE sur le dossier (lue, déduite ou saisie) quand elle existe ;
+ * sinon, pour une décision obtenue, la date de l'étape « décision » + 5 ans (dossiers d'avant la saisie de la validité).
+ */
+function echeanceDuDossier(d: { status: string; workflow: unknown; registrationValidUntil?: Date | null }, maintenant: Date) {
+  if (d.registrationValidUntil) return echeanceDeLaFin(d.registrationValidUntil, maintenant);
+  return d.status === "DECISION_OBTAINED" ? echeanceDecision(dateDecision(d.workflow), maintenant) : null;
 }
 
 /** La date de la décision d'enregistrement — l'étape « décision » du suivi ANPP, quand elle est datée. */
@@ -292,8 +301,8 @@ function synthese(f: FaitsProduit): { sante: NoteSante; chiffres: Chiffres360; a
 }
 
 /** La plus proche échéance de dépôt d'un renouvellement de DE, parmi les dossiers à décision obtenue. */
-function prochaineEcheance(dossiers: readonly { status: string; workflow: unknown }[], maintenant: Date) {
-  return dossiers.filter((d) => d.status === "DECISION_OBTAINED").map((d) => echeanceDecision(dateDecision(d.workflow), maintenant))
+function prochaineEcheance(dossiers: readonly { status: string; workflow: unknown; registrationValidUntil?: Date | null }[], maintenant: Date) {
+  return dossiers.map((d) => echeanceDuDossier(d, maintenant))
     .filter((e): e is NonNullable<typeof e> => !!e).sort((a, b) => a.joursAvantDepot - b.joursAvantDepot)[0] ?? null;
 }
 
@@ -345,7 +354,7 @@ export async function listeProduits360(user: SessionUser, opts: { q?: string; on
         promoProfiles: { select: { businessUnit: { select: { name: true } } } },
         regulatoryProfiles: {
           where: lock,
-          select: { id: true, reference: true, status: true, targetDate: true, workflow: true, variations: { where: { status: "EN_ATTENTE" }, select: { id: true } } },
+          select: { id: true, reference: true, status: true, targetDate: true, workflow: true, registrationValidUntil: true, variations: { where: { status: "EN_ATTENTE" }, select: { id: true } } },
         },
       },
     }),
@@ -519,7 +528,7 @@ export async function fiche360(user: SessionUser, productId: string, maintenant 
           orderBy: { reference: "asc" },
           select: {
             id: true, reference: true, brandName: true, status: true, deHolder: true, partnerLab: true, therapeuticClass: true,
-            manufacturer: true, manufacturingStatus: true, workflow: true, targetDate: true,
+            manufacturer: true, manufacturingStatus: true, workflow: true, targetDate: true, registrationValidUntil: true, registrationDecisionDate: true,
             dci: true, dosage: true, dosageUnit: true, pharmaceuticalForm: true, packaging: true,
             variations: { select: { id: true, toStatus: true, status: true, depotDate: true, decisionDate: true }, orderBy: { createdAt: "desc" } },
           },
@@ -588,8 +597,8 @@ export async function fiche360(user: SessionUser, productId: string, maintenant 
 
   // ── Dossiers ──
   const dossiers: Fiche360["dossiers"] = visibles.map((d) => {
-    const dd = dateDecision(d.workflow);
-    const e = d.status === "DECISION_OBTAINED" ? echeanceDecision(dd, maintenant) : null;
+    const dd = d.registrationDecisionDate ?? dateDecision(d.workflow);
+    const e = echeanceDuDossier(d, maintenant);
     return {
       id: d.id, reference: d.reference, nomCommercial: d.brandName, statut: d.status, detenteurDe: d.deHolder, laboPartenaire: d.partnerLab,
       classeTherapeutique: d.therapeuticClass, fabricant: d.manufacturer, statutFabrication: d.manufacturingStatus,

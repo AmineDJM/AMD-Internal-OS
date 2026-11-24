@@ -11043,6 +11043,45 @@
   "annulation": "retour",
   "appelable": true
  },
+ "regulatory-validite-actions:confirmerPrixAttestation": {
+  "risque": "R1",
+  "familles": [
+   "REGLEMENTAIRE",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "regulatory-validite-actions:confirmerValiditeEnregistrement": {
+  "risque": "R1",
+  "familles": [
+   "REGLEMENTAIRE",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "regulatory-validite-actions:joindrePieceEnregistrement": {
+  "risque": "R1",
+  "familles": [
+   "REGLEMENTAIRE",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "regulatory-validite-actions:relirePieceEnregistrement": {
+  "risque": "R0",
+  "familles": [
+   "REGLEMENTAIRE"
+  ],
+  "simulable": "oui",
+  "annulation": "aucune",
+  "appelable": true
+ },
  "relance-paiement-actions:relancerPaiement": {
   "risque": "R4",
   "familles": [

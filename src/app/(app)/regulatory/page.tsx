@@ -8,7 +8,8 @@ import { PageHeader } from "@/components/shared/page-header";
 import { effectiveTherapeuticSegments } from "@/lib/labels";
 import { RegulatoryTable } from "./regulatory-table";
 import { getRegulatoryRows } from "@/lib/queries/regulatory-rows";
-import { NewProductButton } from "./new-product";
+import { NewProductButton, type DossierPrerempli } from "./new-product";
+import { canAccessEntity } from "@/lib/entity-access";
 import { MettreAuPipeline } from "./mettre-au-pipeline";
 import { RangerDansLeDrive } from "./ranger-drive";
 import { SuppliersManager } from "./suppliers-manager";
@@ -17,9 +18,30 @@ import { canSendUpdateReminder } from "@/lib/regulatory/update-reminder";
 import { regulatoryReminderBoard } from "@/lib/queries/regulatory-reminders";
 import { getBdProjectOptions } from "@/lib/queries/bd";
 
-export default async function RegulatoryPage() {
+/**
+ * LE RENOUVELLEMENT D'UNE DÉCISION D'ENREGISTREMENT (`?renouveler=<dossier>`, Super Admin 24/11/2026) : faute de
+ * circuit dédié, le formulaire de création s'ouvre prérempli depuis le produit enregistré. Un dossier que la
+ * personne ne voit pas ne préremplit rien (et ne dit pas qu'il existe).
+ */
+async function prerempliDuRenouvellement(user: Awaited<ReturnType<typeof requireModule>>, id: string | undefined): Promise<DossierPrerempli | null> {
+  if (!id || !(await canAccessEntity(user, "REGULATORY_PRODUCT", id, "VIEW"))) return null;
+  const d = await prisma.regulatoryProduct.findUnique({ where: { id } });
+  if (!d || d.isLocked) return null;
+  const molecules = Array.isArray(d.molecules) ? (d.molecules as unknown[]).map(String).filter(Boolean) : [];
+  const fin = d.registrationValidUntil ? d.registrationValidUntil.toLocaleDateString("fr-FR", { timeZone: "UTC" }) : null;
+  return {
+    companyId: d.companyId, molecules: molecules.length ? molecules : [d.dci], brandName: d.brandName, dosage: d.dosage, dosageUnit: d.dosageUnit,
+    pharmaceuticalForm: d.pharmaceuticalForm, packaging: d.packaging, therapeuticClass: d.therapeuticClass, supplierId: d.supplierId,
+    partnerLab: d.partnerLab, countryOfOrigin: d.countryOfOrigin, category: d.category, channel: d.channel, manufacturingStatus: d.manufacturingStatus,
+    responsibleId: d.responsibleId, assistantId: d.assistantId, deHolder: d.deHolder,
+    comments: `Renouvellement de la décision d'enregistrement${d.registrationDecisionNumber ? ` n° ${d.registrationDecisionNumber}` : ""} du dossier ${d.reference}${fin ? ` (fin de validité le ${fin})` : ""}.`,
+  };
+}
+
+export default async function RegulatoryPage(props: { searchParams: Promise<{ renouveler?: string }> }) {
   const user = await requireModule("REGULATORY");
   const canCreate = userCan(user, "REGULATORY", "CREATE");
+  const prerempli = canCreate ? await prerempliDuRenouvellement(user, (await props.searchParams).renouveler) : null;
   // Confier un dossier à quelqu'un, c'est le MODIFIER : même droit que l'édition de la fiche.
   const canAssign = userCan(user, "REGULATORY", "UPDATE");
   // Le cadenas n'appartient qu'au Super Admin — les autres ne voient même pas les dossiers verrouillés.
@@ -99,7 +121,7 @@ export default async function RegulatoryPage() {
           {canCreate && (
             <>
               <SuppliersManager suppliers={supplierList} />
-              <NewProductButton users={assignableUsers} suppliers={suppliers} companies={companies} />
+              <NewProductButton users={assignableUsers} suppliers={suppliers} companies={companies} prerempli={prerempli} />
             </>
           )}
         </div>

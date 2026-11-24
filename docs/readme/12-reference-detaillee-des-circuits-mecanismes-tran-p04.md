@@ -409,6 +409,25 @@ billet / hôtel d'une prise en charge de congrès (`CareCell` TICKET / HOTEL).
 Lecture : `passeport-acces.ts` ouvre aux membres du sujet les pièces de billet déposées sur une prise en charge
 (`pieceIds`). Tests : `reservation-fiche/etat.test.ts` (pur), `reservation-fiche/reservation-fiche-flow.test.ts` (base locale).
 
+### Regulatory — validité de la décision d'enregistrement et renouvellement (24/11/2026)
+
+- **Modèle** : sur `RegulatoryProduct` (migration `20270248400000_validite_enregistrement`) — `registrationDecisionNumber`,
+  `registrationDecisionDate`, `registrationValidFrom`, `registrationValidUntil`, chacune avec sa **source** (`LUE_IA` /
+  `DEDUITE` / `SAISIE`), `registrationReading` (propositions de l'IA en attente), `renewalAlertTier/Until` (dernier palier
+  prévenu). Le statut (valide / à renouveler / expirée) se **calcule** (`lib/regulatory/validite-enregistrement.ts`, pur).
+- **Pièces** : carte « Décision d'enregistrement » de la fiche dossier (`regulatory/[id]/enregistrement-card.tsx`) — « Joindre
+  la décision » (`REGISTRATION_DECISION`) / « Joindre l'attestation de prix » (`PRICE_ATTESTATION`), par `persistUploadedDocument`,
+  étape `decision`, rangées dans le Drive sous « 3-DE et attestation de prix ».
+- **Lecture IA** (`lib/regulatory/lecture-decision.ts` → `lireFichierUneFois` + `lirePieceEnregistrementParModele`, bascule
+  « lecture des pièces ») : numéro, date, début, fin avec la phrase citée ; fin manquante = début + 5 ans (« déduite ») ;
+  attestation → prix DZD par type (`ProductPrice` via `enregistrerPrixProduit`). Rien n'est écrit sans le clic « Confirmer » ;
+  l'IA coupée laisse la saisie ouverte. Confirmer coche l'étape 19 datée de la décision.
+- **Alerte** (`lib/regulatory/renouvellement-sweep.ts`, tâche `regulatory.renouvellements`) : 12, 6, 1 mois avant la fin puis
+  à l'expiration, une fois par palier et par fin de validité, au HEAD_OF_REGULATORY et au responsable du dossier (s'ils voient
+  le dossier) ; à venir d'abord, puis expirées, par pages sans plafond. Ligne dans « Aujourd'hui »
+  (`queries/action-center-renouvellements.ts`), rouge si expirée. « Lancer le renouvellement » ouvre la création de dossier
+  préremplie (`/regulatory?renouveler=<id>`) — pas de circuit de renouvellement dédié.
+
 ### Assistant — recherche Regulatory complète et écriture sur les produits
 
 - **`search_products` cherche là où les mots sont écrits** : DCI, nom commercial, référence, **classe

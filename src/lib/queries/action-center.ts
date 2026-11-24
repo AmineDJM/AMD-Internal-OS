@@ -9,6 +9,7 @@ import { clausePlansADecider } from "@/lib/sfe/tournee";
 import { userCan, hasGlobalView, hasRole, scopeRegulatory, scopeDirectives, type SessionUser } from "@/lib/rbac";
 import { lignesInformationMedicale } from "@/lib/queries/action-center-info-med";
 import { lignesQuestionsDesFinances } from "@/lib/queries/action-center-questions-finances";
+import { lignesRenouvellements } from "@/lib/queries/action-center-renouvellements";
 import { ORDRES_AUTORISES_NON_REGLES } from "@/modules/finances/api";
 import { getPendingValidations } from "@/lib/queries/validations";
 import { dossiersPromoAMonTour } from "@/lib/queries/promo-circuit";
@@ -646,6 +647,9 @@ export async function getActionCenter(user: SessionUser) {
       });
     }
   }
+
+  // 5b. Décisions d'enregistrement à renouveler (12 mois avant la fin, au rouge une fois expirées) — `action-center-renouvellements.ts`.
+  items.push(...(await lignesRenouvellements(user).catch(sansBloquer("action-center.lignesRenouvellements", []))));
 
   // 6. (Les congés à décider sont lus au bloc 2b, avec la règle de la porte — lot E2. Ce bloc listait
   //    TOUS les congés en attente, à toute marche, à quiconque pouvait MODIFIER le module RH : la
