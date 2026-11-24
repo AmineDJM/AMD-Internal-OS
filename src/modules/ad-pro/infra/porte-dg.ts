@@ -6,6 +6,7 @@ import { recordAudit } from "@/lib/audit";
 import { hasRole } from "@/lib/rbac";
 import { PARENT_COLONNE, type AdProParent } from "../domaine/postes";
 import { suitSansDetails } from "../domaine/suivi-delegue";
+import { montantEngage } from "../domaine/prise-en-charge/achats";
 import { lienDemandeAdPro, lienLigneCentreAdPro } from "@/lib/chemins/ad-pro";
 import {
   etatPorteDg, phrasePorteDg, refusPorteDg, type DecisionDg, type EtatPorteDg,
@@ -18,7 +19,7 @@ import { sansBloquer } from "@/lib/journal";
  *
  * Règle (Direction, 27/10/2026) : `lib/seuils/porte-dg-total.ts`. Ici, UN seul calcul du total — la
  * somme des postes non refusés (accordé quand il l'est, sinon estimé), plus les devis de personnes
- * acceptés ou retenus d'une prise en charge —, lu par la carte des postes, la carte des devis,
+ * acceptés ou retenus d'une prise en charge, et ses postes chiffrés par l'assistante (circuit d'achat) —, lu par la carte des postes, la carte des devis,
  * la fiche, le centre de validation et chaque action qui engagerait de l'argent (bon de commande,
  * visa, paiement). Deux calculs écrits à part finiraient par ne plus compter les mêmes postes, et le
  * symptôme serait un BC émis porte fermée (§118.5).
@@ -60,7 +61,7 @@ export async function totauxDesDemandes(parent: AdProParent, parentIds: readonly
   const colonne = PARENT_COLONNE[parent];
   const colonneDevis = parent === "CONGRESS_NATIONAL" ? "congressNationalId" : parent === "CONGRESS_INTERNATIONAL" ? "congressInternationalId" : null;
   const ids = [...parentIds];
-  const [lignes, devis] = await Promise.all([
+  const [lignes, devis, postesChiffres] = await Promise.all([
     prisma.adProItem.findMany({
       where: { [colonne]: { in: ids }, status: { not: "REJECTED" } },
       select: { sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true, otherRequestId: true, amountEstimated: true, amountGranted: true },
@@ -69,6 +70,18 @@ export async function totauxDesDemandes(parent: AdProParent, parentIds: readonly
       ? prisma.careQuote.findMany({
         where: { [colonneDevis]: { in: ids }, OR: [{ status: "ACCEPTED" }, { status: "PENDING", retainedAt: { not: null } }] },
         select: { congressNationalId: true, congressInternationalId: true, amountDzd: true },
+      })
+      : Promise.resolve([]),
+    // LES MONTANTS DE L'ASSISTANTE (circuit d'achat, 24/11/2026) : chaque poste chiffré ou porté par un BC compte — ses
+    // lignes (achat réel ; barrée : rien ; remboursée : déduite) et, tant que la personne est prise en charge, son prix.
+    colonneDevis
+      ? prisma.careCell.findMany({
+        where: { kind: "SERVICE", beneficiary: { [colonneDevis]: { in: ids } }, OR: [{ chiffreLe: { not: null } }, { lignesBc: { some: {} } }] },
+        select: {
+          amountDzd: true, chiffreLe: true,
+          beneficiary: { select: { status: true, congressNationalId: true, congressInternationalId: true } },
+          lignesBc: { select: { statut: true, montantDzd: true, montantAchatDzd: true, rembourse: true, rembourseDzd: true } },
+        },
       })
       : Promise.resolve([]),
   ]);
@@ -81,6 +94,15 @@ export async function totauxDesDemandes(parent: AdProParent, parentIds: readonly
   };
   for (const l of lignes) ajouter(l[colonne], l.amountGranted != null ? num(l.amountGranted) : num(l.amountEstimated));
   if (colonneDevis) for (const d of devis) ajouter(d[colonneDevis], num(d.amountDzd));
+  if (colonneDevis) {
+    for (const c of postesChiffres) {
+      const actif = c.beneficiary.status === "PROPOSED" || c.beneficiary.status === "APPROVED";
+      ajouter(c.beneficiary[colonneDevis], montantEngage({
+        actif, chiffre: c.chiffreLe != null, prixDzd: c.amountDzd != null ? num(c.amountDzd) : null,
+        lignes: c.lignesBc.map((l) => ({ bcNumero: 0, statut: l.statut, montantDzd: num(l.montantDzd), montantAchatDzd: l.montantAchatDzd != null ? num(l.montantAchatDzd) : null, rembourse: l.rembourse, rembourseDzd: l.rembourseDzd != null ? num(l.rembourseDzd) : null, bcSigneFinances: false })),
+      }));
+    }
+  }
   for (const [id, c] of centimes) totaux.set(id, c / 100);
   return totaux;
 }

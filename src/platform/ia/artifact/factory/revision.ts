@@ -26,6 +26,7 @@ import { echec, type EchecFabrique, manquesDIdentite, profilDocumentaire, type P
 import { coordonneesChoisies, coordonneesParDefaut, type DemandeDocument, type DocumentEmis, echeanceLegale, emetteurDeLaPiece, type Fabrique, fabriqueDe, mentionsNettoyees, nomFichier, pdfDeLaPiece, piedDePageDe, reserveDuBC, reservePdf, resumeTotaux, signataireChoisi } from "./demande";
 import { appliquerNumeroRevise, jugerNumeroRevise, peutEcrire, porteurDuNumero, revisionDeNumeroSeul } from "./numerotation";
 import { type OptionsEmission, parQui, ReferenceRefusee } from "./emission";
+import { refusRevisionBcPecDuDocument } from "@/modules/ad-pro/api-bc-pec";
 import type { ApercuDocument } from "./apercu";
 
 // ─────────────────────────── La révision ───────────────────────────
@@ -164,6 +165,10 @@ export async function reviserDocumentDrive(
     if (f.type === "FACTURE") return echec("CAPABILITY_FAILURE", `La facture ${f.numero} est émise : une facture ne se réécrit pas. Pour la corriger, émettez un avoir depuis sa fiche — en totalité ou en partie.`);
     if (f.type === "AVOIR") return echec("CAPABILITY_FAILURE", `L'avoir ${f.numero} est émis : un avoir ne se réécrit pas. Pour le corriger, annulez-le (motif à l'appui) et émettez-en un autre depuis la facture.`);
     if (doc.status !== "ACTIVE") return echec("CAPABILITY_FAILURE", `La pièce ${f.numero} est ${doc.status === "CANCELLED" ? "annulée" : "close"} : elle ne se révise plus.`);
+    // UN BC DE PRISE EN CHARGE SIGNÉ NE SE RÉÉCRIT JAMAIS (24/11/2026) : la révision ferait tomber ses signatures pendant
+    // l'achat ; un ajout part dans un BC complémentaire.
+    const refusPec = f.type === "BON_DE_COMMANDE" ? await refusRevisionBcPecDuDocument(doc.id) : null;
+    if (refusPec) return echec("CAPABILITY_FAILURE", refusPec);
     if (!emission.delegation && !peutEcrire(user, "UPDATE", f.type)) return echec("MISSING_PERMISSION", "Réviser cette pièce exige le droit de modifier dans Legal.");
     // Sous délégation, le droit d'engager cède aux validations du dossier (voir `OptionsEmission`) ;
     // le droit de VOIR la société reste exigé plus bas, par `profilDocumentaire`.

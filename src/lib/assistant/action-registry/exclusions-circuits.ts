@@ -665,4 +665,17 @@ export function classerExclusionsCircuits(): void {
     "promo-comptage-actions:supprimerRecurrenceComptage", "promo-comptage-actions:proposerRefonte",
     "promo-comptage-actions:deciderRefonte",
   ]);
+  X("PRISES EN CHARGE — LE CIRCUIT D'ACHAT PAR BONS DE COMMANDE NUMÉROTÉS (Super Admin, 24/11/2026) : demander le chiffrage "
+    + "(« Demander son devis », « Actualiser les prix »), saisir et corriger les montants (l'assistante, gardienne des montants, "
+    + "pièce jointe ; historisés, marge de 10 % après la mise en BC), valider par professionnel et lancer les achats (la Direction "
+    + "Marketing : le BC n°k, un vrai bon de commande), acheter une ligne du BC signé (billet, confirmation, pièce), retirer un "
+    + "professionnel et répondre « Remboursé ? », demander le paiement d'un BC (facture OBLIGATOIRE, un seul ordre de dépense). "
+    + "Des gestes qui engagent la société ou portent une pièce, faits devant la fiche ou la page de l'assistante. Lire les "
+    + "homonymes de l'annuaire avant d'ajouter une fiche est une lecture d'écran. Adam est en pause de développement : aucun "
+    + "geste neuf ne lui est ouvert.", [
+    "care-actions:demanderChiffragePec", "care-actions:enregistrerMontantsPec", "care-actions:modifierMontantPec",
+    "care-actions:validerProfessionnelsPec", "care-actions:retirerProfessionnelPec", "care-actions:repondreRemboursementPec",
+    "care-actions:homonymesAnnuairePec", "care-actions:lancerAchatsPec", "care-actions:acheterLignePec",
+    "care-actions:demanderPaiementBcPec",
+  ]);
 }

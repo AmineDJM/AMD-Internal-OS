@@ -70,6 +70,11 @@ interface FicheProps {
   onRetour: () => void;
   /** Ouvre l'enregistrement d'un devis (le formulaire de la demande), pour ces cases. */
   onDevis: (cellIds: string[]) => void;
+  /**
+   * LE CIRCUIT D'ACHAT PAR BC (24/11/2026) : les prix passent par le chiffrage de l'assistante et le BC numéroté — la fiche
+   * ne propose plus « joindre un devis / retenir / demander le BC », gestes du circuit d'avant.
+   */
+  circuitAchat?: boolean;
   /** L'état de chaque billet / hôtel chez l'assistante de direction (par case) — 14/10. */
   envois?: Record<string, EnvoiVue>;
 }
@@ -88,7 +93,8 @@ export function FicheVoyageur(p: FicheProps) {
   const passeport = pieces.find((x) => x.label === "Passeport");
   const passeportRecu = passeport?.etat === "RECUE";
   const devisLike = quotes.map((q) => ({ id: q.id, status: q.status, amountDzd: q.amountDzd, cellIds: q.cellIds, retained: q.retained, bcRequested: q.bcRequested }));
-  const geste = prochainGesteFiche(scope, b.name, b.cells, passeportRecu, devisLike, canEdit);
+  const gesteBrut = prochainGesteFiche(scope, b.name, b.cells, passeportRecu, devisLike, canEdit);
+  const geste = p.circuitAchat && (gesteBrut === "DEVIS" || gesteBrut === "RETENIR" || gesteBrut === "BC") ? null : gesteBrut;
   const manques = manquesPourReserverFiche(scope, b.name, b.cells, passeportRecu);
   const billets = postesDeNature(b.cells, "TICKET");
   const hotels = postesDeNature(b.cells, "HOTEL");
@@ -231,7 +237,7 @@ export function FicheVoyageur(p: FicheProps) {
         <div className="min-w-0 space-y-3">
           <Carte titre="Prochain geste">
             {geste === null ? (
-              <p>{manques.length === 0 ? "Rien n'attend de geste ici." : `À préciser : ${manques.join(", ")}.`}</p>
+              <p>{manques.length > 0 ? `À préciser : ${manques.join(", ")}.` : p.circuitAchat ? "Les prix passent par le chiffrage de l'assistante, puis le bon de commande numéroté (tableau des professionnels)." : "Rien n'attend de geste ici."}</p>
             ) : geste === "BC" ? (
               <>
                 <p>Tout est prêt pour cette personne.</p>

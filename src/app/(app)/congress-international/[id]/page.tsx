@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { userCan, hasGlobalView, hasRole } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { prisma } from "@/lib/prisma";
-import { getCongressDetail, peutSupprimerUneDemandeAdPro, getCareDossier, envoiAuxFinances, adProEditValues, loadAdProItems, adProBudgetOptions, contexteMaterielStock, contextePostes, requireModuleOuAgences } from "@/modules/ad-pro/api";
+import { getCongressDetail, peutSupprimerUneDemandeAdPro, getCareDossier, envoiAuxFinances, adProEditValues, loadAdProItems, adProBudgetOptions, contexteMaterielStock, contextePostes, requireModuleOuAgences, vueAchatsPec } from "@/modules/ad-pro/api";
 import { getEntityMissions } from "@/lib/queries/missions";
 import { getWorkflowForEntity } from "@/lib/queries/workflow";
 import { PageHeader } from "@/components/shared/page-header";
@@ -86,6 +86,8 @@ export default async function CongressIntlDetailPage(props: { params: Promise<{ 
   // Le dossier de prise en charge : les personnes, ce qu'il faut pour chacune, et les devis.
   const canDecideCare = hasGlobalView(user) || userCan(user, "CONGRESS_INTERNATIONAL", "VALIDATE");
   const canEditCare = userCan(user, "CONGRESS_INTERNATIONAL", "CREATE") || userCan(user, "CONGRESS_INTERNATIONAL", "UPDATE") || canDecideCare;
+  // LE CIRCUIT D'ACHAT PAR BC NUMÉROTÉS (24/11/2026) : professionnels, chiffrage, validation, BC — pour les demandes qui le suivent.
+  const achats = await vueAchatsPec(user, "INTERNATIONAL", detail.id);
   const [care, directory, intl, carePromo] = await Promise.all([
     getCareDossier("INTERNATIONAL", detail.id),
     careDirectoryOptions(),
@@ -174,6 +176,7 @@ export default async function CongressIntlDetailPage(props: { params: Promise<{ 
             peutTeleverser={peutTeleverser}
             budgetOptions={budgetOptions}
             realisation={realisation}
+            achats={achats.circuit ? { vue: achats, peutAjouter: canEditCare } : undefined}
           />
         }
         couverture={

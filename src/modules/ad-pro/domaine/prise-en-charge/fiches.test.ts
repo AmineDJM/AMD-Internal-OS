@@ -148,6 +148,10 @@ describe("la fiche — prête pour réserver, et son prochain geste", () => {
     expect(fichePrete("INTERNATIONAL", "Dr A Exemple", sansBillet, false)).toBe(true);
     const rien = [cell({ ...billetComplet("t"), status: "WAIVED" }), cell({ ...hotelComplet("h"), status: "WAIVED" })];
     expect(fichePrete("NATIONAL", "Dr A Exemple", rien, true)).toBe(false);
+    // Rien à réserver n'est pas un MANQUE (circuit d'achat, 24/11/2026) : une fiche sans billet ni hôtel n'attend rien.
+    expect(manquesPourReserverFiche("NATIONAL", "Dr A Exemple", rien, true)).toEqual([]);
+    expect(manquesPourReserverFiche("NATIONAL", "Dr A Exemple", [], true)).toEqual([]);
+    expect(fichePrete("NATIONAL", "Dr A Exemple", [], true)).toBe(false);
   });
 
   it("un hôtel sans dates n'est pas prêt", () => {

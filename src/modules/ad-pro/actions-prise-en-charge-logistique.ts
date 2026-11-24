@@ -15,6 +15,7 @@ import { persistUploadedDocument } from "@/lib/documents";
 import { noterModificationFiche } from "@/lib/reservation-fiche/serveur";
 import { sansBloquer } from "@/lib/journal";
 import { type Scope, SPEC, isScope, revalidate, canEdit, audit, loadRequest, tauxDe, CELL_FICHE_SELECT, versCellRow, ecrireAAssistante, parentWhere, scopeOfBeneficiary, nameOf, rolesDe } from "./infra/prise-en-charge/actions-commun";
+import { circuitAchat, marquerAcheteeParDepot, refusAchatHorsBcPec } from "./infra/prise-en-charge/achats";
 
 /**
  * PRISE EN CHARGE — LA LOGISTIQUE : les pièces de chaque professionnel, la fiche d'un poste et le billet émis,
@@ -271,6 +272,9 @@ export async function enregistrerBilletEmis(_prev: ActionResult | undefined, for
   const sansFiche = hasRole(user, "DIRECTION_ASSISTANT") || hasRole(user, "SUPER_ADMIN") || hasGlobalView(user) || req.requesterId === user.id;
   if (!sansFiche && !(await canAccessEntity(user, SPEC[found.scope].module, found.requestId, "VIEW"))) return { ok: false, error: "Demande introuvable." };
   if (cell.status === "WAIVED") return { ok: false, error: "Ce poste est déclaré sans objet : rouvrez-le avant d'y joindre un billet." };
+  // LE CIRCUIT D'ACHAT (24/11/2026) : on ne dépose un billet que sur un poste DANS un BC signé par les Finances.
+  const horsBc = await refusAchatHorsBcPec(cell.id);
+  if (horsBc) return { ok: false, error: horsBc };
 
   const billet = cell.serviceKind === "TICKET";
   const avant = versCellRow(cell);
@@ -301,6 +305,8 @@ export async function enregistrerBilletEmis(_prev: ActionResult | undefined, for
       ...(issuedDocumentId ? { issuedDocumentId } : {}),
     },
   });
+  // Le billet déposé vaut ACHAT de la ligne du BC (circuit d'achat) : elle passe « achetée ».
+  if (issuedDocumentId) await marquerAcheteeParDepot(cell.id, user.id);
   const nom = await nameOf(found.beneficiary);
   const quoi = billet ? "billet émis" : "confirmation d'hôtel";
   await audit(user, found.scope, found.requestId, "UPDATE", `${nom} — ${quoi}${issuedDocumentId ? " déposé" : " mis à jour"}${bookingRef ? ` (réf. ${bookingRef})` : ""}.`);
@@ -359,6 +365,7 @@ export async function retenirDevisPriseEnCharge(_prev: ActionResult | undefined,
 export async function careDirectoryOptions(): Promise<{ id: string; name: string; specialty: string | null; institution: string | null }[]> {
   await requireUser();
   const rows = await prisma.medicalDoctor.findMany({
+    where: { archivedAt: null },
     // 2 000 comme le sélecteur d'avant (`listBeneficiaryRefs`) : à 500, la recherche taisait le
     // cinq-cent-unième praticien, et « introuvable » se lisait « absent de l'annuaire » (§118.60).
     orderBy: { name: "asc" }, take: 2000,
@@ -420,6 +427,9 @@ export async function demanderBCPriseEnCharge(_prev: ActionResult | undefined, f
   if (!(await canAccessEntity(user, SPEC[scopeRaw].module, requestId, "UPDATE"))) return { ok: false, error: "Demande introuvable." };
   const req = await loadRequest(scopeRaw, requestId);
   if (!req) return { ok: false, error: "Demande introuvable." };
+  if (await circuitAchat(scopeRaw, requestId)) {
+    return { ok: false, error: "Cette prise en charge suit le circuit d'achat par bons de commande : la Direction Marketing valide les montants puis « Lancer les achats » — le BC numéroté part à la signature." };
+  }
 
   const voulus = formData.getAll("quoteIds").map(String).filter(Boolean);
   const retenus = await prisma.careQuote.findMany({

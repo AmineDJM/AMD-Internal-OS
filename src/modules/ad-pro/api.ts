@@ -15,7 +15,8 @@
  * `EventRegistration`, `AdProOtherRequest` ; les postes `AdProItem`, `AdProItemPiece`,
  * `AdProItemDecision`, `AdProDevis`, `AdProDevisLigne`, `AdProVoyageur`, `AdProVoyageurDevis`,
  * `AdProHebergement`, `AdProStockLine`, `AdProProductAllocation`, `AdProMedecin` ; la prise en charge
- * `CareBeneficiary`, `CareCell`, `CareQuote`, `CareQuoteCell`, `CareGroupPoste` ; les portes
+ * `CareBeneficiary`, `CareCell`, `CareQuote`, `CareQuoteCell`, `CareGroupPoste`, `CareChiffrage`, `CarePrixHistorique`,
+ * `CarePecBc`, `CarePecBcLigne` (circuit d'achat par BC numérotés) ; les portes
  * `AdProGateVisa`, `AdProPorteDg`. (L'intégration des dépenses 2026 — `AdProIntegration*`,
  * `AdProRapprochement*` — reste chez le budget marketing.) Les écrivains du stock promotionnel, des bons de commande,
  * des ordres de dépense et du circuit de validation restent chez leurs domaines (`DETTE_HERITEE`).
@@ -45,6 +46,14 @@ export { demandeDeLaPiece, rangerPiecesNonClasseesDesPostes } from "./infra/clas
 export { refusSiPorteDgFermee, refusPorteDgDuPoste, signalerPorteDgSiBesoin, statuerSurLeTotal, totalDeLaDemande, totauxEnAttenteDuDg } from "./infra/porte-dg";
 export { proposerPostesParModele, type ResultatPostes } from "./infra/postes-luna-ia";
 export { peutSaisirLesDevis } from "./infra/prise-en-charge/devis-acces";
+// LE CIRCUIT D'ACHAT DES PRISES EN CHARGE (24/11/2026) : les gardes que relisent les dépôts et la signature des Finances,
+// les lectures de la fiche, des pages « Chiffrer » / « Acheter », et les deux familles de lignes du bureau du secrétariat.
+export { apresSignatureFinancesPec, marquerAcheteeParDepot, refusAchatHorsBcPec } from "./infra/prise-en-charge/achats";
+export * from "./api-bc-pec";
+export {
+  lignesBureauPecAchat, lignesBureauPecChiffrage, pageAchat, pageChiffrage, pilotePriseEnCharge, tientLesMontantsDe, vueAchatsPec,
+  type PageAchatVue, type PageChiffrageVue, type VueAchatsPec,
+} from "./infra/requetes/achats-pec";
 export { demandePrevalidee, prendreLesCasesDuDevis, REFUS_NON_PREVALIDEE, refusEngagementPriseEnCharge, rendreLaReserveDuDevis } from "./infra/prise-en-charge/engagement";
 export { deposerFichiersSurLaPiece, retirerFichierDeLaPiece } from "./infra/prise-en-charge/pieces-db";
 export { ENVOI_FINANCES_CHAMP, ENVOI_FINANCES_RESUME, envoiAuxFinances } from "./infra/prise-en-charge/realisation";

@@ -29,10 +29,14 @@ export { titreSignataire } from "./partage";
 export const LIBELLE_QUALITE: Record<Qualite, string> = LIBELLE_QUALITE_SIGNATURE;
 export const ETAPE_SIGNE_DM = "BC_SIGNE_DM";
 
-/** Le BC est celui d'un poste « par une agence » : la Direction Marketing le signe AVANT les Finances. */
+/**
+ * Le BC est celui d'un poste « par une agence », ou le BC n°k d'une PRISE EN CHARGE (24/11/2026) : la Direction Marketing le
+ * signe AVANT les Finances.
+ */
 export async function exigeSignatureMarketing(legalDocumentId: string): Promise<boolean> {
   const n = await prisma.adProItemPiece.count({ where: { legalDocumentId, nature: "BON_DE_COMMANDE", item: { voie: "AGENCE" } } });
-  return n > 0;
+  if (n > 0) return true;
+  return (await prisma.carePecBc.count({ where: { legalDocumentId } })) > 0;
 }
 
 export async function signaturesDuBC(legalDocumentId: string) {

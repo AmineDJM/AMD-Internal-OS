@@ -14,6 +14,7 @@ import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
 import { submitDocumentRequest } from "@/lib/actions/document-request-actions";
 import { createCareQuote } from "@/modules/ad-pro/actions-prise-en-charge";
 import { TAUX_USD_DZD_DEFAUT } from "@/modules/ad-pro/partage";
+import { marquerAcheteeParDepot, refusAchatHorsBcPec } from "@/modules/ad-pro/api";
 import { montantDitDevisAgence, noteDevisAgence } from "@/lib/reservation-fiche/devis-agence";
 import {
   chargerFiche, chargerFiches, cleFiche, colonneFiche, ficheDeLaDemande, MODULE_OPERATION, type FicheReservation,
@@ -391,6 +392,11 @@ export async function deposerBillet(formData: FormData): Promise<ActionResult> {
     const refus = refusGeste("DEPOSER", etat);
     if (refus) return { ok: false, error: refus };
     if (!f.accorde) return { ok: false, error: REFUS_AVANT_ACCORD };
+    // PRISE EN CHARGE AU CIRCUIT D'ACHAT (24/11/2026) : on n'achète QUE ce qui est dans un BC signé par les Finances.
+    if (f.source === "CARE_CELL") {
+      const horsBc = await refusAchatHorsBcPec(f.id);
+      if (horsBc) return { ok: false, error: horsBc };
+    }
     const fichiers = formData.getAll("pieces").filter((v): v is File => v instanceof File && v.size > 0);
     const reference = fdStr(formData, "reference")?.slice(0, 60) ?? null;
     if (fichiers.length === 0) return { ok: false, error: f.nature === "BILLET" ? "Joignez le billet (e-billet, PDF ou scan)." : "Joignez la confirmation de l'hôtel (voucher, PDF ou scan)." };
@@ -429,6 +435,8 @@ export async function deposerBillet(formData: FormData): Promise<ActionResult> {
     if (f.source === "CARE_CELL") {
       await prisma.careCell.updateMany({ where: { id: f.id, issuedDocumentId: null }, data: { issuedDocumentId: deposes[0] } });
       if (reference) await prisma.careCell.update({ where: { id: f.id }, data: { bookingRef: reference } });
+      // Le billet déposé vaut ACHAT de sa ligne de BC (circuit d'achat) — sans effet pour une demande d'avant.
+      await marquerAcheteeParDepot(f.id, user.id);
     }
     await assurerMembre(d.dossierId, user.id);
     const quoi = f.nature === "BILLET" ? "Billet déposé" : "Confirmation d'hôtel déposée";

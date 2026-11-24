@@ -17,6 +17,8 @@ export function classerExclusionsAttestations(): void {
     + "page Bons de commande.", [
     "bc-signature-actions:signerBonDeCommandeEnLigne",
     "ad-pro-agence-actions:validerSignerBcMarketing", "ad-pro-agence-actions:signerBcMarketing",
+    // Le BC n°k d'une prise en charge (circuit d'achat, 24/11/2026) : la même attestation de la Direction Marketing.
+    "care-actions:signerBcPec",
   ]);
   X("PRÉPARER SA SIGNATURE EN LIGNE (Direction, 15/11/2026) — l'image de sa signature, celle de son cachet, le code de son "
     + "application d'authentification — est un geste PERSONNEL de sécurité, sur son propre compte (« Ma signature ») : personne, "
