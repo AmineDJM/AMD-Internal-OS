@@ -94,7 +94,7 @@ export function diagnosticPanelVide(f: FaitsPanel): { cause: CausePanelVide; phr
     return {
       cause: "PRATICIENS_NON_RATTACHES",
       phrase: `${n} fiche(s) de médecin portent le nom d'un établissement de votre territoire en texte seulement, `
-        + "sans y être rattachées : elles n'entrent pas dans un panel. Le responsable de l'annuaire (Promotion médicale) "
+        + "sans y être rattachées : elles n'entrent pas dans un panel. Le responsable de l'annuaire (Visite médicale) "
         + `les rattache depuis ${ANNUAIRE}.`,
     };
   }

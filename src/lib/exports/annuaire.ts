@@ -7,6 +7,7 @@ import { buildAnnuaireWorkbook } from "@/lib/medical/directory-workbook";
 import { directoryExportFilename } from "@/lib/medical/directory-sheet";
 import { ligneAnnuaire } from "@/lib/medical/directory-grid";
 import { exporte, MIME_XLSX, refusExport, type ResultatExport } from "@/lib/exports/types";
+import { MODULE_AUDIT_VISITE } from "@/lib/medical/module-visite";
 
 /** Une vue exportée tient dans une requête : au-delà, c'est l'annuaire entier qu'on veut. */
 const MAX_IDS_VUE = 20_000;
@@ -46,7 +47,7 @@ export async function exporterAnnuaire(user: CurrentUser, grade: string | null =
   if (rang) rows.sort((a, b) => (rang.get(a.id) ?? 0) - (rang.get(b.id) ?? 0));
   const buffer = buildAnnuaireWorkbook(rows);
   await recordAudit({
-    actorId: user.id, action: "EXPORT", module: "Promotion médicale",
+    actorId: user.id, action: "EXPORT", module: MODULE_AUDIT_VISITE,
     summary: `Export de l'annuaire${ids ? " (vue filtrée)" : ""} — ${rows.length} praticien(s)`,
   });
   return exporte(buffer, directoryExportFilename(), MIME_XLSX, `l'annuaire — ${rows.length} praticien(s)`);

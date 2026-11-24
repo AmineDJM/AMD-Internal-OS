@@ -302,7 +302,7 @@ export function refusSuppressionRapportDeVisite(input: {
   if (avec === sans) return null;
   const visite = `${input.praticien ? `la visite chez ${input.praticien}` : "la visite"} du ${input.date.toLocaleDateString("fr-FR")}`;
   return `Ce compte rendu est le seul rapport de ${visite} (emploi du temps) : sans lui elle repasserait de « ${ETAT_VISITE_LABELS[avec]} » à « ${ETAT_VISITE_LABELS[sans]} » dans « Ma journée », sans que personne l'ait décidé. `
-    + "Il ne se supprime pas d'ici : corrigez-le (« Corriger / renvoyer »), ou, si la visite n'a pas eu lieu, dites-le dans Promotion médicale › Ma journée (« N'a pas eu lieu », dans les 48 h).";
+    + "Il ne se supprime pas d'ici : corrigez-le (« Corriger / renvoyer »), ou, si la visite n'a pas eu lieu, dites-le dans Visite médicale › Ma journée (« N'a pas eu lieu », dans les 48 h).";
 }
 
 // ─────────────────────────── L'avancement — UN seul calcul ───────────────────────────

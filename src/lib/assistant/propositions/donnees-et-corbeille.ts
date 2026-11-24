@@ -54,7 +54,7 @@ export async function proposerDonneesEtCorbeille(c: ContexteProposition): Promis
     // LA PORTE DE L'ANNUAIRE, pas celle du module (§118.147) : la même règle que l'écran et que
     // l'action `createInstitution` — un accès ouvert depuis la console suffit. Refuser ici ce que
     // l'écran accepte serait un « je ne peux pas » écrit dans le code (§118.63).
-    if (!peutAnnuaire(user, "ETABLISSEMENTS", "CREATE")) return { error: "Vous n'avez pas le droit d'ajouter un établissement à l'annuaire (Promotion médicale, ou accès ouvert depuis Administration › Comptes)." };
+    if (!peutAnnuaire(user, "ETABLISSEMENTS", "CREATE")) return { error: "Vous n'avez pas le droit d'ajouter un établissement à l'annuaire (Visite médicale, ou accès ouvert depuis Administration › Comptes)." };
     const dupe = await prisma.medicalInstitution.findFirst({ where: { name: { equals: name, mode: "insensitive" } }, select: { name: true } });
     if (dupe) warnings.push(`Un établissement « ${dupe.name} » existe déjà dans l'annuaire — vérifier qu'il ne s'agit pas d'un doublon.`);
     const fields = [
@@ -76,7 +76,7 @@ export async function proposerDonneesEtCorbeille(c: ContexteProposition): Promis
   }
 
   if (toolName === "update_hospital") {
-    if (!peutAnnuaire(user, "ETABLISSEMENTS", "UPDATE")) return { error: "Vous n'avez pas le droit de modifier l'annuaire des établissements (Promotion médicale, ou accès ouvert depuis Administration › Comptes)." };
+    if (!peutAnnuaire(user, "ETABLISSEMENTS", "UPDATE")) return { error: "Vous n'avez pas le droit de modifier l'annuaire des établissements (Visite médicale, ou accès ouvert depuis Administration › Comptes)." };
     const needle = asStr(input, "name");
     if (needle.length < 2) return { error: "Donnez le nom (fragment) de l'établissement." };
     const inst = await prisma.medicalInstitution.findFirst({

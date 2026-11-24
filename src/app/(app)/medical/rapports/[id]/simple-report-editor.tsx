@@ -188,7 +188,7 @@ export function SimpleReportEditor({ detail, doctors, materiel, rattacheAUneVisi
         </form>
       ) : rattacheAUneVisite ? (
         <p className="rounded-lg border border-dashed border-border p-2.5 text-xs text-muted-foreground">
-          Ce compte rendu raconte une visite de votre emploi du temps : le matériel remis se déclare dans le rapport de cette visite (Promotion médicale › Ma journée).
+          Ce compte rendu raconte une visite de votre emploi du temps : le matériel remis se déclare dans le rapport de cette visite (Visite médicale › Ma journée).
         </p>
       ) : null}
 

@@ -33,7 +33,7 @@ describe("l'onglet Coaching de la Promotion médicale", () => {
 
   it("le menu latéral de la Promotion médicale porte cette même liste — un seul endroit à tenir", () => {
     const entree = NAVIGATION.find((n) => n.tabs === MEDICAL_TABS);
-    expect(entree?.label).toBe("Promotion médicale");
+    expect(entree?.label).toBe("Visite médicale");
   });
 
   it("la page du coaching rend les onglets du module, filtrés par les droits de la personne", () => {

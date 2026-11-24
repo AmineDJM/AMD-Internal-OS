@@ -45,15 +45,21 @@ export function lienCasPvKam(id: string): string {
 }
 
 /**
- * Le formulaire de signalement — prérempli avec le praticien quand on vient de SA cellule du planning, et rattaché à la
- * VISITE quand on vient de son compte rendu (Visite médicale 11/2026 : la date, le médecin et la phrase que l'IA a
- * relevée arrivent préremplis). Le serveur relit la fiche et la visite dans le périmètre de la personne : l'adresse ne
- * porte que des identifiants, jamais un texte qu'on pourrait forger.
+ * Le formulaire de signalement — prérempli avec le praticien quand on vient de SA cellule du planning ou de SA visite.
+ * Depuis la feuille d'une visite (11/2026) : le produit coché (`produit`) et le jour (`date`, `AAAA-MM-JJ`) ; depuis le
+ * compte rendu d'une visite : la VISITE à rattacher (`visite`), dont la date et la phrase relevée par l'IA. Le serveur
+ * relit et borne tout dans le périmètre de la personne : l'adresse ne porte que des identifiants, jamais un texte forgé.
  */
-export function lienSignalerPv(praticienId?: string | null, visiteId?: string | null): string {
+export function lienSignalerPv(
+  praticienId?: string | null,
+  visite?: string | { visiteId?: string | null; produitId?: string | null; date?: string | null } | null,
+): string {
+  const v = typeof visite === "string" ? { visiteId: visite } : visite ?? {};
   const q = [
     praticienId ? `praticien=${encodeURIComponent(praticienId)}` : null,
-    visiteId ? `visite=${encodeURIComponent(visiteId)}` : null,
+    v.visiteId ? `visite=${encodeURIComponent(v.visiteId)}` : null,
+    v.produitId ? `produit=${encodeURIComponent(v.produitId)}` : null,
+    v.date ? `date=${encodeURIComponent(v.date)}` : null,
   ].filter(Boolean).join("&");
   return q ? `${CHEMIN_PV_KAM}/nouveau?${q}` : `${CHEMIN_PV_KAM}/nouveau`;
 }

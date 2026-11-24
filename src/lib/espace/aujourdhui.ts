@@ -1,5 +1,6 @@
 import { joursCivilsDepuis } from "@/lib/calendar-tz";
 import { CHEMIN_AGENCES, LIBELLE_AGENCES } from "@/lib/chemins/ad-pro";
+import { estModuleVisite, MODULE_AUDIT_VISITE } from "@/lib/medical/module-visite";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -136,7 +137,7 @@ export const NATURES: Record<NatureLot, DefNature> = {
     sousTitre: "Renvoyées pour correction", verbe: "Corriger", liste: "/ad-pro", decision: false,
   },
   plan: {
-    chapeau: "Promotion médicale", titre: (n) => `${n} ${pl(n, "plan")} de tournée à valider`,
+    chapeau: MODULE_AUDIT_VISITE, titre: (n) => `${n} ${pl(n, "plan")} de tournée à valider`,
     sousTitre: "Soumis par vos délégués", verbe: "Valider", liste: "/medical/plan-de-tournee", decision: true,
   },
   mission: {
@@ -232,7 +233,8 @@ export function natureDe(e: ElementFile): NatureLot {
   // Les lignes « reste » des files de décision : la file dont elles ferment la liste.
   if (estReste(e)) {
     if (e.module === "Demandes administratives") return "achat";
-    if (e.module === "Promotion médicale") return "plan";
+    // L'ANCIEN NOM AUSSI : une file calculée, ou relue d'un lot, avant le renommage porte encore « Promotion médicale ».
+    if (estModuleVisite(e.module)) return "plan";
   }
   return "autre";
 }

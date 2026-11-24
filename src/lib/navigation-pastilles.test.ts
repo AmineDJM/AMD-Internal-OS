@@ -110,7 +110,7 @@ describe("les deux menus lisent la même règle (points d'appel, §118.49)", () 
 });
 
 describe("une notification se compte là où son module VIT (§118.157)", () => {
-  const promo = entree("Promotion médicale");
+  const promo = entree("Visite médicale");
   const annuaires = entree("Annuaires");
 
   it("PRÉMISSE : Annuaires porte des onglets de la Promotion médicale et de l'espace de travail, qui ont chacun leur entrée", () => {

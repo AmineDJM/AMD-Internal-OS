@@ -62,7 +62,7 @@ export default function LoginPage() {
           </h1>
           <p className="text-sm leading-relaxed text-sidebar-muted">
             Regulatory, Sponsoring, Budgets, Congrès, Ventes, Logistique PCH,
-            Promotion médicale et Business Development — centralisés, sécurisés
+            Visite médicale et Business Development — centralisés, sécurisés
             et pilotés en temps réel.
           </p>
         </div>

@@ -1,5 +1,6 @@
 import PDFDocument from "pdfkit";
 import { pagesDuPlan, resumeDuPlan, type VisitePdf } from "@/lib/sfe/plan-pdf";
+import { MODULE_AUDIT_VISITE } from "@/lib/medical/module-visite";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -76,7 +77,7 @@ export async function rendrePlanTourneePdf(d: DonneesPlanPdf): Promise<Buffer> {
 
     // ── EN-TÊTE ───────────────────────────────────────────────────────────────────────────
     doc.fillColor(ENCRE).font("Helvetica-Bold").fontSize(14).text(d.societe.toUpperCase(), M, M, { width: 300, characterSpacing: 0.4 });
-    doc.fillColor(GRIS).font("Helvetica").fontSize(8.5).text("Promotion médicale", M, M + 18);
+    doc.fillColor(GRIS).font("Helvetica").fontSize(8.5).text(MODULE_AUDIT_VISITE, M, M + 18);
     doc.fillColor(ENCRE).font("Helvetica-Bold").fontSize(15).text(`Plan de tournée — ${d.periode}`, M, M - 1, { width: L - 2 * M, align: "right" });
     const premier = jours[0];
     const dernier = jours[jours.length - 1];

@@ -187,7 +187,7 @@ export async function submitFieldReport(formData: FormData): Promise<ActionResul
   const maintenant = new Date();
   const saisi = formulairePorteDuMateriel(formData);
   if (rapport.visitId && saisi.materiel) {
-    return { ok: false, error: "Ce compte rendu raconte une visite de votre emploi du temps : le matériel remis se déclare dans le rapport de cette visite (Promotion médicale › Ma journée), dans ses 48 h." };
+    return { ok: false, error: "Ce compte rendu raconte une visite de votre emploi du temps : le matériel remis se déclare dans le rapport de cette visite (Visite médicale › Ma journée), dans ses 48 h." };
   }
   // Un support numérique se PRÉSENTE lors d'une visite : un compte rendu sans visite n'en porte pas.
   if (saisi.numerique) {

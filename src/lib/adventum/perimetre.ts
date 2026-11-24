@@ -24,7 +24,8 @@ export const CATEGORIES_OPERATIONS: readonly string[] = ["PCH", "FIELD", "MEDICA
 const AUTRE_DOMAINE = /ad\s*&\s*pro|marketing|regulatory|r[ée]glementaire|information m[ée]dicale|recrutement|ressources humaines|budget|comptab|finance|business development|contr[ôo]le de l'ia/i;
 
 /** Un module des opérations, quelle que soit la catégorie que le détecteur a posée. */
-const MODULE_OPERATIONS = /stock|logisti|pch|vente|force de vente|terrain|promotion m[ée]dicale|livraison/i;
+// « Promotion médicale » est l'ancien nom de « Visite médicale » : les risques déjà calculés le portent encore.
+const MODULE_OPERATIONS = /stock|logisti|pch|vente|force de vente|terrain|promotion m[ée]dicale|visite m[ée]dicale|livraison/i;
 
 export function dansLePerimetreOperations(r: RisqueClasse): boolean {
   if (AUTRE_DOMAINE.test(r.module)) return false;

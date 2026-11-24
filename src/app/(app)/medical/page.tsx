@@ -1,22 +1,17 @@
 import { redirect } from "next/navigation";
 import { requireModule } from "@/lib/session";
-import { userCan } from "@/lib/rbac";
+import { aiguillerVisite } from "@/lib/queries/aiguillage-visite";
 
 /**
- * `/medical` N'EST PAS UN ÉCRAN — c'est un aiguillage, et il dépend de qui pousse la porte.
+ * `/medical` N'EST PAS UN ÉCRAN — c'est l'AIGUILLAGE de « Visite médicale », et l'entrée du menu y mène (11/2026).
  *
- * L'ancien « Visites & segmentation » a été retiré ; la route survit parce qu'elle vit dans des
- * favoris, des notifications et des liens collés en conversation. Elle mène désormais :
- *   • le TERRAIN (qui peut saisir une visite) vers « Ma journée » — sa tournée et sa saisie ;
- *   • tous les autres vers le PLAN DE TOURNÉE (l'annuaire n'est plus un onglet du module — Direction, 06/10).
+ * Il dépend de qui pousse la porte (`sfe/aiguillage-visite.ts`) : le délégué vers « Ma journée », son superviseur vers
+ * l'écran de son équipe (Force de vente › Pilotage, sur sa BU), la Direction vers le Cockpit Opérations, tous les autres
+ * vers le plan de tournée. La route vit aussi dans des favoris, des notifications et des liens collés en conversation.
  *
- * Un délégué qui tombait sur l'annuaire devait comprendre seul où noter sa visite. C'est ce
- * détour-là — trois écrans pour un geste quotidien — qui faisait ressortir le carnet papier.
- *
- * ⚠ AUCUNE DONNÉE N'A JAMAIS ÉTÉ SUPPRIMÉE : les visites (`MedicalVisit`) et l'historique sont
- * intacts, et « Ma journée » les relit.
+ * ⚠ AUCUNE DONNÉE N'A JAMAIS ÉTÉ SUPPRIMÉE : les visites (`MedicalVisit`) et l'historique sont intacts.
  */
 export default async function MedicalEntryPage() {
   const user = await requireModule("MEDICAL");
-  redirect(userCan(user, "MEDICAL", "CREATE") ? "/medical/ma-journee" : "/medical/plan-de-tournee");
+  redirect((await aiguillerVisite(user)).chemin);
 }

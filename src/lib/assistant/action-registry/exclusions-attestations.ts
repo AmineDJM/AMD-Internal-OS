@@ -429,6 +429,12 @@ export function classerExclusionsAttestations(): void {
     "tour-plan-actions:demanderRevisionPlanTournee",
     "tour-visit-actions:direVisiteNonTenue",
   ]);
+  X("PRÉVENIR SON SUPERVISEUR D'UN PANEL VIDE (Visite médicale, 11/2026) est le remède offert par l'état vide de « Ma "
+    + "journée », devant la cause que l'écran vient d'afficher : le diagnostic est relu au serveur, le destinataire est la "
+    + "cascade du plan de tournée (superviseur de la BU, sinon N+1), et la même personne n'est prévenue qu'une fois par jour. "
+    + "Adam est en pause de développement : aucun geste neuf ne lui est ouvert.", [
+    "visite-medicale-actions:prevenirSuperviseurPanelVide",
+  ]);
 
   X("RELIRE LE RAPPORT D'UNE VISITE (Visite médicale, Super Admin 11/2026) — le superviseur atteste « j'ai lu ce compte "
     + "rendu » et peut laisser un mot au délégué ; le rapport sort de sa file. Une attestation de lecture signée de son nom "

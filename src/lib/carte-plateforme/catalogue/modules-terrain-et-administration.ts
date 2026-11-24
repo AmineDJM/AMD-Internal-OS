@@ -15,13 +15,13 @@ export const MODULES_TERRAIN_ET_ADMINISTRATION: readonly ModulePlateforme[] = [
     liens: [{ vers: "ventes-pch", pourquoi: "Livré, non servi" }, { vers: "pch", pourquoi: "Exécution des marchés" }, { vers: "force-de-vente", pourquoi: "Couverture terrain" }, { vers: "stocks", pourquoi: "Ruptures" }],
   },
   {
-    id: "promotion-medicale", nom: "Promotion médicale", route: "/medical/ma-journee", domaine: "operations", rbac: ["MEDICAL", "FIELD_REPORTS"],
-    resume: "Le terrain du KAM : Ma journée, plan de tournée, visites, rapports (vocaux ou écrits), coaching.",
+    id: "promotion-medicale", nom: "Visite médicale", route: "/medical", domaine: "operations", rbac: ["MEDICAL", "FIELD_REPORTS"],
+    resume: "Le terrain du KAM (ex-« Promotion médicale ») : Ma journée, plan de tournée, visites, rapports (vocaux ou écrits), coaching. `/medical` aiguille : le délégué vers Ma journée, le superviseur vers son équipe, la Direction vers le Cockpit Opérations.",
     pourQui: "KAM (Délégués médicaux), superviseurs, Manager Promotion médicale.",
     gestes: [
       { label: "Soumettre le plan de tournée", qui: "KAM", effet: "Son N+1 valide (ou escalade au N+2) ; rejet motivé = 48 h pour resoumettre." },
-      { label: "Saisir une visite (3 gestes)", qui: "KAM", effet: "Praticien + produits de sa mallette + un mot ; refusée hors panel ou future." },
-      { label: "Faire le rapport", qui: "KAM", effet: "Dans les 48 h : produits de sa BU + messages de la Direction Marketing ; vocal → Whisper → IA → relecture." },
+      { label: "Voir un médecin hors plan", qui: "KAM", effet: "Visite imprévue : praticien du panel + compte rendu ; hors du dénominateur du plan, refusée hors panel ou future." },
+      { label: "Commencer la visite", qui: "KAM", effet: "Dans les 48 h : produits de sa BU + messages de la Direction Marketing + compte rendu ; sans réseau, gardé dans le téléphone et envoyé au retour." },
       { label: "N'a pas eu lieu", qui: "KAM", effet: "Visite reportée ou annulée, motif exigé, même fenêtre de 48 h." },
       { label: "Fiche de coaching", qui: "Superviseur / Directeur des Opérations", effet: "Grille 4 niveaux × 5 axes, finalisée et partagée au collaborateur." },
     ],

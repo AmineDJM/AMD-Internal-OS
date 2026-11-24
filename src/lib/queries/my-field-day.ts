@@ -32,6 +32,11 @@ export interface MyFieldDay {
   panelVide: boolean;
   /** Aucune affectation de produit ce cycle ? (même raison) */
   sansAffectation: boolean;
+  /**
+   * LA FRÉQUENCE DE CHAQUE PRATICIEN DU PANEL, ce mois — « n / m visites ce mois » en tête de la feuille de visite
+   * (11/2026). Le même requis que la tournée proposée (`requisDuPraticien`) : jamais un second calcul.
+   */
+  frequences: { doctorId: string; faites: number; attendues: number; lettre: string | null }[];
 }
 
 export async function loadMyFieldDay(userId: string, today = new Date()): Promise<MyFieldDay> {
@@ -134,5 +139,9 @@ export async function loadMyFieldDay(userId: string, today = new Date()): Promis
     })),
     panelVide: doctors.length === 0,
     sansAffectation: assignments.length === 0,
+    frequences: panelDoctors.map((d) => ({
+      doctorId: d.id, faites: d.visitsThisMonth, attendues: d.requis !== undefined ? Math.ceil(d.requis) : config.frequencyByTier[d.potential] ?? 0,
+      lettre: d.lettre ?? null,
+    })),
   };
 }

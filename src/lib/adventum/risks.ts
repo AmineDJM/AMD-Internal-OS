@@ -8,6 +8,7 @@ import { lienOrdreAPayer } from "@/lib/chemins/finances";
 import { lienCibleEnveloppe, ancreCategorieBudget } from "@/lib/chemins/budgets";
 import { DETECTEURS_PLUS } from "./risks-plus";
 import { categoriesGouvernees, consommationIntegree, contextesDesCategories } from "@/lib/queries/budget-integration";
+import { MODULE_AUDIT_VISITE } from "@/lib/medical/module-visite";
 
 /**
  * Adventum Brain — moteur Risk Radar. **Lecture seule, calculé à la volée** (aucune
@@ -263,7 +264,7 @@ async function medicalKolRisks(th: RiskThresholds): Promise<Risk[]> {
         }))
       : [{ label: "Notifier Promotion médicale", icon: "Bell", payload: { kind: "notify", role: "MEDICAL_PROMOTION_MANAGER", title: "Médecin KOL sans délégué ni secteur", body: d.name, link: `/praticiens/${d.id}` } }];
     out.push({
-      id: `kol-${d.id}`, level, category: "MEDICAL", module: "Promotion médicale",
+      id: `kol-${d.id}`, level, category: "MEDICAL", module: MODULE_AUDIT_VISITE,
       title: "Médecin stratégique non visité", object: `${d.title ? d.title + " " : ""}${d.name}`,
       impact: "Perte d'engagement et risque concurrentiel.",
       owner: suivi.owner, deadline: null, ageDays: age,
@@ -279,7 +280,7 @@ async function medicalKolRisks(th: RiskThresholds): Promise<Risk[]> {
       actions: [
         ...relances,
         // La tâche va à UNE personne quand une seule le suit ; sinon à personne (on ne choisit pas).
-        { label: "Créer tâche visite", icon: "ListChecks", payload: { kind: "task", title: `Planifier une visite : ${d.name} (KOL non visité ${since})`, assigneeId: suivi.destinataires.length === 1 ? suivi.destinataires[0].id : null, priority: "HIGH", module: "Promotion médicale" } },
+        { label: "Créer tâche visite", icon: "ListChecks", payload: { kind: "task", title: `Planifier une visite : ${d.name} (KOL non visité ${since})`, assigneeId: suivi.destinataires.length === 1 ? suivi.destinataires[0].id : null, priority: "HIGH", module: MODULE_AUDIT_VISITE } },
         { label: "Voir médecin", icon: "ExternalLink", href: `/praticiens/${d.id}` },
       ],
     });

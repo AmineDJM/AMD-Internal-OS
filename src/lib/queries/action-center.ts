@@ -22,6 +22,7 @@ import {
   type BadgeTone, TASK_STATUS, ADMIN_REQUEST_STATUS, REGULATORY_STATUS, EXPENSE_ORDER_STATUS, CONGRESS_REQUEST_STATUS, PROMO_MATERIAL_STATUS, DIRECTIVE_STATUS, SUPPORT_STATUS, DOSSIER_STATUS, libelleNatureValidation, posteDeLOrdre,
 } from "@/lib/labels";
 import { sansBloquer } from "@/lib/journal";
+import { MODULE_AUDIT_VISITE } from "@/lib/medical/module-visite";
 
 /**
  * Les préfixes d'identité que relisent les consommateurs du centre : l'outil de file d'Adam écarte les
@@ -377,14 +378,14 @@ export async function getActionCenter(user: SessionUser) {
       title: `Plan de tournée — ${p.rep.name}`,
       subtitle: [interim ? pour(auNom.nomDe(decideur)) : null, `du ${jourAlger(p.periodStart)} au ${jourAlger(p.periodEnd)}`, escalade ? "escaladé au N+2" : null]
         .filter(Boolean).join(" · "),
-      module: "Promotion médicale", href: `/medical/plan-de-tournee?plan=${p.id}`, kind: "validation", priority: null,
+      module: MODULE_AUDIT_VISITE, href: `/medical/plan-de-tournee?plan=${p.id}`, kind: "validation", priority: null,
       deadline: null, depuis: arrivee?.toISOString() ?? null, owner: p.rep.name, statusLabel: "À trancher", statusTone: "warning",
     });
   }
   if (plans.length > PLAFOND_DECISIONS) {
     items.push({
       key: "plan-reste", objet: `${PREFIXE_RESTE}plans`, title: "D'autres plans de tournée attendent votre décision",
-      subtitle: "Les plus anciens sont listés ci-dessus", module: "Promotion médicale", href: "/medical/plan-de-tournee",
+      subtitle: "Les plus anciens sont listés ci-dessus", module: MODULE_AUDIT_VISITE, href: "/medical/plan-de-tournee",
       kind: "validation", priority: null, deadline: null, depuis: null, owner: "", statusLabel: "À trancher", statusTone: "warning",
     });
   }

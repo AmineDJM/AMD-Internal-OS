@@ -21,8 +21,8 @@ describe("potentiel dans le rapport de visite", () => {
     expect(lirePotentielDuRapport(fd({ potentielSur10: "12" })).ok).toBe(false);
   });
   it("§77 — le formulaire ne redemande ni le praticien, ni l'établissement, ni la BU, ni le territoire", () => {
-    const ecran = readFileSync("src/app/(app)/medical/ma-journee/emploi-du-temps.tsx", "utf8");
-    const bloc = ecran.slice(ecran.indexOf("LE POTENTIEL (Segmentation Studio)"), ecran.indexOf("rapport-suite"));
+    const ecran = readFileSync("src/app/(app)/medical/ma-journee/formulaire-rapport.tsx", "utf8");
+    const bloc = ecran.slice(ecran.indexOf("LE POTENTIEL (Segmentation Studio)"), ecran.indexOf("LE BESOIN ANNUEL DU SERVICE"));
     expect(bloc).toContain('name="potentielPatients"');
     for (const champ of ["doctorId", "institution", "businessUnit", "territoire", "zone"]) expect(bloc).not.toContain(`name="${champ}"`);
     const action = readFileSync("src/lib/actions/tour-visit-actions.ts", "utf8");

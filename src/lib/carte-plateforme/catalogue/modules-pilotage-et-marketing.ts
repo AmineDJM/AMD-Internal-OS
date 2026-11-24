@@ -197,7 +197,7 @@ export const MODULES_PILOTAGE_ET_MARKETING: readonly ModulePlateforme[] = [
       { label: "Signaler un cas", qui: "KAM (depuis son planning)", effet: "Crée le cas, reçu par Regulatory." },
       { label: "Instruire", qui: "Regulatory", effet: "Statut, enquête, participants." },
     ],
-    regles: ["Le signalement se fait depuis Promotion médicale › Rapports."],
+    regles: ["Le signalement se fait depuis la visite (Visite médicale › Ma journée) ou Visite médicale › Rapports."],
     liens: [{ vers: "promotion-medicale", pourquoi: "Le KAM signale depuis le terrain" }],
   },
   {

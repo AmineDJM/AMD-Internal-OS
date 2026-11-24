@@ -19,10 +19,10 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Rapports — AMD Internal OS" };
 
 /**
- * L'ONGLET « RAPPORTS » DE LA PROMOTION MÉDICALE (Direction, 07/10) — « juste la liste des rapports ».
+ * L'ONGLET « RAPPORTS » DE LA VISITE MÉDICALE (Direction, 07/10) — « juste la liste des rapports ».
  *
- * Le KAM FAIT ses rapports depuis son planning (Plan de tournée : il touche le praticien ; « Faire un rapport » au-dessus
- * de la grille ; « Pharmacovigilance » à côté). Ici, on les LIT : un tableau, des filtres, une feuille par rapport.
+ * Le délégué FAIT ses rapports depuis « Ma journée » (la feuille « Visite », où part aussi un signalement de
+ * pharmacovigilance) ou la cellule d'un praticien de sa grille. Ici, on les LIT : un tableau, des filtres, une feuille.
  *
  * La GARDE est le module `FIELD_REPORTS`, celui de l'ancienne entrée « Rapports terrain » : la console d'administration
  * règle toujours qui voit cet onglet. Ce que chacun y lit vient des règles d'hier (`chargerListeRapports`).
@@ -105,7 +105,7 @@ export default async function RapportsPage(
             : "Mes rapports"} ({liste.lignes.length})
           <InfoBulle label="Ce que la liste contient" align="left" className="normal-case tracking-normal">
             Les visites rapportées (planifiées ou hors plan), les comptes rendus vocaux sans visite
-            {signalements ? " et les signalements de pharmacovigilance" : ""}. Les rapports se font depuis le Plan de tournée.
+            {signalements ? " et les signalements de pharmacovigilance" : ""}.
           </InfoBulle>
         </h2>
         {liste.tronquee && (

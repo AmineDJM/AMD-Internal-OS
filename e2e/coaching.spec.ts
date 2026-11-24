@@ -94,9 +94,11 @@ test.afterAll(async () => {
   await prisma.$disconnect();
 });
 
-test("le directeur des opérations trouve l'onglet Coaching dans la Promotion médicale, et administre la grille", async ({ page }) => {
+test("le directeur des opérations trouve l'onglet Coaching dans la Visite médicale, et administre la grille", async ({ page }) => {
   await login(page, DO_EMAIL);
-  await page.goto("/medical/ma-journee");
+  // « Ma journée » est l'écran du délégué : le directeur des opérations y est renvoyé vers son Cockpit (11/2026) ;
+  // il ouvre le module par le plan de tournée, qui porte les mêmes onglets.
+  await page.goto("/medical/plan-de-tournee");
   await page.getByRole("link", { name: "Coaching", exact: true }).first().click();
   await expect(page).toHaveURL(/\/medical\/coaching$/);
   await expect(page.getByRole("heading", { name: "Coaching — tournées en double" })).toBeVisible();
@@ -236,7 +238,7 @@ test("le directeur des opérations corrige la fiche finalisée ; la page d'impre
   await expect(page.getByRole("heading", { name: "FICHE DE COACHING – TOURNÉE EN DOUBLE" })).toBeVisible();
   await expect(page.getByRole("button", { name: /Imprimer \/ Enregistrer en PDF/ })).toBeVisible();
   // Pas de menu de l'application sur la feuille à imprimer.
-  await expect(page.getByRole("link", { name: "Promotion médicale" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Visite médicale" })).toHaveCount(0);
   await capture(page, "6-impression");
 });
 

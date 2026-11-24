@@ -23,10 +23,11 @@ export const dynamic = "force-dynamic";
  * un effet indésirable »), le cas se RATTACHE à la visite : son médecin, sa date et la phrase que l'IA a relevée arrivent
  * préremplis. Seulement la visite de la personne : celle d'un autre ne préremplit rien (l'action la refuserait).
  */
-export default async function SignalerCasPvPage(props: { searchParams?: Promise<{ praticien?: string; visite?: string }> }) {
+export default async function SignalerCasPvPage(props: { searchParams?: Promise<{ praticien?: string; visite?: string; produit?: string; date?: string }> }) {
   const searchParams = await props.searchParams;
   const user = await requireUser();
   if (!signaleDesCasPv(user)) redirect(CHEMIN_PV_KAM);
+  // LA VISITE À RATTACHER (compte rendu) : relue dans le périmètre de la personne.
   const visiteId = typeof searchParams?.visite === "string" ? searchParams.visite : null;
   const visite = visiteId
     ? await prisma.medicalVisit.findFirst({
@@ -35,7 +36,13 @@ export default async function SignalerCasPvPage(props: { searchParams?: Promise<
       })
     : null;
   const praticienId = typeof searchParams?.praticien === "string" ? searchParams.praticien : visite?.doctorId ?? null;
-  const [produits, etablissements, praticien] = await Promise.all([
+  const produitCanonique = typeof searchParams?.produit === "string" ? searchParams.produit : null;
+  const aujourdhui = new Date().toISOString().slice(0, 10);
+  // LE JOUR DE LA VISITE (11/2026) : une date lisible, jamais dans le futur — sinon le formulaire repart d'aujourd'hui.
+  const dateLue = typeof searchParams?.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(searchParams.date) && searchParams.date <= aujourdhui
+    ? searchParams.date : undefined;
+  const date = dateLue ?? (visite ? visite.date.toISOString().slice(0, 10) : undefined);
+  const [produits, etablissements, praticien, promus] = await Promise.all([
     produitsPourSignalement(user.id),
     etablissementsPourSignalement(),
     praticienId
@@ -44,7 +51,14 @@ export default async function SignalerCasPvPage(props: { searchParams?: Promise<
           select: { name: true, institutionId: true },
         })
       : Promise.resolve(null),
+    // LE PRODUIT COCHÉ DANS LA VISITE est un produit canonique ; le formulaire liste les produits PROMUS qui le portent.
+    produitCanonique
+      ? prisma.promoProduct.findMany({ where: { productId: produitCanonique, isActive: true }, select: { id: true } })
+      : Promise.resolve([] as { id: string }[]),
   ]);
+  // Prérempli seulement s'il figure dans la liste offerte (le premier « des miens » d'abord) : sinon le choix serait invisible.
+  const offerts = new Set(promus.map((p) => p.id));
+  const produitId = produits.find((p) => offerts.has(p.id))?.id;
   // L'établissement n'est prérempli que s'il figure dans la liste offerte : sinon le choix serait invisible.
   const institutionId = praticien?.institutionId && etablissements.some((e) => e.id === praticien.institutionId) ? praticien.institutionId : "";
   return (
@@ -65,10 +79,11 @@ export default async function SignalerCasPvPage(props: { searchParams?: Promise<
       <SignalerCasForm
         produits={produits}
         etablissements={etablissements}
-        aujourdhui={new Date().toISOString().slice(0, 10)}
+        aujourdhui={aujourdhui}
         initial={{
           doctorName: praticien?.name ?? visite?.doctor?.name ?? "", institutionId,
-          ...(visite ? { visitId: visite.id, occurredOn: visite.date.toISOString().slice(0, 10), description: visite.pvIaExtrait ?? "" } : {}),
+          ...(produitId ? { produitId } : {}), ...(date ? { date } : {}),
+          ...(visite ? { visitId: visite.id, description: visite.pvIaExtrait ?? "" } : {}),
         }}
       />
     </div>

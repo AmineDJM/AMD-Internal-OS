@@ -139,6 +139,9 @@ describe("la nature d'une ligne et les coupes qui se disent", () => {
     expect(natureDe(base({ key: "agence-x", objet: "AD_PRO_ITEM:x", title: "t", module: "Ad & Pro" }))).toBe("agence");
     expect(natureDe(base({ key: "k", objet: "PORTE_DG:EVENT:x", title: "t", module: "Ad & Pro", kind: "validation" }))).toBe("total-dg");
     expect(natureDe(base({ key: "k", objet: "SPONSORING:x", title: "t", module: "Ad & Pro", statusLabel: "À corriger" }))).toBe("correction");
+    // « Visite médicale » (11/2026) : la ligne « et d'autres plans… » se reconnaît sous le nouveau nom ET sous l'ancien.
+    expect(natureDe(base({ key: "plan-reste", objet: "reste:plans", title: "t", module: "Visite médicale" }))).toBe("plan");
+    expect(natureDe(base({ key: "plan-reste", objet: "reste:plans", title: "t", module: "Promotion médicale" }))).toBe("plan");
   });
 
   it("une ligne « et d'autres… » n'est pas comptée : elle devient la suite de son lot", () => {

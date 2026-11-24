@@ -18,6 +18,7 @@ import { ecrireBesoinsDuRapport } from "@/lib/besoins-services/service";
 import {
   dejaDansLaVisite, ecrireRemises, lireMaterielRemis, motifDeRemise, phraseMateriel, RefusRemise, toucheLeStock, verrousDuRapport,
 } from "@/lib/promo/remises-visite";
+import { MODULE_AUDIT_VISITE } from "@/lib/medical/module-visite";
 
 /**
  * LE RAPPORT TERRAIN D'UNE VISITE PLANIFIÉE, la visite IMPRÉVUE, et celle que la Direction
@@ -242,7 +243,7 @@ export async function rapporterVisite(formData: FormData): Promise<ActionResult>
   }
 
   await recordAudit({
-    actorId: user.id, action: "UPDATE", module: "Promotion médicale",
+    actorId: user.id, action: "UPDATE", module: MODULE_AUDIT_VISITE,
     entityType: "VISIT", entityId: visite.id,
     summary: `Rapport terrain — ${produits.length} produit(s), ${messageIds.length} message(s)${transcription ? " (vocal)" : ""}${phraseMateriel(lu.materiel)}`,
   });
@@ -345,7 +346,7 @@ export async function ajouterVisiteImprevue(formData: FormData): Promise<ActionR
   }
 
   await recordAudit({
-    actorId: user.id, action: "CREATE", module: "Promotion médicale",
+    actorId: user.id, action: "CREATE", module: MODULE_AUDIT_VISITE,
     entityType: "VISIT", entityId: cree,
     summary: `Visite IMPRÉVUE — ${doctor.name}${produits.length ? ` (${produits.length} produit(s))` : ""}${phraseMateriel(lu.materiel)}`,
   });
@@ -405,7 +406,7 @@ export async function commanderVisite(formData: FormData): Promise<ActionResult>
     select: { id: true },
   });
   await recordAudit({
-    actorId: user.id, action: "CREATE", module: "Promotion médicale",
+    actorId: user.id, action: "CREATE", module: MODULE_AUDIT_VISITE,
     entityType: "VISIT", entityId: cree.id,
     summary: `Visite COMMANDÉE par la Direction — ${doctor.name} pour ${kam.name} le ${date.toLocaleDateString("fr-FR")}`,
   });
@@ -469,7 +470,7 @@ export async function direVisiteNonTenue(formData: FormData): Promise<ActionResu
 
   const libelle = issue === "POSTPONED" ? "reportée" : "annulée";
   await recordAudit({
-    actorId: user.id, action: "UPDATE", module: "Promotion médicale",
+    actorId: user.id, action: "UPDATE", module: MODULE_AUDIT_VISITE,
     entityType: "VISIT", entityId: visite.id,
     summary: `Visite ${libelle} — ${visite.doctor?.name ?? "praticien"} le ${visite.date.toLocaleDateString("fr-FR")} : ${motif}`,
   });

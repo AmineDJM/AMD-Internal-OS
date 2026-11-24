@@ -6,6 +6,7 @@ import { userCan, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { fdStr, fdDate, fdNum, type ActionResult } from "@/lib/actions/types";
+import { MODULE_AUDIT_VISITE } from "@/lib/medical/module-visite";
 
 const PATH = "/medical";
 
@@ -42,7 +43,7 @@ export async function createDelegatePlan(formData: FormData): Promise<ActionResu
       updatedById: user.id,
     },
   });
-  await recordAudit({ actorId: user.id, action: "CREATE", module: "Promotion médicale", entityType: "DELEGATE_PLAN", entityId: plan.id, summary: "Plan de tournée créé" });
+  await recordAudit({ actorId: user.id, action: "CREATE", module: MODULE_AUDIT_VISITE, entityType: "DELEGATE_PLAN", entityId: plan.id, summary: "Plan de tournée créé" });
   revalidatePath(PATH);
   return { ok: true };
 }
@@ -70,7 +71,7 @@ export async function updateDelegatePlan(formData: FormData): Promise<ActionResu
       updatedById: user.id,
     },
   });
-  await recordAudit({ actorId: user.id, action: "UPDATE", module: "Promotion médicale", entityType: "DELEGATE_PLAN", entityId: id, summary: "Plan de tournée modifié" });
+  await recordAudit({ actorId: user.id, action: "UPDATE", module: MODULE_AUDIT_VISITE, entityType: "DELEGATE_PLAN", entityId: id, summary: "Plan de tournée modifié" });
   revalidatePath(PATH);
   return { ok: true };
 }
@@ -85,7 +86,7 @@ export async function deleteDelegatePlan(formData: FormData): Promise<ActionResu
   if (!(canManagePlan(user, plan) && userCan(user, "MEDICAL", "DELETE"))) return { ok: false, error: "Suppression non autorisée." };
 
   await prisma.medicalDelegatePlan.delete({ where: { id } });
-  await recordAudit({ actorId: user.id, action: "DELETE", module: "Promotion médicale", entityType: "DELEGATE_PLAN", entityId: id, summary: "Plan de tournée supprimé" });
+  await recordAudit({ actorId: user.id, action: "DELETE", module: MODULE_AUDIT_VISITE, entityType: "DELEGATE_PLAN", entityId: id, summary: "Plan de tournée supprimé" });
   revalidatePath(PATH);
   return { ok: true };
 }
@@ -126,7 +127,7 @@ export async function duplicateDelegatePlan(formData: FormData): Promise<ActionR
       updatedById: user.id,
     },
   });
-  await recordAudit({ actorId: user.id, action: "CREATE", module: "Promotion médicale", entityType: "DELEGATE_PLAN", entityId: copy.id, summary: "Plan de tournée dupliqué" });
+  await recordAudit({ actorId: user.id, action: "CREATE", module: MODULE_AUDIT_VISITE, entityType: "DELEGATE_PLAN", entityId: copy.id, summary: "Plan de tournée dupliqué" });
   revalidatePath(PATH);
   return { ok: true };
 }

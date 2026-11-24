@@ -16,6 +16,7 @@ import {
 } from "@/lib/coaching/acces";
 import { clesDejaEmployees, peutCoacherLeCollaborateur, grilleCourante, lecteurCoaching, publierVersion } from "@/lib/coaching/serveur";
 import { formaterJour, jourAlger, jourDe, lireJour } from "@/lib/coaching/dates";
+import { MODULE_AUDIT_VISITE } from "@/lib/medical/module-visite";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -25,17 +26,17 @@ import { formaterJour, jourAlger, jourDe, lireJour } from "@/lib/coaching/dates"
  * ce fichier charge, vérifie avec elles, écrit, prévient. Chaque refus NOMME ce qui manque et
  * le geste qui le lève (§118.30).
  *
- * LA PORTE DE MODULE est la Promotion médicale en LECTURE : le directeur des opérations, qui
+ * LA PORTE DE MODULE est la Visite médicale en LECTURE : le directeur des opérations, qui
  * administre la grille, n'y a que la lecture (`rbac.ts`) — l'écriture d'une fiche vient de la
  * règle du coaching, pas du droit CRUD du module.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
 const MODULE = "MEDICAL" as const;
-const AUDIT_MODULE = "Promotion médicale";
+const AUDIT_MODULE = MODULE_AUDIT_VISITE;
 const CHEMIN = "/medical/coaching";
 
-const REFUS_MODULE = "La Promotion médicale ne vous est pas ouverte.";
+const REFUS_MODULE = `La ${MODULE_AUDIT_VISITE} ne vous est pas ouverte.`;
 const REFUS_ADMIN = "La grille de coaching est administrée par le directeur des opérations (Direction des opérations, "
   + "Directeur des Opérations) et le Super Admin. Proposez-leur la modification.";
 
@@ -184,7 +185,7 @@ export async function creerFicheCoaching(formData: FormData): Promise<ActionResu
   if (!scoresBrut.ok) return { ok: false, error: "Les notes ne se lisent pas (JSON invalide)." };
   const courante = await grilleCourante();
   if (!courante.id) {
-    return { ok: false, error: "La grille de coaching ne se lit pas : le directeur des opérations doit la republier (Promotion médicale › Coaching › Grille)." };
+    return { ok: false, error: "La grille de coaching ne se lit pas : le directeur des opérations doit la republier (Visite médicale › Coaching › Grille)." };
   }
   const saisie: Saisie = {
     visitDate,

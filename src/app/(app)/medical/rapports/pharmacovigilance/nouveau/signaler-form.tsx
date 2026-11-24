@@ -23,14 +23,15 @@ export function SignalerCasForm({ produits, etablissements, aujourdhui, initial 
   etablissements: { id: string; nom: string; lieu: string | null }[];
   aujourdhui: string;
   /**
-   * Le praticien touché dans le planning : son nom et son établissement arrivent préremplis (relus par le serveur). Venu
-   * du compte rendu d'une visite : la visite à rattacher, sa date, et la phrase relevée comme début de description.
+   * Le praticien touché dans le planning ou la visite : son nom et son établissement arrivent préremplis (relus par le
+   * serveur). Depuis la feuille d'une visite : le produit coché et le jour ; depuis son compte rendu : la visite à
+   * rattacher, sa date et la phrase relevée comme début de description (11/2026).
    */
-  initial?: { doctorName: string; institutionId: string; visitId?: string; occurredOn?: string; description?: string };
+  initial?: { doctorName: string; institutionId: string; produitId?: string; date?: string; visitId?: string; description?: string };
 }) {
   const router = useRouter();
   const [qProduit, setQProduit] = React.useState("");
-  const [produit, setProduit] = React.useState("");
+  const [produit, setProduit] = React.useState(initial?.produitId ?? "");
   const [qEtab, setQEtab] = React.useState("");
   const [etab, setEtab] = React.useState(initial?.institutionId ?? "");
   const [busy, setBusy] = React.useState(false);
@@ -110,7 +111,7 @@ export function SignalerCasForm({ produits, etablissements, aujourdhui, initial 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className={champ}>
           <label className={libelle} htmlFor="pv-date">Date de survenue *</label>
-          <Input id="pv-date" type="date" name="occurredOn" defaultValue={initial?.occurredOn ?? aujourdhui} max={aujourdhui} required />
+          <Input id="pv-date" type="date" name="occurredOn" defaultValue={initial?.date ?? aujourdhui} max={aujourdhui} required />
         </div>
         <div className={champ}>
           <label className={libelle} htmlFor="pv-gravite">Gravité</label>

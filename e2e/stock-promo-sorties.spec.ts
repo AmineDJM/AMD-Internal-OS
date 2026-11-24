@@ -229,18 +229,20 @@ test("ÉTAPE 3 — le délégué remet 3 fiches en visite, depuis son téléphon
   await page.setViewportSize({ width: 375, height: 812 });
   await login(page, KAM_EMAIL);
   await aller(page, "/medical/ma-journee");
-  await page.getByRole("button", { name: /Saisir une visite chez quelqu.un d.autre/ }).click();
-  await page.getByRole("dialog").getByPlaceholder(/Nom, établissement/).fill("Samia Remise");
+  // LA VISITE HORS PLAN (11/2026) : « Voir un médecin hors plan », puis la feuille « Visite ».
+  await page.getByRole("button", { name: "Voir un médecin hors plan" }).click();
+  await page.getByRole("dialog").getByPlaceholder(/Nom, spécialité/).fill("Samia Remise");
   await page.getByRole("dialog").getByRole("button", { name: new RegExp(MEDECIN.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) }).click();
-  const fiche = page.getByRole("dialog").filter({ hasText: "Visite — " });
+  const fiche = page.getByRole("dialog").filter({ hasText: "Visite hors plan" });
   await expect(fiche).toBeVisible();
-  // Replié par défaut dans la saisie rapide (« trois champs, rien de plus »), il s'ouvre d'un geste.
-  await fiche.getByText("Matériel remis", { exact: false }).first().click();
+  await fiche.getByLabel(/Compte rendu/).fill("Remise de trois fiches au Dr.");
+  // Replié par défaut (« trois champs, rien de plus ») : « Plus de détails » s'ouvre d'un geste.
+  await fiche.getByText("Plus de détails").click();
   await expect(fiche.getByText(/8 en main/)).toBeVisible();
   await fiche.getByLabel(`Quantité remise — ${FICHE}`).fill("3");
   await sansDebordement(page);
   await capture(page, "s1-visite-remise-mobile");
-  await fiche.getByRole("button", { name: "Visite faite" }).click();
+  await fiche.getByRole("button", { name: "Enregistrer la visite" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(await solde(kamId, FICHE), "la remise sort du stock du délégué, et de lui seul").toBe(5);
   expect(await prisma.medicalVisit.count({ where: { doctorId: medecinId } })).toBe(1);
@@ -250,13 +252,14 @@ test("ÉTAPE 3 — au-delà de ce qu'il a en main, la visite est BLOQUÉE et l'�
   await page.setViewportSize({ width: 375, height: 812 });
   await login(page, KAM_EMAIL);
   await aller(page, "/medical/ma-journee");
-  await page.getByRole("button", { name: /Saisir une visite chez quelqu.un d.autre/ }).click();
-  await page.getByRole("dialog").getByPlaceholder(/Nom, établissement/).fill("Samia Remise");
+  await page.getByRole("button", { name: "Voir un médecin hors plan" }).click();
+  await page.getByRole("dialog").getByPlaceholder(/Nom, spécialité/).fill("Samia Remise");
   await page.getByRole("dialog").getByRole("button", { name: new RegExp(MEDECIN.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) }).click();
-  const fiche = page.getByRole("dialog").filter({ hasText: "Visite — " });
-  await fiche.getByText("Matériel remis", { exact: false }).first().click();
+  const fiche = page.getByRole("dialog").filter({ hasText: "Visite hors plan" });
+  await fiche.getByLabel(/Compte rendu/).fill("Remise de cinquante fiches.");
+  await fiche.getByText("Plus de détails").click();
   await fiche.getByLabel(`Quantité remise — ${FICHE}`).fill("50");
-  await fiche.getByRole("button", { name: "Visite faite" }).click();
+  await fiche.getByRole("button", { name: "Enregistrer la visite" }).click();
   // Le refus est DANS la fiche : l'annonceur de route de Next.js porte aussi `role="alert"` (§118.159f).
   await expect(fiche.getByRole("alert")).toContainText("Rien n'est enregistré");
   await capture(page, "s2-visite-bloquee-mobile");

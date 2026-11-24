@@ -16,6 +16,7 @@ import {
 } from "@/lib/sfe/tournee";
 import { lireReglageTournee } from "@/lib/sfe/tournee-reglage";
 import { loadPanelPlanifiable } from "@/lib/queries/tour-schedule";
+import { MODULE_AUDIT_VISITE } from "@/lib/medical/module-visite";
 
 /**
  * LE PLAN DE TOURNÉE — écriture, soumission, escalade, décision.
@@ -252,7 +253,7 @@ export async function planifierVisites(formData: FormData): Promise<ActionResult
   }
 
   await recordAudit({
-    actorId: user.id, action: "UPDATE", module: "Promotion médicale",
+    actorId: user.id, action: "UPDATE", module: MODULE_AUDIT_VISITE,
     entityType: "TOUR_PLAN", entityId: plan.id,
     summary: `Plan de tournée — ${paires.length} visite(s) planifiée(s) (+${aCreer.length} / −${aRetirer.length})`,
   });
@@ -339,7 +340,7 @@ export async function soumettrePlanTournee(formData: FormData): Promise<ActionRe
   });
   if (soumis.count === 0) return { ok: false, error: DEJA_CHANGE };
   await recordAudit({
-    actorId: user.id, action: "UPDATE", module: "Promotion médicale",
+    actorId: user.id, action: "UPDATE", module: MODULE_AUDIT_VISITE,
     entityType: "TOUR_PLAN", entityId: plan.id,
     summary: `Plan de tournée soumis à validation (${plan.visits.length} visite(s))`,
   });
@@ -403,7 +404,7 @@ export async function escaladerPlanTournee(formData: FormData): Promise<ActionRe
   });
   if (escalade.count === 0) return { ok: false, error: DEJA_CHANGE };
   await recordAudit({
-    actorId: user.id, action: "UPDATE", module: "Promotion médicale",
+    actorId: user.id, action: "UPDATE", module: MODULE_AUDIT_VISITE,
     entityType: "TOUR_PLAN", entityId: plan.id, summary: "Plan de tournée escaladé au N+2",
   });
   await notifyUser({
@@ -469,7 +470,7 @@ export async function deciderPlanTournee(formData: FormData): Promise<ActionResu
   });
   if (decide.count === 0) return { ok: false, error: DEJA_CHANGE };
   await recordAudit({
-    actorId: user.id, action: "UPDATE", module: "Promotion médicale",
+    actorId: user.id, action: "UPDATE", module: MODULE_AUDIT_VISITE,
     entityType: "TOUR_PLAN", entityId: plan.id,
     summary: decision === "APPROVE" ? "Plan de tournée VALIDÉ" : "Plan de tournée REJETÉ (48 h pour resoumettre)",
   });
@@ -539,7 +540,7 @@ export async function demanderRevisionPlanTournee(formData: FormData): Promise<A
   if (rouvert.count === 0) return { ok: false, error: DEJA_CHANGE };
 
   await recordAudit({
-    actorId: user.id, action: "UPDATE", module: "Promotion médicale",
+    actorId: user.id, action: "UPDATE", module: MODULE_AUDIT_VISITE,
     entityType: "TOUR_PLAN", entityId: plan.id,
     summary: `Plan de tournée validé rouvert pour révision — ${note}`,
   });
@@ -631,7 +632,7 @@ export async function supprimerPlanTourneeBrouillon(formData: FormData): Promise
   }
 
   await recordAudit({
-    actorId: user.id, action: "DELETE", module: "Promotion médicale",
+    actorId: user.id, action: "DELETE", module: MODULE_AUDIT_VISITE,
     entityType: "TOUR_PLAN", entityId: plan.id,
     summary: `Plan de tournée en brouillon supprimé — ${plan.rep.name}, ${periodeLisible(plan.periodStart, plan.periodEnd)} (${visites.length} visite(s) planifiée(s) retirée(s))`,
   });
