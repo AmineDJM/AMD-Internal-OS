@@ -22,6 +22,7 @@ const ARGENT: DeclarationAnnulation = {
 const LECTURE: DeclarationAnnulation = { annulation: "retour", mecanisme: "sans-effet", raison: "lecture déguisée (la date de la prochaine recharge d'une caisse) : rien n'est écrit, rien à défaire" };
 
 export const DECLARATIONS_ARGENT: Readonly<Record<string, DeclarationAnnulation>> = {
+  "actualisation-soldes-actions:ouvrirActualisationSoldes": RETOUR,
   "actualisation-soldes-actions:repondreActualisationSoldes": RETOUR,
   "budget-campagne-actions:ajouterPoleCampagne": ARGENT,
   "budget-campagne-actions:autoriserRevisionProposition": RETOUR,
@@ -74,6 +75,12 @@ export const DECLARATIONS_ARGENT: Readonly<Record<string, DeclarationAnnulation>
   "finance-actions:createEmployee": ARGENT,
   "finance-actions:createPayroll": RETOUR,
   "finance-actions:createQuickIncome": ARGENT,
+  // La question des Finances au demandeur (Banque & paiements, 24/11/2026) : des événements du fil, une pièce, des
+  // notifications — le journal des effets les retire ; aucune écriture d'argent.
+  "finances-questions:marquerReponseLue": RETOUR,
+  "finances-questions:poserQuestionAuDemandeur": RETOUR,
+  "finances-questions:relancerQuestionDemandeur": RETOUR,
+  "finances-questions:repondreAuxFinances": RETOUR,
   "finance-actions:createTransaction": ARGENT,
   "finance-actions:deleteTransaction": RETOUR,
   "finance-actions:deleteTreasuryAccount": RETOUR,

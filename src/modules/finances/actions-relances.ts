@@ -30,7 +30,7 @@ import { actionReversible } from "@/lib/effets/reversible";
  * a remis (`jeton-relance.ts`). La trace dit QUI a relancé et POURQUOI.
  *
  * LA RÈGLE est celle de la relance du dossier : un paiement réglé, annulé, refusé ou pas encore demandé n'attend
- * personne ; une relance par heure et par personne (`refusDeRelance` → `refusDelaiDeCourtoisie`). Le commentaire est
+ * personne ; une relance par 24 heures et par personne (`refusDeRelance` → `refusDelaiDeCourtoisie`). Le commentaire est
  * facultatif.
  *
  * Le fil : la demande de paiement porteuse (la demande elle-même, ou le dossier compagnon de l'ordre) reçoit l'événement

@@ -17,7 +17,12 @@ import { requestTreasuryUpdate } from "@/modules/finances/actions-tresorerie";
  * la voient reçoivent une notification qui ouvre l'écran de réponse ; un second clic sur une demande
  * encore ouverte la RELANCE au lieu d'en créer une autre.
  */
-export function TreasuryUpdateRequestButton({ entiteId, entite }: { entiteId: string | null; entite: string | null }) {
+export function TreasuryUpdateRequestButton({ entiteId, entite, libelle = "Demander l'actualisation des soldes" }: {
+  entiteId: string | null;
+  entite: string | null;
+  /** Le libellé du bouton — « Actualiser les soldes », ou l'ÉTAT d'une demande ouverte (« Actualisation demandée — relancer »). */
+  libelle?: string;
+}) {
   const { rafraichir } = useRafraichir();
   const [open, setOpen] = React.useState(false);
   const [note, setNote] = React.useState("");
@@ -46,7 +51,7 @@ export function TreasuryUpdateRequestButton({ entiteId, entite }: { entiteId: st
   return (
     <>
       <Button variant="outline" className="h-auto min-h-10 max-w-full whitespace-normal py-2" onClick={() => setOpen(true)}>
-        <RefreshCw className="h-4 w-4 shrink-0" /> Demander l&apos;actualisation des soldes
+        <RefreshCw className="h-4 w-4 shrink-0" /> {libelle}
       </Button>
       <Sheet
         open={open}

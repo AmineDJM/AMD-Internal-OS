@@ -21,7 +21,7 @@ import {
   type PaymentMove, canSubmitDossier, canNudge, nudgeKindOf, nudgeMessage, NUDGE_LABEL, isCompanionDossier,
   canDecideFromDossier, deadlineNatureOf, etatDuPaiement, prevenirQuiALaMain,
   confronterMontantAuxFactures, refusEcartMontant, noteEcartAssume, phraseEcartMontant, PHRASE_MONTANT_NON_LU,
-  peutSupprimerUneDemandePaiement, ROLES_CENTRE_DE_PAIEMENT,
+  peutSupprimerUneDemandePaiement, ROLES_CENTRE_DE_PAIEMENT, lireQuestion, prevenirFinancesDeLaReponse,
 } from "@/modules/finances/api";
 import { persistUploadedDocument } from "@/lib/documents";
 import { toNumber } from "@/lib/utils";
@@ -659,9 +659,14 @@ export async function addPaymentComment(formData: FormData): Promise<ActionResul
     if (!requestId || !message) return { ok: false, error: "Écrivez un message." };
     const req = await prisma.paymentRequest.findUnique({ where: { id: requestId } });
     if (!req) return { ok: false, error: "Demande introuvable." };
-    if (!isRequester(user, req) && !isFinance(user) && req.recipientId !== user.id) return { ok: false, error: "Non autorisé." };
+    // Banque & paiements (sa clé, 24/11/2026) écrit au demandeur sur ce même fil — le seul.
+    const banque = userCan(user, "FINANCES_BANQUE", "UPDATE");
+    if (!isRequester(user, req) && !isFinance(user) && !banque && req.recipientId !== user.id) return { ok: false, error: "Non autorisé." };
 
+    // UNE QUESTION DES FINANCES ATTENDAIT : le message du demandeur y répond, et les Finances le savent.
+    const question = req.requesterId === user.id ? await lireQuestion(req) : null;
     await trace(requestId, user.id, "COMMENT", message);
+    if (question) await prevenirFinancesDeLaReponse({ dossier: req, avant: question, message });
     const other = isRequester(user, req) ? req.recipientId : req.requesterId;
     if (other && other !== user.id) {
       await notifyUser({ userId: other, type: "GENERIC", title: "Demande de paiement — nouveau message", body: `${req.reference} — ${message.slice(0, 120)}`, link: `${PATH}/${requestId}` });

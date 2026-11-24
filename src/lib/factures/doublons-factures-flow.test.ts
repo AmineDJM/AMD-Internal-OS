@@ -233,7 +233,7 @@ suite("Doublons de factures — blocage aux portes, relance unifiée, recensemen
     fd.set("cibleType", blocage!.cible.type); fd.set("cibleId", blocage!.cible.id); fd.set("jeton", blocage!.jeton);
     const r = await relancerPaiement(fd);
     expect(r.ok).toBe(false);
-    expect(r.error).toMatch(/moins d'une heure/);
+    expect(r.error).toMatch(/moins de 24 heures/);
     const sans = new FormData();
     sans.set("cibleType", "EXPENSE_ORDER"); sans.set("cibleId", ordreId);
     expect((await relancerPaiement(sans)).error).toMatch(/Seul le demandeur/);
@@ -303,10 +303,10 @@ suite("Doublons de factures — blocage aux portes, relance unifiée, recensemen
     const trace = await prisma.paymentRequestEvent.findFirst({ where: { requestId: compagnonId, kind: "NUDGE", actorId: u.kam } });
     expect(trace?.message).toBe("L'hôtel a rappelé ce matin.");
     // Trop tôt : refusée.
-    expect((await relancerPaiement(fd)).error).toMatch(/moins d'une heure/);
-    // Le centre autorise ; une heure passe : la relance va aux Finances.
+    expect((await relancerPaiement(fd)).error).toMatch(/moins de 24 heures/);
+    // Le centre autorise ; un jour passe : la relance va aux Finances.
     await prisma.expenseOrder.update({ where: { id: ordreId }, data: { centralStatus: "APPROVED" } });
-    await prisma.paymentRequestEvent.updateMany({ where: { requestId: compagnonId, actorId: u.kam, kind: "NUDGE" }, data: { at: new Date(Date.now() - 2 * 3600_000) } });
+    await prisma.paymentRequestEvent.updateMany({ where: { requestId: compagnonId, actorId: u.kam, kind: "NUDGE" }, data: { at: new Date(Date.now() - 25 * 3600_000) } });
     const r2 = await relancerPaiement(fd);
     expect(r2.ok, r2.error).toBe(true);
     expect(r2.message).toMatch(/Finances sont prévenues/);

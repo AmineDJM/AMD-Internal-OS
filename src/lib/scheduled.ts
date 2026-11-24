@@ -239,6 +239,9 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
   { cle: "rappels.reunions", executer: sendDueMeetingReminders },
   { cle: "rappels.personnels", executer: sendDueReminders },
   { cle: "rh.paie-notifiee", executer: sendDuePayrollNotifications },
+  // LES QUESTIONS DES FINANCES SANS RÉPONSE (Banque & paiements, 24/11/2026) : un rappel au demandeur après
+  // FINANCES_RAPPEL_QUESTION_JOURS jours (3 par défaut) — idempotent, le rappel est lui-même un événement du fil.
+  { cle: "finances.questions-rappel", executer: async () => { await (await import("@/modules/finances/api")).rappelerQuestionsSansReponse(); } },
   { cle: "rh.conges-acquis", executer: accrueMonthlyLeave }, // +2,5 j/mois (idempotent)
   // PRODUIT = DOSSIER (Direction, 08/10) : UNE fois par processus, chaque dossier non verrouillé reçoit
   // son produit — l'existant rejoint la règle des nouveaux. Idempotent ; le bilan part au journal du serveur.

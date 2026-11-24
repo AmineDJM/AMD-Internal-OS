@@ -356,12 +356,14 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/finances/actions-demandes.ts → src/lib/notify",
     "src/modules/finances/actions-demandes.ts → src/lib/refs",
     "src/modules/finances/actions-depenses.ts → src/lib/notify",
+    "src/modules/finances/actions-questions.ts → src/lib/notify", // la question des Finances au demandeur (24/11/2026)
     "src/modules/finances/actions-relances.ts → src/lib/notify",
     "src/modules/finances/actions-sieges.ts → src/lib/notify",
     "src/modules/finances/actions-soldes.ts → src/lib/notify",
     "src/modules/finances/actions-tresorerie.ts → src/lib/notify",
     "src/modules/finances/actions-tresorerie.ts → src/lib/refs",
     "src/modules/finances/infra/expense-orders.ts → src/lib/notify",
+    "src/modules/finances/infra/questions-finances.ts → src/lib/notify",
     "src/modules/finances/infra/expense-orders.ts → src/lib/refs",
     "src/modules/finances/infra/demandes.ts → src/lib/notify",
     "src/modules/finances/infra/demandes.ts → src/lib/refs",
@@ -387,6 +389,7 @@ const DETTE_HERITEE: Record<string, string[]> = {
     // Les pièces : dépôt d'un fichier (`documents`, `storage`), lien vers la fiche d'origine (`entity-href`),
     // fichiers émis et avoirs lus par les lecteurs de Legal, la corbeille. Cible = `@/modules/pieces/api`.
     "src/modules/finances/actions-demandes.ts → src/lib/documents",
+    "src/modules/finances/actions-questions.ts → src/lib/documents", // la pièce jointe à la question, rangée au dossier
     "src/modules/finances/actions-demandes.ts → src/lib/suppression/coeur",
     "src/modules/finances/actions-depenses.ts → src/lib/storage",
     "src/modules/finances/infra/pieces-depense.ts → src/lib/entity-href",
@@ -415,6 +418,7 @@ const DETTE_HERITEE: Record<string, string[]> = {
     // des comptes (on n'accorde pas un siège à un compte système ou désactivé). Cible = le socle des droits.
     "src/modules/finances/actions-centre.ts → src/lib/queries/porte-ecriture",
     "src/modules/finances/actions-depenses.ts → src/lib/queries/porte-ecriture",
+    "src/modules/finances/actions-questions.ts → src/lib/queries/porte-ecriture", // la porte de l'ordre, comme le règlement
     "src/modules/finances/actions-tresorerie.ts → src/lib/queries/porte-ecriture",
     "src/modules/finances/actions-sieges.ts → src/lib/admin/garde-comptes",
   ],

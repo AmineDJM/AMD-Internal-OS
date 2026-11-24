@@ -70,9 +70,12 @@ describe("Ce que les Finances reçoivent", () => {
     expect(visibleToFinance("NOT_REQUIRED")).toBe(true);
   });
 
-  it("voient aussi les REFUSÉS — il faut savoir qu'il ne faut pas payer, et pourquoi", () => {
-    expect(visibleToFinance("REFUSED")).toBe(true);
+  it("ne voient JAMAIS un REFUSÉ (24/11/2026) — il restait dans la file avec un bouton « Payé » ; seuls les payables arrivent", () => {
+    expect(visibleToFinance("REFUSED")).toBe(false);
     expect(visibleToFinance("APPROVED")).toBe(true);
+    for (const s of ["AWAITING", "CHANGES_REQUESTED", "INFO_REQUESTED", "REFUSED", "APPROVED", "NOT_REQUIRED"] as const) {
+      expect(visibleToFinance(s), s).toBe(canDisburse(s));
+    }
   });
 });
 

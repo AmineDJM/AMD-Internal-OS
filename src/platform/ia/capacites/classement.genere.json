@@ -116,6 +116,16 @@
   "annulation": "retour",
   "appelable": false
  },
+ "actualisation-soldes-actions:ouvrirActualisationSoldes": {
+  "risque": "R1",
+  "familles": [
+   "BUDGETS",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
  "actualisation-soldes-actions:repondreActualisationSoldes": {
   "risque": "R4",
   "familles": [
@@ -5474,6 +5484,46 @@
   "appelable": true
  },
  "finance-actions:updateTransactionStatus": {
+  "risque": "R4",
+  "familles": [
+   "BUDGETS",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "finances-questions:marquerReponseLue": {
+  "risque": "R4",
+  "familles": [
+   "BUDGETS",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "finances-questions:poserQuestionAuDemandeur": {
+  "risque": "R4",
+  "familles": [
+   "BUDGETS",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "finances-questions:relancerQuestionDemandeur": {
+  "risque": "R4",
+  "familles": [
+   "BUDGETS",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "finances-questions:repondreAuxFinances": {
   "risque": "R4",
   "familles": [
    "BUDGETS",

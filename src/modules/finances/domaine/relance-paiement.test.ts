@@ -25,15 +25,15 @@ describe("La relance unifiée d'un paiement (Direction, 14/10/2026)", () => {
     expect(refusDeRelance({ etat: "DEMANDEUR", parLeDemandeur: true })).toMatch(/c'est à vous d'agir/);
     expect(refusDeRelance({ etat: "DEMANDEUR", parLeDemandeur: false })).toBeNull();
     const now = new Date("2026-10-14T10:00:00Z");
-    expect(refusDeRelance({ etat: "CENTRE", parLeDemandeur: true, derniereRelance: new Date("2026-10-14T09:30:00Z"), now })).toMatch(/30 min/);
-    expect(refusDeRelance({ etat: "FINANCES", parLeDemandeur: true, derniereRelance: new Date("2026-10-14T08:30:00Z"), now })).toBeNull();
+    expect(refusDeRelance({ etat: "CENTRE", parLeDemandeur: true, derniereRelance: new Date("2026-10-14T09:30:00Z"), now })).toMatch(/23 h 30 min/);
+    expect(refusDeRelance({ etat: "FINANCES", parLeDemandeur: true, derniereRelance: new Date("2026-10-13T08:30:00Z"), now })).toBeNull();
     expect(relancable("CENTRE") && relancable("FINANCES") && !relancable("PAYE")).toBe(true);
   });
 
   it("la relance du dossier garde SA règle — le même délai de courtoisie, extrait et partagé", () => {
     const now = new Date("2026-10-14T10:00:00Z");
-    expect(canNudge({ status: "SUBMITTED", kind: "REMINDER", comment: null, lastNudgeAt: new Date("2026-10-14T09:30:00Z"), now }).reason).toMatch(/moins d'une heure — réessayez dans 30 min/);
-    expect(canNudge({ status: "SUBMITTED", kind: "REMINDER", comment: null, lastNudgeAt: new Date("2026-10-14T08:00:00Z"), now }).ok).toBe(true);
+    expect(canNudge({ status: "SUBMITTED", kind: "REMINDER", comment: null, lastNudgeAt: new Date("2026-10-14T09:30:00Z"), now }).reason).toMatch(/moins de 24 heures — réessayez dans 23 h 30 min/);
+    expect(canNudge({ status: "SUBMITTED", kind: "REMINDER", comment: null, lastNudgeAt: new Date("2026-10-13T08:00:00Z"), now }).ok).toBe(true);
   });
 
   it("le message dit QUI relance et POURQUOI ; le commentaire est facultatif et borné", () => {

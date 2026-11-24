@@ -23,7 +23,8 @@ export const HISTORIQUE_MAX = 300;
 /** Les autorisations que les Finances voient — le prédicat `visibleToFinance`, jamais une liste recopiée. */
 export const STATUTS_CENTRE_VISIBLES_FINANCES = (Object.keys(CENTRAL_STATUS_LABEL) as CentralStatus[]).filter(visibleToFinance);
 
-const AVEC_DEMANDEUR = { requestedBy: { select: { name: true } } } as const;
+// La remise de caisse se reconnaît à sa remise (`pettyCashAllotment`) : elle ne se classe pas au budget, elle sort en espèces.
+const AVEC_DEMANDEUR = { requestedBy: { select: { name: true } }, pettyCashAllotment: { select: { id: true } } } as const;
 
 export async function chargerOrdresDesFinances(portee: Prisma.ExpenseOrderWhereInput) {
   const visibles = { centralStatus: { in: STATUTS_CENTRE_VISIBLES_FINANCES } };

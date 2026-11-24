@@ -79,6 +79,7 @@ export const ACTIONS_DES_MODULES: Readonly<Record<string, string | readonly stri
   "consommation-actions": "src/modules/consommation/actions.ts",
   "expense-actions": "src/modules/finances/actions-depenses.ts",
   "finance-actions": "src/modules/finances/actions-tresorerie.ts",
+  "finances-questions": "src/modules/finances/actions-questions.ts",
   "event-actions": "src/modules/ad-pro/actions-evenements.ts",
   "hr-actions": "src/modules/rh/actions.ts",
   "hr-document-actions": "src/modules/rh/actions-documents.ts",

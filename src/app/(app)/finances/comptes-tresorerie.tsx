@@ -36,10 +36,14 @@ const jour = (iso: string) => {
   return `${j}/${m}/${a}`;
 };
 
-export function ComptesTresorerieButton({ comptes, entites, canUpdate }: {
+export function ComptesTresorerieButton({ comptes, entites, canUpdate, libelle = "Comptes de trésorerie", discret = false }: {
   comptes: CompteLu[];
   entites: { value: string; label: string }[];
   canUpdate: boolean;
+  /** Le libellé du bouton : « Actualiser les soldes » quand il ouvre la pose des relevés (Banque & paiements). */
+  libelle?: string;
+  /** Une entrée de menu « ⋯ » plutôt qu'un bouton bordé. */
+  discret?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
   const [mode, setMode] = React.useState<Mode>({ type: "liste" });
@@ -73,8 +77,8 @@ export function ComptesTresorerieButton({ comptes, entites, canUpdate }: {
 
   return (
     <>
-      <Button variant="outline" onClick={() => { setOpen(true); setMode({ type: "liste" }); setErreur(null); setMessage(null); }}>
-        <Landmark className="h-4 w-4" /> Comptes de trésorerie
+      <Button variant={discret ? "ghost" : "outline"} className={discret ? "justify-start" : undefined} onClick={() => { setOpen(true); setMode({ type: "liste" }); setErreur(null); setMessage(null); }}>
+        <Landmark className="h-4 w-4" /> {libelle}
       </Button>
 
       <Sheet

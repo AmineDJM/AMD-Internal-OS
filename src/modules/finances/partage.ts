@@ -80,6 +80,12 @@ export {
   checkDeferral, deferralNote, SETTLEMENT_LABEL, settlementState, type SettlementState, sortForSettlement,
 } from "./domaine/settlement";
 export { compteParDefaut, jourAlger, resoudreCompte } from "./domaine/tresorerie";
+// Banque & paiements refait (24/11/2026) : la saisie du paiement, l'historique, la question des Finances au demandeur.
+export {
+  etatHistorique, etatQuestion, type EtatQuestion, EVT_QUESTION, EVT_RAPPEL, EVT_REPONSE, EVT_REPONSE_LUE, type EvenementFil,
+  joursAvantRappel, jourFr, lireSaisieReglement, lireVueBanque, type LectureQuestion, MODES_REGLEMENT, type ModeReglement,
+  noteDeReference, phraseRelances, rappelDu, REFERENCE_MAX, refusRappelManuel, type SaisieReglement, type VueBanque,
+} from "./domaine/banque-paiements";
 
 // La paie VERSÉE par le centre de paiement (décision du 28/10/2026) : les RH décident les salaires, les Finances les
 // versent — le mois de la paie, l'état d'un salaire et du virement, le coût employeur et la masse salariale.

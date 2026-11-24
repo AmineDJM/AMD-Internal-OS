@@ -100,11 +100,10 @@ async function deplierPole(page: Page, libelle: string) {
   await expect(bouton).toHaveAttribute("aria-expanded", "true");
 }
 
-/** Le montant « autorisés à régler » lu dans l'indication du solde de trésorerie. */
+/** Le montant autorisé et pas encore payé, porté par le bloc « Solde bancaire » (`data-a-payer`, Banque & paiements 24/11/2026). */
 async function autorisesARegler(page: Page): Promise<number> {
-  const texte = await page.getByText(/autorisés à régler/).first().textContent();
-  const apres = (texte ?? "").split("autorisés à régler")[1] ?? "";
-  return Number(apres.replace(/[^\d]/g, ""));
+  const valeur = await page.locator("[data-a-payer]").first().getAttribute("data-a-payer");
+  return Number(valeur ?? "NaN");
 }
 
 async function nettoyer() {
