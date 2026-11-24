@@ -4,6 +4,7 @@ import * as React from "react";
 import { Check, ChevronDown, Loader2, Search, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { sansBloquer } from "@/lib/journal";
 import { chercherMedecinsAnnuaire } from "../actions-medecins";
 import { LIBELLE_ROLE_MEDECIN, ROLES_MEDECIN, type RoleMedecin } from "../domaine/medecins-concernes";
 
@@ -67,7 +68,8 @@ export function ChoixMedecinsAnnuaire({ deja, role, onRole, occupe, onAjouter }:
     fd.set("q", "");
     chercherMedecinsAnnuaire(fd)
       .then((r) => { if (vivant.current) setAnnuaire(r); })
-      .catch(() => {
+      .catch((e: unknown) => {
+        sansBloquer("ad-pro.choixMedecinsAnnuaire.lireAnnuaire")(e);
         lectureLancee.current = false;
         if (vivant.current) setErreurLecture("L'annuaire n'a pas pu être lu.");
       })
@@ -85,7 +87,10 @@ export function ChoixMedecinsAnnuaire({ deja, role, onRole, occupe, onAjouter }:
       fd.set("q", t);
       chercherMedecinsAnnuaire(fd)
         .then((r) => { if (!annule) { setRecherche({ q: t, resultat: r }); setErreurLecture(null); } })
-        .catch(() => { if (!annule) setErreurLecture("La recherche dans l'annuaire a échoué."); });
+        .catch((e: unknown) => {
+          sansBloquer("ad-pro.choixMedecinsAnnuaire.rechercher")(e);
+          if (!annule) setErreurLecture("La recherche dans l'annuaire a échoué.");
+        });
     }, 250);
     return () => { annule = true; clearTimeout(minuteur); };
   }, [parServeur, t, essai]);
@@ -142,7 +147,13 @@ export function ChoixMedecinsAnnuaire({ deja, role, onRole, occupe, onAjouter }:
   const n = coches.size;
   const ajouter = async () => {
     if (n === 0 || occupe) return;
-    const fait = await onAjouter([...coches.keys()]);
+    // GARDÉ (action-gardee) : un appel qui lève laisse la sélection telle quelle ; l'appelant dit déjà l'erreur.
+    let fait = false;
+    try {
+      fait = await onAjouter([...coches.keys()]);
+    } catch {
+      fait = false;
+    }
     if (fait) { setCoches(new Map()); setQ(""); setRecherche(null); fermer(false); }
   };
 

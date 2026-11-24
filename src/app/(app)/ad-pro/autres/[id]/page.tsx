@@ -16,7 +16,8 @@ import type { DocItem } from "@/components/documents/document-list";
 import { AD_PRO_OTHER_STATUS } from "@/lib/labels";
 import { OtherDecisionPanel } from "./decision-panel";
 import { AdProDiscussionCard } from "@/modules/ad-pro/ecrans/discussion-card";
-import { MedecinsConcernes } from "@/modules/ad-pro/ecrans/medecins-concernes";
+import { MedecinsConcernesSection } from "@/modules/ad-pro/ecrans/medecins-concernes";
+import { Sections } from "@/components/shared/section-repliable";
 import { AdProEditButton } from "@/modules/ad-pro/ecrans/edit-request-button";
 import { WorkflowPanel } from "@/components/workflow/workflow-panel";
 import { getWorkflowForEntity } from "@/lib/queries/workflow";
@@ -198,10 +199,14 @@ export default async function AdProOtherDetailPage(props: { params: Promise<{ id
       {/* LES PIÈCES LEGAL RATTACHÉES À LA DEMANDE ELLE-MÊME, hors postes — d'avant les postes, ou qui ne sont pas des achats. */}
       <PiecesLegalDeLaDemande spectateur={user} entityType="AD_PRO_OTHER" entityId={req.id} />
 
-      {/* LES MÉDECINS CONCERNÉS (Direction, 08/10) — choisis dans l'annuaire : le lien que lisent le cockpit marketing et la fiche du praticien. */}
-      <MedecinsConcernes user={user} entityType="AD_PRO_OTHER" entityId={req.id} />
       {/* LA SECTION DISCUSSION — le fil CANONIQUE, monté sur les sept natures du pôle. */}
       <AdProDiscussionCard entityType="AD_PRO_OTHER" entityId={req.id} user={user} />
+
+      {/* LES MÉDECINS CONCERNÉS (Direction, 08/10) — choisis dans l'annuaire : le lien que lisent le cockpit marketing et la
+          fiche du praticien. Une section repliée en bas de fiche, comme sur le sponsoring (recette 24/11/2026). */}
+      <Sections>
+        <MedecinsConcernesSection user={user} entityType="AD_PRO_OTHER" entityId={req.id} />
+      </Sections>
     </div>
   );
 }

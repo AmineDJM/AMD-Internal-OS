@@ -27,7 +27,7 @@ import { AdProTransferButton } from "@/modules/ad-pro/ecrans/transfer-button";
 import { AdProEditButton } from "@/modules/ad-pro/ecrans/edit-request-button";
 import { BackLink } from "@/components/shared/back-link";
 import { AdProDiscussionCard } from "@/modules/ad-pro/ecrans/discussion-card";
-import { MedecinsConcernes } from "@/modules/ad-pro/ecrans/medecins-concernes";
+import { MedecinsConcernesSection } from "@/modules/ad-pro/ecrans/medecins-concernes";
 import { onlyofficeConfigured } from "@/lib/onlyoffice";
 import { AdProItemsPanel } from "@/modules/ad-pro/ecrans/items-panel";
 import { PiecesLegalDeLaDemande } from "@/modules/ad-pro/ecrans/pieces-legal-demande";
@@ -199,19 +199,14 @@ export default async function CongressIntlDetailPage(props: { params: Promise<{ 
       {/* LES PIÈCES LEGAL RATTACHÉES À LA DEMANDE ELLE-MÊME, hors postes — d'avant les postes, ou qui ne sont pas des achats. */}
       <PiecesLegalDeLaDemande spectateur={user} entityType="CONGRESS_INTERNATIONAL" entityId={detail.id} />
 
-      {/* LES MÉDECINS CONCERNÉS (Direction, 08/10) — choisis dans l'annuaire : le lien que lisent le cockpit marketing et la fiche du praticien. */}
-      <MedecinsConcernes user={user} entityType="CONGRESS_INTERNATIONAL" entityId={detail.id} />
-
-      {/* LE CIRCUIT, LA DISCUSSION ET L'ÉQUIPE, REPLIÉS (17/11/2026) : une ligne chacun ; le circuit s'ouvre seul quand
-          la personne qui regarde y a un geste à faire (« À vous »). */}
+      {/* LE RESTE DE LA FICHE, REPLIÉ (17/11/2026) : médecins concernés, circuit, discussion, accompagnants, information
+          médicale — une ligne chacun ; le circuit s'ouvre seul quand la personne qui regarde y a un geste à faire (« À vous »)
+          (recette 24/11/2026 : les médecins rejoignent les sections ; l'information médicale vient en dernier). */}
       <Sections>
-        <SectionRepliable
-          titre="Circuit de validation"
-          resume={[resumeDuCircuit(workflow), declaration?.detail ? `déclaration : ${declaration.detail}` : null].filter(Boolean).join(" · ")}
-          aVous={Boolean(workflow?.action) || Boolean(declaration?.aVous)}
-        >
-          <CongressDetailView enSection detail={detail} workflow={workflow} canInvolveThirdParty={canInvolveThirdParty} entityType="CONGRESS_INTERNATIONAL" entityId={detail.id} missionUsers={missionUsers}
-            declaration={declaration && <EtapeDeclarationAdPro etape={declaration} sourceType="CONGRESS_INTERNATIONAL" sourceId={detail.id} />} />
+        {/* LES MÉDECINS CONCERNÉS (Direction, 08/10) — choisis dans l'annuaire : le lien que lisent le cockpit marketing et la fiche du praticien. */}
+        <MedecinsConcernesSection user={user} entityType="CONGRESS_INTERNATIONAL" entityId={detail.id} />
+        <SectionRepliable titre="Circuit de validation" resume={resumeDuCircuit(workflow)} aVous={Boolean(workflow?.action)}>
+          <CongressDetailView enSection detail={detail} workflow={workflow} canInvolveThirdParty={canInvolveThirdParty} entityType="CONGRESS_INTERNATIONAL" entityId={detail.id} missionUsers={missionUsers} />
         </SectionRepliable>
         <SectionRepliable titre="Discussion" sansCadre>
           <EspaceDiscussion>
@@ -222,6 +217,11 @@ export default async function CongressIntlDetailPage(props: { params: Promise<{ 
         <SectionRepliable titre="Accompagnants & délégués" compte={missions.length} sansCadre>
           <AccompagnantsDeLaPriseEnCharge entityType="CONGRESS_INTERNATIONAL" entityId={detail.id} missions={missions} missionUsers={missionUsers} canManageMissions={canManageMissions} currentUserId={user.id} path={`/congress-international/${detail.id}`} />
         </SectionRepliable>
+        {declaration && (
+          <SectionRepliable titre={declaration.titre} resume={declaration.detail ?? undefined} aVous={declaration.aVous}>
+            <EtapeDeclarationAdPro etape={declaration} sourceType="CONGRESS_INTERNATIONAL" sourceId={detail.id} />
+          </SectionRepliable>
+        )}
       </Sections>
 
     </div>

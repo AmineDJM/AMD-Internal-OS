@@ -1,4 +1,3 @@
-import type * as React from "react";
 import type { EntityType } from "@prisma/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { CongressDetail } from "@/modules/ad-pro/api";
@@ -16,12 +15,10 @@ import type { MissionAssignmentDTO } from "@/lib/queries/missions";
  * « Participants Adventum » (retirés de la demande). « Accompagnants & délégués » se pose TOUT EN BAS de la fiche
  * (`AccompagnantsDeLaPriseEnCharge`) : la colonne de droite ne rétrécit plus le reste.
  */
-export function CongressDetailView({ detail, workflow, canInvolveThirdParty, entityType, entityId, missionUsers, declaration = null, enSection = false }: {
+export function CongressDetailView({ detail, workflow, canInvolveThirdParty, entityType, entityId, missionUsers, enSection = false }: {
   /** Dans une section repliable (17/11/2026) : le contenu seul, sans carte ni titre — la section les porte. */
   enSection?: boolean;
   detail: CongressDetail;
-  /** La dernière étape du circuit : la déclaration de l'événement (information scientifique, 08/11/2026). */
-  declaration?: React.ReactNode;
   workflow: WorkflowView | null;
   canInvolveThirdParty: boolean;
   entityType: EntityType;
@@ -35,7 +32,6 @@ export function CongressDetailView({ detail, workflow, canInvolveThirdParty, ent
         ) : (
           <p className="text-sm text-muted-foreground">Circuit indisponible.</p>
         )}
-        {declaration}
         {canInvolveThirdParty && (
           <div className="border-t border-border pt-3">
             <ThirdPartyInvolveButton type={detail.type} id={detail.id} people={missionUsers} />

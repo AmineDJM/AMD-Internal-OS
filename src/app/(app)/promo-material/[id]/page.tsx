@@ -35,7 +35,8 @@ import { DocumentUpload } from "@/components/documents/document-upload";
 import { LinkedRecords } from "@/components/pieces/linked-records";
 import { chargerPiecesLiees } from "@/lib/queries/chaine-des-pieces";
 import { AdProDiscussionCard } from "@/modules/ad-pro/ecrans/discussion-card";
-import { MedecinsConcernes } from "@/modules/ad-pro/ecrans/medecins-concernes";
+import { MedecinsConcernesSection } from "@/modules/ad-pro/ecrans/medecins-concernes";
+import { Sections } from "@/components/shared/section-repliable";
 import { SupprimerDemandeAdPro } from "@/modules/ad-pro/ecrans/supprimer-demande";
 import { onlyofficeConfigured } from "@/lib/onlyoffice";
 import { PROMO_MATERIAL_STATUS } from "@/lib/labels";
@@ -562,8 +563,11 @@ export default async function PromoMaterialDetailPage(props: { params: Promise<{
           />
         )}
 
-        {/* LES MÉDECINS CONCERNÉS (Direction, 08/10) — choisis dans l'annuaire : le lien que lisent le cockpit marketing et la fiche du praticien. */}
-        <MedecinsConcernes user={user} entityType="PROMO_MATERIAL" entityId={pm.id} />
+        {/* LES MÉDECINS CONCERNÉS (Direction, 08/10) — choisis dans l'annuaire : le lien que lisent le cockpit marketing et la
+            fiche du praticien. Une section repliée, la première des replis du bas, comme sur le sponsoring (recette 24/11/2026). */}
+        <Sections>
+          <MedecinsConcernesSection user={user} entityType="PROMO_MATERIAL" entityId={pm.id} />
+        </Sections>
 
         {/* REPLIÉS : les pièces du dossier (BAT, maquettes, visa…, et les engagements Legal), la discussion, l'historique. */}
         {(nbPieces > 0 || canUpload) && (
@@ -706,9 +710,6 @@ export default async function PromoMaterialDetailPage(props: { params: Promise<{
           />
 
           {/* LA SECTION DISCUSSION — la MÊME que sur les six autres natures du pôle (§118.5). */}
-          {/* LES MÉDECINS CONCERNÉS (Direction, 08/10) — choisis dans l'annuaire. */}
-          <MedecinsConcernes user={user} entityType="PROMO_MATERIAL" entityId={pm.id} />
-
           <AdProDiscussionCard entityType="PROMO_MATERIAL" entityId={pm.id} user={user} />
         </div>
 
@@ -732,6 +733,12 @@ export default async function PromoMaterialDetailPage(props: { params: Promise<{
           </div>
         )}
       </div>
+
+      {/* LES MÉDECINS CONCERNÉS (Direction, 08/10) — choisis dans l'annuaire. Une section repliée en bas de fiche, hors de la
+          grille, comme sur le sponsoring (recette 24/11/2026). */}
+      <Sections>
+        <MedecinsConcernesSection user={user} entityType="PROMO_MATERIAL" entityId={pm.id} />
+      </Sections>
     </div>
   );
 }
