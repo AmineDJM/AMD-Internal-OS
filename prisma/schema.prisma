@@ -5750,6 +5750,11 @@ model MedicalVisit {
   pvIaExtrait String?
   prioriteIa  Int?
   analyseIaLe DateTime?
+  /// « CE N'EST PAS UN CAS » (interface du délégué, 24/11/2026) : le délégué répond à l'alerte de l'IA — quand, par qui
+  /// (identifiant sans relation). Le rapport RESTE prioritaire : le superviseur lit cette réponse et tranche. Une
+  /// correction du compte rendu efface la réponse avec la lecture (`LECTURES_A_REFAIRE`).
+  pvEcarteLe    DateTime?
+  pvEcarteParId String?
 
   /// LA RELECTURE DU SUPERVISEUR (`relireRapportVisite`) : quand, par qui (identifiant sans relation, comme `notHeldById`),
   /// et son mot au délégué — facultatif, visible par lui. Un rapport relu sort de la file « à relire ».

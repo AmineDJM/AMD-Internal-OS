@@ -14,6 +14,7 @@ import { getSfeConfig } from "@/lib/sfe";
 import { lettresDesPraticiens } from "@/lib/segmentation/lettres-service";
 import { requisDuPraticien } from "@/lib/segmentation/lettre-requise";
 import type { Lettre } from "@/lib/segmentation/regles";
+import type { LectureDuCompteRendu } from "@/lib/sfe/compte-rendu-envoye";
 import { besoinsAEcrire, type BesoinAEcrire } from "@/lib/besoins-services/service";
 
 /**
@@ -68,6 +69,10 @@ export interface LigneEmploiDuTemps {
   /** LE BESOIN ANNUEL DU SERVICE (Marketing cockpit · terrain) : présent quand le praticien est DÉCIDEUR d'une stratégie
    *  active de la BU du KAM — les produits classés et ce qui est déjà saisi pour l'an prochain. */
   besoin: BesoinAEcrire | null;
+  /** « Objections du médecin » (`doctorFeedback`), telles que saisies. */
+  objections: string | null;
+  /** CE QUE L'IA A LU DU COMPTE RENDU, LE CAS DÉCLARÉ, « CE N'EST PAS UN CAS », LA RELECTURE — l'après-envoi (24/11/2026). */
+  lecture: LectureDuCompteRendu;
 }
 
 export interface PotentielAMettreAJour {
@@ -190,7 +195,9 @@ async function lignesEtGamme(
       orderBy: [{ date: "asc" }],
       select: {
         id: true, date: true, status: true, origin: true, objective: true, report: true, doctorId: true,
-        tourPlanId: true, followUpActions: true, notHeldReason: true,
+        tourPlanId: true, followUpActions: true, notHeldReason: true, doctorFeedback: true,
+        pvIa: true, pvIaExtrait: true, analyseIaLe: true, pvEcarteLe: true, reluLe: true, reluParId: true, reluCommentaire: true,
+        casPharmacovigilance: { select: { id: true, reference: true }, orderBy: { createdAt: "asc" }, take: 1 },
         doctor: { select: { name: true, institution: true, wilaya: true, specialty: true } },
         productLinks: { select: { productId: true, product: { select: { canonicalName: true } } } },
         messageLinks: { select: { messageId: true, message: { select: { title: true } } } },
@@ -221,6 +228,13 @@ async function lignesEtGamme(
   const potentiels = await potentielsDesPraticiens(visites.map((v) => v.doctorId).filter((x): x is string => !!x), profil?.businessUnitId ?? null);
   const besoins = await besoinsAEcrire(visites.map((v) => v.doctorId).filter((x): x is string => !!x), profil?.businessUnitId ?? null, maintenant);
   const RIEN: RemisesDeVisite = { materiel: [], numeriques: [] };
+  // QUI A RELU — une lecture pour tous les relecteurs (identifiant sans relation, comme `notHeldById`).
+  const relecteurIds = [...new Set(visites.flatMap((v) => (v.reluParId ? [v.reluParId] : [])))];
+  const relecteurs = new Map(
+    relecteurIds.length
+      ? (await prisma.user.findMany({ where: { id: { in: relecteurIds } }, select: { id: true, name: true } })).map((u) => [u.id, u.name])
+      : [],
+  );
 
   const lignes: LigneEmploiDuTemps[] = visites.map((v) => {
     const f = fenetreRapport(v.date, maintenant);
@@ -252,6 +266,12 @@ async function lignesEtGamme(
       motifNonTenue: v.notHeldReason,
       potentiel: v.doctorId ? potentiels.get(v.doctorId) ?? null : null,
       besoin: v.doctorId ? besoins.get(v.doctorId) ?? null : null,
+      objections: v.doctorFeedback,
+      lecture: {
+        pvIa: v.pvIa, extrait: v.pvIaExtrait, analyseLe: v.analyseIaLe?.toISOString() ?? null,
+        cas: v.casPharmacovigilance[0] ?? null, ecarteLe: v.pvEcarteLe?.toISOString() ?? null,
+        relu: v.reluLe ? { le: v.reluLe.toISOString(), par: v.reluParId ? relecteurs.get(v.reluParId) ?? null : null, mot: v.reluCommentaire } : null,
+      },
     };
   });
 

@@ -1,5 +1,6 @@
 import type { EtatVisite } from "@/lib/sfe/tournee";
 import type { Lettre } from "@/lib/segmentation/regles";
+import type { LectureDuCompteRendu } from "@/lib/sfe/compte-rendu-envoye";
 import type { RemisesInitiales } from "./materiel-remis";
 import type { BesoinVue, PotentielVue } from "./formulaire-rapport";
 
@@ -34,6 +35,10 @@ export interface LigneVue {
   potentiel: PotentielVue | null;
   /** Le besoin annuel du service, quand le praticien est décideur d'une stratégie de sa BU (Marketing cockpit · terrain). */
   besoin?: BesoinVue | null;
+  /** « Objections du médecin », telles que saisies (`doctorFeedback`). */
+  objections?: string | null;
+  /** L'après-envoi : la lecture par l'IA, le cas déclaré, « ce n'est pas un cas », la relecture (« Ma journée »). */
+  lecture?: LectureDuCompteRendu;
 }
 
 /** La gamme du délégué qui rapporte : ses produits, ses messages — ce que le formulaire de rapport propose. */

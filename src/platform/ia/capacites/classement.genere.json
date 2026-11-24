@@ -12989,6 +12989,15 @@
   "annulation": "retour",
   "appelable": true
  },
+ "visite-pv-ecart-actions:ecarterAlertePvVisite": {
+  "risque": "R2",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
  "workflow-actions:advanceWorkflow": {
   "risque": "R1",
   "familles": [

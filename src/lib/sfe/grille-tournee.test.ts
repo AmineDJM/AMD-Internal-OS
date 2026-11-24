@@ -178,7 +178,9 @@ describe("l'écran — une seule porte vers le rapport d'une visite planifiée",
       expect(t).not.toContain("Visite chez un autre praticien");
       expect(t).not.toContain("Visite faite");
     }
-    expect(liste).toContain("Voir un médecin hors plan");
+    // L'ENTRÉE HORS PLAN est dans l'en-tête de la page (maquette du délégué, 24/11/2026) ; elle ouvre le même choix.
+    expect(page).toContain("Visite hors plan");
+    expect(liste).toMatch(/ouvrirHorsPlan/);
     expect(liste).toMatch(/cibleDuPraticien\(/);
     expect(liste).toMatch(/Commencer la visite/);
   });

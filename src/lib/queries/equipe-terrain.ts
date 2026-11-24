@@ -53,7 +53,7 @@ export async function chargerEquipeTerrain(input: {
   const depuis = new Date(maintenant.getTime() - FENETRE_RELECTURE_JOURS * 86_400_000);
   const aRelireOu = { delegateId: { in: repIds }, status: "COMPLETED" as const, report: { not: null }, reluLe: null, date: { gte: depuis } };
   const selection = {
-    id: true, date: true, delegateId: true, pvIa: true, prioriteIa: true, pvIaRaison: true, pvIaExtrait: true,
+    id: true, date: true, delegateId: true, pvIa: true, prioriteIa: true, pvIaRaison: true, pvIaExtrait: true, pvEcarteLe: true,
     doctor: { select: { name: true } },
   } as const;
   const plansIds = input.aTraiter.plansAValider.flatMap((p) => (p.planId ? [p.planId] : []));
@@ -90,6 +90,7 @@ export async function chargerEquipeTerrain(input: {
       lignes: tries.map((v) => ({
         visitId: v.id, date: v.date, delegue: (v.delegateId && nomDe.get(v.delegateId)) || "Délégué",
         praticien: v.doctor?.name ?? null, pvIa: v.pvIa, raison: v.pvIaRaison, extrait: v.pvIaExtrait,
+        ecarteParLeDelegue: Boolean(v.pvEcarteLe),
       })),
     },
     plansSoumis: input.aTraiter.plansAValider
@@ -107,6 +108,7 @@ export async function chargerRapportARelire(user: SessionUser, scope: RepScope, 
     select: {
       id: true, date: true, status: true, delegateId: true, report: true, doctorFeedback: true, followUpActions: true,
       pvIa: true, pvIaRaison: true, pvIaExtrait: true, prioriteIa: true, reluLe: true, reluParId: true, reluCommentaire: true,
+      pvEcarteLe: true,
       doctor: { select: { name: true, specialty: true } }, delegate: { select: { name: true } },
       productLinks: { select: { product: { select: { canonicalName: true } } } },
       messageLinks: { select: { message: { select: { title: true } } } },

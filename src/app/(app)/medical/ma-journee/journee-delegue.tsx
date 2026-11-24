@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Check, CheckCircle2, Clock, CloudOff, Pencil, RefreshCw, Search, Stethoscope, WifiOff } from "lucide-react";
+import Link from "next/link";
+import { CheckCircle2, CloudOff, RefreshCw, Search, WifiOff } from "lucide-react";
 import { useAction, REFUS_SANS_MOTIF } from "@/components/shared/use-action";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { Badge } from "@/components/ui/badge";
@@ -9,8 +10,8 @@ import { Button } from "@/components/ui/button";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { Input } from "@/components/ui/input";
 import { Sheet } from "@/components/ui/sheet";
-import { cn } from "@/lib/utils";
-import { ETAT_VISITE_LABELS } from "@/lib/sfe/tournee";
+import { InfoBulle } from "@/components/ui/info-bulle";
+import { tonDuDelai } from "@/lib/sfe/compte-rendu-envoye";
 import { cibleDuPraticien, prochaineVisite, type CarteVisite, type CibleVisite } from "@/lib/sfe/journee-visite";
 import { apresEnvoi, champsDuFormulaire, nouveauBrouillon, phraseAttente } from "@/lib/sfe/brouillons-visite";
 import type { StockPourVisite } from "@/lib/queries/promo-remises";
@@ -18,7 +19,9 @@ import { LettreBadge } from "@/app/(app)/segmentation/lettre-badge";
 import { useBrouillonsVisite } from "./brouillons-locaux";
 import { envoyerAvecDelai } from "./envoi-visite";
 import { FeuilleVisite } from "./feuille-visite";
-import { FeuilleNonTenue, tonEtatVisite } from "./emploi-du-temps";
+import { FeuilleNonTenue } from "./emploi-du-temps";
+import { CarteVisiteDuJour } from "./carte-visite";
+import { CompteRenduEnvoye } from "./compte-rendu-envoye";
 import { indexerContextes, type FrequenceVue } from "./contexte-visite";
 import type { DerniereVisiteVue, Executer, GammeVue, LigneVue, OuvertureVisite, PraticienVisite } from "./types-visite";
 
@@ -31,6 +34,13 @@ export interface RattrapageVue extends PraticienVisite {
 
 const nouvelId = (): string =>
   typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+
+/** « lun. 23 nov. à 11:00 » — le jour d'une visite en retard, et son heure quand le plan en a posé une. */
+const jourEtHeure = (iso: string) => {
+  const d = new Date(iso);
+  const jour = d.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
+  return d.getHours() === 0 && d.getMinutes() === 0 ? jour : `${jour} à ${d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
+};
 
 const plier = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
@@ -49,13 +59,17 @@ const plier = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 export function JourneeDelegue({
-  personneId, aujourdhui, aRattraper, panel, gamme, stock, precoches, frequences, dernieres, peutSignalerPv,
+  personneId, aujourdhui, fermes, aRattraper, panel, gamme, stock, precoches, frequences, dernieres, peutSignalerPv, ouvrirHorsPlan = false,
 }: {
   personneId: string;
-  /** La liste du jour, déjà rangée par le serveur (`fusionnerJournee`). */
+  /** La liste du jour, déjà rangée par le serveur (`fusionnerJournee`) : les visites des jours passés encore rapportables en tête. */
   aujourdhui: CarteVisite<LigneVue>[];
+  /** Les visites récentes dont la fenêtre de 48 h s'est fermée sans compte rendu (`comptesRendusEnRetard`). */
+  fermes: LigneVue[];
+  /** Arrivée par « + Visite hors plan » de l'en-tête (`?horsPlan=1`) : le choix du médecin s'ouvre. */
+  ouvrirHorsPlan?: boolean;
   aRattraper: RattrapageVue[];
-  /** Le panel entier — « Voir un médecin hors plan ». */
+  /** Le panel entier — « + Visite hors plan ». */
   panel: PraticienVisite[];
   gamme: GammeVue;
   stock: StockPourVisite;
@@ -72,7 +86,14 @@ export function JourneeDelegue({
 
   const [ouverte, setOuverte] = React.useState<OuvertureVisite | null>(null);
   const [nonTenue, setNonTenue] = React.useState<LigneVue | null>(null);
-  const [choixOuvert, setChoixOuvert] = React.useState(false);
+  const [choixOuvert, setChoixOuvert] = React.useState(ouvrirHorsPlan);
+  /** Le compte rendu envoyé qu'on relit (« Voir ») — par son identifiant : la feuille suit la ligne rafraîchie. */
+  const [vueId, setVueId] = React.useState<string | null>(null);
+  const vue = vueId ? aujourdhui.find((l) => l.id === vueId) ?? null : null;
+  // L'ADRESSE NE REDEMANDE PAS : « ?horsPlan=1 » a ouvert le choix une fois, un rafraîchissement ne le rouvre pas.
+  React.useEffect(() => {
+    if (ouvrirHorsPlan && typeof window !== "undefined") window.history.replaceState(null, "", window.location.pathname);
+  }, [ouvrirHorsPlan]);
   const [occupe, setOccupe] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
   /** Ce qui vient de se passer, dit en une ligne au-dessus de la liste — et la visite suivante. */
@@ -144,14 +165,19 @@ export function JourneeDelegue({
   const aRegarder = file.liste.filter((b) => b.etat !== "EN_ATTENTE");
   const nomProchaine = nomDe(prochaine);
 
+  const auJour = aujourdhui.filter((l) => !l.jourPasse);
+  const enRetard = aujourdhui.filter((l) => l.jourPasse);
+  const dernierPassageDe = (l: LigneVue): string | null =>
+    dernieres.find((d) => d.doctorId === l.doctorId && d.visitId !== l.id)?.date ?? null;
+
   return (
-    <div className="space-y-3 pb-24 lg:pb-0">
+    <div className="space-y-4 pb-24 lg:pb-0">
       {/* ── L'ÉTAT DU RÉSEAU ET DE LA FILE — toujours dit, jamais deviné ────────────────────── */}
       {(!file.enLigne || attente) && (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
+        <div role="status" className="flex flex-wrap items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
           {file.enLigne ? <CloudOff className="h-4 w-4 shrink-0 text-warning" aria-hidden /> : <WifiOff className="h-4 w-4 shrink-0 text-warning" aria-hidden />}
           <span className="min-w-0 flex-1">
-            {!file.enLigne && "Hors ligne — vos rapports sont gardés dans ce téléphone. "}
+            {!file.enLigne && "Hors ligne — vos comptes rendus sont gardés dans ce téléphone et partiront tout seuls. "}
             {attente}
           </span>
           {file.enLigne && attente && (
@@ -164,7 +190,7 @@ export function JourneeDelegue({
       {aRegarder.map((b) => (
         <div key={b.id} role="alert" className="space-y-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm">
           <p>
-            <strong>{b.etat === "REFUSE" ? "Rapport refusé à l'envoi" : "Visite à vérifier"} — {b.praticien}.</strong>{" "}
+            <strong>{b.etat === "REFUSE" ? "Compte rendu refusé à l'envoi" : "Visite à vérifier"} — {b.praticien}.</strong>{" "}
             <span className="text-muted-foreground">{b.erreur}</span>
           </p>
           <div className="flex flex-wrap gap-2">
@@ -191,94 +217,105 @@ export function JourneeDelegue({
         </div>
       )}
 
-      {/* ── AUJOURD'HUI ─────────────────────────────────────────────────────── */}
-      {aujourdhui.length > 0 && (
-        <ul className="space-y-2">
-          {aujourdhui.map((l) => {
-            const estProchaine = prochaine?.sorte === "PLANIFIEE" && prochaine.visitId === l.id;
-            const lettre = lettreDe(l.doctorId);
-            return (
-              <li key={l.id} className={cn("rounded-xl border bg-card px-3 py-3", estProchaine ? "border-primary/60 ring-1 ring-primary/30" : "border-border", l.etat === "FAITE" && "bg-success/5")}>
-                <div className="flex flex-wrap items-start gap-x-3 gap-y-2 sm:flex-nowrap sm:items-center">
-                  <div className="min-w-0 flex-1 basis-56">
-                    <p className="flex min-w-0 items-center gap-1.5">
-                      {lettre && <LettreBadge lettre={lettre} className="h-5 min-w-[22px] shrink-0" />}
-                      <span className="truncate font-medium">{l.doctorName}</span>
-                    </p>
-                    <p className="truncate text-xs text-muted-foreground">{[l.specialty, l.institution].filter(Boolean).join(" · ") || "—"}</p>
-                    <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-                      <Badge tone={tonEtatVisite(l.etat)}>{l.jourPasse ? `Visite de ${new Date(l.date).toLocaleDateString("fr-FR", { weekday: "long" })} — à rapporter` : ETAT_VISITE_LABELS[l.etat]}</Badge>
-                      {l.geste === "COMMENCER" && (
-                        <span className={cn("inline-flex items-center gap-1", l.heuresRestantes <= 12 ? "text-warning" : "text-muted-foreground")}>
-                          <Clock className="h-3 w-3" aria-hidden /> {l.heuresRestantes} h restantes
-                        </span>
-                      )}
-                      {l.origine === "DIRECTION" && <Badge tone="info" dot={false}>Demandée par la Direction</Badge>}
-                    </p>
-                  </div>
-                  <div className="ml-auto flex shrink-0 items-center gap-2">
-                    {l.geste === "COMMENCER" && (estProchaine ? (
-                      // LE GESTE PLEIN : au téléphone, il est dans la barre collée en bas ; ici, à l'ordinateur.
-                      <Button className="hidden h-10 lg:inline-flex" onClick={() => ouvrirCible({ sorte: "PLANIFIEE", visitId: l.id })} disabled={occupe}>
-                        Commencer la visite
-                      </Button>
-                    ) : null)}
-                    {l.geste === "COMMENCER" && (
-                      <Button variant="outline" className={cn("h-10", estProchaine && "lg:hidden")} onClick={() => ouvrirCible({ sorte: "PLANIFIEE", visitId: l.id })} disabled={occupe}>
-                        Commencer
-                      </Button>
-                    )}
-                    {l.geste === "CORRIGER" && (
-                      <Button size="sm" variant="ghost" className="h-10 text-muted-foreground sm:h-8" onClick={() => ouvrirCible({ sorte: "PLANIFIEE", visitId: l.id })} disabled={occupe}>
-                        <Pencil className="h-3.5 w-3.5" /> Corriger
-                      </Button>
-                    )}
-                    {l.etat === "FAITE" && l.geste === "AUCUN" && <Check className="h-4 w-4 text-success" aria-label="Rapport fait" />}
-                  </div>
-                </div>
+      {/* ── LES COMPTES RENDUS EN RETARD — la fenêtre de 48 h, ce qui se sauve encore et ce qui est perdu ─────── */}
+      {(enRetard.length > 0 || fermes.length > 0) && (
+        <section aria-labelledby="titre-retard" className="overflow-hidden rounded-xl border border-destructive/40 bg-card">
+          <div className="flex flex-wrap items-center justify-between gap-2 bg-destructive/5 px-3 py-2.5 sm:px-4">
+            <h2 id="titre-retard" className="text-sm font-semibold text-destructive">Comptes rendus en retard · {enRetard.length}</h2>
+            <InfoBulle label="La règle des 48 h" align="right">
+              Le compte rendu d&apos;une visite s&apos;écrit dans les 48 h. Passé ce délai, il ne s&apos;écrit plus ni ne se corrige :
+              la visite reste comptée non rapportée, et votre superviseur voit les retards.
+            </InfoBulle>
+          </div>
+          <ul className="divide-y divide-border">
+            {enRetard.map((l) => (
+              <li key={l.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-3 sm:px-4">
+                {lettreDe(l.doctorId) && <LettreBadge lettre={lettreDe(l.doctorId)!} className="h-5 min-w-[22px] shrink-0" />}
+                <span className="min-w-0 flex-1 basis-52">
+                  <span className="block truncate font-medium">{l.doctorName}</span>
+                  <span className="block truncate text-xs text-muted-foreground">{jourEtHeure(l.date)} · {l.institution ?? "—"}</span>
+                </span>
+                <Badge tone={tonDuDelai(l.heuresRestantes)}>reste {l.heuresRestantes} h</Badge>
+                <Button size="sm" variant={tonDuDelai(l.heuresRestantes) === "danger" ? "default" : "outline"} className="h-10 sm:h-9"
+                  onClick={() => ouvrirCible({ sorte: "PLANIFIEE", visitId: l.id })} disabled={occupe}>
+                  Écrire le compte rendu
+                </Button>
               </li>
-            );
-          })}
-        </ul>
-      )}
-
-      {/* ── À RATTRAPER — la fréquence en retard, sous l'emploi du temps ─────────────────── */}
-      {aRattraper.length > 0 && (
-        <section className="space-y-2" aria-labelledby="a-rattraper">
-          <h3 id="a-rattraper" className="pt-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">À rattraper</h3>
-          <ul className="space-y-2">
-            {aRattraper.map((r) => {
-              const estProchaine = prochaine?.sorte === "HORS_PLAN" && prochaine.doctorId === r.doctorId;
-              return (
-                <li key={r.doctorId} className={cn("rounded-xl border bg-card px-3 py-3", estProchaine ? "border-primary/60" : "border-border")}>
-                  <div className="flex flex-wrap items-start gap-x-3 gap-y-2 sm:flex-nowrap sm:items-center">
-                    <div className="min-w-0 flex-1 basis-56">
-                      <p className="flex min-w-0 items-center gap-1.5">
-                        {r.lettre && <LettreBadge lettre={r.lettre} className="h-5 min-w-[22px] shrink-0" />}
-                        <span className="truncate font-medium">{r.name}</span>
-                      </p>
-                      <p className="truncate text-xs text-muted-foreground">{[r.specialty, r.institution].filter(Boolean).join(" · ") || "—"}</p>
-                      {/* LA RAISON, chiffrée : un ordre sans justification se subit. */}
-                      <p className="mt-1 text-xs text-warning">{r.reason}</p>
-                    </div>
-                    <Button variant="outline" className="ml-auto h-10 shrink-0" onClick={() => ouvrirCible({ sorte: "HORS_PLAN", doctorId: r.doctorId })} disabled={occupe}>
-                      Commencer
-                    </Button>
-                  </div>
-                </li>
-              );
-            })}
+            ))}
+            {fermes.map((l) => (
+              <li key={l.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-3 text-muted-foreground sm:px-4">
+                {lettreDe(l.doctorId) && <LettreBadge lettre={lettreDe(l.doctorId)!} className="h-5 min-w-[22px] shrink-0" />}
+                <span className="min-w-0 flex-1 basis-52">
+                  <span className="block truncate font-medium text-foreground">{l.doctorName}</span>
+                  <span className="block truncate text-xs">{jourEtHeure(l.date)} · {l.institution ?? "—"}</span>
+                </span>
+                <Badge tone="neutral">fenêtre fermée — non rapportée</Badge>
+              </li>
+            ))}
           </ul>
         </section>
       )}
 
-      {/* UN LIEN, pas un second gros bouton : le geste principal reste la prochaine visite. */}
-      <button type="button" onClick={() => { setErr(null); setChoixOuvert(true); }} className="inline-flex min-h-11 items-center gap-1.5 text-sm text-primary hover:underline">
-        <Stethoscope className="h-4 w-4" /> Voir un médecin hors plan
-      </button>
+      {/* ── LES VISITES DU JOUR, DANS L'ORDRE DE LA TOURNÉE ─────────────────────────────────── */}
+      <section aria-labelledby="titre-jour" id="visites-du-jour" className="scroll-mt-20 space-y-2.5">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 id="titre-jour" className="text-base font-semibold">Visites du jour · dans l&apos;ordre de la tournée</h2>
+          {auJour.length > 0 && (
+            <span className="text-xs text-muted-foreground">
+              {auJour.filter((l) => l.etat === "FAITE").length} faite(s) sur {auJour.length}
+              {nomProchaine ? ` · prochaine : ${nomProchaine}` : ""}
+            </span>
+          )}
+        </div>
+        {auJour.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+            Aucune visite prévue aujourd&apos;hui. Un médecin vu sans être prévu : « + Visite hors plan ».
+          </p>
+        ) : (
+          <ol className="space-y-2.5">
+            {auJour.map((l, i) => (
+              <CarteVisiteDuJour
+                key={l.id}
+                l={l}
+                rang={i + 1}
+                lettre={lettreDe(l.doctorId)}
+                dernierPassage={dernierPassageDe(l)}
+                estProchaine={prochaine?.sorte === "PLANIFIEE" && prochaine.visitId === l.id}
+                occupe={occupe}
+                peutSignalerPv={peutSignalerPv}
+                onCommencer={() => ouvrirCible({ sorte: "PLANIFIEE", visitId: l.id })}
+                onVoir={() => { setErr(null); setVueId(l.id); }}
+                onNonTenue={() => { setErrNonTenue(null); setNonTenue(l); }}
+              />
+            ))}
+          </ol>
+        )}
+      </section>
+
+      {/* ── À RATTRAPER — la fréquence en retard, sous la tournée ─────────────────────────── */}
+      {aRattraper.length > 0 && (
+        <section className="overflow-hidden rounded-xl border border-border bg-card" aria-labelledby="a-rattraper">
+          <h2 id="a-rattraper" className="px-3 pb-1 pt-3 text-base font-semibold sm:px-4">À rattraper si vous avez un creux</h2>
+          <ul className="divide-y divide-border">
+            {aRattraper.map((r) => (
+              <li key={r.doctorId} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-3 sm:px-4">
+                {r.lettre && <LettreBadge lettre={r.lettre} className="h-5 min-w-[22px] shrink-0" />}
+                <span className="min-w-0 flex-1 basis-52">
+                  <Link href={`/praticiens/${r.doctorId}`} className="block truncate font-medium hover:underline">{r.name}</Link>
+                  {/* LA RAISON, chiffrée : un ordre sans justification se subit. */}
+                  <span className="block text-xs text-warning">{r.reason}{r.institution ? ` · ${r.institution}` : ""}</span>
+                </span>
+                <Button variant="outline" className="h-10 shrink-0 sm:h-9" onClick={() => ouvrirCible({ sorte: "HORS_PLAN", doctorId: r.doctorId })} disabled={occupe}>
+                  Commencer (hors plan)
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* ── LA BARRE DU POUCE (téléphone) : la prochaine visite, toujours à portée ────────────── */}
-      {prochaine && nomProchaine && !ouverte && (
+      {prochaine && nomProchaine && !ouverte && !vue && (
         <div className="fixed inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 border-t border-border bg-card/95 px-4 py-2 backdrop-blur lg:hidden">
           <Button className="h-12 w-full min-w-0 text-base" onClick={() => ouvrirCible(prochaine)} disabled={occupe}>
             <span className="truncate">Commencer la visite — {nomProchaine}</span>
@@ -308,6 +345,12 @@ export function JourneeDelegue({
         err={err}
         enregistrer={enregistrer}
         onNonTenue={(l) => { setErrNonTenue(null); setOuverte(null); setNonTenue(l); }}
+        peutSignalerPv={peutSignalerPv}
+      />
+      <CompteRenduEnvoye
+        ligne={vue}
+        onClose={() => setVueId(null)}
+        onCorriger={(l) => { setVueId(null); setOuverte({ sorte: "PLANIFIEE", ligne: l }); }}
         peutSignalerPv={peutSignalerPv}
       />
       <FeuilleNonTenue visite={nonTenue} onClose={() => setNonTenue(null)} executer={executer} occupe={occupeNonTenue} err={errNonTenue} />
@@ -342,6 +385,9 @@ function ChoixPraticien({ panel, onChoisir, onClose }: { panel: PraticienVisite[
             ))}
           </ul>
         )}
+        <Link href={`/medical/mes-medecins?ajouter=1${q.trim() ? `&q=${encodeURIComponent(q.trim())}` : ""}`} className="inline-flex min-h-10 items-center text-sm font-medium text-primary hover:underline sm:min-h-0">
+          Il n&apos;est pas dans mon panel → l&apos;ajouter
+        </Link>
       </div>
     </Sheet>
   );

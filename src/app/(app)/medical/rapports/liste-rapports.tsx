@@ -123,6 +123,9 @@ function FicheRapport({ ligne }: { ligne: LigneRapport }) {
           <p className="font-medium">{ligne.alertePv.libelle} <span className="font-normal text-muted-foreground">— relevé par l&apos;IA, à confirmer</span></p>
           {ligne.alertePv.raison && <p className="text-muted-foreground">{ligne.alertePv.raison}</p>}
           {ligne.alertePv.extrait && <p className="italic [overflow-wrap:anywhere]">« {ligne.alertePv.extrait} »</p>}
+          {ligne.alertePv.ecarteLe && (
+            <p className="text-xs font-medium">Le délégué indique : « ce n&apos;est pas un cas » (le {new Date(ligne.alertePv.ecarteLe).toLocaleDateString("fr-FR")}) — le superviseur tranche à la relecture.</p>
+          )}
           {ligne.alertePv.signaler && (
             <Link href={ligne.alertePv.signaler} className="inline-flex h-11 items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 sm:h-9">
               Signaler <ArrowRight className="h-4 w-4" />

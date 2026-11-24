@@ -48,6 +48,8 @@ export interface RapportARelireFile {
   pvIa: string | null;
   raison: string | null;
   extrait: string | null;
+  /** « Ce n'est pas un cas » dit par le délégué (interface du délégué, 24/11/2026) — le rapport reste prioritaire. */
+  ecarteParLeDelegue?: boolean;
 }
 
 export interface EntreeFile {
@@ -95,7 +97,9 @@ export function lignesARelire(e: Pick<EntreeFile, "aRelire" | "liens">): ActionE
       cle: `relire:${r.visitId}`,
       ton: pv ? "ko" : "i",
       titre: `${r.delegue} — ${r.praticien ?? "praticien non précisé"}, ${jourCourt(r.date)}`,
-      sous: pv ? `${r.pvIa === "PROBABLE" ? "Probable" : "Possible"} cas de pharmacovigilance${r.raison ? ` : ${r.raison}` : ""}` : r.raison,
+      sous: pv
+        ? `${r.pvIa === "PROBABLE" ? "Probable" : "Possible"} cas de pharmacovigilance${r.raison ? ` : ${r.raison}` : ""}${r.ecarteParLeDelegue ? " — le délégué indique : « ce n'est pas un cas »" : ""}`
+        : r.raison,
       citation: pv ? r.extrait : null,
       bouton: { libelle: "Relire", href: e.liens.relire(r.visitId) },
     };

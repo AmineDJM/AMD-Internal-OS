@@ -6,7 +6,7 @@
 import type { AnnuaireAccordable } from "../annuaires/acces";
 import type { Module } from "../rbac/modules";
 import { CHEMIN_CATALOGUE_PROMO, CHEMIN_STOCK_PROMO } from "../chemins/stock-promo";
-import { CHEMIN_RAPPORTS_TERRAIN } from "../chemins/rapports-terrain";
+import { CHEMIN_PV_KAM, CHEMIN_RAPPORTS_TERRAIN } from "../chemins/rapports-terrain";
 
 /** Un onglet d'une entrée fusionnée (sous-module + route). */
 export interface NavTab {
@@ -30,9 +30,10 @@ export interface NavTab {
    * les actions lisent (`nav-tabs.ts` la traduit). `"specialites"` : `peutGererSpecialites`, qui ouvre
    * le référentiel aux deux directeurs des opérations même sans la Promotion médicale en écriture.
    * `"marche-cockpit"` / `"argent-cockpit"` : le module PUIS la règle du marché ou de l'argent du Marketing cockpit
-   * (`marketing-cockpit/acces.ts`).
+   * (`marketing-cockpit/acces.ts`). `"delegue"` : les écrans du délégué de la Visite médicale — à qui l'aiguillage
+   * (`aiguillerVisite`) mène vers « Ma journée ».
    */
-  regle?: "specialites" | "marche-cockpit" | "argent-cockpit";
+  regle?: "specialites" | "marche-cockpit" | "argent-cockpit" | "delegue";
 }
 /**
  * L'ESPACE PERSONNEL — UN SEUL ENDROIT.
@@ -280,6 +281,15 @@ export const MEDICAL_TABS: NavTab[] = [
   // LE PLAN DE TOURNÉE — là où le KAM prépare son mois et où son N+1 le tranche. Il vient
   // AVANT l'annuaire : un engagement validé passe devant un référentiel qu'on consulte.
   { module: "MEDICAL", label: "Plan de tournée", href: "/medical/plan-de-tournee" },
+  // L'INTERFACE DU DÉLÉGUÉ (maquette VALIDÉE le 24/11/2026) — ses écrans, dans l'ordre de la maquette, ne s'affichent
+  // qu'à lui (`regle: "delegue"`) : le superviseur et la Direction ont leurs propres écrans. Chacun RELIT l'existant
+  // (panel, KPI, signalements, relectures, stock promotionnel, demandes RH et prises en charge) ; rien n'y est recopié.
+  { module: "MEDICAL", label: "Mes médecins", href: "/medical/mes-medecins", regle: "delegue" },
+  { module: "MEDICAL", label: "Mes objectifs", href: "/medical/objectifs", regle: "delegue" },
+  { module: "MEDICAL", label: "Pharmacovigilance", href: CHEMIN_PV_KAM, regle: "delegue" },
+  { module: "MEDICAL", label: "Retours du superviseur", href: "/medical/retours", regle: "delegue" },
+  { module: "MEDICAL", label: "Mon sac", href: "/medical/mon-sac", regle: "delegue" },
+  { module: "MEDICAL", label: "Mes demandes", href: "/medical/mes-demandes", regle: "delegue" },
   // LE COACHING — la fiche « tournée en double » (§118.157), juste après le plan de tournée : on
   // l'écrit au retour d'une tournée. Sa grille est administrée par le directeur des opérations,
   // qui n'a que la LECTURE du module — l'onglet s'affiche donc sur le droit de voir, et ce que
