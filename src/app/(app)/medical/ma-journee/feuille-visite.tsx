@@ -150,7 +150,7 @@ export function FeuilleVisite({
             stock={stock}
             precoches={precoches}
             initial={ligne && correction ? {
-              texte: ligne.rapport ?? "", suite: ligne.suite ?? "",
+              texte: ligne.rapport ?? "", suite: ligne.suite ?? "", objections: ligne.objections ?? "",
               produitIds: ligne.produitIds, messageIds: ligne.messageIds, remises: ligne.remises,
             } : undefined}
             libelleEnvoi={correction ? "Enregistrer la correction" : "Enregistrer la visite"}

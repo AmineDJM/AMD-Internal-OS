@@ -21,7 +21,7 @@ export interface MyFieldDay {
   /** La tournée proposée du jour — les praticiens en retard de fréquence, les plus utiles d'abord. */
   tournee: TourneeItem[];
   /** Le panel COMPLET, pour saisir une visite hors tournée (le terrain improvise, et c'est normal). */
-  panel: { id: string; name: string; specialty: string | null; institution: string | null; wilaya: string | null }[];
+  panel: { id: string; name: string; specialty: string | null; institution: string | null; wilaya: string | null; derniereVisite: Date | null }[];
   /** Les produits que CE KAM porte CE mois-ci, dans l'ordre de la mallette. */
   produits: CarriedProduct[];
   /** Sa ligne de chiffres du mois. */
@@ -123,7 +123,7 @@ export async function loadMyFieldDay(userId: string, today = new Date()): Promis
 
   return {
     tournee: buildTournee(panelDoctors, config, today),
-    panel: doctors.map((d) => ({ id: d.id, name: d.name, specialty: d.specialty, institution: d.institution, wilaya: d.wilaya })),
+    panel: doctors.map((d) => ({ id: d.id, name: d.name, specialty: d.specialty, institution: d.institution, wilaya: d.wilaya, derniereVisite: d.lastVisit })),
     produits,
     progress: monthProgress({
       done: visitsThisMonth.length,

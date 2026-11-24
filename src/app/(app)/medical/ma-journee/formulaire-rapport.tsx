@@ -28,6 +28,8 @@ export interface PotentielVue {
 export interface RapportInitial {
   texte: string;
   suite: string;
+  /** « Objections du médecin » (`doctorFeedback`). */
+  objections?: string;
   produitIds: string[];
   messageIds: string[];
   remises: RemisesInitiales;
@@ -103,7 +105,7 @@ export function FormulaireRapport({
   const [dictee, setDictee] = React.useState<"absente" | "prete" | "en-cours">("absente");
   const recRef = React.useRef<{ start: () => void; stop: () => void } | null>(null);
   // LES DÉTAILS S'OUVRENT D'OFFICE quand on corrige un rapport qui en porte : les cacher ferait croire qu'ils ont disparu.
-  const detailsOuverts = Boolean(initial && (initial.suite || initial.remises.materiel.length > 0 || initial.remises.numeriques.length > 0));
+  const detailsOuverts = Boolean(initial && (initial.suite || initial.objections || initial.remises.materiel.length > 0 || initial.remises.numeriques.length > 0));
 
   React.useEffect(() => {
     // LA DICTÉE N'EST PAS PROMISE AVANT D'ÊTRE LÀ : la personne appuie, rien ne se passe, et elle cesse de faire
@@ -245,6 +247,12 @@ export function FormulaireRapport({
         <div className="space-y-3 border-t border-border p-3">
           {/* LE MATÉRIEL REMIS (§118.166) — une remise faite ici sort du stock comme partout ailleurs. */}
           <BlocMaterielRemis stock={stock} produitsCoches={coches} initial={initial?.remises} />
+
+          {/* LES OBJECTIONS DU MÉDECIN — le champ `doctorFeedback` que le rapport porte déjà, et que l'IA lit avec le texte. */}
+          <div>
+            <Label htmlFor="rapport-objections">Objections du médecin</Label>
+            <Input id="rapport-objections" name="doctorFeedback" defaultValue={initial?.objections ?? ""} placeholder="« Trop cher pour mes patients non assurés »" />
+          </div>
 
           <div>
             <Label htmlFor="rapport-suite">Ce qu&apos;il reste à faire</Label>

@@ -24,6 +24,7 @@ import { lireReglageTournee } from "@/lib/sfe/tournee-reglage";
 import { isManagerOfUser } from "@/lib/departments";
 import { canEditRep } from "@/lib/sfe";
 import { OuvrirPlan } from "./ouvrir-plan";
+import { CouvertureLettres } from "./couverture-lettres";
 import { Planificateur } from "./planificateur";
 import { SupprimerPlan } from "./supprimer-plan";
 
@@ -147,6 +148,8 @@ export default async function PlanDeTourneePage(props: { searchParams?: Promise<
           <Link href="/medical/plan-de-tournee" className="inline-flex min-h-10 items-center gap-1 text-sm text-primary hover:underline sm:min-h-8">
             ← Tous les plans
           </Link>
+          {/* LA COUVERTURE PAR LETTRE, EN TÊTE (maquette du délégué, 24/11) : ce que le plan prévoit face au requis. */}
+          <CouvertureLettres praticiens={panel} paires={plan.paires} />
           <Planificateur
             planId={plan.id}
             repName={plan.repName}

@@ -157,7 +157,12 @@ export function RapportEnRelecture({ r }: { r: RapportARelire }) {
           <p className="font-medium">{LIBELLE_PV[v.pvIa]} <span className="font-normal text-muted-foreground">— relevé par l&apos;IA, à confirmer</span></p>
           {v.pvIaRaison && <p className="text-muted-foreground">{v.pvIaRaison}</p>}
           {v.pvIaExtrait && <p className="italic">« {v.pvIaExtrait} »</p>}
-          {v.casPharmacovigilance.length === 0 && <p className="text-xs text-muted-foreground">Le délégué a été invité à le signaler ; aucun cas n&apos;est encore rattaché à cette visite.</p>}
+          {/* « CE N'EST PAS UN CAS » (24/11/2026) : la réponse du délégué, tracée — c'est au superviseur de trancher. */}
+          {v.casPharmacovigilance.length === 0 && (v.pvEcarteLe ? (
+            <p className="text-xs font-medium text-foreground">
+              Le délégué indique : « ce n&apos;est pas un cas » (le {v.pvEcarteLe.toLocaleDateString("fr-FR")}). À vous de trancher à la relecture.
+            </p>
+          ) : <p className="text-xs text-muted-foreground">Le délégué a été invité à le signaler ; aucun cas n&apos;est encore rattaché à cette visite.</p>)}
         </div>
       )}
       {v.casPharmacovigilance.length > 0 && (

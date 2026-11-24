@@ -37,7 +37,12 @@ const LIBELLE_VUE: Record<Vue, string> = {
  * et appelle les prédicats purs que les actions relisent. Il n'affiche aucune vue que la règle ne
  * lui ouvre pas — le chargeur, lui, ne lui a même pas ENVOYÉ ce qu'elle ne peut pas voir.
  */
-export function StockEcran({ page, vueDemandee }: { page: PageStock; vueDemandee: string | null }) {
+export function StockEcran({ page, vueDemandee, seulement }: {
+  page: PageStock;
+  vueDemandee: string | null;
+  /** Les vues à offrir, parmi celles que la règle ouvre — « Mon sac » de la Visite médicale n'offre que les siennes. */
+  seulement?: readonly Vue[];
+}) {
   const { rafraichir } = useRafraichir();
   const f = React.useMemo(() => faitsDe(page), [page]);
 
@@ -53,8 +58,8 @@ export function StockEcran({ page, vueDemandee }: { page: PageStock; vueDemandee
     // L'HISTORIQUE PAR MÉDECIN est ouvert à qui a le module : le chargeur ne lui a envoyé que les
     // remises des détenteurs qu'il voit (§118.166) — un délégué y lit les siennes.
     v.push("medecins");
-    return v;
-  }, [f, page]);
+    return seulement ? v.filter((x) => seulement.includes(x)) : v;
+  }, [f, page, seulement]);
 
   const aConfirmer = page.transferts.filter((t) => t.statut === "EN_ROUTE" && t.versId === page.moi).length;
   const pourLeMagasin = (peutServirDemande(f) ? page.demandes.filter((d) => d.statut === "OUVERTE").length : 0)
@@ -67,7 +72,7 @@ export function StockEcran({ page, vueDemandee }: { page: PageStock; vueDemandee
   const [vue, setVue] = React.useState<Vue>(() => {
     if (vueDemandee && (visibles as string[]).includes(vueDemandee)) return vueDemandee as Vue;
     if (aConfirmer > 0) return "moi";
-    if (aCompter > 0) return "comptages";
+    if (aCompter > 0 && visibles.includes("comptages")) return "comptages";
     if (tientLeMagasin(f) && visibles.includes("magasin")) return "magasin";
     if (visibles.includes("general")) return "general";
     if (visibles.includes("equipe")) return "equipe";

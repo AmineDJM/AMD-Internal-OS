@@ -44,6 +44,8 @@ const PATH_TOURNEE = "/medical/plan-de-tournee";
 const PATH_STOCK = CHEMIN_STOCK_PROMO;
 const LECTURES_A_REFAIRE = {
   pvIa: null, pvIaRaison: null, pvIaExtrait: null, prioriteIa: null, analyseIaLe: null,
+  // « Ce n'est pas un cas » portait sur l'ancien texte : la correction l'efface avec la lecture.
+  pvEcarteLe: null, pvEcarteParId: null,
   reluLe: null, reluParId: null, reluCommentaire: null,
 } as const;
 
@@ -317,6 +319,8 @@ export async function ajouterVisiteImprevue(formData: FormData): Promise<ActionR
           date, doctorId, delegateId: user.id,
           status: "COMPLETED", origin: "UNPLANNED", tourPlanId: null,
           report: contenu,
+          // « Objections du médecin » : le même champ que le rapport d'une visite planifiée (`rapporterVisite`).
+          doctorFeedback: fdStr(formData, "doctorFeedback"),
           followUpActions: fdStr(formData, "followUpActions"),
           presentedProducts: produits.map((p) => p.canonicalName).join(", ") || null,
           createdById: user.id, updatedById: user.id,

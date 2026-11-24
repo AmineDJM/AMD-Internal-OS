@@ -73,7 +73,11 @@ export interface LigneRapport {
   /** VISITE : les signalements de pharmacovigilance rattachés — le lien seulement pour qui lit le cas. */
   casPv?: { reference: string; lien: string | null }[];
   /** VISITE : ce que l'IA a relevé dans le compte rendu (possible / probable) ; `signaler` pour le délégué sans cas lié. */
-  alertePv?: { libelle: string; raison: string | null; extrait: string | null; signaler: string | null } | null;
+  alertePv?: {
+    libelle: string; raison: string | null; extrait: string | null; signaler: string | null;
+    /** ISO — « ce n'est pas un cas », dit par le délégué (24/11/2026) : tracé, lu par le superviseur. */
+    ecarteLe?: string | null;
+  } | null;
 }
 
 export interface FiltresRapports {
@@ -142,7 +146,7 @@ export async function chargerListeRapports(user: SessionUser, filtres: FiltresRa
         productLinks: { select: { product: { select: { canonicalName: true } } } },
         messageLinks: { select: { message: { select: { title: true } } } },
         fieldReports: { select: { id: true }, take: 1, orderBy: { createdAt: "asc" } },
-        delegateId: true, doctorId: true, pvIa: true, pvIaRaison: true, pvIaExtrait: true,
+        delegateId: true, doctorId: true, pvIa: true, pvIaRaison: true, pvIaExtrait: true, pvEcarteLe: true,
         reluLe: true, reluParId: true, reluCommentaire: true,
         casPharmacovigilance: { select: { id: true, reference: true, reporterId: true, participants: { select: { userId: true } } } },
       },
@@ -217,6 +221,7 @@ export async function chargerListeRapports(user: SessionUser, filtres: FiltresRa
         ? {
             libelle: LIBELLE_PV[v.pvIa], raison: v.pvIaRaison, extrait: v.pvIaExtrait,
             signaler: signale && v.delegateId === user.id && v.casPharmacovigilance.length === 0 ? lienSignalerPv(v.doctorId, v.id) : null,
+            ecarteLe: v.casPharmacovigilance.length === 0 ? v.pvEcarteLe?.toISOString() ?? null : null,
           }
         : null,
     })),

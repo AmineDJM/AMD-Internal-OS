@@ -451,6 +451,12 @@ export function classerExclusionsAttestations(): void {
     + "que personne n'a lu. Un clic dans Force de vente › Pilotage (Mon équipe terrain).", [
     "relecture-visite-actions:relireRapportVisite",
   ]);
+  X("« CE N'EST PAS UN CAS » (interface du délégué, 24/11/2026) — le délégué répond à l'alerte de pharmacovigilance que "
+    + "l'IA a levée sur SON compte rendu : une affirmation sur ce qui s'est passé chez le médecin, signée de son nom et lue "
+    + "par son superviseur (§118.15). Laisser un modèle la poser écarterait, sans personne, un possible effet indésirable. "
+    + "Adam est en pause de développement : aucun geste neuf ne lui est ouvert. Un clic sur le compte rendu envoyé.", [
+    "visite-pv-ecart-actions:ecarterAlertePvVisite",
+  ]);
   X("SUPPRIMER UN PLAN DE TOURNÉE EN BROUILLON (Direction, 10/2026) — retire le plan et ses visites planifiées sans rapport ; "
     + "refusé dès qu'une visite a été rapportée. Un geste destructif, en deux clics sur « Mes plans de tournée » (confirmation "
     + "explicite) : pas un geste de conversation.", [

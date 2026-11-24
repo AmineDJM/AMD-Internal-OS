@@ -229,8 +229,8 @@ test("ÉTAPE 3 — le délégué remet 3 fiches en visite, depuis son téléphon
   await page.setViewportSize({ width: 375, height: 812 });
   await login(page, KAM_EMAIL);
   await aller(page, "/medical/ma-journee");
-  // LA VISITE HORS PLAN (11/2026) : « Voir un médecin hors plan », puis la feuille « Visite ».
-  await page.getByRole("button", { name: "Voir un médecin hors plan" }).click();
+  // LA VISITE HORS PLAN (maquette du délégué, 24/11/2026) : « + Visite hors plan » dans l'en-tête, puis la feuille « Visite ».
+  await page.getByRole("link", { name: "Visite hors plan" }).click();
   await page.getByRole("dialog").getByPlaceholder(/Nom, spécialité/).fill("Samia Remise");
   await page.getByRole("dialog").getByRole("button", { name: new RegExp(MEDECIN.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) }).click();
   const fiche = page.getByRole("dialog").filter({ hasText: "Visite hors plan" });
@@ -252,7 +252,7 @@ test("ÉTAPE 3 — au-delà de ce qu'il a en main, la visite est BLOQUÉE et l'�
   await page.setViewportSize({ width: 375, height: 812 });
   await login(page, KAM_EMAIL);
   await aller(page, "/medical/ma-journee");
-  await page.getByRole("button", { name: "Voir un médecin hors plan" }).click();
+  await page.getByRole("link", { name: "Visite hors plan" }).click();
   await page.getByRole("dialog").getByPlaceholder(/Nom, spécialité/).fill("Samia Remise");
   await page.getByRole("dialog").getByRole("button", { name: new RegExp(MEDECIN.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) }).click();
   const fiche = page.getByRole("dialog").filter({ hasText: "Visite hors plan" });
