@@ -28,3 +28,6 @@ export { MODES_TRANSPORT_MISSION, VALEURS_DU_MODELE } from "./domaine/ordre-miss
 export { type DepartmentNodeLite, type EmployeeNode, managementChainOf, type ManagerSource, managesAnyone, resolveManager } from "./domaine/reporting-line";
 export { flattenTree, subtreeOf, type TeamTreeNode } from "./domaine/team-tree";
 export { avecLiens, type CommonCounts, commonKpis, JOB_LABEL, type JobCounts, jobKpis, jobOf, type LiensKpi, NO_JOB_KPI_NOTE, type TeamJob, type TeamKpi } from "./domaine/team-kpis";
+
+// ── Les directeurs : le responsable de chaque département (organigramme), la Direction des opérations, qui autorise une formation
+export { type DepartementOrganigramme, estDirecteurDe, estDirectionDesOperations } from "./domaine/directeurs";

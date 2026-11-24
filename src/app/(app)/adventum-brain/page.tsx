@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requireModule } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
 import { BRAIN_TABS } from "@/lib/labels";
@@ -8,7 +9,6 @@ import { PageHeader } from "@/components/shared/page-header";
 import { MenuDossier } from "@/components/shared/menu-dossier";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { getRiskThresholds } from "@/lib/adventum/risk-settings";
-import { filtreDuPerimetre } from "@/lib/adventum/perimetre";
 import { DETECTOR_COUNT } from "@/lib/adventum/risks";
 import {
   derniereAnalyse, lireBriefing, lireDernierBriefing, lireHistorique, lireRisques, personnesActives, type BriefingLu,
@@ -27,42 +27,37 @@ type Vue = (typeof VUES)[number];
  * ADVENTUM BRAIN (refonte 07/10, maquette validée). Quatre vues : « Ce matin » (le briefing gardé + ce qui attend
  * une décision), « Risques » (des risques qui ont une vie), « Demander » (la question libre, ancrée et sourcée),
  * « Historique ». La page LIT ce que la passe horaire et le briefing de 7 h ont gardé — aucun calcul au rendu.
- * Le Super Admin voit tout ; une autre personne à qui le module est ouvert (le Directeur des opérations, 08/10) ne voit
- * que « Ce matin » (à décider) et « Risques », bornés à son périmètre (`adventum/perimetre.ts`).
+ * RÉSERVÉ AU SUPER ADMIN (24/11/2026 — « Adventum Brain : Super Admin uniquement ») : la vue bornée du Directeur des
+ * opérations est retirée ; le module ne s'ouvre à personne d'autre, même par la console (`MODULES_SUPER_ADMIN_SEUL`).
  */
 export default async function AdventumBrainPage(props: { searchParams?: Promise<{ vue?: string; jour?: string }> }) {
   const searchParams = await props.searchParams;
   const user = await requireModule("ADVENTUM_BRAIN");
-  // HORS SUPER ADMIN (Direction, 08/10 — le Directeur des opérations) : les risques de SON périmètre seulement, et rien
-  // de ce qui parle de toute la maison — ni le briefing, ni la question libre, ni l'historique, ni les seuils.
-  const superAdmin = user.role === "SUPER_ADMIN";
-  const vuesPermises: readonly Vue[] = superAdmin ? VUES : ["matin", "risques"];
-  const vue: Vue = vuesPermises.includes((searchParams?.vue ?? "") as Vue) ? (searchParams!.vue as Vue) : "matin";
-  const [risques, analyse, seuils] = await Promise.all([lireRisques(new Date(), filtreDuPerimetre(superAdmin)), derniereAnalyse(), getRiskThresholds()]);
+  // LE RÔLE EST RELU ICI aussi : la page ne s'ouvre qu'au Super Admin, quel que soit l'accès résolu.
+  if (user.role !== "SUPER_ADMIN") redirect("/dashboard?denied=ADVENTUM_BRAIN");
+  const vue: Vue = VUES.includes((searchParams?.vue ?? "") as Vue) ? (searchParams!.vue as Vue) : "matin";
+  const [risques, analyse, seuils] = await Promise.all([lireRisques(new Date()), derniereAnalyse(), getRiskThresholds()]);
   const ouverts = risques.filter((r) => r.status !== "RESOLU");
   const minutes = analyse ? Math.max(0, Math.round((Date.now() - analyse.getTime()) / 60_000)) : null;
-  const sousTitre = `${minutes === null ? "Pas encore analysé" : `Mis à jour il y a ${minutes < 60 ? `${minutes} min` : `${Math.round(minutes / 60)} h`}`} · ${superAdmin ? `${DETECTOR_COUNT} détecteurs` : "périmètre Opérations"}`;
+  const sousTitre = `${minutes === null ? "Pas encore analysé" : `Mis à jour il y a ${minutes < 60 ? `${minutes} min` : `${Math.round(minutes / 60)} h`}`} · ${DETECTOR_COUNT} détecteurs`;
 
   const onglets: { cle: Vue; label: string; n?: number }[] = ([
     { cle: "matin", label: "Ce matin" },
     { cle: "risques", label: "Risques", n: ouverts.length },
     { cle: "demander", label: "Demander" },
     { cle: "historique", label: "Historique" },
-  ] as { cle: Vue; label: string; n?: number }[]).filter((o) => vuesPermises.includes(o.cle));
+  ] as { cle: Vue; label: string; n?: number }[]);
 
   return (
     <div className="space-y-4">
       <ModuleTabs tabs={BRAIN_TABS.map((t) => ({ label: t.label, href: t.href, show: userCan(user, t.module, "VIEW") }))} />
       <PageHeader title="Adventum Brain" description={sousTitre}>
         <InfoBulle>
-          Les risques sont recalculés chaque heure en arrière-plan
-          {superAdmin ? " ; le briefing s'écrit à 7 h (heure d'Alger) et reste dans l'historique." : ". Vous voyez ceux de votre périmètre : PCH, stocks, logistique, ventes, force de vente et terrain."}
+          Les risques sont recalculés chaque heure en arrière-plan ; le briefing s&apos;écrit à 7 h (heure d&apos;Alger) et reste dans l&apos;historique.
         </InfoBulle>
-        {superAdmin && (
-          <MenuDossier>
-            <RiskThresholdsForm initial={seuils} />
-          </MenuDossier>
-        )}
+        <MenuDossier>
+          <RiskThresholdsForm initial={seuils} />
+        </MenuDossier>
       </PageHeader>
 
       <nav className="-mx-3 flex gap-1 overflow-x-auto border-b border-border px-3 sm:mx-0 sm:px-0" aria-label="Vues d'Adventum Brain">
@@ -75,7 +70,7 @@ export default async function AdventumBrainPage(props: { searchParams?: Promise<
         ))}
       </nav>
 
-      {vue === "matin" && <VueMatin aDecider={ouverts.filter((r) => r.status === "NOUVEAU" && (r.level === "critical" || r.level === "high"))} avecBriefing={superAdmin} />}
+      {vue === "matin" && <VueMatin aDecider={ouverts.filter((r) => r.status === "NOUVEAU" && (r.level === "critical" || r.level === "high"))}  />}
       {vue === "risques" && <RisquesTable risques={risques} personnes={await personnesActives()} />}
       {vue === "demander" && <Demander />}
       {vue === "historique" && <VueHistorique userId={user.id} jour={searchParams?.jour ?? null} />}
@@ -86,12 +81,11 @@ export default async function AdventumBrainPage(props: { searchParams?: Promise<
 const jourLong = (day: string) => new Date(`${day}T12:00:00Z`).toLocaleDateString("fr-FR", { day: "numeric", month: "long", timeZone: "UTC" });
 const heure = (iso: string) => new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Africa/Algiers" });
 
-async function VueMatin({ aDecider, avecBriefing }: { aDecider: Awaited<ReturnType<typeof lireRisques>>; avecBriefing: boolean }) {
-  // LE BRIEFING parle de toute la maison : hors Super Admin, « Ce matin » se réduit à ce qui attend une décision.
-  const [briefing, personnes] = await Promise.all([avecBriefing ? lireDernierBriefing() : Promise.resolve(null), personnesActives()]);
+async function VueMatin({ aDecider }: { aDecider: Awaited<ReturnType<typeof lireRisques>> }) {
+  const [briefing, personnes] = await Promise.all([lireDernierBriefing(), personnesActives()]);
   return (
-    <div className={cn("grid grid-cols-1 items-start gap-4", avecBriefing && "lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]")}>
-      {avecBriefing && <section className="surface overflow-hidden rounded-xl">
+    <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+      <section className="surface overflow-hidden rounded-xl">
         <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
           <div>
             <h2 className="text-sm font-semibold">{briefing ? `Briefing du ${jourLong(briefing.day)}` : "Briefing du matin"}</h2>
@@ -100,7 +94,7 @@ async function VueMatin({ aDecider, avecBriefing }: { aDecider: Awaited<ReturnTy
           <BoutonRegenerer />
         </header>
         {briefing ? <Briefing b={briefing} /> : <p className="px-4 py-6 text-sm text-muted-foreground">Le premier briefing s&apos;écrira à 7 h — ou maintenant avec « Régénérer ».</p>}
-      </section>}
+      </section>
       <section className="surface rounded-xl">
         <header className="flex items-center justify-between border-b border-border px-4 py-3">
           <h2 className="text-sm font-semibold">À décider</h2>

@@ -1,5 +1,6 @@
 "use server";
 
+import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { canGovernPoleEnvelope, canManageEnvelope } from "@/lib/rbac";
@@ -15,6 +16,11 @@ import { arbreCategories, refusReallocation } from "@/lib/budget/marketing-vue";
 import { getBudgetOverview } from "@/lib/queries/budget";
 import { supprimerSousGarde } from "@/lib/budget/suppression-garde";
 import { actionReversible } from "@/lib/effets/reversible";
+import { notifyUser } from "@/lib/notify";
+import { sansBloquer } from "@/lib/journal";
+import { toNumber } from "@/lib/utils";
+import { refusReallocationEntreEnveloppes, refusTotalBudget } from "@/lib/budget/budget-du-directeur";
+import { enveloppeDeBudget, estDirecteurDuBudget } from "@/lib/budget/directeur-serveur";
 
 /**
  * LES BUDGETS DES PÔLES — les gestes de chaque pôle sur SES enveloppes (Direction, 08/10).
@@ -30,6 +36,9 @@ import { actionReversible } from "@/lib/effets/reversible";
  */
 
 const refus = (pole: DomainePole): ActionResult => ({ ok: false, error: `Réservé à ${DOMAINES[pole].gestionnaire} (${DOMAINES[pole].titre}).` });
+
+/** Le marqueur qui annule la transaction de réallocation (le total aurait changé). */
+const ANNULE = "REALLOCATION_ANNULEE";
 
 function revalider(pole: DomainePole | null) {
   if (pole) revalidatePath(DOMAINES[pole].chemin);
@@ -163,15 +172,22 @@ export async function completerCategoriesPole(formData: FormData): Promise<Actio
 }
 
 /**
- * RÉALLOUER (Budget Marketing, Direction 10/2026) — déplacer un montant d'une catégorie de tête à une autre de la MÊME
- * enveloppe : ce que l'une cède, l'autre le reçoit, l'enveloppe ne bouge pas. Le motif est obligatoire et reste dans
- * l'historique du budget (journal d'audit de l'enveloppe, champ « reallocation »). Gardé par le droit de gérer le contenu
- * de l'enveloppe (`canManageEnvelope` : Super Admin, délégués, « Modifier » du budget du pôle — la Direction Marketing).
+ * RÉALLOUER (Budget Marketing, Direction 10/2026) — déplacer un montant d'une catégorie de tête à une autre : ce que l'une
+ * cède, l'autre le reçoit. Le motif est obligatoire et reste dans l'historique du budget (journal d'audit de l'enveloppe,
+ * champ « reallocation »). Dans une même enveloppe, gardé par le droit de gérer son contenu (`canManageEnvelope` : Super
+ * Admin, délégués, « Modifier » du budget du pôle).
+ *
+ * LE DIRECTEUR RÉALLOUE LIBREMENT DANS SON BUDGET (Super Admin, 24/11/2026) — le responsable du département dans
+ * l'organigramme (`@/modules/rh/api`) réalloue entre TOUTES les lignes de son budget, d'une enveloppe à l'autre s'il le faut
+ * (même pôle, même société, même exercice : `budget-du-directeur.ts`), sans plafond ni validation. Le TOTAL de son budget ne
+ * bouge jamais : entre deux enveloppes, le montant de l'une baisse de ce que l'autre reçoit, dans la même transaction, et le
+ * total relu après l'écriture doit égaler celui d'avant — sinon tout est annulé. Le Super Admin est informé (notification +
+ * audit) ; le DG ne l'est pas. Un mécanisme, pas deux : c'est ce geste, élargi.
  *
  * BORNÉE (maquette « onglets » validée, 10/2026) : la catégorie qui cède ne donne jamais plus que sa part CESSIBLE — ce
  * qui reste libre au-dessus de son payé + engagé (cumulés, sous-catégories comprises : `cumul-categories.ts`) ET de ce
- * que ses sous-catégories répartissent (`budget/marketing-vue.ts`, `cessible`). Le payé et l'engagé sont lus par la vue
- * d'ensemble (`getBudgetOverview`), donc par la règle d'intégration : jamais additionnés ici.
+ * que ses sous-catégories répartissent (`budget/marketing-vue.ts`, `cessible`). Ce n'est pas un plafond de décision : on
+ * ne retire pas à une ligne l'argent déjà payé ou engagé. Le payé et l'engagé sont lus par la vue d'ensemble.
  *
  * La cession est CONDITIONNELLE : lue et écrite dans la même instruction (alloué ≥ montant + plancher), deux
  * réallocations simultanées ne font jamais passer une allocation sous son plancher.
@@ -186,45 +202,82 @@ export async function reallouerCategorie(formData: FormData): Promise<ActionResu
     sourceId ? prisma.budgetCategoryLine.findUnique({ where: { id: sourceId }, select: { id: true, name: true, envelopeId: true, parentId: true, allocated: true } }) : null,
     cibleId ? prisma.budgetCategoryLine.findUnique({ where: { id: cibleId }, select: { id: true, name: true, envelopeId: true, parentId: true } }) : null,
   ]);
+  const entreEnveloppes = Boolean(source && cible && source.envelopeId !== cible.envelopeId);
   const refusSaisie = refusReallocation({
-    sourceId, cibleId, montant, motif,
+    sourceId, cibleId, montant, motif, entreEnveloppes,
     source: source ? { envelopeId: source.envelopeId, parentId: source.parentId, alloue: Number(source.allocated), nom: source.name } : null,
     cible: cible ? { envelopeId: cible.envelopeId, parentId: cible.parentId } : null,
   });
   if (refusSaisie || !source || !cible || montant == null || !motif) return { ok: false, error: refusSaisie ?? "Saisie incomplète." };
-  const env = await prisma.budgetEnvelope.findUnique({
-    where: { id: source.envelopeId },
-    select: { id: true, name: true, domaine: true, accessRoles: true, accessUserIds: true, managerRoles: true, managerUserIds: true },
+  const [env, envCible, budgetSource, budgetCible] = await Promise.all([
+    prisma.budgetEnvelope.findUnique({
+      where: { id: source.envelopeId },
+      select: { id: true, name: true, domaine: true, accessRoles: true, accessUserIds: true, managerRoles: true, managerUserIds: true },
+    }),
+    prisma.budgetEnvelope.findUnique({ where: { id: cible.envelopeId }, select: { id: true, name: true } }),
+    enveloppeDeBudget(source.envelopeId),
+    enveloppeDeBudget(cible.envelopeId),
+  ]);
+  if (!env || !envCible || !budgetSource || !budgetCible) return { ok: false, error: "Enveloppe introuvable." };
+  const pole = poleDe(env);
+  const estSuperAdmin = user.role === "SUPER_ADMIN";
+  const estDirecteur = await estDirecteurDuBudget(user.id, budgetSource);
+  const refusDroit = refusReallocationEntreEnveloppes({
+    source: budgetSource, cible: budgetCible, gereLaSource: Boolean(pole) && canManageEnvelope(user, env), estDirecteur, estSuperAdmin,
   });
-  const pole = env ? poleDe(env) : null;
-  if (!env || !pole) return { ok: false, error: "Enveloppe introuvable." };
-  if (!canManageEnvelope(user, env)) return refus(pole);
+  if (refusDroit) return { ok: false, error: refusDroit };
 
-  // La part cessible, lue par la vue d'ensemble (règle d'intégration comprise) — le même chiffre que l'écran.
-  const overview = await getBudgetOverview(user, env.id, null, null, { portee: pole });
+  // La part cessible, lue par la vue d'ensemble (règle d'intégration comprise) — le même chiffre que l'écran. Lue SANS
+  // filtre de visibilité : le droit vient d'être établi ci-dessus (le directeur n'a pas toujours la liste d'accès).
+  const overview = await getBudgetOverview(user, env.id, null, null, {});
   const noeud = overview ? arbreCategories(overview.categories).find((n) => n.id === source.id) : undefined;
   if (!overview || !noeud) return { ok: false, error: "Catégorie introuvable." };
   const plancher = Math.max(0, noeud.paye + noeud.engage, noeud.sousAlloue);
   const refusBorne = refusReallocation({
-    sourceId, cibleId, montant, motif,
+    sourceId, cibleId, montant, motif, entreEnveloppes,
     source: { envelopeId: source.envelopeId, parentId: source.parentId, alloue: Number(source.allocated), cessible: noeud.cessible, nom: source.name },
     cible: { envelopeId: cible.envelopeId, parentId: cible.parentId },
   });
   if (refusBorne) return { ok: false, error: refusBorne };
 
+  const enveloppes = [...new Set([source.envelopeId, cible.envelopeId])];
+  const totalDe = async (tx: Prisma.TransactionClient) =>
+    toNumber((await tx.budgetEnvelope.aggregate({ where: { id: { in: enveloppes } }, _sum: { totalAmount: true } }))._sum.totalAmount);
   const fait = await prisma.$transaction(async (tx) => {
+    const avant = await totalDe(tx);
     const cede = await tx.budgetCategoryLine.updateMany({ where: { id: source.id, allocated: { gte: montant + plancher - 0.005 } }, data: { allocated: { decrement: montant } } });
-    if (cede.count === 0) return false;
+    if (cede.count === 0) return "PLANCHER" as const;
     await tx.budgetCategoryLine.update({ where: { id: cible.id }, data: { allocated: { increment: montant } } });
-    return true;
-  });
-  if (!fait) return { ok: false, error: "L'allocation de la catégorie qui cède a changé entre-temps : rechargez et recommencez." };
+    if (entreEnveloppes) {
+      // D'UNE ENVELOPPE À L'AUTRE : le montant suit la ligne, le total du budget reste le même.
+      const baisse = await tx.budgetEnvelope.updateMany({ where: { id: source.envelopeId, totalAmount: { gte: montant - 0.005 } }, data: { totalAmount: { decrement: montant } } });
+      if (baisse.count === 0) throw new Error(ANNULE);
+      await tx.budgetEnvelope.update({ where: { id: cible.envelopeId }, data: { totalAmount: { increment: montant } } });
+    }
+    // LA RÈGLE SERVEUR : le total relu après l'écriture est celui d'avant, sinon rien n'est écrit.
+    if (refusTotalBudget(avant, await totalDe(tx))) throw new Error(ANNULE);
+    return "FAIT" as const;
+  }).catch((err: unknown) => (err instanceof Error && err.message === ANNULE ? "TOTAL" as const : Promise.reject(err)));
+  if (fait === "PLANCHER") return { ok: false, error: "L'allocation de la catégorie qui cède a changé entre-temps : rechargez et recommencez." };
+  if (fait === "TOTAL") return { ok: false, error: "Le total du budget changerait : la réallocation est annulée. Rechargez et recommencez." };
+
   const somme = `${Math.round(montant).toLocaleString("fr-FR")} DZD`;
+  const trajet = entreEnveloppes ? `« ${source.name} » (${env.name}) → « ${cible.name} » (${envCible.name})` : `« ${source.name} » → « ${cible.name} »`;
+  const module = pole ? DOMAINES[pole].titre : "Budgets";
   await recordAudit({
-    actorId: user.id, action: "UPDATE", module: DOMAINES[pole].titre, entityType: "BUDGET", entityId: env.id, field: "reallocation",
+    actorId: user.id, action: "UPDATE", module, entityType: "BUDGET", entityId: env.id, field: "reallocation",
     oldValue: `${source.name} → ${cible.name}`, newValue: String(montant),
-    summary: `Réallocation de ${somme} : « ${source.name} » → « ${cible.name} » — motif : ${motif.slice(0, 500)}`,
+    summary: `Réallocation de ${somme} : ${trajet}${estDirecteur ? " — par le directeur du budget" : ""} — motif : ${motif.slice(0, 500)}`,
   });
+  // LE SUPER ADMIN EST INFORMÉ, LE DG NE L'EST PAS (24/11/2026) — le compte Super Admin (rôle principal), pas un rôle prêté.
+  if (!estSuperAdmin) {
+    const superAdmins = await prisma.user.findMany({ where: { role: "SUPER_ADMIN", isActive: true }, select: { id: true } });
+    const lien = pole ? `${DOMAINES[pole].chemin}?env=${encodeURIComponent(env.id)}` : `/budgets?env=${encodeURIComponent(env.id)}`;
+    await Promise.all(superAdmins.map((sa) => notifyUser({
+      userId: sa.id, type: "GENERIC", title: `Réallocation — ${module}`,
+      body: `${user.name ?? "Un directeur"} a réalloué ${somme} : ${trajet}. Motif : ${motif.slice(0, 200)}`, link: lien,
+    }).catch(sansBloquer("budget-pole-actions.reallouerCategorie.notifyUser"))));
+  }
   revalider(pole);
   return { ok: true, message: `${somme} réalloués de « ${source.name} » à « ${cible.name} ».` };
 }

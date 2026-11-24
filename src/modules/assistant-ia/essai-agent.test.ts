@@ -59,6 +59,9 @@ const ecart = (a: string, b: string): string => {
 suite("Essayer l'agent d'une personne — exactement son agent", () => {
   let amine: CurrentUser;
   let radia: CurrentUser;
+  // ADAM EST AU SUPER ADMIN SEUL (24/11/2026) : la seule personne dont l'agent est OUVERT est un autre Super Admin — c'est
+  // lui qu'on essaie pour la parité, l'identité et l'historique. Radia (clé de la console ouverte) a désormais un agent fermé.
+  let samia: CurrentUser;
   let assia: CurrentUser;
   const cleAvant = process.env.OPENAI_API_KEY;
 
@@ -78,10 +81,10 @@ suite("Essayer l'agent d'une personne — exactement son agent", () => {
     await traiterFil(u.id, c.conversation);
     return c.conversation;
   };
-  const essai = (texte: string, scenario: EtapeScenario[]) => {
+  const essai = (texte: string, scenario: EtapeScenario[], pour: CurrentUser = radia) => {
     const f = modeleFactice(scenario);
     remplacerModelesPourTests([f.modele as never]);
-    return { f, issue: essayerAgentDe(amine, radia.id, texte, []) };
+    return { f, issue: essayerAgentDe(amine, pour.id, texte, []) };
   };
 
   beforeAll(async () => {
@@ -90,8 +93,10 @@ suite("Essayer l'agent d'une personne — exactement son agent", () => {
     remplacerReglagesPourTests({ valeursSensibles: "EN_CLAIR" });
     amine = await compte("SUPER_ADMIN", "Amine", true);
     radia = await compte("COORDINATOR", "Radia", true);
+    samia = await compte("SUPER_ADMIN", "Samia", true);
     assia = await compte("MEDICAL_DELEGATE", "Assia", false);
     await prisma.employee.create({ data: { fullName: `Radia ${TAG}KEBIR`, userId: radia.id, position: "Assistante de direction", baseSalary: 105180, grossSalary: 180673, netToPay: 110000 } });
+    await prisma.employee.create({ data: { fullName: `Samia ${TAG}HADDAD`, userId: samia.id, position: "Administratrice", baseSalary: 105180, grossSalary: 180673, netToPay: 110000 } });
     await prisma.employee.create({ data: { fullName: `Assia ${TAG}ABDELAZIZ`, userId: assia.id, position: "Pharmacienne", baseSalary: 350000, netToPay: 400000, iban: "DZ5900400174401234567890" } });
   });
   afterEach(() => remplacerModelesPourTests(null));
@@ -99,7 +104,7 @@ suite("Essayer l'agent d'une personne — exactement son agent", () => {
     if (cleAvant === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = cleAvant;
     remplacerLecteurInterrupteurIaPourTests(null);
     remplacerReglagesPourTests(null);
-    const ids = [amine, radia, assia].filter(Boolean).map((u) => u.id);
+    const ids = [amine, radia, samia, assia].filter(Boolean).map((u) => u.id);
     await prisma.accesDonneeSensible.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => {});
     await effacerJournalDe(ids);
@@ -116,8 +121,8 @@ suite("Essayer l'agent d'une personne — exactement son agent", () => {
     const scenario: EtapeScenario[] = [{ appel: { outil: "lire_paie", entree: { nom: "moi" } } }, reponse("Votre net est de 110 000 DZD.")];
     const vrai = modeleFactice(scenario);
     remplacerModelesPourTests([vrai.modele as never]);
-    await parSonEcran(radia, "Quel est mon salaire ?");
-    const { f, issue } = essai("Quel est mon salaire ?", scenario);
+    await parSonEcran(samia, "Quel est mon salaire ?");
+    const { f, issue } = essai("Quel est mon salaire ?", scenario, samia);
     const r = await issue;
     expect(r.ok, r.ok ? "" : r.erreur).toBe(true);
     expect(f.promptsRecus.length).toBe(vrai.promptsRecus.length);
@@ -158,9 +163,9 @@ suite("Essayer l'agent d'une personne — exactement son agent", () => {
     sonde.modele.doStream = async (options: Parameters<typeof flux>[0]) => { await lire(); return flux(options); };
     remplacerModelesPourTests([sonde.modele as never]);
     // Le corps d'une action du Super Admin : la garde y juge LUI (sa requête).
-    const r = await avecIdentiteDonnees(identiteDonneesDe(amine), () => essayerAgentDe(amine, radia.id, "Bonjour", []));
+    const r = await avecIdentiteDonnees(identiteDonneesDe(amine), () => essayerAgentDe(amine, samia.id, "Bonjour", []));
     expect(r.ok, r.ok ? "" : r.erreur).toBe(true);
-    expect(vu).toEqual({ session: radia.id, garde: radia.id });
+    expect(vu).toEqual({ session: samia.id, garde: samia.id });
   });
 
   it("RIEN NE RESTE chez la personne — conversation, cartes, consommation, notifications ; l'essai est à l'audit, au nom du Super Admin", async () => {
@@ -184,7 +189,7 @@ suite("Essayer l'agent d'une personne — exactement son agent", () => {
   it("L'HISTORIQUE DE L'ESSAI — le tour suivant relit les échanges précédents comme un fil ordinaire", async () => {
     const f = modeleFactice([reponse("Le second.")]);
     remplacerModelesPourTests([f.modele as never]);
-    const r = await essayerAgentDe(amine, radia.id, "Et ensuite ?", [{ question: "Premier message de l'essai", reponse: "Première réponse de l'agent" }]);
+    const r = await essayerAgentDe(amine, samia.id, "Et ensuite ?", [{ question: "Premier message de l'essai", reponse: "Première réponse de l'agent" }]);
     expect(r.ok, r.ok ? "" : r.erreur).toBe(true);
     const recu = JSON.stringify(f.promptsRecus);
     expect(recu).toContain("Premier message de l'essai");
@@ -201,5 +206,10 @@ suite("Essayer l'agent d'une personne — exactement son agent", () => {
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.tours.at(-1)).toMatchObject({ role: "assistant", etat: "ECHEC" });
     expect(f.promptsRecus, "l'assistant fermé à la personne ne s'est pas ouvert à l'essai").toHaveLength(0);
+    // 24/11/2026 : la clé ASSISTANT_IA ouverte dans la console à Radia ne lui donne plus d'agent — l'essai le dit.
+    const deRadia = await essayerAgentDe(amine, radia.id, "Bonjour", []);
+    expect(deRadia.ok).toBe(true);
+    if (deRadia.ok) expect(deRadia.tours.at(-1)).toMatchObject({ role: "assistant", etat: "ECHEC" });
+    expect(f.promptsRecus, "Adam fermé à Radia ne s'est pas ouvert à l'essai").toHaveLength(0);
   });
 });

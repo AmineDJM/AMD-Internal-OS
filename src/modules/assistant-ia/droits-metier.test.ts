@@ -431,7 +431,9 @@ suite("contre la base, au faux modèle", () => {
     ACTEUR = await session2(assistante);
     const r = await confirmerIntentionAssistantIA(props[0]!.intentId);
     expect(r).toMatchObject({ ok: false });
-    expect(r.error).toMatch(/plus le droit/);
+    // Depuis le 24/11/2026, Adam est fermé à tout compte non Super Admin, clé de la console comprise : la carte est
+    // refusée dès la porte — a fortiori quand sa famille a été fermée entre-temps.
+    expect(r.error).toMatch(/plus le droit|réservé au Super Admin/);
   });
 
   it("TOUT EST TRACÉ : une valeur hors colonne du coffre (historique de paie, contrat) écrit une ligne au journal des accès, avec l'outil", async () => {

@@ -1,6 +1,6 @@
 import { GraduationCap } from "lucide-react";
 import { requireUser } from "@/lib/session";
-import { userCan, hasGlobalView, isTopManagement } from "@/lib/rbac";
+import { userCan, hasGlobalView } from "@/lib/rbac";
 import { loadReportingLine } from "@/lib/departments";
 import { managementChainOf } from "@/modules/rh/partage";
 import { canDecideChain, type ChainStage } from "@/lib/approval-chain";
@@ -12,7 +12,8 @@ import { PageHeader } from "@/components/shared/page-header";
 import { KpiCard } from "@/components/shared/kpi-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils";
-import { countParticipants, type TrainingAttendance, type TrainingParticipantState } from "@/lib/training";
+import { countParticipants, etapeDeFormation, type TrainingAttendance, type TrainingParticipantState } from "@/lib/training";
+import { autorisateursDeLaFormation } from "@/modules/rh/api";
 import { TrainingBoard, type TrainingRow } from "./training-board";
 import { refusAnnulationFormation } from "@/lib/annulations/regles";
 
@@ -53,7 +54,8 @@ export default async function FormationsPage(props: { searchParams: Promise<{ fo
   // (audit 360°, I12). La page ne comptait comme N+1 que les personnes dont la fiche porte
   // `managerId = moi` : un responsable de DÉPARTEMENT — le N+1 réel de ceux qui n'ont pas de
   // responsable nommé — n'avait jamais le bouton que l'action lui aurait accordé. La chaîne se lit
-  // sur l'organigramme réel (`managementChainOf`), et le sommet par `isTopManagement`, DG compris.
+  // sur l'organigramme réel (`managementChainOf`). L'outrepasse est au seul Super Admin, et la dernière marche au
+  // Directeur des opérations de la société de la formation (24/11/2026 — plus de DG).
   const { employees, departments: organigramme } = await loadReportingLine();
   const employeDuCompte = new Map(employees.filter((e) => e.userId).map((e) => [e.userId as string, e.id]));
   // LES FICHES AU NOM DESQUELLES JE TRANCHE : la mienne, et celle de chaque absent que je remplace
@@ -65,7 +67,17 @@ export default async function FormationsPage(props: { searchParams: Promise<{ fo
     const sujet = employeDuCompte.get(requesterId);
     return sujet ? managementChainOf(sujet, employees, organigramme).some((m) => mesFiches.has(m.employeeId)) : false;
   };
-  const sommet = isTopManagement(user);
+  const sommet = user.role === "SUPER_ADMIN";
+  // L'AUTORISATION DU DIRECTEUR DES OPÉRATIONS — la même règle que l'action (`autorisateursDeLaFormation`), lue une fois
+  // par société présente dans la liste plutôt qu'une requête par ligne.
+  const autorisateurs = new Map<string, string[]>();
+  const jAutorise = async (t: { companyId: string | null; requesterId: string | null }): Promise<boolean> => {
+    const cle = `${t.companyId ?? ""}|${t.requesterId ?? ""}`;
+    if (!autorisateurs.has(cle)) autorisateurs.set(cle, (await autorisateursDeLaFormation(t.companyId, t.requesterId)).userIds);
+    return autorisateurs.get(cle)?.includes(user.id) ?? false;
+  };
+  const opsPar = new Map<string, boolean>();
+  for (const t of trainings) if (t.status === "PENDING" && etapeDeFormation(t.stage as ChainStage, t.status) === "OPERATIONS") opsPar.set(t.id, await jAutorise(t));
 
   const docs = trainings.length
     ? await prisma.document.findMany({
@@ -91,9 +103,10 @@ export default async function FormationsPage(props: { searchParams: Promise<{ fo
     // « Peut trancher » est calculé ici, côté serveur : un bouton affiché par erreur est une
     // promesse que le serveur refusera.
     const isManager = (t.managerId != null && mesFiches.has(t.managerId)) || auDessusDe(t.requesterId);
+    const etape = etapeDeFormation(t.stage as ChainStage, t.status);
     const canDecide = canDecideChain(
-      { status: t.status === "PENDING" ? "PENDING" : "APPROVED", stage: t.stage as ChainStage, requesterUserId: t.requesterId },
-      { id: user.id, isManager, isHr, isDg: sommet },
+      { status: t.status === "PENDING" ? "PENDING" : "APPROVED", stage: etape, requesterUserId: t.requesterId },
+      { id: user.id, isManager, isHr, isDg: sommet, isOps: opsPar.get(t.id) ?? false },
     ).ok;
     return {
       id: t.id,
@@ -101,7 +114,7 @@ export default async function FormationsPage(props: { searchParams: Promise<{ fo
       title: t.title,
       origin: t.origin as "EMPLOYEE" | "HR",
       status: t.status as TrainingRow["status"],
-      stage: t.stage as TrainingRow["stage"],
+      stage: etape,
       provider: t.provider,
       description: t.description,
       location: t.location,
@@ -137,7 +150,7 @@ export default async function FormationsPage(props: { searchParams: Promise<{ fo
     <div className="space-y-5">
       <PageHeader
         title="Formations"
-        description="Chacun peut demander une formation — elle monte responsable (N+1) → ressources humaines → direction. Les RH en organisent aussi, y invitent des participants (convoqués ou volontaires) et y attachent des postes (salle, traiteur…) validés un par un par la direction."
+        description="Chacun peut demander une formation — elle monte responsable (N+1) → ressources humaines → Directeur des opérations, qui l'autorise. Les RH en organisent aussi (réglementaires comprises) : elles passent par la même autorisation."
       />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">

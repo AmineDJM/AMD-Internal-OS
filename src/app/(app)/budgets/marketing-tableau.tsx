@@ -23,6 +23,7 @@ import {
 } from "@/lib/budget/marketing-vue";
 import { GraphiquesMarketing, couleurDeCategorie, fmt, useCouleurs, type RegistreExports } from "./marketing-graphiques";
 import { ReallouerSheet, type DemandeReallocation } from "./marketing-reallouer";
+import type { LigneDAutreEnveloppe } from "@/lib/budget/budget-du-directeur";
 
 export interface Reallocation { le: string; par: string | null; resume: string }
 
@@ -39,7 +40,7 @@ export interface LiensMarketing {
   integration: string | null;
 }
 
-export function TableauMarketing({ donnees, categoriesBrutes, integration, reallocations, pctEcoule, moisCourant, peutReallouer, liens }: {
+export function TableauMarketing({ donnees, categoriesBrutes, integration, reallocations, pctEcoule, moisCourant, peutReallouer, autresLignes, liens }: {
   donnees: DonneesMarketing;
   /** Les catégories et sous-catégories de l'enveloppe, montants PROPRES (`getBudgetOverview`). */
   categoriesBrutes: CategorieBrute[];
@@ -51,6 +52,8 @@ export function TableauMarketing({ donnees, categoriesBrutes, integration, reall
   /** Le mois du jour (« 2026-10 »). */
   moisCourant: string;
   peutReallouer: boolean;
+  /** Le directeur du budget réalloue aussi vers les autres enveloppes de son budget (`droitsDeReallocation`). */
+  autresLignes?: LigneDAutreEnveloppe[];
   liens: LiensMarketing;
 }) {
   const couleurs = useCouleurs();
@@ -239,7 +242,7 @@ export function TableauMarketing({ donnees, categoriesBrutes, integration, reall
       )}
 
       {peutReallouer && (
-        <ReallouerSheet ouverte={realloc.ouverte} onClose={() => setRealloc((r) => ({ ...r, ouverte: false }))} tetes={arbre} envelopeId={donnees.enveloppe.id} initial={realloc.initial} onFait={setMessage} />
+        <ReallouerSheet ouverte={realloc.ouverte} onClose={() => setRealloc((r) => ({ ...r, ouverte: false }))} tetes={arbre} envelopeId={donnees.enveloppe.id} initial={realloc.initial} onFait={setMessage} autres={autresLignes} />
       )}
     </>
   );

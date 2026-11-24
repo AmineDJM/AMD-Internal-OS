@@ -133,9 +133,10 @@ suite("la file des congés du N+1, et une décision à la fois", () => {
 
   it("FORMATION : un accord et un refus croisés — un seul s'écrit, l'autre est dit", async () => {
     const formation = (await prisma.training.create({
-      data: { reference: `${TAG}-FORM`, title: `${TAG} Formation BPF`, requesterId: u.e, status: "PENDING", stage: "DG", amount: 50_000 },
+      data: { reference: `${TAG}-FORM`, title: `${TAG} Formation BPF`, requesterId: u.e, status: "PENDING", stage: "OPERATIONS", amount: 50_000 },
     })).id;
-    ACTOR = await actorFor(u.g);
+    // La dernière marche est l'autorisation du Directeur des opérations (24/11/2026) — plus le DG.
+    ACTOR = await actorFor(u.n2);
     const [r1, r2] = await deuxEnsemble("Training", formation,
       () => decideTraining(form({ id: formation, decision: "APPROVED" })),
       () => decideTraining(form({ id: formation, decision: "REJECTED", note: "Budget formation épuisé." })));

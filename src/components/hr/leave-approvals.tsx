@@ -77,6 +77,7 @@ const STAGE_SHORT: Record<LeaveStage, string> = {
   MANAGER: "Responsable (N+1)",
   HR: "Ressources humaines",
   DG: "Direction générale",
+  OPERATIONS: "Directeur des opérations",
   DONE: "Terminé",
 };
 

@@ -200,16 +200,21 @@ suite("S1 — le scénario du 02/11 contre la base", () => {
     expect(r.ok).toBe(false);
   });
 
-  it("RADIA, connexion réelle — la consigne nomme Radia, jamais Amine ; « mon salaire » rend le sien", async () => {
+  it("RADIA, connexion réelle — la porte d'Adam lui est fermée (Super Admin seul, 24/11/2026) ; le moteur la nomme elle, jamais Amine", async () => {
     const f = modeleFactice([
       { appel: { outil: "lire_paie", entree: { nom: "moi" } } },
       (prompt) => reponse(chiffres(prompt).includes("110000") ? "Votre net est de 110 000 DZD." : "Je n'ai pas la valeur."),
     ]);
     remplacerModelesPourTests([f.modele as never]);
     ACTEUR = radia;
-    const r = await envoyerMessageBeta("Quel est mon salaire ?", undefined, []);
+    // La clé ASSISTANT_IA de la console ne lui ouvre plus Adam : refus à la porte, sans appeler le modèle.
+    const porte = await envoyerMessageBeta("Quel est mon salaire ?", undefined, []);
+    expect(porte.ok).toBe(false);
+    expect(f.promptsRecus).toHaveLength(0);
+    // Le moteur, appelé pour elle (son identité, ses droits), reste juste : « mon salaire » rend le sien.
+    const r = await jouerTour(radia, { texte: "Quel est mon salaire ?", pieces: [], historique: [] });
     expect(r.ok).toBe(true);
-    expect(r.content).toContain("110 000 DZD");
+    if (r.ok) expect(r.content).toContain("110 000 DZD");
     const recu = JSON.stringify(f.promptsRecus);
     expect(recu).toContain(`Radia ${TAG}`);
     expect(recu).not.toContain("Amine");

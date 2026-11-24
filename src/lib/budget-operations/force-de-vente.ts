@@ -48,16 +48,8 @@ export const LIBELLE_PETITES_EQUIPES = "Autres équipes (effectifs réduits)";
 export const DIRECTION_OPERATIONS = "__DIRECTION_OPERATIONS__";
 export const LIBELLE_DIRECTION_OPERATIONS = "Direction des opérations";
 
-/**
- * Ce département est-il la Direction des opérations ? Lu sur le nom (sans casse ni accents : « Direction des Opérations »,
- * « Opérations », « Direction Operations ») ou sur le code (OPERATIONS, DIR_OPS…). Pur : l'appelant fournit nom et code.
- */
-export function estDirectionDesOperations(d: { name: string; code: string }): boolean {
-  const nom = d.name.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
-  const code = d.code.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/[^A-Z]/g, "");
-  return /^(direction\s+(des?|d')\s*)?operations?$/.test(nom) || /^direction\s+(des?|d')\s*operations?\b/.test(nom)
-    || /^(DIR(ECTION)?)?(OPS|OPERATIONS?)$/.test(code);
-}
+/** Ce département est-il la Direction des opérations ? — la règle de l'organigramme, lue au module RH (une définition). */
+export { estDirectionDesOperations } from "@/modules/rh/partage";
 
 /** `directeurOperations` : le compte du salarié a le rôle de Directeur des opérations — il en fait partie, où que soit son département. */
 export interface EmployeFdv { id: string; userId: string | null; departmentId: string | null; directeurOperations?: boolean }

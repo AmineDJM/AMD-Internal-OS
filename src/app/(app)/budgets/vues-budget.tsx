@@ -34,6 +34,8 @@ import { CreateEnvelopeButton } from "./budget-forms";
 import { NouvelleEnveloppePole } from "./enveloppe-marketing-forms";
 import { VueEnsembleRegulatory } from "./vue-regulatory";
 import { VueEnsembleMarketing } from "./vue-marketing";
+import { BoutonReallouer } from "./reallouer-bouton";
+import { droitsDeReallocation } from "@/lib/budget/directeur-serveur";
 import { SurlignerCible } from "@/components/shared/surligner-cible";
 import { contexteIntegration, ongletsBudgetMarketing } from "@/lib/budget-marketing/onglets";
 import { vueDuLot, type VueLot } from "@/lib/budget-marketing/integration-serveur";
@@ -173,11 +175,25 @@ export async function VueEnsembleBudget({ user, searchParams, config }: { user: 
     : [];
   const trendPoints = overview.monthly.map((m) => ({ label: m.label, value: m.cumulative, expected: m.expected }));
   const exportHref = `/api/budgets/export?env=${overview.envelope.id}&from=${overview.period.from.slice(0, 10)}&to=${overview.period.to.slice(0, 10)}${pole ? `&portee=${pole.toLowerCase()}` : ""}`;
+  // RÉALLOUER (24/11/2026) : le directeur du budget, ou qui gère l'enveloppe de pôle ; dans Budgets, une enveloppe de pôle se
+  // règle dans son module — le geste n'y vaut que pour une enveloppe générale (celle d'un département, née d'une campagne).
+  const poleEnv = poleDe(overview.envelope);
+  const realloc = await droitsDeReallocation(user, overview.envelope.id);
+  const montrerReallouer = pole
+    ? poleEnv === pole && (realloc.directeur || canManageEnvelope(user, overview.envelope))
+    : poleEnv === null && (realloc.directeur || user.role === "SUPER_ADMIN");
 
   return (
     <div className="space-y-5">
       <SurlignerCible ids={[searchParams.cible]} />
       <PageHeader title={config.titre} description={description}>
+        {montrerReallouer && (
+          <BoutonReallouer
+            envelopeId={overview.envelope.id}
+            categoriesBrutes={overview.categories.map((c) => ({ id: c.id, name: c.name, parentId: c.parentId, allocated: c.allocated, consumed: c.consumed, committed: c.committed }))}
+            autres={realloc.autres}
+          />
+        )}
         <a
           href={exportHref}
           className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-secondary sm:min-h-0 sm:px-2.5"

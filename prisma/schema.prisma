@@ -567,6 +567,7 @@ enum LeaveStage {
   MANAGER /// en attente du responsable hiérarchique (N+1)
   HR /// en attente des ressources humaines
   DG /// en attente de la direction générale
+  OPERATIONS /// en attente de l'autorisation du Directeur des opérations (formations, 24/11/2026)
   DONE /// circuit terminé (approuvé ou refusé)
 }
 
@@ -3840,8 +3841,9 @@ model Training {
   departmentId String?
   department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
 
-  /// ─── Circuit à trois marches : N+1 → RH → DG (cf. approval-chain.ts) ───
-  /// Une formation ORGANISÉE par les RH n'a pas de N+1 à consulter : elle entre à l'étape DG.
+  /// ─── Circuit à trois marches : N+1 → RH → Directeur des opérations (cf. approval-chain.ts, 24/11/2026) ───
+  /// Une formation ORGANISÉE par les RH (réglementaire, convocation) n'a pas de N+1 à consulter : elle entre à
+  /// l'autorisation du Directeur des opérations. Les colonnes `dg*` gardent les décisions DG d'avant le 24/11/2026.
   stage              LeaveStage @default(MANAGER)
   managerId          String?
   managerDecidedById String?
@@ -3853,6 +3855,10 @@ model Training {
   dgDecidedById      String?
   dgDecidedAt        DateTime?
   dgNote             String?
+  /// L'autorisation du Directeur des opérations (la dernière marche depuis le 24/11/2026).
+  opsDecidedById     String?
+  opsDecidedAt       DateTime?
+  opsNote            String?
 
   createdById String?
   createdAt   DateTime @default(now())

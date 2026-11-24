@@ -31,6 +31,8 @@ export const LEAVE_STAGE_LABELS: Record<LeaveStage, string> = {
   MANAGER: "En attente du responsable (N+1)",
   HR: "En attente des ressources humaines",
   DG: "En attente de la direction générale",
+  // La marche de la formation (24/11/2026) ; un congé n'y passe jamais.
+  OPERATIONS: "En attente du Directeur des opérations",
   DONE: "Circuit terminé",
 };
 

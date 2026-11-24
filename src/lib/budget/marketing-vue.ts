@@ -340,8 +340,13 @@ export const MOTIF_MIN = 5;
  * l'une perd, l'autre le gagne. Le motif est obligatoire (il reste dans l'historique). Une catégorie ne cède jamais
  * plus que son allocation, ni — quand on la connaît — plus que sa part CESSIBLE (`cessible` : ce qui reste libre
  * au-dessus de son payé + engagé ET de ce que ses sous-catégories répartissent).
+ *
+ * LE DIRECTEUR, DANS TOUT SON BUDGET (Super Admin, 24/11/2026) : `entreEnveloppes` ouvre le passage d'une enveloppe à une
+ * autre du MÊME budget — l'appelant l'a établi (`budget-du-directeur.ts`) ; le total du budget, lui, ne bouge pas.
  */
 export function refusReallocation(p: {
+  /** Les deux enveloppes sont du même budget et la personne en est le directeur (ou le Super Admin). */
+  entreEnveloppes?: boolean;
   sourceId: string | null | undefined;
   cibleId: string | null | undefined;
   montant: number | null | undefined;
@@ -352,7 +357,7 @@ export function refusReallocation(p: {
   if (!p.sourceId || !p.cibleId) return "Choisissez la catégorie qui cède et celle qui reçoit.";
   if (p.sourceId === p.cibleId) return "La catégorie qui cède et celle qui reçoit doivent être différentes.";
   if (!p.source || !p.cible) return "Catégorie introuvable.";
-  if (p.source.envelopeId !== p.cible.envelopeId) return "On ne réalloue qu'entre catégories de la même enveloppe.";
+  if (p.source.envelopeId !== p.cible.envelopeId && !p.entreEnveloppes) return "On ne réalloue qu'entre catégories de la même enveloppe — d'une enveloppe à l'autre, c'est le directeur du budget qui le fait.";
   if (p.source.parentId !== null || p.cible.parentId !== null) return "On réalloue entre catégories de tête (une sous-catégorie répartit déjà sa catégorie).";
   if (p.montant == null || !Number.isFinite(p.montant) || p.montant <= 0) return "Indiquez un montant positif.";
   if (p.montant > p.source.alloue + 0.005) return `La catégorie qui cède n'a que ${fr(p.source.alloue)} DZD alloués.`;

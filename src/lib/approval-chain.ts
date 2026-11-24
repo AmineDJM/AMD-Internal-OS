@@ -18,24 +18,30 @@
  * Module PUR (aucun accès base, aucun import lourd) : importable côté client comme serveur.
  */
 
-export type ChainStage = "MANAGER" | "HR" | "DG" | "DONE";
+/**
+ * `OPERATIONS` — la dernière marche de la FORMATION depuis le 24/11/2026 : « toutes les formations (réglementaires comprises)
+ * passent par l'autorisation du Directeur des opérations », sans le DG. Le congé ne la connaît pas.
+ */
+export type ChainStage = "MANAGER" | "HR" | "DG" | "OPERATIONS" | "DONE";
 export type ChainStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
 
 export const CHAIN_STAGE_LABELS: Record<ChainStage, string> = {
   MANAGER: "En attente du responsable (N+1)",
   HR: "En attente des ressources humaines",
   DG: "En attente de la direction générale",
+  OPERATIONS: "En attente du Directeur des opérations",
   DONE: "Circuit terminé",
 };
 
 /**
  * L'étape qui suit, quand la marche courante approuve. `sansDG` : le circuit s'arrête aux RH — c'est celui du CONGÉ
- * depuis la décision de la Direction (06/10 : « supprime l'étape DG ») ; la formation garde sa troisième marche.
+ * depuis la décision de la Direction (06/10 : « supprime l'étape DG »). `derniere` : la troisième marche, si ce n'est pas
+ * le DG — la FORMATION monte au Directeur des opérations (24/11/2026).
  */
-export function nextChainStage(stage: ChainStage, opts: { sansDG?: boolean } = {}): ChainStage {
+export function nextChainStage(stage: ChainStage, opts: { sansDG?: boolean; derniere?: "DG" | "OPERATIONS" } = {}): ChainStage {
   switch (stage) {
     case "MANAGER": return "HR";
-    case "HR": return opts.sansDG ? "DONE" : "DG";
+    case "HR": return opts.sansDG ? "DONE" : opts.derniere ?? "DG";
     default: return "DONE";
   }
 }
@@ -46,8 +52,10 @@ export interface ChainDecider {
   isManager: boolean;
   /** Porte-t-il la fonction RH (droit de valider sur le module RH) ? */
   isHr: boolean;
-  /** Direction générale / vue globale / Super Admin. */
+  /** Direction générale / vue globale / Super Admin — l'outrepasse à toute marche. */
   isDg: boolean;
+  /** Le Directeur des opérations qui autorise CETTE demande (formation, `rh/domaine/directeurs.ts`). */
+  isOps?: boolean;
 }
 
 export interface ChainState {
@@ -84,6 +92,9 @@ export function canDecideChain(state: ChainState, decider: ChainDecider): { ok: 
     case "DG":
       if (decider.isDg) return { ok: true };
       return { ok: false, reason: "En attente de la direction générale." };
+    case "OPERATIONS":
+      if (decider.isOps || decider.isDg) return { ok: true };
+      return { ok: false, reason: "En attente du Directeur des opérations." };
     default:
       return { ok: false, reason: "Circuit terminé." };
   }
@@ -101,7 +112,7 @@ export interface ChainTransition {
  * définitivement. Refuser clôt le circuit sur-le-champ, quelle que soit la marche.
  * Fonction PURE — testée.
  */
-export function applyChainDecision(stage: ChainStage, decision: "APPROVED" | "REJECTED", opts: { sansDG?: boolean } = {}): ChainTransition {
+export function applyChainDecision(stage: ChainStage, decision: "APPROVED" | "REJECTED", opts: { sansDG?: boolean; derniere?: "DG" | "OPERATIONS" } = {}): ChainTransition {
   if (decision === "REJECTED") return { stage: "DONE", status: "REJECTED", granted: false };
   const next = nextChainStage(stage, opts);
   if (next === "DONE") return { stage: "DONE", status: "APPROVED", granted: true };
@@ -123,6 +134,7 @@ export function chainNotifyRoles(stage: ChainStage): string[] {
   switch (stage) {
     case "HR": return ["DIRECTION", "GENERAL_MANAGER", "SUPER_ADMIN"];
     case "DG": return ["DIRECTION", "GENERAL_MANAGER", "SUPER_ADMIN"];
+    // Le Directeur des opérations est une PERSONNE (l'organigramme) : il est prévenu nommément, jamais par un rôle.
     default: return [];
   }
 }
@@ -141,6 +153,6 @@ export function arriveeALaMarche(
   f: { creeLe: Date; n1DecideLe: Date | null; rhDecideLe: Date | null },
 ): Date {
   if (stage === "HR") return f.n1DecideLe ?? f.creeLe;
-  if (stage === "DG") return f.rhDecideLe ?? f.n1DecideLe ?? f.creeLe;
+  if (stage === "DG" || stage === "OPERATIONS") return f.rhDecideLe ?? f.n1DecideLe ?? f.creeLe;
   return f.creeLe;
 }

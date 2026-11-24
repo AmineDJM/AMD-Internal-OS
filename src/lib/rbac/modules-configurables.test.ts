@@ -164,14 +164,17 @@ describe("chaque écran a sa clé, réglable dans la console", () => {
     expect(sitsOnPaymentCentre(personne("SUPER_ADMIN", null, [ligne(false)]))).toBe(true);
   });
 
-  it("le Centre Ad & Pro et le bureau d'Adam : accorder ouvre, bloquer ferme", () => {
+  it("le Centre Ad & Pro : accorder ouvre, bloquer ferme ; le bureau d'Adam : au Super Admin seul (24/11/2026)", () => {
     const ligne = (module: string, canView: boolean): LigneAccesAttribue => ({
       module, canView, canCreate: false, canUpdate: false, canDelete: false, canValidate: false,
       canExport: false, canUpload: false, scope: "ALL", sections: [],
     });
     expect(siegeAuCentreAdPro(personne("PRODUCT_MANAGER", null, [ligne("AD_PRO_CENTRE", true)]))).toBe(true);
     expect(siegeAuCentreAdPro(personne("GENERAL_MANAGER", null, [ligne("AD_PRO_CENTRE", false)]))).toBe(false);
-    expect(ouvreLeBureauAdam(personne("DIRECTION", null, [ligne("CHIEF_OF_STAFF", true)]))).toBe(true);
+    // « Adam : fermé à tous sauf Super Admin » — la clé accordée à un autre compte n'ouvre plus rien ; bloquée, elle ferme.
+    expect(ouvreLeBureauAdam(personne("DIRECTION", null, [ligne("CHIEF_OF_STAFF", true)]))).toBe(false);
     expect(ouvreLeBureauAdam(personne("DIRECTION", null))).toBe(false);
+    expect(ouvreLeBureauAdam(personne("SUPER_ADMIN", null))).toBe(true);
+    expect(ouvreLeBureauAdam(personne("SUPER_ADMIN", null, [ligne("CHIEF_OF_STAFF", false)]))).toBe(false);
   });
 });

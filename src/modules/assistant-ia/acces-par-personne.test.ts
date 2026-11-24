@@ -41,10 +41,11 @@ afterAll(async () => {
 const nomsOfferts = (u: CurrentUser) => Object.keys(outilsPour(outilsV1(u, []), u)).sort();
 
 describe("qui a l'Assistant IA", () => {
-  it("le Super Admin d'office ; une autre personne seulement si on le lui ouvre", () => {
+  it("le Super Admin seul — l'ouvrir à une autre personne dans la console n'ouvre plus rien (Super Admin, 24/11/2026)", () => {
     expect(peutUtiliserAssistantIA(superAdmin)).toBe(true);
     expect(peutUtiliserAssistantIA(assistanteFermee)).toBe(false);
-    expect(peutUtiliserAssistantIA(assistanteOuverte)).toBe(true);
+    expect(peutUtiliserAssistantIA(assistanteOuverte)).toBe(false);
+    expect(assistanteOuverte.access.modules.has("ASSISTANT_IA")).toBe(false);
   });
 
   it("ouvrir l'Assistant IA n'ouvre pas Adam", () => {

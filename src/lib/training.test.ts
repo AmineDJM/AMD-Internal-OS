@@ -1,9 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
   initialTrainingStage, initialParticipantState, canRespondToInvitation, countParticipants,
-  canEditTraining, grantedAmount,
+  canEditTraining, grantedAmount, etapeDeFormation,
   type TrainingAttendance, type TrainingParticipantState,
 } from "./training";
+import { applyChainDecision, canDecideChain } from "./approval-chain";
 
 const p = (attendance: TrainingAttendance, state: TrainingParticipantState) => ({ attendance, state });
 
@@ -16,11 +17,38 @@ describe("initialTrainingStage — d'où part le circuit selon l'origine", () =>
     expect(initialTrainingStage("EMPLOYEE", false)).toBe("HR");
   });
 
-  it("envoie DIRECTEMENT au DG une formation organisée par les RH", () => {
+  it("envoie DIRECTEMENT à l'autorisation du Directeur des opérations une formation organisée par les RH (réglementaire comprise)", () => {
     // Les RH SONT l'étape RH : les faire signer chez elles serait une signature vide, et le
     // N+1 de l'organisatrice n'a rien à dire d'une formation qui n'est pas pour son équipe.
-    expect(initialTrainingStage("HR", true)).toBe("DG");
-    expect(initialTrainingStage("HR", false)).toBe("DG");
+    // Plus de DG (Super Admin, 24/11/2026) : la dernière marche est le Directeur des opérations.
+    expect(initialTrainingStage("HR", true)).toBe("OPERATIONS");
+    expect(initialTrainingStage("HR", false)).toBe("OPERATIONS");
+  });
+});
+
+describe("le circuit d'une formation — N+1 → RH → Directeur des opérations, sans le DG (24/11/2026)", () => {
+  it("après les RH, la formation monte au Directeur des opérations, qui l'accorde définitivement", () => {
+    expect(applyChainDecision("HR", "APPROVED", { derniere: "OPERATIONS" })).toEqual({ stage: "OPERATIONS", status: "PENDING", granted: false });
+    expect(applyChainDecision("OPERATIONS", "APPROVED", { derniere: "OPERATIONS" })).toEqual({ stage: "DONE", status: "APPROVED", granted: true });
+  });
+
+  it("seul le Directeur des opérations (ou le Super Admin, outrepasse) tranche cette marche — pas le DG", () => {
+    const etat = { status: "PENDING" as const, stage: "OPERATIONS" as const, requesterUserId: "r" };
+    expect(canDecideChain(etat, { id: "ops", isManager: false, isHr: false, isDg: false, isOps: true }).ok).toBe(true);
+    expect(canDecideChain(etat, { id: "rh", isManager: false, isHr: true, isDg: false }).ok).toBe(false);
+    expect(canDecideChain(etat, { id: "sa", isManager: false, isHr: false, isDg: true }).ok).toBe(true);
+    // On ne s'autorise pas soi-même.
+    expect(canDecideChain(etat, { id: "r", isManager: false, isHr: false, isDg: false, isOps: true }).ok).toBe(false);
+  });
+
+  it("une formation restée « chez le DG » se lit à l'autorisation du Directeur des opérations, sans réécrire l'historique", () => {
+    expect(etapeDeFormation("DG", "PENDING")).toBe("OPERATIONS");
+    expect(etapeDeFormation("DG", "APPROVED")).toBe("DG");
+    expect(etapeDeFormation("HR", "PENDING")).toBe("HR");
+  });
+
+  it("le congé, lui, ne change pas : il s'arrête aux RH", () => {
+    expect(applyChainDecision("HR", "APPROVED", { sansDG: true })).toEqual({ stage: "DONE", status: "APPROVED", granted: true });
   });
 });
 

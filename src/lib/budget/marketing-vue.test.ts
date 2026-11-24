@@ -83,6 +83,9 @@ describe("réallouer — l'enveloppe ne bouge pas, le motif est obligatoire", ()
     expect(refusReallocation({ ...ok, montant: 0 })).toMatch(/positif/);
     expect(refusReallocation({ ...ok, source: { envelopeId: "e", parentId: "t", alloue: 500 } })).toMatch(/tête/);
   });
+  it("le directeur du budget passe d'une enveloppe à l'autre de SON budget (24/11/2026)", () => {
+    expect(refusReallocation({ ...ok, entreEnveloppes: true, cible: { envelopeId: "x", parentId: null } })).toBeNull();
+  });
 });
 
 describe("les filtres s'appliquent à toutes les lectures", () => {
