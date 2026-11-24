@@ -117,13 +117,22 @@ export interface LigneFileAgence {
 
 const estMarketing = (u: SessionUser) => hasRole(u, "PRODUCT_MANAGER") || hasRole(u, "SUPER_ADMIN");
 
-/** La file « Prospection d'agences » — l'assistante voit SES postes ; la Direction Marketing et le Super Admin, tous. */
+/**
+ * La file « Prospection d'agences » — l'assistante voit SES postes ; la Direction Marketing, le Super Admin et quiconque la
+ * console l'ouvre suivent tout le parcours.
+ *
+ * LA PORTE DE L'ÉCRAN est la clé `PROSPECTION_AGENCES` (24/11/2026) : par défaut l'assistante de direction, la Direction
+ * Marketing et le Super Admin — la liste de rôles d'hier —, réglée ensuite personne par personne. Les RÔLES restent la règle
+ * du MÉTIER : qui a la main à quelle étape (`pasAgence`), et la portée de l'assistante sur ses seuls postes.
+ */
 export async function fileAgences(user: SessionUser): Promise<LigneFileAgence[] | null> {
+  if (!userCan(user, "PROSPECTION_AGENCES", "VIEW")) return null;
   const assistante = hasRole(user, "DIRECTION_ASSISTANT");
   const marketing = estMarketing(user);
-  if (!assistante && !marketing) return null;
+  // L'assistante ne lit que les postes qu'on lui a confiés ; tout autre porteur de la clé lit le parcours entier.
+  const toutVoir = marketing || !assistante;
   const execs = await prisma.adProExecutionPoste.findMany({
-    where: { prospectionDemandeeAt: { not: null }, ...(marketing ? {} : { assistanteId: user.id }), item: { expenseOrderId: null } },
+    where: { prospectionDemandeeAt: { not: null }, ...(toutVoir ? {} : { assistanteId: user.id }), item: { expenseOrderId: null } },
     orderBy: { prospectionDemandeeAt: "asc" },
     take: 300,
     include: {

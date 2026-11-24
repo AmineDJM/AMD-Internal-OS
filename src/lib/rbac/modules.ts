@@ -12,7 +12,18 @@ export const MODULES = [
   // (« voit le pipeline » / « tient le cadenas », Réglages) reste une SECONDE clé, indépendante (`seesLockedRegulatory`).
   // Par défaut, chaque rôle y a exactement ses gestes de Regulatory : personne ne perd le pipeline le jour de la scission.
   "REGULATORY_PIPELINE",
-  "SPONSORING", "BUDGETS", "FINANCES", "RH",
+  "SPONSORING", "BUDGETS", "FINANCES",
+  // LES TROIS ÉCRANS DES FINANCES, chacun sa clé (Super Admin, 24/11/2026 : « je peux donner ou révoquer l'accès à TOUT
+  // module affiché, y compris Doublons de factures, Comptabilité, Banque & paiements »). Ils partageaient `FINANCES` :
+  // on ne pouvait ouvrir la Comptabilité sans ouvrir la banque. Par défaut, chaque rôle y a EXACTEMENT ses gestes de
+  // `FINANCES` (permissions.ts), et la migration `modules_configurables` recopie les accès personnalisés ou bloqués :
+  // personne ne gagne ni ne perd un écran le jour de la scission. `FINANCES` garde le métier TRANSVERSE (factures dans
+  // Legal, bons de commande, demandes de paiement, ordres vus depuis une fiche, recherche) et le groupe du menu.
+  //   FINANCES_BANQUE       — « Banque & paiements » : la file des ordres à régler, la trésorerie et ses comptes ;
+  //   FINANCES_COMPTABILITE — « Comptabilité » : le livre, l'import des relevés, le cockpit du DAF ;
+  //   FINANCES_DOUBLONS     — « Doublons de factures » : le recensement ; « Modifier » = marquer un groupe examiné.
+  "FINANCES_BANQUE", "FINANCES_COMPTABILITE", "FINANCES_DOUBLONS",
+  "RH",
   "CONGRESS_INTERNATIONAL", "CONGRESS_NATIONAL", "EVENTS", "SALES", "LOGISTICS", "MEDICAL", "FIELD_REPORTS", "SALES_PLANNING",
   "BUSINESS_DEVELOPMENT", "PRODUCT_EXPLORER", "PCH", "STOCKS", "MEDICAL_INFO", "PROMO_MATERIAL", "CONSULTING", "AD_PRO_OTHER", "GENERAL_MEANS", "VALIDATIONS", "VALIDATION_CENTRE", "DIRECTIVES", "SUPPORT", "DOSSIERS", "DOCUMENTS", "DRIVE", "ADMIN_REQUESTS", "NOTIFICATIONS",
   // LEGAL : les engagements de la société (contrats, bons de commande, assurances).
@@ -168,6 +179,17 @@ export const MODULES = [
   // on est le responsable désigné du processus ; Modifier = désigner les responsables (la Direction, `peutDesigner`).
   // La règle dérivée reste DERRIÈRE la porte : on ne voit que les recettes des circuits dont on voit l'écran.
   "RECETTES",
+  // LES ÉCRANS QUI S'OUVRAIENT PAR UN RÔLE CODÉ EN DUR (Super Admin, 24/11/2026 : « vérifie que tous les modules affichés
+  // sont configurables depuis la console »). Chacun devient une clé, réglée personne par personne ; son DÉFAUT reproduit
+  // exactement la règle d'hier (permissions.ts). Seul l'ACCÈS à l'écran passe par la clé : les gestes du métier gardent
+  // leur règle (qui choisit l'agence, qui décide d'un contrôle, qui saisit la paie, qui restaure quoi).
+  //   PROSPECTION_AGENCES  — « Prospection d'agences » (/agences) : hier l'assistante de direction, la Direction
+  //                          Marketing et le Super Admin ;
+  //   CONTROLES_CONFORMITE — « Contrôles de conformité » (/information-medicale/conformite) : hier le pharmacien
+  //                          responsable, la Direction Marketing (par l'adresse) et le Super Admin ;
+  //   PAIE                 — « Paie » (/rh/paie) : hier qui MODIFIAIT les RH ;
+  //   CORBEILLE            — « Corbeille » (/corbeille) : hier le directeur des opérations (le Super Admin a la sienne).
+  "PROSPECTION_AGENCES", "CONTROLES_CONFORMITE", "PAIE", "CORBEILLE",
 ] as const;
 export type Module = (typeof MODULES)[number];
 

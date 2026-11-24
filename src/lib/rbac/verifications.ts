@@ -22,6 +22,24 @@ export function peutUtiliserAssistantIA(u: SessionUser): boolean {
 /** Le refus, écrit une fois — page, actions et confirmation disent la même phrase. */
 export const REFUS_ASSISTANT_IA = "L'assistant ne vous est pas ouvert.";
 
+/**
+ * LE BUREAU D'ADAM EST-IL OUVERT À CETTE PERSONNE ? — ses onglets Boîte de réception, Réglages d'Adam et Bureau d'Adam
+ * (`/adam/*`, ex-« My Chief of Staff »). La clé `CHIEF_OF_STAFF` en « Voir », telle que la console la règle, et elle seule
+ * (Super Admin, 24/11/2026).
+ *
+ * Hier, les onglets exigeaient le module ET le rôle Super Admin (`peutVoirAdam`) : la Direction portait le module par
+ * défaut sans jamais rien ouvrir, et l'accorder à quelqu'un ne servait à rien. Le module n'est plus dans les défauts de la
+ * Direction : par défaut, le Super Admin seul — l'état d'hier ; ensuite, accorder ouvre et bloquer ferme. La conversation
+ * avec Adam (`/assistant`) reste au module `ASSISTANT_IA` ; les outils exécutifs, la voix et le brief gardent `peutVoirAdam`.
+ * Un geste prêté par un intérim ne compte pas : le bureau ne se délègue pas (`hr/stand-in.ts`).
+ */
+export function ouvreLeBureauAdam(u: SessionUser): boolean {
+  return userCan(u, "CHIEF_OF_STAFF", "VIEW") && !estPrete(u, "CHIEF_OF_STAFF", "VIEW");
+}
+
+/** Le refus du bureau d'Adam, écrit une fois — il dit le remède. */
+export const REFUS_BUREAU_ADAM = "Le bureau d'Adam ne vous est pas ouvert — un Super Admin l'ouvre dans Administration › Accès (« My Chief of Staff »).";
+
 /** Does the user's effective access permit this action on this module? */
 export function userCan(user: SessionUser, module: Module, action: Action): boolean {
   return user.access.modules.get(module)?.actions.has(action) ?? false;

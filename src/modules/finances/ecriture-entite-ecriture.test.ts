@@ -34,6 +34,8 @@ suite("Livre comptable : les écritures suivent la porte de la fiche", () => {
     ids.fin = u.id;
     await prisma.employee.create({ data: { fullName: `${TAG} fin`, companyId: ids.A, userId: u.id, isActive: true } });
     await prisma.userAccess.create({ data: { userId: u.id, module: "FINANCES", canView: true, canCreate: true, canUpdate: true, canDelete: true, scope: "ALL" } });
+    // Les écritures sont le geste de la « Comptabilité », sa clé depuis le 24/11/2026 (recopiée de FINANCES par la migration).
+    await prisma.userAccess.create({ data: { userId: u.id, module: "FINANCES_COMPTABILITE", canView: true, canCreate: true, canUpdate: true, canDelete: true, scope: "ALL" } });
     ACTOR = { id: u.id, name: u.name, email: u.email, role: "COORDINATOR", secondaryRole: null, access: await getAccess(u.id, "COORDINATOR") } as unknown as CurrentUser;
     ids.txA = (await ecriture(ids.A, `${TAG}-A`)).id;
     ids.txB = (await ecriture(ids.B, `${TAG}-B`)).id;

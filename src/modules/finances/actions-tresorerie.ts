@@ -34,7 +34,7 @@ export async function createTransaction(
   formData: FormData,
 ): Promise<ActionResult> { return annulable("finance-actions:createTransaction", "Saisir une écriture de trésorerie", async () => {
   const user = await requireUser();
-  if (!userCan(user, "FINANCES", "CREATE")) return { ok: false, error: "Non autorisé." };
+  if (!userCan(user, "FINANCES_COMPTABILITE", "CREATE")) return { ok: false, error: "Saisir une écriture demande « Créer » sur Comptabilité — un Super Admin l'accorde dans Administration › Accès." };
 
   const label = fdStr(formData, "label");
   const amount = fdNum(formData, "amount");
@@ -307,7 +307,7 @@ export async function importTransactions(
   formData: FormData,
 ): Promise<ResultatImport> { return annulable("finance-actions:importTransactions", "Importer des écritures de trésorerie", async () => {
   const user = await requireUser();
-  if (!userCan(user, "FINANCES", "CREATE")) return { ok: false, error: "Non autorisé." };
+  if (!userCan(user, "FINANCES_COMPTABILITE", "CREATE")) return { ok: false, error: "Saisir une écriture demande « Créer » sur Comptabilité — un Super Admin l'accorde dans Administration › Accès." };
   const csv = fdStr(formData, "csv");
   if (!csv) return { ok: false, error: "Aucune donnée." };
 
@@ -409,7 +409,8 @@ export async function setTreasuryOpeningBalance(
   formData: FormData,
 ): Promise<ActionResult> { return annulable("finance-actions:setTreasuryOpeningBalance", "Fixer le solde d'ouverture d'un compte", async () => {
   const user = await requireUser();
-  if (!userCan(user, "FINANCES", "UPDATE")) return { ok: false, error: "Non autorisé." };
+  // Les comptes de trésorerie se tiennent depuis la banque ET depuis la comptabilité (24/11/2026) : l'un ou l'autre écran.
+  if (!userCan(user, "FINANCES_BANQUE", "UPDATE") && !userCan(user, "FINANCES_COMPTABILITE", "UPDATE")) return { ok: false, error: "Tenir un compte de trésorerie demande « Modifier » sur Banque & paiements ou sur Comptabilité — un Super Admin l'accorde dans Administration › Accès." };
   const name = (fdStr(formData, "name") ?? "").trim();
   if (!name) return { ok: false, error: "Nom du compte obligatoire." };
   const openingBalance = fdNum(formData, "openingBalance");
@@ -457,7 +458,8 @@ export async function setTreasuryOpeningBalance(
  */
 export async function modifierCompteTresorerie(formData: FormData): Promise<ActionResult> { return annulable("finance-actions:modifierCompteTresorerie", "Modifier un compte de trésorerie", async () => {
   const user = await requireUser();
-  if (!userCan(user, "FINANCES", "UPDATE")) return { ok: false, error: "Non autorisé." };
+  // Les comptes de trésorerie se tiennent depuis la banque ET depuis la comptabilité (24/11/2026) : l'un ou l'autre écran.
+  if (!userCan(user, "FINANCES_BANQUE", "UPDATE") && !userCan(user, "FINANCES_COMPTABILITE", "UPDATE")) return { ok: false, error: "Tenir un compte de trésorerie demande « Modifier » sur Banque & paiements ou sur Comptabilité — un Super Admin l'accorde dans Administration › Accès." };
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Compte non précisé." };
   const avant = await prisma.treasuryAccount.findFirst({ where: await companyScopedWhere(user.id, { id }), select: { id: true, name: true, companyId: true, principal: true } });
@@ -509,7 +511,8 @@ export async function modifierCompteTresorerie(formData: FormData): Promise<Acti
  */
 export async function corrigerAncrageTresorerie(formData: FormData): Promise<ActionResult> { return annulable("finance-actions:corrigerAncrageTresorerie", "Corriger l'ancrage d'un compte de trésorerie", async () => {
   const user = await requireUser();
-  if (!userCan(user, "FINANCES", "UPDATE")) return { ok: false, error: "Non autorisé." };
+  // Les comptes de trésorerie se tiennent depuis la banque ET depuis la comptabilité (24/11/2026) : l'un ou l'autre écran.
+  if (!userCan(user, "FINANCES_BANQUE", "UPDATE") && !userCan(user, "FINANCES_COMPTABILITE", "UPDATE")) return { ok: false, error: "Tenir un compte de trésorerie demande « Modifier » sur Banque & paiements ou sur Comptabilité — un Super Admin l'accorde dans Administration › Accès." };
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Compte non précisé." };
   const openingBalance = fdNum(formData, "openingBalance");
@@ -541,7 +544,8 @@ export async function corrigerAncrageTresorerie(formData: FormData): Promise<Act
  */
 export async function deleteTreasuryAccount(formData: FormData): Promise<ActionResult> { return annulable("finance-actions:deleteTreasuryAccount", "Supprimer un compte de trésorerie", async () => {
   const user = await requireUser();
-  if (!userCan(user, "FINANCES", "UPDATE")) return { ok: false, error: "Non autorisé." };
+  // Les comptes de trésorerie se tiennent depuis la banque ET depuis la comptabilité (24/11/2026) : l'un ou l'autre écran.
+  if (!userCan(user, "FINANCES_BANQUE", "UPDATE") && !userCan(user, "FINANCES_COMPTABILITE", "UPDATE")) return { ok: false, error: "Tenir un compte de trésorerie demande « Modifier » sur Banque & paiements ou sur Comptabilité — un Super Admin l'accorde dans Administration › Accès." };
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Identifiant manquant." };
   const compte = await prisma.treasuryAccount.findFirst({ where: await companyScopedWhere(user.id, { id }), select: { name: true, openingBalance: true } });
@@ -635,7 +639,7 @@ export async function createQuickIncome(
   formData: FormData,
 ): Promise<ActionResult> { return annulable("finance-actions:createQuickIncome", "Saisir un encaissement", async () => {
   const user = await requireUser();
-  if (!userCan(user, "FINANCES", "CREATE")) return { ok: false, error: "Non autorisé." };
+  if (!userCan(user, "FINANCES_COMPTABILITE", "CREATE")) return { ok: false, error: "Saisir une écriture demande « Créer » sur Comptabilité — un Super Admin l'accorde dans Administration › Accès." };
 
   const label = fdStr(formData, "label");
   const amount = fdNum(formData, "amount");

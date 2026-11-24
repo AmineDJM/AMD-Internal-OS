@@ -75,6 +75,9 @@ suite("Argent : la porte de l'ordre, la séparation des tâches, la réponse au 
       await prisma.employee.create({ data: { fullName: `${TAG} ${qui}`, companyId: ids.A, userId: u.id, isActive: true } });
     }
     await prisma.userAccess.create({ data: { userId: ids.cpt, module: "FINANCES", canView: true, canCreate: true, canUpdate: true, canDelete: true, scope: "ALL" } });
+    // Régler est le geste de « Banque & paiements », sa clé depuis le 24/11/2026 (la migration `modules_configurables` la
+    // recopie de FINANCES pour les comptes existants).
+    await prisma.userAccess.create({ data: { userId: ids.cpt, module: "FINANCES_BANQUE", canView: true, canCreate: true, canUpdate: true, canDelete: true, scope: "ALL" } });
     await prisma.paymentCentreSeat.create({ data: { userId: ids.siege, note: TAG } });
     for (const qui of ["cpt", "siege"] as const) {
       acteurs[qui] = { id: ids[qui], name: `${TAG} ${qui}`, email: `${TAG}${qui}@t.dz`, role: "COORDINATOR", secondaryRole: null, access: await getAccess(ids[qui], "COORDINATOR") } as unknown as CurrentUser;

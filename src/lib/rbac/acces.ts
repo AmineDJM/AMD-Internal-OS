@@ -257,6 +257,16 @@ export function accesAttribue(
 }
 
 /**
+ * LES SIÈGES — des modules dont l'ACCÈS vaut pouvoir de décider (24/11/2026) : siéger au centre de paiement, ouvrir le centre
+ * de validations ou celui d'Ad & Pro, tenir le bureau d'Adam (`sitsOnPaymentCentre`, `ouvreLeCentreDeValidations`,
+ * `siegeAuCentreAdPro`, `ouvreLeBureauAdam`). Ils s'accordent par la console — le rôle, l'« autre rôle », Administration ›
+ * Accès — ou par la désignation nommée au centre de paiement, et JAMAIS par un accès implicite qui ne visait qu'à LIRE : une
+ * validation en attente qui pointe vers un centre, une base de données ouverte en lecture. (L'intérim ne les prête pas
+ * non plus : `hr/stand-in.ts`.)
+ */
+const SIEGES: ReadonlySet<Module> = new Set<Module>(["PAYMENT_CENTRE", "VALIDATION_CENTRE", "AD_PRO_CENTRE", "CHIEF_OF_STAFF"]);
+
+/**
  * Resolve a user's effective access: per-user UserAccess overrides win over the
  * role default for a module; row grants are loaded for assigned-scope checks.
  * Cached per request so repeated `scope*`/`userCan` calls hit the DB once.
@@ -378,7 +388,8 @@ export const getAccess = perRequest(
     // la requête → l'accès disparaît de lui-même. Toujours en LECTURE SEULE.
     for (const s of pendingValidations) {
       const mod = moduleFromValidation(s.request.module, s.request.link);
-      if (mod) grantImplicit(mod, ["VIEW", "EXPORT"], null);
+      // Un SIÈGE ne s'ouvre jamais par une validation en attente : ouvrir le centre, c'est y décider (`SIEGES`).
+      if (mod && !SIEGES.has(mod)) grantImplicit(mod, ["VIEW", "EXPORT"], null);
       if (s.request.entityType && s.request.entityId) {
         if (!rowGrants.has(s.request.entityType)) rowGrants.set(s.request.entityType, new Set());
         rowGrants.get(s.request.entityType)!.add(s.request.entityId);
@@ -625,7 +636,9 @@ export const getAccess = perRequest(
     // sont. Le juge est le module `acces-bases`, branché au démarrage ; sans lui (tests, scripts), rien ne change.
     const parBase = modulesParBase()?.({ userId, roles: [role, secondaryRole] });
     if (parBase) {
-      for (const o of parBase.ouvrir) grantImplicit(o.module as Module, o.gestes as Action[], "ALL");
+      // Une base OUVERTE donne la LECTURE de ses données, pas un SIÈGE : le centre de paiement est dans la base des Finances,
+      // et l'ouvrir en lecture à quelqu'un ne le fait pas décaisser (`SIEGES`).
+      for (const o of parBase.ouvrir) if (!SIEGES.has(o.module as Module)) grantImplicit(o.module as Module, o.gestes as Action[], "ALL");
       for (const m of parBase.masquer) modules.delete(m as Module);
     }
 

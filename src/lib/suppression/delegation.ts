@@ -35,12 +35,19 @@ type Porteur = Pick<SessionUser, "role" | "secondaryRole" | "access">;
 export const estDirecteurDesOperations = (u: Pick<SessionUser, "role" | "secondaryRole">): boolean =>
   [u.role, u.secondaryRole].some((r) => r != null && (ROLES_DIRECTEUR_DES_OPERATIONS as readonly string[]).includes(r));
 
-/** Peut-il RESTAURER une entrée de ce type depuis la corbeille ? (le Super Admin : toujours) */
+/**
+ * Peut-il RESTAURER une entrée de ce type depuis la corbeille ? (le Super Admin : toujours)
+ *
+ * LA CORBEILLE A SA CLÉ (`CORBEILLE`, 24/11/2026) : par défaut les deux rôles du directeur des opérations — la règle d'hier —,
+ * réglée ensuite personne par personne. Restaurer EST le geste de l'écran : la clé l'ouvre, borné comme hier par le droit
+ * « supprimer » du module d'où vient l'entrée. Les demandes Ad & Pro restent au directeur des opérations, qui seul les
+ * supprime (§118.175) : c'est une règle du métier, pas de l'écran.
+ */
 export function corbeillePermise(u: Porteur, kind: string): boolean {
   if (u.role === "SUPER_ADMIN") return true;
-  if (!estDirecteurDesOperations(u)) return false;
+  if (!userCan(u as SessionUser, "CORBEILLE", "VIEW")) return false;
   // Les demandes Ad & Pro : il les supprime déjà (§118.175) — il les récupère aussi.
-  if (estDemandeAdProSupprimable(kind)) return true;
+  if (estDemandeAdProSupprimable(kind)) return estDirecteurDesOperations(u);
   const module = MODULE_DU_TYPE[kind as DeletableKind];
   return module !== undefined && userCan(u as SessionUser, module, "DELETE");
 }

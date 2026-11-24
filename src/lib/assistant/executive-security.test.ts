@@ -274,7 +274,9 @@ describe("actions d'écriture — la proposition ET l'exécution revérifient le
     // sans droit sur les Finances, sans rôle Direction, la personne désignée n'est plus refusée
     // au motif qu'elle ne siège pas — elle bute sur la référence introuvable, ce qui est la
     // suite normale du traitement.
-    const seated = userWith({});
+    // Le siège nommé ouvre le module `PAYMENT_CENTRE` (Voir + Valider) dans l'accès résolu (`getAccess`) — et c'est CE module
+    // que lit la règle depuis le 24/11/2026 (`sitsOnPaymentCentre`) : la fabrique pose ce que `getAccess` aurait posé.
+    const seated = userWith({ PAYMENT_CENTRE: ["VIEW", "VALIDATE"] });
     seated.access.paymentCentreSeat = true;
     const r = await buildProposal("decide_payment", { reference: "ORD-INEXISTANT", decision: "APPROVE" }, seated);
     expect("error" in r && r.error).not.toBe(PAYMENT_CENTRE_REFUSAL);

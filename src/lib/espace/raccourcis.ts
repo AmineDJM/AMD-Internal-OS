@@ -15,7 +15,7 @@ export type CleRaccourci =
 /** Le raccourci : un libellé, une adresse, et le module dont la porte décide (filtré par l'appelant). */
 export const RACCOURCIS: Record<CleRaccourci, { label: string; href: string; module: string }> = {
   validations: { label: "Centre de validations", href: "/validations", module: "VALIDATIONS" },
-  paiements: { label: "Paiements à faire", href: "/finances/paiements-a-faire", module: "FINANCES" },
+  paiements: { label: "Paiements à faire", href: "/finances/paiements-a-faire", module: "FINANCES_BANQUE" },
   centre_paiement: { label: "Centre de paiement", href: "/centre-de-paiement", module: "PAYMENT_CENTRE" },
   info_med: { label: "Information médicale", href: "/information-medicale", module: "MEDICAL_INFO" },
   adoption: { label: "Score d'adoption", href: "/admin/adoption", module: "ADMIN" },

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
-import { hasGlobalView, userCan } from "@/lib/rbac";
+import { userCan } from "@/lib/rbac";
 import { recordAudit } from "@/lib/audit";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { MODULE_EXAMEN } from "@/lib/factures/recensement";
@@ -14,11 +14,14 @@ import { MODULE_EXAMEN } from "@/lib/factures/recensement";
  * fusionnée ni déplacée — c'est une décision humaine qui se prend dans le module de chaque pièce. La trace va au
  * journal d'audit (pas de migration) ; la dernière entrée d'un groupe fait foi.
  *
- * Réservé à qui peut MODIFIER les Finances (ou la vue globale) : lire l'écran ne suffit pas pour dire « examiné ».
+ * Réservé à qui peut MODIFIER les Doublons de factures (sa clé depuis le 24/11/2026 ; la vue globale qui y suffisait hier
+ * l'a par défaut) : lire l'écran ne suffit pas pour dire « examiné ».
  */
 export async function marquerExamenDoublon(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  if (!userCan(user, "FINANCES", "UPDATE") && !hasGlobalView(user.role)) return { ok: false, error: "Seules les Finances marquent un groupe examiné." };
+  if (!userCan(user, "FINANCES_DOUBLONS", "UPDATE")) {
+    return { ok: false, error: "Marquer un groupe examiné demande « Modifier » sur Doublons de factures — un Super Admin l'accorde dans Administration › Accès." };
+  }
   const signature = fdStr(formData, "signature");
   if (!signature || !/^[0-9a-f]{24}$/.test(signature)) return { ok: false, error: "Groupe introuvable." };
   const examine = fdStr(formData, "examine") !== "0";

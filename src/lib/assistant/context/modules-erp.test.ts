@@ -37,7 +37,7 @@ describe("les modules de l'ERP sont atteignables", () => {
    *
    * Le sabotage : vider les `domaines` d'un module servi — le compte monte et le test tombe.
    */
-  it("les 46 modules déclarent leur service, et les sans-outil se comptent", () => {
+  it("tous les modules déclarent leur service, et les sans-outil se comptent", () => {
     const modules = Object.keys(MODULE_LABELS);
     expect(Object.keys(SERVICE_DU_MODULE).sort()).toEqual(modules.sort());
     const sansOutil = Object.entries(SERVICE_DU_MODULE).filter(([, s]) => s.domaines.length === 0).map(([c]) => c);
@@ -47,7 +47,8 @@ describe("les modules de l'ERP sont atteignables", () => {
     // fait PHYSIQUE (« je l'ai reçu », « je l'ai compté ») qu'un modèle ne voit pas, les anciennes
     // ops de stock d'Adam ont été retirées avec l'ancien registre, et Adam est en pause.
     // Les KPI & bilans non plus (Direction, 08/10) : noter, valider, signer sont des attestations d'un manager (§118.15).
-    expect(sansOutil.sort()).toEqual(["FEEDBACK", "GENERAL_MEANS", "KPI", "PROMO_CATALOG", "PROMO_STOCK", "SITE_WEB"]);
+    // La CORBEILLE non plus (24/11/2026) : restaurer une pièce supprimée est un geste d'écran, jamais confié à un modèle.
+    expect(sansOutil.sort()).toEqual(["CORBEILLE", "FEEDBACK", "GENERAL_MEANS", "KPI", "PROMO_CATALOG", "PROMO_STOCK", "SITE_WEB"]);
   });
 
   /**

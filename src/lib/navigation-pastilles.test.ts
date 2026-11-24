@@ -21,21 +21,22 @@ const entree = (label: string): NavItem => {
 };
 
 describe("pastillesDesEntrees — chaque module compté une fois", () => {
-  it("PRÉMISSE : Finances et ses sous-menus portent le MÊME module — sinon le cas ne mesure rien", () => {
-    // Les Bons de commande sont un module à part (§118.176) ; tous les sous-menus restants
-    // (paiements, comptabilité, recensement des doublons de factures…) sont des Finances.
-    const finances = entree("Finances");
-    const modules = finances.children?.map((c) => c.module) ?? [];
-    expect(modules.length).toBeGreaterThanOrEqual(2);
-    expect(new Set(modules)).toEqual(new Set(["FINANCES"]));
+  it("PRÉMISSE : Legal et son sous-menu portent le MÊME module — sinon le cas ne mesure rien", () => {
+    // Les Finances ne sont plus le cas : leurs trois écrans ont chacun leur clé depuis le 24/11/2026 (Banque & paiements,
+    // Comptabilité, Doublons de factures) — c'est Legal › Coordonnées des entités qui répète le module de son parent.
+    const legal = entree("Legal");
+    const modules = legal.children?.map((c) => c.module) ?? [];
+    expect(modules.length).toBeGreaterThanOrEqual(1);
+    expect(new Set(modules)).toEqual(new Set(["LEGAL"]));
+    expect(new Set(entree("Finances").children?.map((c) => c.module))).toEqual(new Set(["FINANCES_BANQUE", "FINANCES_COMPTABILITE", "FINANCES_DOUBLONS"]));
   });
 
   it("le parent porte la pastille ; ses sous-menus du même module n'en portent aucune", () => {
-    const finances = entree("Finances");
-    const badges = { FINANCES: 3 };
-    expect(pastillesDesEntrees([finances], badges)).toEqual([3]);
-    const enfants = finances.children ?? [];
-    expect(pastillesDesEntrees(enfants, badges, modulesDeLEntree(finances))).toEqual(enfants.map(() => 0));
+    const legal = entree("Legal");
+    const badges = { LEGAL: 3 };
+    expect(pastillesDesEntrees([legal], badges)).toEqual([3]);
+    const enfants = legal.children ?? [];
+    expect(pastillesDesEntrees(enfants, badges, modulesDeLEntree(legal))).toEqual(enfants.map(() => 0));
   });
 
   it("LES BONS DE COMMANDE ONT LEUR PROPRE PASTILLE — « Bon de commande à signer » ne s'affiche plus sous Finances (§118.176)", () => {
@@ -49,14 +50,14 @@ describe("pastillesDesEntrees — chaque module compté une fois", () => {
   });
 
   it("un sous-menu d'un AUTRE module garde sa propre pastille — la règle n'efface rien", () => {
-    // Ressources humaines : la Paie répète le module du parent (RH), le Recrutement est un module à part (Direction, 07/10).
+    // Ressources humaines : le Recrutement est un module à part (Direction, 07/10), la Paie aussi (`PAIE`, 24/11/2026).
     const rh = entree("Ressources humaines");
     const modules = rh.children?.map((c) => c.module) ?? [];
-    expect(modules).toEqual(expect.arrayContaining(["RH", "RECRUITMENT"]));
-    const badges = { RH: 2, RECRUITMENT: 4 };
+    expect(modules).toEqual(expect.arrayContaining(["PAIE", "RECRUITMENT"]));
+    const badges = { RH: 2, RECRUITMENT: 4, PAIE: 1 };
     const pastilles = pastillesDesEntrees(rh.children ?? [], badges, modulesDeLEntree(rh));
     expect(pastilles[modules.indexOf("RECRUITMENT")]).toBe(4);
-    expect(pastilles[modules.indexOf("RH")]).toBe(0);
+    expect(pastilles[modules.indexOf("PAIE")]).toBe(1);
   });
 
   it("entre sœurs : la première entrée du module compte, les suivantes non ; le pôle replié ne multiplie plus", () => {

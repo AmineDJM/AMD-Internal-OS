@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireModule } from "@/lib/session";
-import { hasGlobalView, userCan } from "@/lib/rbac";
+import { userCan } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import type { EntityType } from "@prisma/client";
 import { PageHeader } from "@/components/shared/page-header";
@@ -26,8 +26,10 @@ export const metadata = { title: "Doublons de factures — AMD Internal OS" };
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 export default async function DoublonsFacturesPage() {
-  const user = await requireModule("FINANCES");
-  const peutExaminer = userCan(user, "FINANCES", "UPDATE") || hasGlobalView(user.role);
+  // « Doublons de factures » a sa clé (24/11/2026). Examiner = « Modifier » sur cette clé : la vue globale qui y suffisait
+  // hier est rendue par les DÉFAUTS (Super Admin et Direction ont « Modifier ») et par la migration `modules_configurables`.
+  const user = await requireModule("FINANCES_DOUBLONS");
+  const peutExaminer = userCan(user, "FINANCES_DOUBLONS", "UPDATE");
   const { groupes, facturesExaminees } = await recenserDoublonsFactures();
   const examens = await examensDesGroupes(groupes.map((g) => g.signature));
 

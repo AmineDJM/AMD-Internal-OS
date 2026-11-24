@@ -75,9 +75,9 @@ describe("la coque d'Adam — un module comme les autres", () => {
     for (const p of ["src/app/(app)/adam/bureau/page.tsx", "src/app/(app)/adam/reglages/page.tsx", "src/app/(app)/adam/boite/page.tsx"]) {
       expect(existe(p), p).toBe(true);
     }
-    // Le gabarit du segment `/chief-of-staff` passe AVANT la redirection : le refus d'un non-Super-Admin ne change pas.
-    expect(lire("src/app/(app)/chief-of-staff/layout.tsx")).toContain("await exigerAdamVisible();");
-    expect(lire("src/app/(app)/adam/layout.tsx")).toContain("await exigerAdamVisible();");
+    // Le gabarit du segment `/chief-of-staff` passe AVANT la redirection : le refus de qui n'a pas la clé du bureau ne change pas.
+    expect(lire("src/app/(app)/chief-of-staff/layout.tsx")).toContain("await exigerBureauAdam();");
+    expect(lire("src/app/(app)/adam/layout.tsx")).toContain("await exigerBureauAdam();");
   });
 
   it("la hauteur est MESURÉE, jamais écrite en dur — sinon le composeur passe sous la barre d'onglets", () => {

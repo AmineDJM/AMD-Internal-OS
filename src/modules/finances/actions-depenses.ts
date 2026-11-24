@@ -355,7 +355,7 @@ export async function purgeSettledExpenseOrders(): Promise<ActionResult> { retur
 /** Le comptable demande la facture au demandeur (dépense événementielle sans facture). */
 export async function requestInvoice(formData: FormData): Promise<ActionResult> { return annulable("expense-actions:requestInvoice", "Demander facture", async () => {
   const user = await requireUser();
-  if (!userCan(user, "FINANCES", "UPDATE") && !hasGlobalView(user.role)) return { ok: false, error: "Réservé à la comptabilité (Finances)." };
+  if (!userCan(user, "FINANCES_BANQUE", "UPDATE") && !hasGlobalView(user.role)) return { ok: false, error: "Réservé à qui tient Banque & paiements (« Modifier ») — un Super Admin l'accorde dans Administration › Accès." };
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Ordre introuvable." };
   const porte = await ouvrirPourEcrire(user, "EXPENSE_ORDER", id, "UPDATE", { droitDuModule: false });

@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { userCan, type SessionUser } from "@/lib/rbac";
-import { hasRole } from "@/lib/rbac/roles";
 import { lienPosteAdPro, type AdProParent } from "@/lib/chemins/ad-pro";
 import { ITEM_KIND_LABELS } from "../../domaine/postes";
 import { lireStatutConformite, type StatutConformite } from "../../domaine/parcours-agence";
@@ -100,7 +99,9 @@ async function demandesLues(owners: readonly { parent: AdProParent; id: string }
 
 /** LA FILE DES BAT, pour la personne qui regarde — `null` hors de l'information médicale et de la Direction Marketing. */
 export async function fileConformite(user: SessionUser): Promise<FileConformite | null> {
-  if (!hasRole(user, "MEDICAL_INFO_PHARMACIST") && !hasRole(user, "SUPER_ADMIN") && !hasRole(user, "PRODUCT_MANAGER")) return null;
+  // LA PORTE DE LA FILE : la clé `CONTROLES_CONFORMITE` (24/11/2026) — par défaut le pharmacien responsable, la Direction
+  // Marketing et le Super Admin, la liste de rôles d'hier. DÉCIDER d'un contrôle reste au rôle (pharmacien, Super Admin).
+  if (!userCan(user, "CONTROLES_CONFORMITE", "VIEW")) return null;
   const choix = {
     id: true, itemId: true, conformiteStatut: true, conformiteDemandeeAt: true, conformiteDemandeeParId: true, conformiteDecideeAt: true,
     conformiteParId: true, conformiteNote: true, cahierDesCharges: true, agenceDevisId: true, updatedAt: true,

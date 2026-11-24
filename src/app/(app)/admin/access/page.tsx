@@ -13,6 +13,7 @@ import { getAppSettings } from "@/lib/settings";
 import { BackLink } from "@/components/shared/back-link";
 import { formatDate } from "@/lib/utils";
 import { sansBloquer } from "@/lib/journal";
+import { isRetiredModule } from "@/lib/modules-retired";
 
 export const dynamic = "force-dynamic";
 
@@ -88,11 +89,11 @@ export default async function AccessByModulePage() {
     : undefined;
   // ── LE CERCLE DU CENTRE DE PAIEMENT ──────────────────────────────────────────────────────
   //
-  // Il ne se règle PAS par la grille des modules : l'écran du centre ne consulte pas le module
-  // `PAYMENT_CENTRE`, il consulte `sitsOnPaymentCentre`. Cocher la case ne donnait donc rien, et
-  // ne le disait pas. On lit donc les deux titres — le RÔLE et la DÉSIGNATION nominative — et on
-  // les montre ensemble : ne montrer que les désignations ferait croire le cercle plus étroit
-  // qu'il n'est, et l'on retirerait un siège en pensant fermer une porte restée ouverte.
+  // Depuis le 24/11/2026, siéger au centre, c'est avoir le module `PAYMENT_CENTRE` (`sitsOnPaymentCentre`) : la grille
+  // ci-dessus le règle comme tout autre module — l'accorder fait siéger, le bloquer retire le siège (au Super Admin près).
+  // Le SIÈGE NOMMÉ reste : c'est une désignation motivée et tracée, qui ouvre le module sans rien d'autre. On montre les
+  // deux titres ensemble — le RÔLE (défaut du module) et la DÉSIGNATION — pour qu'on ne retire pas un siège en pensant
+  // fermer une porte que le rôle tient ouverte.
   const seatRows = await prisma.paymentCentreSeat.findMany({
     include: { user: { select: { id: true, name: true, role: true } }, grantedBy: { select: { name: true } } },
     orderBy: { grantedAt: "desc" },
@@ -112,8 +113,10 @@ export default async function AccessByModulePage() {
     .filter((u) => !u.isSystem && u.role !== "SUPER_ADMIN" && u.role !== "DIRECTION" && u.role !== "GENERAL_MANAGER" && !seated.has(u.id))
     .map((u) => ({ id: u.id, name: u.name, role: ROLE_LABELS[u.role] ?? u.role }));
 
+  // LES MODULES RETIRÉS DU SERVICE n'entrent plus dans la feuille (24/11/2026) : `getAccess` les vide pour tout le monde,
+  // Super Admin compris (`modules-retired.ts`) — une ligne réglable qui n'ouvre rien fait croire la console cassée.
   const sheet = buildAccessSheet(
-    MODULES,
+    MODULES.filter((m) => !isRetiredModule(m)),
     MODULE_LABELS as Record<string, string>,
     PERMISSIONS as unknown as PermissionMatrix,
     ACTIONS,

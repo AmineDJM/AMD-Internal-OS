@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/session";
-import { peutUtiliserAssistantIA, peutVoirAdam } from "@/lib/rbac";
+import { peutUtiliserAssistantIA, ouvreLeBureauAdam } from "@/lib/rbac";
 import { OngletsAdam } from "@/components/shared/onglets-adam";
 import { AssistantWorkspace } from "@/modules/assistant-ia/ecrans/assistant-workspace";
 import { adresseDeLaPersonne } from "@/modules/assistant-ia/api";
@@ -30,9 +30,9 @@ export default async function AssistantPage() {
 
   return (
     <div className="app-viewport-flush -mx-3 -mt-3 -mb-3 flex flex-col overflow-hidden sm:-mx-4 sm:-mt-6 sm:-mb-6 lg:-mx-8 lg:-mb-8">
-      {/* Le Super Admin SEUL a les onglets de l'ex-« My Chief of Staff » (Direction, 02/11/2026) ; un employé qui a
-          Adam voit la conversation, sans barre. */}
-      {peutVoirAdam(user) ? <OngletsAdam /> : null}
+      {/* Les onglets de l'ex-« My Chief of Staff » : à qui a le bureau (`CHIEF_OF_STAFF`, Super Admin seul par défaut) ; un
+          employé qui n'a qu'Adam voit la conversation, sans barre. */}
+      {ouvreLeBureauAdam(user) ? <OngletsAdam /> : null}
       <AssistantWorkspace userName={user.name} userRole={user.role} adresse={adresse} />
     </div>
   );

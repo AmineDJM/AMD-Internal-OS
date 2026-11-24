@@ -52,11 +52,10 @@ export const STAND_IN_LABEL: Record<StandInStatus, string> = {
  *   • `DRIVE`, `MESSAGING`, `WORKSPACE`, `NOTIFICATIONS`, `ASSISTANT_IA` — ce sont les espaces
  *     PERSONNELS de l'absent. Remplacer quelqu'un, ce n'est pas lire son Drive privé, sa messagerie
  *     ni parler à son assistant, qui agit en son nom ;
- *   • `PAYMENT_CENTRE`, `VALIDATION_CENTRE`, `AD_PRO_CENTRE`, `CHIEF_OF_STAFF` — des SIÈGES : un rôle
- *     ou une désignation nominative les donne, pas le module (`sitsOnPaymentCentre`,
- *     `sitsOnValidationCentre`, `siegeAuCentreAdPro`, `peutVoirAdam`). L'intérim ne prête aucun rôle
- *     (§118.185) : la case ouvrait une entrée de menu menant à une page refusée. Prêter un siège est
- *     une décision de la Direction, pas une case à cocher (§118.196) ;
+ *   • `PAYMENT_CENTRE`, `VALIDATION_CENTRE`, `AD_PRO_CENTRE`, `CHIEF_OF_STAFF` — des SIÈGES : la console
+ *     les accorde nommément (`sitsOnPaymentCentre`, `ouvreLeCentreDeValidations`, `siegeAuCentreAdPro`,
+ *     `ouvreLeBureauAdam`), et ces règles écartent un geste prêté. Prêter un siège est une décision de
+ *     la Direction, pas une case à cocher (§118.185, §118.196) ;
  *   • `MY_TEAM`, `DIRECTORIES` — des portes accordées à tous : il n'y a rien à prêter.
  */
 const NEVER_DELEGATED: readonly Module[] = [

@@ -91,7 +91,9 @@ suite("le menu d'un employé ordinaire ne promet que ce qui s'ouvre", () => {
     const dir = await acteur(u.dir, "DIRECTION");
     // PRÉMISSES : les modules sont là ; sans elles, l'absence viendrait du module, pas de la règle.
     expect(userCan(dir, "WORKSPACE", "VIEW")).toBe(true);
-    expect(userCan(dir, "CHIEF_OF_STAFF", "VIEW")).toBe(true);
+    // Le bureau d'Adam (`CHIEF_OF_STAFF`) n'est plus dans les défauts de la Direction (24/11/2026) : il ne s'ouvrait pas
+    // pour elle (rôle Super Admin exigé en plus), la clé seule décide désormais — Super Admin seul par défaut.
+    expect(userCan(dir, "CHIEF_OF_STAFF", "VIEW")).toBe(false);
     expect(peutVoirAdam(dir)).toBe(false);
     const d = destinations(await navigationFor(dir));
     expect(d).not.toContain("/assistant");

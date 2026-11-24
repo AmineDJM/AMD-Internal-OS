@@ -325,7 +325,19 @@
     "modules": [
      {
       "cle": "FINANCES",
-      "libelle": "Finances"
+      "libelle": "Finances (transverse)"
+     },
+     {
+      "cle": "FINANCES_BANQUE",
+      "libelle": "Banque & paiements"
+     },
+     {
+      "cle": "FINANCES_COMPTABILITE",
+      "libelle": "Comptabilité"
+     },
+     {
+      "cle": "FINANCES_DOUBLONS",
+      "libelle": "Doublons de factures"
      },
      {
       "cle": "PAYMENT_CENTRE",

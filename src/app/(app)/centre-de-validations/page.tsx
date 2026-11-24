@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireModule } from "@/lib/session";
 import { getPendingValidations } from "@/lib/queries/validations";
-import { sitsOnValidationCentre, centreCounters, sortForCentre } from "@/lib/validations/centre";
+import { ouvreLeCentreDeValidations, centreCounters, sortForCentre } from "@/lib/validations/centre";
 import { PageHeader } from "@/components/shared/page-header";
 import { KpiCard } from "@/components/shared/kpi-card";
 import { ValidationCentreBoard, type CentreRow } from "./centre-board";
@@ -24,11 +24,12 @@ export const metadata = { title: "Centre de validations — AMD Internal OS" };
  * siennes. Ici, on ne fait que décider.
  */
 export default async function CentreDeValidationsPage() {
+  // LA CLÉ SEULE (24/11/2026) : `VALIDATION_CENTRE`, réglée dans Administration › Accès. Accorder ouvre, bloquer ferme —
+  // hier, le rôle principal s'ajoutait au module et l'accès donné par la console menait à une page introuvable. La porte
+  // du module (`requireModule`, qui tient aussi le masquage) puis la règle nommée, qui écarte un geste prêté. Le centre ne
+  // donne aucun droit de trancher pour autrui : il ne montre que les étapes adressées à la personne.
   const user = await requireModule("VALIDATION_CENTRE");
-  // Le module s'ouvre par le RBAC, mais le siège au centre est une règle d'ORGANISATION : un
-  // administrateur qui s'octroierait le module ne devient pas pour autant validateur de la
-  // société. La règle pure a le dernier mot.
-  if (!sitsOnValidationCentre(user)) notFound();
+  if (!ouvreLeCentreDeValidations(user)) notFound();
 
   const [pending, reglages] = await Promise.all([getPendingValidations(user.id), getAppSettings()]);
   const rows: CentreRow[] = sortForCentre(pending);

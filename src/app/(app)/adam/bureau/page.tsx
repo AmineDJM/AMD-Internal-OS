@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { ancienMoteurActif } from "@/lib/assistant/ancien-moteur";
 import { HistoriqueGele } from "./historique-gele";
 import { requireModule } from "@/lib/session";
-import { peutVoirAdam } from "@/platform/in-process/visibilite-adam";
+import { ouvreLeBureauAdam } from "@/platform/in-process/visibilite-adam";
 import { hasGlobalView } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { ORDRE_NON_ANNULE } from "@/modules/finances/partage";
@@ -56,8 +56,8 @@ export default async function ChiefOfStaffPage(
 ) {
   const searchParams = await props.searchParams;
   const user = await requireModule("CHIEF_OF_STAFF");
-  // Adam n'est visible que du Super Admin (§118.153) — la Direction garde le module, pas Adam.
-  if (!peutVoirAdam(user)) notFound();
+  // La clé du bureau (`CHIEF_OF_STAFF`, console — Super Admin seul par défaut) : le module, sans geste prêté.
+  if (!ouvreLeBureauAdam(user)) notFound();
 
   // I6 (décision 0070) — UN SEUL MOTEUR : le Bureau ne joue plus de tour (l'ancien moteur est masqué). Une question ou un
   // appel demandés ici vont à la conversation d'Adam (moteur unique) ; sinon, l'historique du Bureau, gelé en lecture.

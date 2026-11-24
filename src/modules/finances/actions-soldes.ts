@@ -34,7 +34,7 @@ import { annulable } from "@/lib/effets/ecran";
  */
 export async function repondreActualisationSoldes(formData: FormData): Promise<ActionResult> { return annulable("actualisation-soldes-actions:repondreActualisationSoldes", "Répondre à l'actualisation des soldes", async () => {
   const user = await requireUser();
-  if (!userCan(user, "FINANCES", "UPDATE")) return { ok: false, error: "Actualiser un solde demande le droit « Modifier » des Finances." };
+  if (!userCan(user, "FINANCES_BANQUE", "UPDATE")) return { ok: false, error: "Actualiser un solde demande « Modifier » sur Banque & paiements — un Super Admin l'accorde dans Administration › Accès." };
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Demande non précisée." };
 

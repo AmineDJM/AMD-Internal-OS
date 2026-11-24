@@ -58,14 +58,16 @@ type Fiche = {
 };
 
 const OBJETS = {
+  // Régler, reporter, reprendre un ordre : les gestes de « Banque & paiements », sa clé depuis le 24/11/2026.
   EXPENSE_ORDER: {
-    module: "FINANCES",
+    module: "FINANCES_BANQUE",
     introuvable: "Ordre introuvable.",
-    nonAutorise: "Réservé à la comptabilité (Finances).",
+    nonAutorise: "Réservé à qui tient Banque & paiements — un Super Admin l'accorde dans Administration › Accès.",
     lire: (id) => prisma.expenseOrder.findUnique({ where: { id }, select: { companyId: true } }),
   },
+  // Modifier ou supprimer une écriture : les gestes de la « Comptabilité », sa clé depuis le 24/11/2026.
   FINANCE_TRANSACTION: {
-    module: "FINANCES",
+    module: "FINANCES_COMPTABILITE",
     introuvable: "Écriture introuvable.",
     lire: (id) => prisma.financeTransaction.findUnique({ where: { id }, select: { companyId: true } }),
   },

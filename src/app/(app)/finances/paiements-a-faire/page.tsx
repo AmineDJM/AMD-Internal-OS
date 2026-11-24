@@ -57,8 +57,9 @@ export default async function PaiementsAFairePage(props: { searchParams: Promise
   const searchParams = await props.searchParams;
   // `?focus=` : la ligne qu'on vient de cliquer depuis « Mon espace ». Voir OrdersTable.
   const focusId = searchParams.focus ?? null;
-  const user = await requireModule("FINANCES");
-  const canSettle = userCan(user, "FINANCES", "UPDATE");
+  // « Banque & paiements » a sa clé (24/11/2026) : la console l'ouvre ou la ferme sans toucher à la Comptabilité ni aux Doublons.
+  const user = await requireModule("FINANCES_BANQUE");
+  const canSettle = userCan(user, "FINANCES_BANQUE", "UPDATE");
 
   // LES CASES D'ENTITÉS, EN HAUT (Direction, 05/10) : la page se lit entité par entité. Seules les
   // sociétés que la personne VOIT sont proposées, et un `?entite=` qui n'en est pas une est ignoré

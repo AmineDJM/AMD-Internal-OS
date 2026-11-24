@@ -39,13 +39,14 @@ export default async function ComptabilitePage(
   }
 ) {
   const searchParams = await props.searchParams;
-  const user = await requireModule("FINANCES");
+  // « Comptabilité » a sa clé (24/11/2026), réglée dans la console indépendamment de la banque et des doublons.
+  const user = await requireModule("FINANCES_COMPTABILITE");
   // LA PÉRIODE DU RÉSULTAT MENSUEL — lue dans l'adresse, côté serveur : un lien la partage, un
   // rechargement la garde. Illisible, elle retombe sur 6 mois en le disant (`lirePeriode`).
   const periode = lirePeriode(searchParams ?? {}, moisAlger(new Date()));
-  const canCreate = userCan(user, "FINANCES", "CREATE");
-  const canUpdate = userCan(user, "FINANCES", "UPDATE");
-  const canDelete = userCan(user, "FINANCES", "DELETE");
+  const canCreate = userCan(user, "FINANCES_COMPTABILITE", "CREATE");
+  const canUpdate = userCan(user, "FINANCES_COMPTABILITE", "UPDATE");
+  const canDelete = userCan(user, "FINANCES_COMPTABILITE", "DELETE");
   const [data, compta, resultat, companies, settled, remises, tresorerie] = await Promise.all([
     getFinanceData(user.id),
     // CE QUE LE DAF DOIT ENCORE ARBITRER — arrivé du tableau de bord supprimé.

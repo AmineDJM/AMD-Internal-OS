@@ -24,6 +24,8 @@
  * l'argent de l'entreprise, elle doit pouvoir être lue et vérifiée sans rien exécuter.
  */
 
+import { accesOuvertParLaConsole, type AccesStructurel } from "@/lib/rbac/acces-structurel";
+
 /**
  * Le montant à partir duquel un paiement est dit IMPORTANT. Ce n'est plus un filtre — tout passe
  * par le centre — mais un repère : la file du centre met ces dossiers en tête.
@@ -164,8 +166,8 @@ export interface PaymentCentreMember {
   role: string;
   /** L'« autre rôle » cumulé — un DG porté en rôle secondaire siège aussi. */
   secondaryRole?: string | null;
-  /** L'accès effectif de la session — `paymentCentreSeat` y est résolu par `getAccess`. */
-  access?: { paymentCentreSeat?: boolean };
+  /** L'accès effectif de la session — le module `PAYMENT_CENTRE` et le siège nommé y sont résolus par `getAccess`. */
+  access?: AccesStructurel & { paymentCentreSeat?: boolean };
 }
 
 /**
@@ -175,7 +177,28 @@ export interface PaymentCentreMember {
  */
 export const ROLES_CENTRE_DE_PAIEMENT = ["DIRECTION", "GENERAL_MANAGER", "SUPER_ADMIN"] as const;
 
+/**
+ * SIÉGER AU CENTRE, C'EST Y AVOIR ACCÈS — la clé `PAYMENT_CENTRE` que la console règle (Super Admin, 24/11/2026 : « un
+ * BLOQUÉ ne doit plus voir ni décider ; un accès donné par la console doit valoir siège »).
+ *
+ * Hier, le siège se lisait sur le RÔLE, à côté du module : bloquer le PDG dans Administration › Accès lui retirait l'entrée
+ * de menu, et il décidait encore par l'adresse ; ouvrir le module à quelqu'un lui donnait une entrée qui ne décidait rien.
+ * Le geste lu est « Voir » : la console ne connaît que « par défaut / personnalisé / bloqué », et l'écran du centre n'a pas
+ * de lecture SANS décision (un demandeur y suit ses propres demandes par la règle de l'écran, pas par ce module).
+ *
+ * Les titres d'hier y arrivent tous par l'accès résolu, sans rien perdre : les trois rôles par leur défaut (`PAYMENT_CENTRE:
+ * MANAGE`, rôle principal ou secondaire), le SIÈGE NOMMÉ par l'accès implicite qu'il ouvre (`getAccess`). Un blocage de la
+ * console prime sur les deux.
+ *
+ * LE SUPER ADMIN, en rôle principal, siège toujours : c'est lui qui règle la console — se bloquer par mégarde fermerait le
+ * centre à la seule personne qui peut le rouvrir.
+ *
+ * Sans accès résolu (règle appelée hors session, avec un simple `{ role }`), on lit le défaut : les trois rôles et le siège.
+ */
 export function sitsOnPaymentCentre(user: PaymentCentreMember): boolean {
+  if (user.role === "SUPER_ADMIN") return true;
+  const parLaConsole = accesOuvertParLaConsole(user.access, "PAYMENT_CENTRE", "VIEW");
+  if (parLaConsole !== null) return parLaConsole;
   // Le rôle SECONDAIRE compte aussi (15/11/2026) : un DG porté en « autre rôle » siège comme un DG en rôle principal.
   return [user.role, user.secondaryRole].some((r) => r != null && (ROLES_CENTRE_DE_PAIEMENT as readonly string[]).includes(r))
     || user.access?.paymentCentreSeat === true;
