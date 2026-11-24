@@ -30,6 +30,7 @@ export { CHEMIN_DEMANDE, demandeAbandonnee, estTypeMedecinsConcernes, LIBELLE_NA
 
 export { availableProductOptions, CHAMPS_MEDECINS, doctorOptions, type DoctorRow, lireMedecinsDemande, type ProductRow, readMultiField, repartirMedecins, specialtyOptions, type SpecialtyRow, splitMulti } from "./domaine/pickers";
 export { estDemandeBcAEtablir, type NaturePieceSecretariat, NATURES_PIECE_SECRETARIAT, peutDemanderPiece, PIECE_SECRETARIAT, TITRE_BC_A_ETABLIR, titrePiece } from "./domaine/pieces-secretariat";
+export { type DemandeDuPoste, POSTE_DE_LA_NATURE, posteDuSponsoring } from "./domaine/poste-du-sponsoring";
 export { etatDuPaiement, facturePourPayer, LIBELLE_JUSTIFICATIF_DIRECT, phrasePaiementBloque, sansBonDeCommande, STATUTS_EDITABLES, VERSEMENT_SANS_BC } from "./domaine/poste-etapes";
 export { conformiteParDefaut, etapeAgence, type EtapeAgence, type EtapeFriseAgence, type FaitsAgence, type FaitsPosteAgence, friseAgence, type GesteAgence, LIBELLE_ETAPE_AGENCE, lireStatutConformite, pasAgence, type PasAgence, type RegardAgence, type StatutConformite, STATUTS_CONFORMITE, voieAgencePossible, voieParDefaut } from "./domaine/parcours-agence";
 export { type LigneSaisie, NATURES_DU_FICHIER, type NatureDuFichier, natureLaPlusProche, nomDuCahier, type PosteDuFichier, posteDepuisLaSaisie, versFormulaireDuPoste } from "./domaine/postes-fichier";

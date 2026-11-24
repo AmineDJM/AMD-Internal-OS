@@ -12,7 +12,9 @@ vi.mock("@/lib/session", () => ({
 import { prisma } from "@/lib/prisma";
 import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
+import { montantDzd } from "@/lib/utils";
 import { createSponsoring } from "../actions-sponsoring";
+import { posteDuSponsoring } from "../domaine/poste-du-sponsoring";
 import { businessUnitDuDemandeur } from "./business-unit-auto";
 
 let dbOk = false;
@@ -47,7 +49,7 @@ suite("Une demande de sponsoring INCOMPLÈTE est refusée par le serveur", () =>
     fd.set("type", "Congrès");
     fd.set("amountRequested", "120000");
     fd.set("amountProposed", "90000");
-    // LA NATURE DU SPONSORING (§118.151) — elle décide le poste qui naît avec la demande.
+    // LA NATURE DU SPONSORING (§118.151) — elle décide le poste qui naît à la prévalidation.
     fd.set("nature", "DIRECT");
     fd.set("strategicImportance", "HIGH");
     fd.append("files", fichierScan());
@@ -188,17 +190,17 @@ suite("Une demande de sponsoring INCOMPLÈTE est refusée par le serveur", () =>
     expect(cree.product).toBe("Nivolex");
     expect(cree.status, "un KAM part de l'approbation préliminaire de son superviseur national").toBe("AWAITING_PRELIMINARY");
     expect(cree.nature).toBe("DIRECT");
-    // LE POSTE NAÎT AVEC LA DEMANDE (§118.151) — un seul, dans la même écriture, et il porte ce
-    // que la Direction a nommé : le sponsoring direct, chiffré à ce que SUGGÈRE le délégué, versé
-    // à l'association, avec la demande du médecin dite dans ses précisions.
-    const postes = await prisma.adProItem.findMany({ where: { sponsoringId: cree.id } });
-    expect(postes, "une demande sans son poste est ce que la Direction ne veut plus voir").toHaveLength(1);
-    expect(postes[0].kind).toBe("ASSOCIATION_SUPPORT");
-    expect(Number(postes[0].amountEstimated)).toBe(90_000);
-    expect(postes[0].supplier, "le sponsoring direct se verse à l'association").toBe(`${TAG}CHU Alger`);
-    expect(postes[0].notes).toContain("120");
-    expect(postes[0].status, "le poste se décide ensuite, comme tout poste").toBe("DRAFT");
-    expect(postes[0].addedAfterDecision).toBe(false);
+    // LE POSTE NAÎT À LA PRÉVALIDATION (recette 24/11/2026) — pas avec la demande : aucun brouillon à soumettre avant
+    // que quiconque ait prévalidé. La demande porte tout ce qu'il portera : le sponsoring direct, chiffré à ce que
+    // SUGGÈRE le délégué, versé à l'association, avec la demande du médecin dite dans ses précisions.
+    expect(await prisma.adProItem.count({ where: { sponsoringId: cree.id } }), "aucun poste avant la prévalidation").toBe(0);
+    const poste = posteDuSponsoring({
+      nature: cree.nature!, institution: cree.institution, amountRequested: Number(cree.amountRequested), amountProposed: Number(cree.amountProposed),
+    }, montantDzd);
+    expect(poste.kind).toBe("ASSOCIATION_SUPPORT");
+    expect(poste.amountEstimated).toBe(90_000);
+    expect(poste.supplier, "le sponsoring direct se verse à l'association").toBe(`${TAG}CHU Alger`);
+    expect(poste.notes).toContain("120");
   });
 
   it("INDIRECT : le poste est une prise en charge, sans bénéficiaire deviné", async () => {
@@ -212,9 +214,10 @@ suite("Une demande de sponsoring INCOMPLÈTE est refusée par le serveur", () =>
     expect(r.ok, r.ok === false ? r.error : "").toBe(true);
     const cree = await prisma.sponsoringRequest.findFirstOrThrow({ where: { institution: `${TAG}Société indirecte` }, include: { items: true } });
     expect(cree.nature).toBe("INDIRECT");
-    expect(cree.items).toHaveLength(1);
-    expect(cree.items[0].kind).toBe("INDIRECT_SUPPORT");
-    expect(cree.items[0].supplier).toBeNull();
+    expect(cree.items, "le poste naît à la prévalidation (recette 24/11/2026)").toHaveLength(0);
+    const poste = posteDuSponsoring({ nature: "INDIRECT", institution: cree.institution, amountRequested: 120_000, amountProposed: 90_000 }, montantDzd);
+    expect(poste.kind).toBe("INDIRECT_SUPPORT");
+    expect(poste.supplier).toBeNull();
   });
 
   it("une nature INVENTÉE est refusée comme une nature absente — jamais un poste deviné", async () => {

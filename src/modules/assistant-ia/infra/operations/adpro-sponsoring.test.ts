@@ -19,7 +19,8 @@ import { executerOperationIA, outilsOperations } from "./";
  *
  * Sur la vraie base : ce qui manque est nommé (une question à la fois), l'annuaire médical
  * pré-remplit, la pièce est exigée au bon format, le seuil du DG et les doublons sont dits, puis
- * la confirmation passe par `createSponsoring` — demande, premier poste et pièce jointe.
+ * la confirmation passe par `createSponsoring` — demande et pièce jointe ; le premier poste naît à la prévalidation
+ * (recette 24/11/2026).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 let dbOk = false;
@@ -103,7 +104,7 @@ suite("Assistant IA — demande de sponsoring de bout en bout", () => {
     expect(await prisma.sponsoringRequest.count({ where: { institution: INSTITUTION } })).toBe(0);
   });
 
-  it("confirmée : l'action de l'écran crée la demande, son premier poste et la pièce jointe", async () => {
+  it("confirmée : l'action de l'écran crée la demande et la pièce jointe — le poste attend la prévalidation", async () => {
     const p = await SPONSORING_CREATION.proposer(complet(), admin);
     if (!("carte" in p)) throw new Error(JSON.stringify(p));
     ACTOR = admin;
@@ -112,7 +113,7 @@ suite("Assistant IA — demande de sponsoring de bout en bout", () => {
     const spo = await prisma.sponsoringRequest.findFirstOrThrow({ where: { institution: INSTITUTION }, include: { items: true } });
     expect(spo.doctor).toContain(MEDECIN);
     expect(spo.city).toBeTruthy();
-    expect(spo.items).toHaveLength(1);
+    expect(spo.items, "le poste naît à la prévalidation, pas à la création (recette 24/11/2026)").toHaveLength(0);
     expect(await prisma.document.count({ where: { entityType: "SPONSORING", entityId: spo.id, category: "REQUEST_LETTER" } })).toBe(1);
   });
 

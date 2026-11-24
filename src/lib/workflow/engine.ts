@@ -494,6 +494,14 @@ async function appliquerLeGeste(ctx: ContexteGeste): Promise<AdvanceResult> {
   const refreshed = await prisma.workflowInstance.findUnique({ where: { id: instance.id } });
   const liveInstance = refreshed ?? instance;
 
+  // LE POSTE DU SPONSORING NAÎT QUAND LA PRÉVALIDATION EST COMPLÈTE (recette 24/11/2026), en attente de la Direction
+  // Marketing — AVANT l'émission, pour qu'aucun ordre global ne parte à côté de lui. Idempotent, jamais bloquant ; import
+  // différé, parce que les postes du module importent ce moteur.
+  if (entityType === "SPONSORING" && conclut) {
+    await import("@/modules/ad-pro/api").then((m) => m.naitrePosteDuSponsoring(entityId, viewer.id))
+      .catch(sansBloquer("workflow-engine.naitrePosteDuSponsoring", null));
+  }
+
   // Émission financière (à l'étape marquée) : information médicale (PRIM) ou, à défaut
   // de pharmacien, ordre de dépense direct → Finances.
   let emitResult: { declarationId: string | null; orderId: string | null } | null = null;

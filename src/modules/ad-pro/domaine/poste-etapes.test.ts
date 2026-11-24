@@ -47,6 +47,15 @@ describe("le geste suivant d'un poste", () => {
     expect(prochainPas(p, regard({ canEdit: true, fige: true })).geste).toBeNull();
   });
 
+  it("un sponsoring indirect NÉ À LA PRÉVALIDATION, en attente : la Direction Marketing le répartit — jamais « Accorder » d'un seul tenant (24/11/2026)", () => {
+    const p = poste({ kind: "INDIRECT_SUPPORT", status: "PENDING", amountEstimated: 400_000 });
+    expect(prochainPas(p, regard({ canEdit: true, canAllocate: true, validation: { operations: false, marketing: true } })).geste?.cle).toBe("REPARTIR");
+    const demandeur = prochainPas(p, DEMANDEUR);
+    expect(demandeur.geste, "le demandeur ne change pas la forme d'un poste qui attend la Direction Marketing").toBeNull();
+    expect(demandeur.attente).toMatch(/la Direction Marketing répartit/);
+    expect(prochainPas(p, regard({ canEdit: true, validation: { operations: false, marketing: true }, fige: true })).geste).toBeNull();
+  });
+
   it("un brouillon se soumet — et qui ne peut pas le voit attendre le demandeur", () => {
     // LE MONTANT VIENT DES PIÈCES (Direction, 23/11/2026) : un brouillon non chiffré se soumet.
     expect(prochainPas(poste(), DEMANDEUR).geste).toEqual({ cle: "SOUMETTRE", libelle: "Soumettre pour validation" });

@@ -64,12 +64,16 @@ function phraseDemandesCloses(n: number): string {
 }
 
 /**
- * RÉPARTIR PAR NATURE le poste « sponsoring indirect » créé avec la demande (§118.175).
+ * RÉPARTIR PAR NATURE le poste « sponsoring indirect » de la demande (§118.175).
  *
  * Tant qu'il n'est ni soumis ni accordé : la Direction ne s'est pas encore prononcée sur sa forme.
  * Une fois soumis, le répartir changerait sous ses yeux ce qu'elle est en train de décider. Et rien
  * ne se répartit quand un bon de commande ou un ordre de dépense est déjà parti : l'argent engagé
  * l'a été sur ce poste-là, tel qu'il était.
+ *
+ * NÉ À LA PRÉVALIDATION, IL ATTEND DÉJÀ LA DIRECTION MARKETING (recette 24/11/2026) — et un sponsoring indirect ne
+ * s'accorde jamais d'un seul tenant. Celle qui le décide le répartit donc en attente, et ses natures naissent en
+ * attente comme lui : elle les accorde sans « Soumettre ». Pour tout autre, en attente, il ne change plus de forme.
  */
 export async function repartirPoste(_prev: ActionResult | undefined, formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
@@ -83,7 +87,8 @@ export async function repartirPoste(_prev: ActionResult | undefined, formData: F
   const clos = await refusSiClos(owner.parent, owner.id);
   if (clos) return { ok: false, error: clos };
   if (item.kind !== "INDIRECT_SUPPORT") return { ok: false, error: "Seul un sponsoring indirect se répartit par nature." };
-  if (!STATUTS_EDITABLES.includes(item.status)) {
+  const enAttente = item.status === "PENDING" && (await peutTrancherSur(user, owner)).marketing;
+  if (!STATUTS_EDITABLES.includes(item.status) && !enAttente) {
     return { ok: false, error: "Ce poste est déjà soumis ou accordé : sa forme ne change plus — la Direction s'est prononcée (ou se prononce) sur lui tel qu'il est." };
   }
   if (item.expenseOrderId || item.orderStage !== "NONE") {
@@ -93,12 +98,18 @@ export async function repartirPoste(_prev: ActionResult | undefined, formData: F
   const lue = lireRepartition(fdStr(formData, "repartition"));
   if (!lue.ok) return { ok: false, error: lue.error };
 
-  const avant = await prisma.adProItem.findUnique({ where: { id }, select: { label: true, notes: true, budgetKind: true, addedAfterDecision: true } });
+  const avant = await prisma.adProItem.findUnique({
+    where: { id },
+    select: { label: true, notes: true, budgetKind: true, addedAfterDecision: true, submittedAt: true, opsDecidedAt: true, opsDecidedById: true, opsDecisionNote: true },
+  });
   if (!avant) return { ok: false, error: "Poste introuvable." };
   try {
     await prisma.$transaction((tx) => ecrireRepartition(tx, {
       rattachement: { [PARENTS[owner.parent].column]: owner.id }, lignes: postesRepartis(lue.lignes), premierId: id, userId: user.id,
       base: { label: avant.label, notes: avant.notes, budgetKind: avant.budgetKind, addedAfterDecision: avant.addedAfterDecision },
+      enAttente: enAttente
+        ? { submittedAt: avant.submittedAt ?? new Date(), opsDecidedAt: avant.opsDecidedAt, opsDecidedById: avant.opsDecidedById, opsDecisionNote: avant.opsDecisionNote }
+        : null,
     }));
   } catch (err) {
     console.error("[ad-pro-item] répartition impossible", err);

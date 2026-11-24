@@ -238,30 +238,25 @@ suite("Ad & Pro — postes simplifiés : répartition, gestes, voyageurs, suppre
 
   // ── LE SPONSORING INDIRECT, RÉPARTI PAR NATURE ────────────────────────────────────────
 
-  it("AVANT LA PRÉVALIDATION (27/10/2026) : aucun poste ne s'ajoute ni ne se soumet — le poste né avec la demande reste un brouillon", async () => {
-    const postes = await prisma.adProItem.findMany({ where: { sponsoringId: spoA } });
-    expect(postes, "la demande naît avec son poste").toHaveLength(1);
-    expect(postes[0].status, "le poste auto-créé reste un brouillon").toBe("DRAFT");
-    posteOrigine = postes[0].id;
+  it("AVANT LA PRÉVALIDATION (27/10/2026) : aucun poste ne s'ajoute — et celui du sponsoring n'est pas encore né (24/11/2026)", async () => {
+    expect(await prisma.adProItem.count({ where: { sponsoringId: spoA } }), "le poste naît à la prévalidation").toBe(0);
     ACTOR = await acteur(nsId, "NATIONAL_SALES");
     const ajout = await addAdProItem(undefined, fd({ parent: "SPONSORING", parentId: spoA, label: `${TAG}Trop tôt`, kind: "PRINTING", amountEstimated: "10000" }));
     expect(ajout.ok === false ? ajout.error : "ajouté").toMatch(/^Les postes s'ajoutent après la prévalidation de la Direction Marketing/);
-    const sub = await submitAdProItem(undefined, fd({ id: posteOrigine }));
-    expect(sub.ok === false ? sub.error : "soumis").toMatch(/^Les postes s'ajoutent après la prévalidation de la Direction Marketing/);
-    expect(await prisma.adProItem.count({ where: { sponsoringId: spoA } }), "rien n'est écrit").toBe(1);
-    expect((await prisma.adProItem.findUniqueOrThrow({ where: { id: posteOrigine } })).status).toBe("DRAFT");
+    expect(await prisma.adProItem.count({ where: { sponsoringId: spoA } }), "rien n'est écrit").toBe(0);
   });
 
-  it("INDIRECT non réparti : il ne se soumet pas, ne s'accorde pas, et le seul geste offert est « Répartir par nature »", async () => {
+  it("INDIRECT non réparti : né en attente, il ne s'accorde pas, et le seul geste offert — à la Direction Marketing — est « Répartir par nature »", async () => {
     await prevalider(spoA);
     const postes = await prisma.adProItem.findMany({ where: { sponsoringId: spoA } });
     expect(postes).toHaveLength(1);
     expect(postes[0].kind).toBe("INDIRECT_SUPPORT");
-    expect(postes[0].id).toBe(posteOrigine);
+    expect(postes[0].status, "né à la prévalidation, en attente de la Direction Marketing").toBe("PENDING");
+    posteOrigine = postes[0].id;
 
     ACTOR = await acteur(nsId, "NATIONAL_SALES");
     const sub = await submitAdProItem(undefined, fd({ id: posteOrigine }));
-    expect(sub.ok === false ? sub.error : "soumis").toBe(REFUS_INDIRECT_NON_REPARTI);
+    expect(sub.ok === false ? sub.error : "soumis").toMatch(/déjà en attente/);
     // Ni la Direction des opérations ni la Direction Marketing ne l'accordent — l'action refuse AVANT
     // d'écrire, donc le statut n'a pas bougé.
     for (const [id, role] of [[dirId, "DIRECTION"], [pmChefId, "PRODUCT_MANAGER"]] as const) {
@@ -269,7 +264,7 @@ suite("Ad & Pro — postes simplifiés : répartition, gestes, voyageurs, suppre
       const dec = await decideAdProItem(undefined, fd({ id: posteOrigine, decision: "APPROVED", budgetCategoryId: catId }));
       expect(dec.ok, `${role} ne doit pas accorder un sponsoring indirect non réparti`).toBe(false);
     }
-    expect((await prisma.adProItem.findUniqueOrThrow({ where: { id: posteOrigine } })).status).toBe("DRAFT");
+    expect((await prisma.adProItem.findUniqueOrThrow({ where: { id: posteOrigine } })).status).toBe("PENDING");
     // LE CAS RÉEL où la garde de la répartition est seule à parler : un sponsoring indirect d'AVANT, SOUMIS
     // (en attente de la Direction Marketing, seul temps depuis le 27/10/2026). DÉCOR, nommé : c'est cet état
     // hérité qu'on éprouve, pas son histoire.
@@ -283,12 +278,20 @@ suite("Ad & Pro — postes simplifiés : répartition, gestes, voyageurs, suppre
     expect((await prisma.adProItem.findUniqueOrThrow({ where: { id: herite.id } })).status).toBe("PENDING");
     await prisma.adProItem.delete({ where: { id: herite.id } });
 
-    const pas = prochainPas(faitsDuPoste(await ligne(spoA, posteOrigine)), REGARD_DEMANDEUR);
-    expect(pas.geste?.cle).toBe("REPARTIR");
+    // EN ATTENTE, il se répartit par celle qui le décide (recette 24/11/2026) : le demandeur lit qui on attend.
+    const faits = faitsDuPoste(await ligne(spoA, posteOrigine));
+    const demandeur = prochainPas(faits, REGARD_DEMANDEUR);
+    expect(demandeur.geste).toBeNull();
+    expect(demandeur.attente).toMatch(/la Direction Marketing répartit ce sponsoring indirect/);
+    const validation = (await contextePostes(await acteur(pmChefId, "PRODUCT_MANAGER"), "SPONSORING", spoA)).validation;
+    expect(prochainPas(faits, { ...REGARD_DIRECTION, validation }).geste?.cle).toBe("REPARTIR");
+    ACTOR = await acteur(nsId, "NATIONAL_SALES");
+    const parLeDemandeur = await repartirPoste(undefined, fd({ id: posteOrigine, repartition: JSON.stringify([{ kind: "PRINTING", montant: 1000, precision: "", payeA: "" }]) }));
+    expect(parLeDemandeur.ok === false ? parLeDemandeur.error : "réparti").toMatch(/déjà soumis ou accordé/);
   });
 
   it("RÉPARTIR : une saisie fautive ne change RIEN, et le refus nomme chaque ligne", async () => {
-    ACTOR = await acteur(nsId, "NATIONAL_SALES");
+    ACTOR = await acteur(pmChefId, "PRODUCT_MANAGER");
     const r = await repartirPoste(undefined, fd({
       id: posteOrigine,
       repartition: JSON.stringify([{ kind: "PRINTING", montant: "", precision: "", payeA: "" }, { kind: "", montant: 600000, precision: "", payeA: "" }]),
@@ -302,7 +305,7 @@ suite("Ad & Pro — postes simplifiés : répartition, gestes, voyageurs, suppre
   });
 
   it("RÉPARTIR : chaque nature devient un poste, le premier GARDE l'identifiant d'origine, et l'écart se DIT", async () => {
-    ACTOR = await acteur(nsId, "NATIONAL_SALES");
+    ACTOR = await acteur(pmChefId, "PRODUCT_MANAGER");
     const r = await repartirPoste(undefined, fd({
       id: posteOrigine,
       repartition: JSON.stringify([
@@ -325,6 +328,8 @@ suite("Ad & Pro — postes simplifiés : répartition, gestes, voyageurs, suppre
     expect(Number(hotel.amountEstimated)).toBe(500_000);
     expect(hotel.notes).toMatch(/Réparti depuis/);
     expect(postes.every((p) => p.repartitionId === posteOrigine), "les natures se relient par la première").toBe(true);
+    // RÉPARTI EN ATTENTE (recette 24/11/2026) : les natures attendent la Direction Marketing avec lui, sans « Soumettre ».
+    expect(postes.every((p) => p.status === "PENDING" && p.submittedAt != null)).toBe(true);
     hotellerie = hotel.id;
 
     // L'ÉCRAN les regroupe d'un seul tenant : c'est la clé que la répartition pose.
@@ -431,6 +436,10 @@ suite("Ad & Pro — postes simplifiés : répartition, gestes, voyageurs, suppre
       const porte = (await contextePostes(await acteur(nsId, "NATIONAL_SALES"), "SPONSORING", spoA)).porteDg;
       return { ...faitsDuPoste(await ligne(spoA, hotellerie)), porteDg: porte.etat, porteDgPhrase: porte.phrase };
     };
+    // NÉE EN ATTENTE (la répartition d'un poste né à la prévalidation, recette 24/11/2026) : droit chez la Direction
+    // Marketing — l'ancien premier temps franchi d'office, tracé —, et personne n'a à la soumettre.
+    expect((await prisma.adProItem.findUniqueOrThrow({ where: { id: hotellerie } })).opsDecidedAt, "premier temps franchi d'office").not.toBeNull();
+    expect(prochainPas(await faitsEcran(), regards[1]), "la Direction des opérations n'a rien à faire").toEqual({ geste: null, attente: "En attente — chez la Direction Marketing (montant et budget)." });
     const suivis: CleGeste[] = [];
     for (let tour = 0; tour < 8; tour += 1) {
       const faits = await faitsEcran();
@@ -445,8 +454,8 @@ suite("Ad & Pro — postes simplifiés : répartition, gestes, voyageurs, suppre
         expect(prochainPas(await faitsEcran(), regards[1]), "la Direction des opérations n'a rien à faire").toEqual({ geste: null, attente: "En attente — chez la Direction Marketing (montant et budget)." });
       }
     }
-    // UN SEUL TEMPS : soumettre, la Direction Marketing décide (montant et budget), puis le BC.
-    expect(suivis).toEqual(["SOUMETTRE", "DECIDER", "DEMANDER_BC"]);
+    // UN SEUL TEMPS : la Direction Marketing décide (montant et budget), puis le BC — sans « Soumettre » (24/11/2026).
+    expect(suivis).toEqual(["DECIDER", "DEMANDER_BC"]);
     expect((await faitsEcran()).porteDg, "prémisse : le total de la demande reste sous le seuil du DG").toBe("NON_REQUISE");
     // Le BC est demandé : au centre (au-dessus du seuil), et chez l'assistante. L'écran DIT qui on
     // attend — jamais un geste du demandeur.

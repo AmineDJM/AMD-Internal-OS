@@ -36,8 +36,8 @@ export const SPONSORING_STATUS: Record<string, Display> = {
 };
 
 /**
- * LA NATURE D'UN SPONSORING (§118.151) — choisie à la création, elle décide le poste qui naît avec
- * la demande. Le libellé dit OÙ VA L'ARGENT, parce que c'est ce que la personne doit trancher.
+ * LA NATURE D'UN SPONSORING (§118.151) — choisie à la création, elle décide le poste qui naît à la
+ * prévalidation (recette 24/11/2026). Le libellé dit OÙ VA L'ARGENT, parce que c'est ce que la personne doit trancher.
  */
 export const SPONSORING_NATURE: Record<"DIRECT" | "INDIRECT", string> = {
   DIRECT: "Direct — versé à l'association",

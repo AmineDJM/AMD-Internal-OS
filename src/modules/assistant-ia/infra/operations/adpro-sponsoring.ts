@@ -134,7 +134,8 @@ export const SPONSORING_CREATION: OperationIA = {
     if (inconnus.length) warnings.push(`Hors annuaire médical (saisis tels quels) : ${inconnus.join(", ")}.`);
     if (prerempli.length) warnings.push(`Pré-rempli depuis l'annuaire médical : ${prerempli.join(", ")} — vérifiez.`);
     warnings.push(await avertissementBudget(user, montantSuggere));
-    warnings.push("Le sponsoring devient le premier POSTE de la demande ; les autres postes s'ajoutent après la pré-validation de la tenue. Le budget est accordé ensuite par la Direction.");
+    // LE POSTE NAÎT À LA PRÉVALIDATION (recette 24/11/2026) : la carte ne promet pas un poste que la création ne fait plus.
+    warnings.push("À la pré-validation de la tenue, le sponsoring devient le premier POSTE de la demande, en attente de la Direction Marketing ; les autres postes s'ajoutent ensuite. Le budget est accordé ensuite par la Direction.");
     warnings.push("L'original de la demande du médecin doit être déposé au bureau du secrétariat.");
 
     return {

@@ -124,8 +124,12 @@ suite("le sponsoring d'un KAM : il le dépose, il est seul à le voir, le Nation
     expect(await prisma.sponsoringRequest.count({ where: { AND: [{ id: spoId }, await clauseSponsoringsVisibles(autre)] } })).toBe(0);
     expect(await canAccessEntity(autre, "SPONSORING", spoId, "VIEW")).toBe(false);
     expect((await getAdProRequests(autre)).some((d) => d.id === spoId)).toBe(false);
-    // Le poste créé avec la demande : un identifiant deviné ne doit rien ouvrir.
-    const poste = await prisma.adProItem.findFirstOrThrow({ where: { sponsoringId: spoId }, select: { id: true } });
+    // Un poste de la demande : un identifiant deviné ne doit rien ouvrir. DÉCOR, nommé : le poste du sponsoring ne naît
+    // qu'à la prévalidation (recette 24/11/2026), que ce banc ne joue pas — on pose celui qu'elle aurait fait naître.
+    const poste = await prisma.adProItem.create({
+      data: { sponsoringId: spoId, kind: "ASSOCIATION_SUPPORT", label: `${TAG} poste`, status: "PENDING", amountEstimated: 90_000, position: 1 },
+      select: { id: true },
+    });
     ACTOR = autre;
     const r = await updateAdProItem(undefined, (() => { const f = new FormData(); f.set("id", poste.id); f.set("label", "détourné"); return f; })());
     expect(r.ok).toBe(false);

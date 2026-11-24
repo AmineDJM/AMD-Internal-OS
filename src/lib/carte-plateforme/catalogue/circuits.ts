@@ -13,11 +13,11 @@ export const CIRCUITS: readonly Circuit[] = [
     resume: "Le circuit le plus long de la plateforme : de la demande du délégué jusqu'au paiement et à l'imputation budgétaire.",
     declencheur: "Un délégué médical (KAM) dépose une demande de sponsoring pour un médecin ou une association.",
     etapes: [
-      { acteur: "KAM (Délégué médical)", type: "demandeur", module: "ad-pro", action: "Nouvelle demande › Sponsoring", effet: "Pièce scannée de la demande du médecin, médecins, produits, wilaya, montant demandé par le médecin + suggéré par le délégué, nature directe / indirecte. Le POSTE naît avec la demande." },
+      { acteur: "KAM (Délégué médical)", type: "demandeur", module: "ad-pro", action: "Nouvelle demande › Sponsoring", effet: "Pièce scannée de la demande du médecin, médecins, produits, wilaya, montant demandé par le médecin + suggéré par le délégué, nature directe / indirecte. Le POSTE naît à la prévalidation, en attente de la Direction Marketing (recette 24/11/2026)." },
       { acteur: "National Sales", type: "decideur", module: "ad-pro", action: "Approuver / Refuser / Renvoyer", effet: "Le superviseur du KAM filtre en premier.", decision: true },
       { acteur: "Directeur Général (porte du DG)", type: "decideur", module: "centre-ad-pro", action: "Viser", effet: "Seulement au-dessus du seuil réglé ; en dessous, franchie automatiquement et tracée.", decision: true },
       { acteur: "Direction des opérations", type: "decideur", module: "ad-pro", action: "Accord", effet: "Pour un sponsoring de KAM uniquement ; elle ne chiffre pas.", decision: true },
-      { acteur: "Direction Marketing", type: "decideur", module: "ad-pro", action: "Pré-valider la tenue", effet: "L'étape qui TRANCHE. Pour un sponsoring : la tenue est pré-validée, sans montant global.", decision: true },
+      { acteur: "Direction Marketing", type: "decideur", module: "ad-pro", action: "Pré-valider la tenue", effet: "L'étape qui TRANCHE. Pour un sponsoring : la tenue est pré-validée, sans montant global — et son poste naît, en attente de la Direction Marketing.", decision: true },
       { acteur: "PRIM", type: "execution", module: "information-medicale", action: "Lecture « à déclarer ? »", effet: "Si un pharmacien responsable est configuré : déclaration à l'ANPP, validée par le Directeur des Opérations." },
       { acteur: "Demandeur + Assistante", type: "execution", module: "ad-pro", action: "Postes : devis → décision → BC", effet: "Chaque poste se chiffre, se décide, puis génère son bon de commande." },
       { acteur: "Signataire BC", type: "decideur", module: "bons-de-commande", action: "Signer", effet: "Après le centre Ad & Pro si le BC dépasse le seuil des BC.", decision: true },

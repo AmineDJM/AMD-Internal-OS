@@ -36,6 +36,8 @@ export { ecrireAuFil } from "./infra/fil";
 export { lireLaMarcheDuBC, notificationDuCentreBC, REFUS_MARCHE_PRISE, relacherLesPostesSousLeSeuil } from "./infra/marche-bc";
 export { peutLirePasseportDuSujet, peutLirePieceDePriseEnCharge } from "./infra/passeport-acces";
 export { peutLireFichierDuPosteConfie } from "./infra/postes/discussion";
+// LE POSTE DU SPONSORING NAÎT À SA PRÉVALIDATION (recette 24/11/2026) — appelé par le moteur du circuit.
+export { naitrePosteDuSponsoring, type NaissancePoste } from "./infra/postes/naissance-sponsoring";
 export { lienDuPostePour, requireModuleOuAgences } from "./infra/porte-assistante";
 export { accesPiecesLiees, contextePiecesLiees } from "./infra/pieces-liees";
 export { annulerDemandesPiecesDuPoste, assistantesDeDirection, demandesBCDesPostes, natureDePiece, piecesDesPostes, rattacherPieceAuPoste, societeDuPoste } from "./infra/pieces-poste";

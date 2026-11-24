@@ -13,7 +13,7 @@ export interface PosteReparti {
 
 /**
  * ÉCRIT LES POSTES D'UNE RÉPARTITION — un seul écrivain pour l'ajout d'un sponsoring indirect et
- * pour « Répartir par nature » sur le poste créé avec la demande : deux écritures de la même chose
+ * pour « Répartir par nature » sur le poste du sponsoring : deux écritures de la même chose
  * finiraient par ne pas relier, nommer ou positionner les postes pareil (§118.5).
  *
  * `premierId` : le poste d'ORIGINE quand on répartit un poste existant — il devient la première
@@ -26,6 +26,10 @@ export interface PosteReparti {
  * l'imprimerie seule, et laisser « Refusé » sur elle dirait que la Direction a refusé une
  * imprimerie dont elle n'a jamais entendu parler. La décision passée reste lisible dans
  * l'historique des décisions du poste (`AdProItemDecision`), qu'on ne touche pas.
+ *
+ * SAUF LE POSTE QUI ATTEND DÉJÀ LA DIRECTION MARKETING (recette 24/11/2026) : né à la prévalidation, il est en attente
+ * sans que personne l'ait soumis, et c'est elle qui le répartit (`enAttente`). Ses natures naissent alors en attente
+ * comme lui — même soumission, même premier temps franchi — et elle les accorde sans « Soumettre ».
  *
  * Pourquoi ce module et non une aide locale du fichier d'actions : la dérivation des contrats ne
  * suit une aide LOCALE que lorsqu'elle reçoit le formulaire (`actions/contrat.ts`,
@@ -40,10 +44,13 @@ export async function ecrireRepartition(tx: Prisma.TransactionClient, a: {
   premierId: string | null;
   userId: string;
   base: { label: string; notes: string | null; budgetKind: AdProItemBudgetKind; addedAfterDecision: boolean };
+  /** Le poste réparti attend la Direction Marketing : ses natures l'attendent avec lui (sa soumission recopiée). */
+  enAttente?: { submittedAt: Date | null; opsDecidedAt: Date | null; opsDecidedById: string | null; opsDecisionNote: string | null } | null;
 }): Promise<string[]> {
   const last = await tx.adProItem.findFirst({ where: a.rattachement, orderBy: { position: "desc" }, select: { position: true } });
   let position = last?.position ?? 0;
   const champs = (l: PosteReparti) => ({ kind: l.kind, label: l.label, amountEstimated: l.montant, supplier: l.payeA });
+  const attente = a.enAttente ? { status: "PENDING" as const, ...a.enAttente } : null;
   const ids: string[] = [];
   const [tete, ...suite] = a.lignes;
   if (!tete) return ids;
@@ -53,6 +60,7 @@ export async function ecrireRepartition(tx: Prisma.TransactionClient, a: {
       data: {
         ...champs(tete), amountGranted: null, budgetCategoryId: null, repartitionId: a.premierId,
         status: "DRAFT", submittedAt: null, decidedAt: null, decidedById: null, decisionNote: null,
+        ...attente,
         updatedById: a.userId,
       },
     });
@@ -74,6 +82,7 @@ export async function ecrireRepartition(tx: Prisma.TransactionClient, a: {
       data: {
         ...a.rattachement, ...champs(l), notes: `Réparti depuis « ${a.base.label} ».`, budgetKind: a.base.budgetKind,
         addedAfterDecision: a.base.addedAfterDecision, repartitionId, position: ++position,
+        ...attente,
         createdById: a.userId, updatedById: a.userId,
       },
       select: { id: true },

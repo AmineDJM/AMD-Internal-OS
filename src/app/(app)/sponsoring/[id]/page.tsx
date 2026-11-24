@@ -357,8 +357,9 @@ export default async function SponsoringDetailPage(props: { params: Promise<{ id
         }
       >
         {/* LES POSTES DE LA DEMANDE — « dans les postes on voit tous les postes relatifs à cette demande » (§118.151). Le
-            premier est le sponsoring lui-même, créé avec la demande (direct : versé à l'association ; indirect : prise en
-            charge) ; les autres s'ajoutent après la pré-validation de la tenue. Leur bandeau propre a rejoint celui de la carte. */}
+            premier est le sponsoring lui-même, né à la pré-validation de la tenue, en attente de la Direction Marketing (direct :
+            versé à l'association ; indirect : prise en charge — recette 24/11/2026) ; les autres s'ajoutent ensuite. Avant la
+            pré-validation, la liste est vide. Leur bandeau propre a rejoint celui de la carte. */}
         <IntertitrePostes n={items.length} />
         <AdProItemsPanel
           parent="SPONSORING"

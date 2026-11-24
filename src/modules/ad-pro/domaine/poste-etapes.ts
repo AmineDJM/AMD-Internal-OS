@@ -402,6 +402,13 @@ export function prochainPas(p: FaitsPoste, r: RegardPoste): ProchainPas {
       ? { geste: { cle: "REPARTIR", libelle: "Répartir par nature" }, attente: null }
       : { geste: null, attente: "Le demandeur doit répartir ce sponsoring indirect par nature (imprimerie, hôtellerie…)." };
   }
+  // NÉ À LA PRÉVALIDATION, EN ATTENTE (recette 24/11/2026) : il ne s'accorde pas d'un seul tenant — celle qui le décide le
+  // répartit, et ses natures l'attendent avec lui (`repartirPoste`).
+  if (p.kind === "INDIRECT_SUPPORT" && p.status === "PENDING") {
+    return editer && droits.marketing
+      ? { geste: { cle: "REPARTIR", libelle: "Répartir par nature" }, attente: null }
+      : { geste: null, attente: `En attente — ${qui2} répartit ce sponsoring indirect par nature, puis accorde chaque poste.` };
+  }
 
   if (STATUTS_EDITABLES.includes(p.status)) {
     if (!editer) {

@@ -289,8 +289,8 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
   // « Joindre un BC existant » = la demande à l'assistante (qui l'uploade) : le geste d'avant, tant qu'il est ouvert.
   // « ACCORDER » OÙ L'ON BUTE (Direction, 15/11/2026) : la case « Bon de commande » dit « le poste doit d'abord être
   // accordé » — à qui peut l'accorder, elle offre le geste lui-même (la boîte de décision, montant et budget). Un poste
-  // « agence » s'accorde en choisissant son agence (sa frise) : pas ici.
-  const peutAccorder = !stock && !agence && item.status === "PENDING" && droits.marketing && !regard.fige;
+  // « agence » s'accorde en choisissant son agence (sa frise) : pas ici. Un sponsoring indirect non plus : il se répartit d'abord.
+  const peutAccorder = !stock && !agence && item.kind !== "INDIRECT_SUPPORT" && item.status === "PENDING" && droits.marketing && !regard.fige;
   const ouvrirAccord = () => {
     setPanneau("DECIDER");
     requestAnimationFrame(() => document.getElementById(`accord-${item.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }));

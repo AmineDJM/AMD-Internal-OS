@@ -28,7 +28,7 @@ export const ITEM_KIND_LABELS: Record<AdProItemKind, string> = {
   SYMPOSIUM: "Symposium",
   PROMO_MATERIAL: "Matériel promotionnel",
   // LE SPONSORING, DIRECT OU INDIRECT (§118.151) — la nature que la Direction fait préciser à la
-  // création, et que le poste créé avec la demande porte. Direct : l'argent va à l'association.
+  // création, et que le poste né à la prévalidation porte. Direct : l'argent va à l'association.
   // Indirect : la société prend en charge des prestations ou des médecins.
   ASSOCIATION_SUPPORT: "Sponsoring direct (association)",
   INDIRECT_SUPPORT: "Sponsoring indirect (prise en charge)",

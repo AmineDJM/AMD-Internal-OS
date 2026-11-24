@@ -1,12 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { AdProItemKind, Priority, SponsoringNature, SponsoringStatus } from "@prisma/client";
+import type { Priority, SponsoringNature, SponsoringStatus } from "@prisma/client";
 import { requireUser, requireUserAuNomDeLaVue } from "@/lib/session";
 import { userCan, hasGlobalView, hasRole, anyRoleFilter, type SessionUser } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { moneyEntityOf } from "@/lib/company";
-import { readMultiField, lireMedecinsDemande, ITEM_KIND_LABELS, bilanCloture, peutCloturer, quiCloture, refusCloture, type QuiCloture, noteDuPosteDeNaissance } from "@/modules/ad-pro/partage";
+import { readMultiField, lireMedecinsDemande, bilanCloture, peutCloturer, quiCloture, refusCloture, type QuiCloture, POSTE_DE_LA_NATURE } from "@/modules/ad-pro/partage";
 import { businessUnitDuDemandeur, referentAInscrire, postesPourCloture } from "@/modules/ad-pro/api";
 import { normalizeCity } from "@/lib/geo/algeria";
 import { createWithRetry, referenceDeSerie } from "@/lib/refs";
@@ -16,7 +16,7 @@ import { involveThirdParty } from "@/lib/third-party";
 import { ouvrirLeCircuit, reopenInstance } from "@/lib/workflow/engine";
 import { adProInit, PRODUCT_MANAGER_ROLES } from "@/lib/workflow/origin";
 import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
-import { toNumber, montantDzd } from "@/lib/utils";
+import { toNumber } from "@/lib/utils";
 import { porteLeRoleQuiTranche } from "@/lib/personnes/referents-gamme";
 import { sansBloquer } from "@/lib/journal";
 
@@ -31,19 +31,9 @@ const PATH = "/sponsoring";
 const FORMATS_DEMANDE_MEDECIN = /\.(pdf|doc|docx)$/i;
 
 /**
- * LA NATURE D'UN SPONSORING DÉCIDE LE POSTE QUI NAÎT AVEC LUI (§118.151).
- *
- * « Ce sponsoring s'ajoute automatiquement dans un poste, car dans les postes on voit tous les
- * postes relatifs à cette demande ; on précisera si c'est un sponsoring direct (à l'association)
- * ou indirect (prise en charge de prestations / de médecins) » (Direction, 09/2026).
- *
- * La table est FERMÉE et exhaustive (`Record<SponsoringNature, …>`) : une troisième nature ajoutée
- * au schéma ne compile pas tant que personne n'a dit quel poste elle ouvre.
+ * LES NATURES ADMISES — celles qui ouvrent un poste (§118.151). La table vit avec la règle du poste
+ * (`domaine/poste-du-sponsoring.ts`) : le poste naît à la prévalidation (recette 24/11/2026), pas ici.
  */
-const POSTE_DE_LA_NATURE: Record<SponsoringNature, AdProItemKind> = {
-  DIRECT: "ASSOCIATION_SUPPORT",
-  INDIRECT: "INDIRECT_SUPPORT",
-};
 const NATURES_SPONSORING = Object.keys(POSTE_DE_LA_NATURE) as SponsoringNature[];
 
 /** Approbation préliminaire Ad & Pro : **réservée au National Sales** (la demande
@@ -229,31 +219,10 @@ export async function createSponsoring(
       // simplement le nom de son référent.
       ...(init.productManagerId || referentGamme ? { productManagerId: init.productManagerId || referentGamme! } : {}),
       ...(init.preliminaryBySelf ? { preliminaryById: user.id, preliminaryAt: now } : {}),
-      // LE POSTE NAÎT AVEC LA DEMANDE, dans la MÊME écriture (§118.151).
-      //
-      // Créé à part, il pourrait manquer : une demande sans son poste est exactement ce que la
-      // Direction ne veut plus voir — « dans les postes on voit tous les postes relatifs à cette
-      // demande », et le sponsoring lui-même en est le premier. Une création imbriquée est
-      // atomique : les deux lignes existent ensemble, ou aucune.
-      //
-      // Chiffré à ce que SUGGÈRE LE DÉLÉGUÉ — c'est une recommandation, et c'est la Direction
-      // Marketing qui accordera ; la demande du médecin est dite dans le poste pour que l'écart se
-      // lise sans ouvrir la demande. Un sponsoring direct se verse à l'association : elle est le
-      // bénéficiaire du poste. Un sponsoring indirect paie des prestataires que personne ne connaît
-      // encore : le bénéficiaire reste vide plutôt que deviné.
-      items: {
-        create: {
-          kind: POSTE_DE_LA_NATURE[nature!],
-          label: `${ITEM_KIND_LABELS[POSTE_DE_LA_NATURE[nature!]]} — ${institution}`,
-          notes: noteDuPosteDeNaissance(demandeParLeMedecin!, suggereParLeDelegue!, montantDzd),
-          supplier: nature === "DIRECT" ? institution : null,
-          amountEstimated: suggereParLeDelegue,
-          budgetKind: "INCLUDED",
-          position: 1,
-          createdById: user.id,
-          updatedById: user.id,
-        },
-      },
+      // LE POSTE NE NAÎT PLUS AVEC LA DEMANDE (recette 24/11/2026). Né ici, il se montrait à tous en « Brouillon », avec
+      // « Soumettre pour validation », avant que quiconque ait prévalidé. Il naît quand la chaîne est complète — N+1,
+      // Directeur des opérations, Direction Marketing —, en attente de la Direction Marketing (`naitrePosteDuSponsoring`,
+      // appelé par le moteur du circuit). Tout ce qu'il porte est écrit ici : la nature, l'institution, les deux montants.
     },
   }));
 
@@ -271,7 +240,7 @@ export async function createSponsoring(
   const nbPieces = attached.saved + annexesJointes.saved;
   const manque = [attached.error, annexesJointes.error].filter(Boolean).join(" ");
 
-  await recordAudit({ actorId: user.id, action: "CREATE", module: "Sponsoring", entityType: "SPONSORING", entityId: created.id, summary: `Demande ${created.reference} — ${institution} — sponsoring ${nature === "DIRECT" ? "direct" : "indirect"}, poste créé avec la demande${nbPieces > 0 ? ` (${nbPieces} pièce(s) jointe(s))` : ""}` });
+  await recordAudit({ actorId: user.id, action: "CREATE", module: "Sponsoring", entityType: "SPONSORING", entityId: created.id, summary: `Demande ${created.reference} — ${institution} — sponsoring ${nature === "DIRECT" ? "direct" : "indirect"}, son poste naît à la prévalidation${nbPieces > 0 ? ` (${nbPieces} pièce(s) jointe(s))` : ""}` });
   // LE CIRCUIT NAÎT AVEC LA DEMANDE et prévient chaque acteur de SON parcours (décision #1, 27/10/2026).
   await ouvrirLeCircuit("SPONSORING", created.id);
 
