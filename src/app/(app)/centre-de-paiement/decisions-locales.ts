@@ -11,7 +11,7 @@ import { awaitsCentre, type CentralStatus } from "@/modules/finances/partage";
  * immobiles, jusqu'au rechargement complet. Il recliquait sur la même ligne. L'action invalide
  * pourtant la page (`revalidatePath`) et l'écran la redemande (`useRafraichir`, §118.172) : le
  * circuit était complet. Mais tout l'écran attendait ce SECOND aller-retour — et la page du centre
- * est lourde (toutes les sociétés, les trois sections, les dossiers, les doublons, la coque) :
+ * est lourde (toutes les sociétés, les dossiers, les doublons, la coque) :
  * entre la fermeture de la feuille et l'arrivée des nouvelles données, l'écran montrait l'état
  * d'AVANT comme s'il était l'état présent, sans rien qui dise qu'une mise à jour était en route.
  *

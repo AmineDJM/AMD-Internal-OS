@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { notifyRoles } from "@/lib/notify";
 import { statutApresRevision, memeBeneficiaire, ROLES_CENTRE_DE_PAIEMENT, type CentralStatus } from "../domaine/authorization";
-import { ENTITE_SANS, slugSectionDeLOrdre } from "../domaine/sections-centre";
+import { ENTITE_SANS } from "../domaine/entite-centre";
 import { lienCentreDePaiement } from "@/lib/chemins/finances";
 import { sansBloquer } from "@/lib/journal";
 
@@ -176,12 +176,12 @@ export async function apresRevisionOrdre(
   const autreBeneficiaire = !memeBeneficiaire(r.beneficiaireAvant, r.beneficiaireApres);
   const cause = releve && autreBeneficiaire ? "montant relevé et bénéficiaire changé"
     : releve ? "montant relevé" : "bénéficiaire changé";
-  // Le centre ouvert sur l'entité et la section où l'ordre attend de nouveau.
-  const o = await prisma.expenseOrder.findUnique({ where: { id: r.orderId }, select: { companyId: true, sourceType: true } }).catch(sansBloquer("revision-ordre.apresRevisionOrdre.expenseOrder", null));
+  // Le centre ouvert sur l'entité où l'ordre attend de nouveau.
+  const o = await prisma.expenseOrder.findUnique({ where: { id: r.orderId }, select: { companyId: true } }).catch(sansBloquer("revision-ordre.apresRevisionOrdre.expenseOrder", null));
   await notifyRoles([...ROLES_CENTRE_DE_PAIEMENT], {
     type: "VALIDATION_REQUIRED",
     title: `Paiement à ré-autoriser — ${cause}`,
     body: `${r.reference} — ${opts.objet} : ${r.montantAvant.toLocaleString("fr-FR")} → ${r.montantApres.toLocaleString("fr-FR")} DZD${autreBeneficiaire ? `, à « ${r.beneficiaireApres ?? "—"} »` : ""}`,
-    link: o ? lienCentreDePaiement(o.companyId ?? ENTITE_SANS, slugSectionDeLOrdre(o.sourceType)) : lienCentreDePaiement(),
+    link: o ? lienCentreDePaiement(o.companyId ?? ENTITE_SANS) : lienCentreDePaiement(),
   });
 }

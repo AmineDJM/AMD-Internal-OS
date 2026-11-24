@@ -3,7 +3,7 @@ import { createWithRetry, enSerie, referenceDeSerie } from "@/lib/refs";
 import { ENTITY_MODULE } from "@/lib/entity-access";
 import { initialCentralStatus, isHighValue, CENTRAL_AUTH_THRESHOLD_DZD, ROLES_CENTRE_DE_PAIEMENT } from "../domaine/authorization";
 import { deadlineNatureOf } from "../domaine/deadline-nature";
-import { ENTITE_SANS, slugSectionDeLOrdre } from "../domaine/sections-centre";
+import { ENTITE_SANS } from "../domaine/entite-centre";
 import { lienCentreDePaiement, lienOrdreAPayer } from "@/lib/chemins/finances";
 import {
   needsCompanionDossier, companionPayee, companionStatusForOrder,
@@ -316,9 +316,8 @@ export async function createExpenseOrder(input: CreateExpenseOrderInput) {
       type: "VALIDATION_REQUIRED",
       title: "Autorisation de paiement demandée",
       body: `${order.reference} — ${input.label} (${money}${isHighValue(input.amount) ? `, au-dessus de ${CENTRAL_AUTH_THRESHOLD_DZD.toLocaleString("fr-FR")} DZD` : ""})`,
-      // L'entité et la section où l'ordre attend — la section seulement quand l'origine la DIT
-      // (un porteur — demande de paiement, secrétariat — renvoie à une origine lue ailleurs).
-      link: lienCentreDePaiement(companyId ?? ENTITE_SANS, slugSectionDeLOrdre(input.sourceType)),
+      // L'entité où l'ordre attend : le centre n'a plus qu'une file par entité.
+      link: lienCentreDePaiement(companyId ?? ENTITE_SANS),
     });
   } else {
     // Chemin HISTORIQUE : plus aucun ordre ne naît hors du centre. Il reste pour que la fonction

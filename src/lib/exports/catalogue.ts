@@ -186,13 +186,12 @@ export const CATALOGUE_EXPORTS: readonly FicheExport[] = [
   {
     outil: "exporter_ordres_centre_paiement", route: "/api/finances/centre/export", ecran: "/centre-de-paiement", format: "Excel",
     libelle: "Exporter les ordres du centre de paiement (Excel)",
-    description: "PRODUIT le classeur Excel des ORDRES DU CENTRE DE PAIEMENT (l'écran « Centre de paiement ») pour une entité et une section (Regulatory, Sales & Marketing, Autres, ou toutes) : référence, libellé, bénéficiaire, montant, statut du centre, décision, échéance, demandeur. Déposé dans le Drive (« Exports »).",
+    description: "PRODUIT le classeur Excel des ORDRES DU CENTRE DE PAIEMENT (l'écran « Centre de paiement ») pour une entité, toutes origines confondues : référence, libellé, bénéficiaire, montant, statut du centre, décision, échéance, demandeur. Déposé dans le Drive (« Exports »).",
     proprietes: {
       entite: { type: "string", description: "La société (son nom) — facultatif : celle de l'écran." },
-      section: { type: "string", description: "Regulatory, Sales & Marketing, Autres, ou toutes — facultatif." },
       statuts: { type: "array", description: "Statuts du centre (« En attente du centre de paiement », « Autorisé », « Refusé »…) — facultatif." },
     },
-    mots: "export exporte excel centre paiement ordres depense autoriser autorise refuse attente decision entite section",
+    mots: "export exporte excel centre paiement ordres depense autoriser autorise refuse attente decision entite",
   },
 ];
 

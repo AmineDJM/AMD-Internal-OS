@@ -64,7 +64,7 @@ const PRODUCTEURS: Readonly<Record<string, Producteur>> = {
   exporter_annuaire: (user, e) => exporterAnnuaire(user, texte(e, "grade") || null),
   exporter_plan_de_tournee_pdf: (user, e) => exporterPlanTourneePdf(user, { kam: texte(e, "kam") || null, mois: texte(e, "mois") || null }),
   exporter_demandes_paiement: (user, e) => exporterDemandesPaiement(user, { perimetre: texte(e, "perimetre") || null, statuts: liste(e, "statuts") }),
-  exporter_ordres_centre_paiement: (user, e) => exporterOrdresCentre(user, { entite: texte(e, "entite") || null, section: texte(e, "section") || null, statuts: liste(e, "statuts") }),
+  exporter_ordres_centre_paiement: (user, e) => exporterOrdresCentre(user, { entite: texte(e, "entite") || null, statuts: liste(e, "statuts") }),
 };
 
 /**

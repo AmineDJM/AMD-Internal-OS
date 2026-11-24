@@ -42,7 +42,7 @@ export { ficheAFacture, ordreAFacture, ordresAvecFacture } from "./infra/facture
 export { type LienDepense, type PieceDepense, piecesDesEcritures } from "./infra/pieces-depense";
 
 // ── Requêtes : ce que montrent les écrans (une page ne lit pas Prisma) ───────────────────────
-export { chargerCentre, type EntiteDuCentre, type SectionDuCentre } from "./infra/requetes/centre-paiement";
+export { chargerCentre, type EntiteDuCentre } from "./infra/requetes/centre-paiement";
 export { chargerOrdresDesFinances, HISTORIQUE_MAX } from "./infra/requetes/paiements-a-faire";
 export {
   chargerTresorerie, type CompteLu, getFinanceData, type LedgerRow, ORDRES_AUTORISES_NON_REGLES,

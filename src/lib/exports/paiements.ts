@@ -7,8 +7,7 @@ import { getMyCompanies } from "@/lib/company";
 import { PAYMENT_REQUEST_STATUS, PAYMENT_URGENCY } from "@/lib/labels";
 import { chargerCentre, fileAInstruire, instruitLesDemandes, myPaymentRequests } from "@/modules/finances/api";
 import {
-  CENTRAL_STATUS_LABEL, deadlineLabel, deadlineNatureLabel, isCompanionDossier, SECTION_CENTRE_LABEL, SECTION_CENTRE_SLUG, sortByPriority,
-  type SectionCentre,
+  CENTRAL_STATUS_LABEL, deadlineLabel, deadlineNatureLabel, isCompanionDossier, sortByPriority,
 } from "@/modules/finances/partage";
 import { cleParLibelle, libellesDe } from "./filtres";
 import { exporte, MIME_XLSX, refusExport, type ResultatExport } from "./types";
@@ -21,8 +20,8 @@ import { exporte, MIME_XLSX, refusExport, type ResultatExport } from "./types";
  *     qui instruit (`instruitLesDemandes`), la file à instruire (`fileAInstruire`) — les mêmes fonctions que la page,
  *     dans le même ordre (échéance réelle, `sortByPriority`).
  *   • LES ORDRES DU CENTRE DE PAIEMENT — ce que montre `/centre-de-paiement` : la portée du chargeur (`chargerCentre` :
- *     tout le centre pour qui y siège, ses propres demandes sinon, dans les sociétés de la personne), l'entité et la
- *     section choisies comme à l'écran — sans la coupe d'affichage (300 lignes).
+ *     tout le centre pour qui y siège, ses propres demandes sinon, dans les sociétés de la personne), l'entité
+ *     choisie comme à l'écran, toutes origines confondues — sans la coupe d'affichage (300 lignes).
  *
  * Partagés par les routes des boutons et par l'Assistant IA (lot K7, décision 0037) : même portée, mêmes droits, audit.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -94,17 +93,11 @@ export async function exporterDemandesPaiement(user: CurrentUser, o: OptionsExpo
 export interface OptionsExportCentre {
   /** La société (identifiant, nom court ou nom) — par défaut celle que l'écran ouvre. */
   entite?: string | null;
-  /** « REGULATORY », « SALES_MARKETING », « AUTRES », ou « toutes » (toute l'entité). Défaut : celle de l'écran. */
-  section?: string | null;
   /** Les statuts du centre (clé ou libellé : « En attente », « Autorisé »…). */
   statuts?: string[];
 }
 
 export async function exporterOrdresCentre(user: CurrentUser, o: OptionsExportCentre = {}): Promise<ResultatExport> {
-  const toutes = /^tout/i.test(o.section ?? "");
-  // La section : le slug de l'adresse de l'écran (« sales-marketing »), sa clé ou son libellé (« Sales & Marketing »).
-  const cle = !toutes && o.section ? cleParLibelle(SECTION_CENTRE_LABEL, o.section) as SectionCentre | undefined : undefined;
-  const sectionCle = toutes || !o.section ? null : cle ? SECTION_CENTRE_SLUG[cle] : o.section;
   // L'ENTITÉ par son nom (l'assistant) : résolue parmi les sociétés de la personne, puis VALIDÉE par le chargeur.
   const mesSocietes = await getMyCompanies(user.id);
   const q = (o.entite ?? "").trim().toLowerCase();
@@ -115,9 +108,9 @@ export async function exporterOrdresCentre(user: CurrentUser, o: OptionsExportCe
     if (!k) return refusExport(400, `Statut « ${s} » inconnu — statuts : ${libellesDe(CENTRAL_STATUS_LABEL)}.`);
     statuts.push(k);
   }
-  const centre = await chargerCentre(user, { entite, section: sectionCle });
+  const centre = await chargerCentre(user, { entite });
   if (centre.aucunOrdre) return refusExport(404, "Aucun ordre au centre de paiement dans votre portée.");
-  const ids = (toutes ? centre.idsEntite : centre.idsSection).slice(0, EXPORT_MAX);
+  const ids = centre.idsEntite.slice(0, EXPORT_MAX);
   const lus = ids.length ? await prisma.expenseOrder.findMany({
     where: { id: { in: ids }, ...(statuts.length ? { centralStatus: { in: statuts } } : {}) },
     include: { requestedBy: { select: { name: true } }, company: { select: { name: true, shortName: true } } },
@@ -125,7 +118,6 @@ export async function exporterOrdresCentre(user: CurrentUser, o: OptionsExportCe
   const rang = new Map(ids.map((id, i) => [id, i]));
   const ordres = lus.sort((a, b) => (rang.get(a.id) ?? 0) - (rang.get(b.id) ?? 0));
   const entiteLabel = centre.entites.find((e) => e.cle === centre.entiteChoisie)?.label ?? "";
-  const sectionLabel = toutes ? "toutes sections" : SECTION_CENTRE_LABEL[centre.sectionChoisie];
   const lignes = ordres.map((r) => ({
     "Référence": r.reference,
     "Libellé": r.label,
@@ -139,8 +131,8 @@ export async function exporterOrdresCentre(user: CurrentUser, o: OptionsExportCe
     "Payé le": jour(r.paidDate),
     "Créé le": jour(r.createdAt),
   }));
-  await recordAudit({ actorId: user.id, action: "EXPORT", module: "Centre de paiement", summary: `Export du centre de paiement — ${entiteLabel}, ${sectionLabel} : ${lignes.length} ordre(s)` });
-  const nom = `centre-de-paiement-${entiteLabel}-${sectionLabel}`.replace(/[^\p{L}\p{N}]+/gu, "-").toLowerCase();
+  await recordAudit({ actorId: user.id, action: "EXPORT", module: "Centre de paiement", summary: `Export du centre de paiement — ${entiteLabel} : ${lignes.length} ordre(s)` });
+  const nom = `centre-de-paiement-${entiteLabel}`.replace(/[^\p{L}\p{N}]+/gu, "-").toLowerCase();
   return exporte(classeur([{ nom: "Ordres", lignes }]), `${nom}-${new Date().toISOString().slice(0, 10)}.xlsx`, MIME_XLSX,
-    `${lignes.length} ordre(s) du centre de paiement — ${entiteLabel}, ${sectionLabel}${statuts.length ? ` — statuts : ${statuts.map((s) => CENTRAL_STATUS_LABEL[s as keyof typeof CENTRAL_STATUS_LABEL] ?? s).join(", ")}` : ""}`);
+    `${lignes.length} ordre(s) du centre de paiement — ${entiteLabel}${statuts.length ? ` — statuts : ${statuts.map((s) => CENTRAL_STATUS_LABEL[s as keyof typeof CENTRAL_STATUS_LABEL] ?? s).join(", ")}` : ""}`);
 }

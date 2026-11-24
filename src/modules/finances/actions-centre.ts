@@ -10,7 +10,7 @@ import {
   sitsOnPaymentCentre, applyDecision, applyResubmission, canResubmitAuCentre as canResubmit, memeBeneficiaire,
   CENTRAL_DECISION_LABEL, CENTRAL_STATUS_LABEL, type CentralDecision, type CentralStatus,
   PAYMENT_CENTRE_REFUSAL, refusOrdreFerme, ROLES_CENTRE_DE_PAIEMENT, dossierHrefByOrder, ENTITE_SANS,
-  slugSectionDeLOrdre, verserLaRemise, refusSeparationDesTaches,
+  verserLaRemise, refusSeparationDesTaches,
 } from "@/modules/finances/api";
 import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
 import { lienCentreDePaiement, lienOrdreAPayer } from "@/lib/chemins/finances";
@@ -325,7 +325,7 @@ export async function respondToPaymentCentre(formData: FormData): Promise<Action
     type: "VALIDATION_REQUIRED",
     title: "Réponse reçue — autorisation à reprendre",
     body: `${order.reference} — ${order.label} (${Number(order.amount).toLocaleString("fr-FR")} DZD)`,
-    link: lienCentreDePaiement(order.companyId ?? ENTITE_SANS, slugSectionDeLOrdre(order.sourceType)),
+    link: lienCentreDePaiement(order.companyId ?? ENTITE_SANS),
   });
 
   revalidatePath(PATH);

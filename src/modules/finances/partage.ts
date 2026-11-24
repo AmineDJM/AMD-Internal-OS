@@ -69,10 +69,7 @@ export {
   PHRASE_ETAT_PAIEMENT, QUI_A_LA_MAIN, refusDeRelance, relancable,
 } from "./domaine/relance-paiement";
 export { CHOIX_PERIODE, lirePeriode, moisAlger, type Periode, type ResultatPeriode } from "./domaine/resultat-mensuel";
-export {
-  ENTITE_SANS, SECTION_CENTRE_LABEL, SECTION_CENTRE_SLUG, type SectionCentre, SECTIONS_CENTRE,
-  slugSectionDeLOrdre,
-} from "./domaine/sections-centre";
+export { ENTITE_SANS } from "./domaine/entite-centre";
 export {
   REFUS_AUTORISER_SA_DEMANDE, REFUS_REGLER_SA_DEMANDE, REFUS_REGLER_SON_AUTORISATION,
   refusSeparationDesTaches,

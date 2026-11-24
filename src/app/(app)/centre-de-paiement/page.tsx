@@ -3,9 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
-import {
-  CENTRAL_AUTH_THRESHOLD_DZD, PAYMENT_CENTRE_REFUSAL, type CentralStatus, SECTION_CENTRE_LABEL, SECTION_CENTRE_SLUG,
-} from "@/modules/finances/partage";
+import { PAYMENT_CENTRE_REFUSAL, type CentralStatus } from "@/modules/finances/partage";
 import { chargerCentre, dossierHrefByOrder } from "@/modules/finances/api";
 import { entityHref } from "@/lib/entity-href";
 import { marquesDesOrdres } from "@/lib/factures/connues";
@@ -14,7 +12,7 @@ import { ENTITY_TYPE_LABELS } from "@/lib/labels";
 import { canAccessEntity } from "@/lib/entity-access";
 import { natureDeLOrdreBv, LIBELLE_NATURE_BV } from "@/lib/regulatory/bv-circuit";
 import { CentreBoard, type CentreOrder } from "./centre-board";
-import { BarreEntites, OngletsSections } from "./centre-navigation";
+import { BarreEntites } from "./centre-navigation";
 import { CompteursCentre, DecisionsDuCentre } from "./decisions-du-centre";
 
 export const dynamic = "force-dynamic";
@@ -41,21 +39,21 @@ export const metadata = { title: "Centre de paiement — AMD Internal OS" };
  * nommé, `PaymentCentreSeat`). Qui n'y siège pas ne reçoit plus une page blanche : il lit ce qui
  * lui manque et par quel geste on l'y fait entrer.
  *
- * LA DISPOSITION (§118.211) : les ENTITÉS en haut (une pastille par société que la personne voit,
- * avec ce qui y attend), puis, sous l'entité choisie, trois sections — Regulatory, Sales &
- * Marketing, Autres — rangées d'après l'ORIGINE de la dépense (`payments/sections-centre.ts`).
+ * LA DISPOSITION : les ENTITÉS en haut (une pastille par société que la personne voit, avec ce qui
+ * y attend), puis UNE file pour l'entité choisie — toutes origines confondues (Super Admin,
+ * 24/11/2026 : « un même centre de paiement pour tout »). L'origine de chaque paiement reste dite
+ * sur sa ligne (lien vers la demande d'origine). Un ancien lien `?section=` ouvre simplement cette file.
  */
-export default async function CentreDePaiementPage(props: { searchParams?: Promise<{ entite?: string; section?: string }> }) {
+export default async function CentreDePaiementPage(props: { searchParams?: Promise<{ entite?: string }> }) {
   const searchParams = await props.searchParams;
   const user = await requireUser();
 
   // Le chargeur lit les ordres que cet écran lisait déjà — tout le centre pour qui y siège, ses
   // propres demandes sinon — dans les sociétés auxquelles la personne a droit, les ordres SANS
   // société compris (`ficheScopedWhere` : une ligne sans entité reste visible pour qu'on la
-  // rattache, §118.154). L'entité et la section viennent de l'adresse, VALIDÉES contre les
-  // pastilles réellement présentes : une valeur forgée ne désigne rien. Les anciens liens
-  // (`/centre-de-paiement` sans paramètre) ouvrent l'entité qui attend le plus de décisions.
-  const centre = await chargerCentre(user, { entite: searchParams?.entite ?? null, section: searchParams?.section ?? null });
+  // rattache, §118.154). L'entité vient de l'adresse, VALIDÉE contre les pastilles réellement
+  // présentes : une valeur forgée ne désigne rien. Sans paramètre, l'entité qui attend le plus.
+  const centre = await chargerCentre(user, { entite: searchParams?.entite ?? null });
   const { canDecide } = centre;
 
   // ── ON NE REND PLUS UN ÉCRAN MUET ────────────────────────────────────────────────────────
@@ -90,8 +88,8 @@ export default async function CentreDePaiementPage(props: { searchParams?: Promi
     );
   }
 
-  // LES LIGNES DE LA SECTION CHOISIE — les identifiants viennent du chargeur (portée, entité,
-  // section déjà jugées) ; on les relit avec leurs liens, dans le même ordre.
+  // LES LIGNES DE L'ENTITÉ CHOISIE — les identifiants viennent du chargeur (portée et entité déjà
+  // jugées) ; on les relit avec leurs liens, dans le même ordre.
   const lus = centre.idsAffiches.length
     ? await prisma.expenseOrder.findMany({
         where: { id: { in: centre.idsAffiches } },
@@ -216,7 +214,6 @@ export default async function CentreDePaiementPage(props: { searchParams?: Promi
   }));
 
   const entite = centre.entites.find((e) => e.cle === centre.entiteChoisie) ?? null;
-  const section = centre.sections.find((s) => s.section === centre.sectionChoisie)!;
   const { bilan } = centre;
   // L'état de chaque ordre affiché, du MÊME rendu que le bilan : les compteurs n'ajoutent une décision
   // locale que tant que le serveur ne la reflète pas encore (`decisions-locales.ts`).
@@ -227,33 +224,24 @@ export default async function CentreDePaiementPage(props: { searchParams?: Promi
     <div className="space-y-5">
       <PageHeader
         title="Centre de paiement"
-        description={`Tout paiement de la société est autorisé ici avant d'atteindre les Finances, quel que soit son montant — ceux à partir de ${CENTRAL_AUTH_THRESHOLD_DZD.toLocaleString("fr-FR")} DZD en tête de file. Le centre autorise, la comptabilité exécute : c'est la séparation des deux gestes qui rend le contrôle réel. Le centre AUTORISE ou REFUSE — le montant et sa justification appartiennent à la demande et se corrigent avant d'arriver ici (décision de la Direction, 02/09/2026). Un refus dit toujours pourquoi : son motif reste dans le fil, que le demandeur lit sur sa propre ligne. On change d'entité en haut ; chaque entité range ses paiements en trois sections — Regulatory, Sales & Marketing, Autres — d'après l'origine de la dépense.`}
+        description="Tous les paiements de l'entité, quelle que soit leur origine, s'autorisent ici avant d'atteindre les Finances : le centre AUTORISE ou REFUSE, la comptabilité exécute."
       >
-        {/* L'EXPORT DE CE QUE L'ÉCRAN MONTRE — l'entité et la section choisies, toutes les lignes (K7, décision 0037). */}
+        {/* L'EXPORT DE CE QUE L'ÉCRAN MONTRE — l'entité choisie, toutes les lignes (K7, décision 0037). */}
         <a
-          href={`/api/finances/centre/export?entite=${encodeURIComponent(centre.entiteChoisie ?? "")}&section=${SECTION_CENTRE_SLUG[centre.sectionChoisie]}`}
+          href={`/api/finances/centre/export?entite=${encodeURIComponent(centre.entiteChoisie ?? "")}`}
           className="inline-flex h-9 items-center rounded-[var(--radius)] border border-border bg-card px-3 text-[13px] font-medium hover:bg-secondary sm:h-8"
         >Exporter</a>
       </PageHeader>
 
-      <BarreEntites entites={centre.entites} choisie={centre.entiteChoisie} section={centre.sectionChoisie} />
+      <BarreEntites entites={centre.entites} choisie={centre.entiteChoisie} />
 
       {/* Les compteurs suivent AUSSITÔT une décision prise ici (`decisions-du-centre.tsx`). */}
       <CompteursCentre bilan={bilan} statuts={statuts} entite={entite?.label ?? null} />
 
-      <OngletsSections sections={centre.sections} choisie={centre.sectionChoisie} entite={centre.entiteChoisie} />
-
-      {section.repli > 0 && (
-        <p className="text-xs text-muted-foreground">
-          {section.repli} paiement{section.repli > 1 ? "s" : ""} de cette section n&apos;{section.repli > 1 ? "ont" : "a"} pas d&apos;origine lisible
-          (aucune demande rattachée) : {section.repli > 1 ? "ils sont rangés" : "il est rangé"} ici faute de mieux, non parce que l&apos;origine le décide.
-        </p>
-      )}
-
       <CentreBoard
         orders={rows} canDecide={canDecide}
-        titre={`${entite?.label ?? "Entité"} — ${SECTION_CENTRE_LABEL[centre.sectionChoisie]}`}
-        total={section.total} nonAffiches={centre.nonAffiches}
+        titre={entite?.label ?? "Entité"}
+        total={entite?.total ?? rows.length} nonAffiches={centre.nonAffiches}
       />
     </div>
     </DecisionsDuCentre>

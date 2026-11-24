@@ -30,6 +30,10 @@ const TABLE: [string, string][] = [
   ["/finances/ordres-de-depense", "/finances/paiements-a-faire"],
   ["/finances/ordres-de-depense?focus=o1", "/finances/paiements-a-faire?focus=o1#ord-o1"],
   ["/finances/centre-de-paiement", "/centre-de-paiement"],
+  // Plus de sections au centre (24/11/2026) : un ancien lien de notification ouvre la file unique de son entité.
+  ["/centre-de-paiement?entite=c1&section=regulatory", "/centre-de-paiement?entite=c1"],
+  ["/centre-de-paiement?section=sales-marketing", "/centre-de-paiement"],
+  ["/finances/centre-de-paiement?entite=c1&section=autres", "/centre-de-paiement?entite=c1"],
   ["/finances/factures", "/legal?nature=INVOICE"],
   ["/legal/factures", "/legal?nature=INVOICE"],
   ["/finances/paiements", "/validations/paiements"],
@@ -115,7 +119,7 @@ describe("reécriteLienNotification — les liens actuels passent tels quels", (
     for (const l of [
       "/rh", "/mon-dossier", "/medical", "/rh/xyz123", "/demandes/abc456", "/missions/m1",
       "/mon-equipe?vue=kpi", "/mon-espace#conges-a-signer", "/legal?echeances=1",
-      "/mon-espace/taches?vue=demandees&tache=t1", "/validations?focus=s1#val-s1", "/rh?id=emp123", "/messages?id=msg456",
+      "/mon-espace/taches?vue=demandees&tache=t1", "/validations?focus=s1#val-s1", "/rh?id=emp123", "/messages?id=msg456", "/centre-de-paiement?entite=c1",
     ]) expect(reécriteLienNotification(l)).toBe(l);
   });
 
@@ -135,7 +139,7 @@ describe("les liens écrits par les notifications d'aujourd'hui mènent à une p
     LIEN_MES_CONGES, LIEN_CONGES_A_SIGNER, LIEN_CONGES_A_TRANCHER_RH, LIEN_INTERIMAIRES_A_VALIDER, LIEN_MES_AVANCES, CHEMIN_PAIE_RH,
     lienMaDemandeRh("d1"), lienMaDemandeRh(null), lienDemandeRhATraiter("d1"),
     lienEtapeAValider("s1"), lienDemandeDeValidation("v1"),
-    lienOrdreAPayer("o1"), lienOrdreAPayer(null), lienCentreDePaiement("c1", "regulatory"), lienCentreDePaiement(),
+    lienOrdreAPayer("o1"), lienOrdreAPayer(null), lienCentreDePaiement("c1"), lienCentreDePaiement(),
     lienDemandeAdPro("SPONSORING", "x"), lienDemandeAdPro("EVENT", "x"), lienPosteAdPro("CONGRESS_NATIONAL", "x", "i1"),
   ];
   it.each(LIENS)("%s", (lien) => {
@@ -151,7 +155,7 @@ describe("les liens écrits par les notifications d'aujourd'hui mènent à une p
     expect(lienEtapeAValider("s1")).toBe("/validations?focus=s1#val-s1");
     expect(lienOrdreAPayer("o1")).toBe("/finances/paiements-a-faire?focus=o1#ord-o1");
     expect(lienPosteAdPro("SPONSORING", "s9", "i1")).toBe("/sponsoring/s9#poste-i1");
-    expect(lienCentreDePaiement("c1", "sales-marketing")).toBe("/centre-de-paiement?entite=c1&section=sales-marketing");
+    expect(lienCentreDePaiement("c1")).toBe("/centre-de-paiement?entite=c1");
   });
 
   it("la vue d'une tâche suit le rôle du destinataire", () => {

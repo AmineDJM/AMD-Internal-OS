@@ -408,7 +408,6 @@ const DETTE_HERITEE: Record<string, string[]> = {
     // Ce qui entre au centre depuis un autre métier : le bon de versement de l'information médicale (dispense
     // de facture), la ligne consulting d'un ordre, la règle des bons de commande (`blocageParLeBC`).
     "src/modules/finances/actions-demandes.ts → src/lib/medical-info",
-    "src/modules/finances/infra/requetes/centre-paiement.ts → src/lib/lecteurs/consulting",
     "src/modules/finances/domaine/chemins-paiement.ts → src/lib/bons-de-commande/regle",
     // Les budgets ne sont pas encore migrés : l'imputation automatique d'une catégorie au règlement.
     "src/modules/finances/actions-depenses.ts → src/lib/budget/auto-category",

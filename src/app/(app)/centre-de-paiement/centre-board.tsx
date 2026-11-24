@@ -101,9 +101,9 @@ const TONE: Record<CentralStatus, BadgeTone> = {
 /**
  * LE CENTRE DE PAIEMENT — ce que le PDG voit avant que l'argent sorte.
  *
- * Une file par entité ET par section (§118.211) : « autoriser un paiement d'Adventum » et
- * « autoriser un paiement de Pharmagène » sont deux gestes comptablement distincts, et la page
- * choisit l'entité en haut puis l'une des trois sections — ce composant ne montre que CETTE file.
+ * Une file par entité : « autoriser un paiement d'Adventum » et « autoriser un paiement de
+ * Pharmagène » sont deux gestes comptablement distincts. Toutes les origines (Regulatory, Ad & Pro,
+ * RH…) partagent la file de leur entité ; la page choisit l'entité, ce composant montre CETTE file.
  *
  * Deux issues, pas quatre (décision de la Direction, 02/09/2026) : le centre AUTORISE ou REFUSE, et
  * le montant se corrige dans la demande, avant d'arriver ici. Le demandeur répond dans le même fil.
@@ -135,15 +135,15 @@ export function CentreBoard({
   const [motif, setMotif] = React.useState("");
   const ouvrir = (order: CentreOrder, decision: CentralDecision) => { setErr(null); setMotif(""); setActing({ order, decision }); };
 
-  // UNE seule file : l'entité et la section sont déjà choisies par la page.
+  // UNE seule file : l'entité est déjà choisie par la page.
   const groups: [string, CentreOrder[]][] = [[titre, orders]];
 
   if (orders.length === 0) {
     return (
       <EmptyState
         icon="ShieldCheck"
-        title="Aucun paiement dans cette section"
-        description="Tout paiement de la société arrive ici avant d'atteindre les Finances, quel que soit son montant. Changez d'entité en haut, ou de section, pour voir les autres."
+        title="Aucun paiement pour cette entité"
+        description="Tout paiement de la société arrive ici avant d'atteindre les Finances, quel que soit son montant. Changez d'entité en haut pour voir les autres."
       />
     );
   }
@@ -153,7 +153,7 @@ export function CentreBoard({
       {groups.map(([company, list]) => {
         const waiting = list.filter((o) => awaitsCentre(statutDe(o)));
         // Le MONTANT en attente — nommé à part : il s'appelait `total` et masquait le nombre de paiements de
-        // la section (prop `total`), si bien que l'en-tête affichait « (4 sur 298 452) », un montant pris pour un compte.
+        // l'entité (prop `total`), si bien que l'en-tête affichait « (4 sur 298 452) », un montant pris pour un compte.
         const montantEnAttente = waiting.reduce((a, o) => a + o.amount, 0);
         return (
           <section key={company} className="surface space-y-3 p-3 sm:p-4">
@@ -276,10 +276,12 @@ export function CentreBoard({
 
                       {/* Le bouton d'ouverture a disparu : c'est le TITRE qui ouvre, ci-dessus.
                             Reste à DIRE quand il n'y a rien à ouvrir — un titre qui ne réagit pas
-                            au clic se lit comme une panne, on recommence, on abandonne. */}
-                      {!o.dossierHref && !o.sourceHref && (
+                            au clic se lit comme une panne, on recommence, on abandonne. Et
+                            l'ORIGINE se lit toujours, même sans fiche à ouvrir : toutes les
+                            provenances partagent la même file, c'est elle qui les distingue. */}
+                      {!o.sourceHref && (o.sourceLabel || !o.dossierHref) && (
                         <span className="text-xs text-muted-foreground">
-                          {o.sourceLabel ? `${o.sourceLabel} — pas de fiche à ouvrir` : "Pas de fiche à ouvrir"}
+                          {o.dossierHref ? o.sourceLabel : o.sourceLabel ? `${o.sourceLabel} — pas de fiche à ouvrir` : "Pas de fiche à ouvrir"}
                         </span>
                       )}
 
@@ -338,7 +340,7 @@ export function CentreBoard({
             {/* UNE COUPE SE DIT : le compte du titre est exact, la liste s'arrête aux plus récentes. */}
             {nonAffiches > 0 && (
               <p className="text-xs text-muted-foreground">
-                {nonAffiches} paiement{nonAffiches > 1 ? "s" : ""} plus ancien{nonAffiches > 1 ? "s" : ""} non affiché{nonAffiches > 1 ? "s" : ""} dans cette section.
+                {nonAffiches} paiement{nonAffiches > 1 ? "s" : ""} plus ancien{nonAffiches > 1 ? "s" : ""} non affiché{nonAffiches > 1 ? "s" : ""} pour cette entité.
               </p>
             )}
           </section>

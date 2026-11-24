@@ -14,7 +14,7 @@ import { bilanAffiche, type BilanCentre, type DecisionLocale, type DecisionsLoca
  * même chiffre jusqu'au rechargement — deux vérités sur le même écran. La règle (quand une décision
  * locale vaut encore) est pure : `decisions-locales.ts`.
  *
- * L'état vit dans la PAGE : changer d'entité ou de section remonte la page, et repart de ce que le
+ * L'état vit dans la PAGE : changer d'entité remonte la page, et repart de ce que le
  * serveur dit — une décision locale ne survit pas à l'écran qui l'a prise.
  */
 

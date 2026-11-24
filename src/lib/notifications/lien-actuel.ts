@@ -48,7 +48,8 @@ const REGLES: Regle[] = [
   // ── Finances ──
   { motif: /^\/(finances|comptabilite)$/, cible: () => "/finances/paiements-a-faire" },
   { motif: /^\/finances\/ordres-de-depense$/, cible: (_m, p) => lienOrdreAPayer(p.get("focus")), consomme: ["focus"] },
-  { motif: /^\/finances\/centre-de-paiement$/, cible: () => "/centre-de-paiement" },
+  // Le centre de paiement n'a plus de sections (24/11/2026) : l'ancien `?section=` s'efface, l'entité reste.
+  { motif: /^\/(finances\/)?centre-de-paiement$/, cible: () => "/centre-de-paiement", consomme: ["section"] },
   { motif: /^\/(finances|legal)\/factures$/, cible: () => ({ chemin: "/legal", params: { nature: "INVOICE" } }) },
   { motif: /^\/finances\/paiements$/, cible: () => "/validations/paiements" },
   { motif: /^\/finances\/paiements\/([^/]+)$/, cible: (m) => `/validations/paiements/${m[1]}` },
