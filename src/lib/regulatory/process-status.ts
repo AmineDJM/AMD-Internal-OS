@@ -90,6 +90,12 @@ const MILESTONES: { step: string; status: string }[] = [
  * UN BV DEMANDÉ MAIS PAS PAYÉ retient le dossier — et c'est exactement ce que le niveau
  * « Attente paiement BV » sert à dire. Il ne s'applique QUE si rien de plus avancé n'a été
  * atteint : un dossier déjà déposé n'attend plus son BV, il attend l'agence.
+ *
+ * DEPUIS LE CENTRE DE VALIDATIONS (24/11/2026), « demande faite » veut dire « demande ACCEPTÉE » :
+ * l'étape « Demande du BV » reste « en cours » tant que le centre n'a pas tranché, et ne passe à
+ * « fait » qu'à l'acceptation (`etapeDeDemandeSelonLaDecision`). Un BV en attente d'autorisation
+ * n'attend pas son paiement — le dossier garde le niveau que ses autres étapes disent. (Ancien
+ * circuit : l'étape était cochée à l'émission de l'ordre ; ces dossiers se lisent comme avant.)
  */
 const BV_PAIRS: { req: string; pay: string }[] = [
   { req: "bv75_req", pay: "bv75_pay" },

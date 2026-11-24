@@ -19,6 +19,25 @@ Décisions du Super Admin du 24/11/2026.
   payer » ; après, sa somme sort du solde (les dépenses faites dessus restent comptées, `statutPourLeFond`) et un nouveau
   paiement se reconfirme. Banc : `src/lib/actions/caisse-confirmation-reception-flow.test.ts`.
 
+### REGULATORY : LE BV 25 % / 75 % PAR LE CENTRE DE VALIDATIONS, BRANCHÉ AU BUDGET (2026-11-24)
+
+Demande du Super Admin. **« Demande du BV 25 % / 75 % »** (fiche `/regulatory/[id]`) : le pharmacien saisit un montant
+(pièces et commentaire facultatifs) et clique **« Demander l'autorisation »** — la demande part au **Centre de
+validations** (`ValidationRequest`, nature `REGULATORY_BV_25` / `_75`, liée au dossier ; `lib/actions/internes/regulatory/bv.ts`),
+plus au centre de paiement ni aux Finances. **Toute personne ayant l'accès effectif au module `VALIDATION_CENTRE`**
+(console du Super Admin, jamais un rôle écrit en dur) peut accepter ou refuser ; une décision suffit ; une personne à
+qui l'accès est ouvert après la demande la voit dans sa file et la tranche sur sa propre étape (`regulatory/bv-centre.ts`).
+Refusé → « Refusé » + motif, redemande libre ; en attente ou accepté → pas de doublon (verrou `bv-demande`, double clic
+compris, partagé avec l'ancien circuit). L'étape « Demande » suit la décision (en cours → fait / à faire) : un BV demandé
+mais pas accepté n'est pas « Attente paiement BV ». **« Paiement du BV » verrouillé** (écran et serveur) tant que la
+demande n'est pas acceptée — un ancien ordre autorisé ou payé vaut acceptation. **Budget** (dérivé, rien d'écrit) :
+acceptation = ENGAGÉ sur la ligne BV 25 % / 75 % de l'enveloppe Regulatory qui couvre la date d'acceptation ; paiement
+« fait » = CONSOMMÉ (le même montant change de colonne) ; remis à « à faire » = réengagé (`budget-regulatory/bv-acceptes.ts`,
+lu par `getBudgetOverview`, le total des enveloppes, la page BV par dossier, la synthèse et le pré-remplissage de
+campagne). Prévision 3 × BV 25 % conservée, effacée dès que le BV 75 % réel est engagé. **Encadré « Budget »** sur la
+fiche (demandé / engagé / consommé / enveloppe). Les ordres de BV déjà émis finissent leur parcours d'avant. Tests :
+`regulatory/bv-validation.test.ts`, `budget-regulatory/bv-acceptes.test.ts`, `regulatory/bv-centre-flow.test.ts`.
+
 ### AD & PRO, RECETTE DU 24/11 : LE POSTE PUBLIÉ SANS MONTANT, LE BC ET LE BUDGET EN PARALLÈLE, LA DÉCLARATION QUI ATTEND LES POSTES PRÊTS (2026-11-24)
 
 Recette Ad & Pro de la Direction du 24/11/2026 (commits `2755db2a`, `9ee78395`, `5d3a976c`, puis un lot en cours sur

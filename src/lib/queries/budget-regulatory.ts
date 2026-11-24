@@ -3,16 +3,20 @@ import { toNumber } from "@/lib/utils";
 import { regulatoryLockWhere, userCan, type SessionUser } from "@/lib/rbac";
 import type { BudgetOverview } from "@/lib/queries/budget";
 import {
-  CLE_BV_25, CLE_BV_75, CLE_DE_LA_NATURE, lignesBv, natureDuLibelle, totauxBv,
+  CLE_BV_25, CLE_BV_75, lignesBv, totauxBv,
   type DossierBv, type LigneBv, type OrdreBv, type SaisieBv, type TotauxBv,
 } from "@/lib/budget-regulatory/bv";
+import { LIBELLE_NATURE_BV } from "@/lib/regulatory/bv-circuit";
+import { lireBvAcceptes } from "@/lib/queries/budget-bv-acceptes";
 
 /**
  * BUDGET REGULATORY — les BV des dossiers d'enregistrement, lus pour l'enveloppe affichée.
  *
  * Les règles (nature d'un ordre, statut d'un BV, prévision du 75 %) sont PURES, dans `lib/budget-regulatory/bv.ts`.
- * Ici, on lit : les ordres de dépense de BV (source `REGULATORY_PRODUCT`), l'écriture de ceux qui sont payés, les BV
- * saisis à la main, et les dossiers — jamais un dossier verrouillé (pipeline) à qui ne les voit pas.
+ * Ici, on lit : les ordres de dépense de BV (source `REGULATORY_PRODUCT`, ancien circuit), l'écriture de ceux qui sont
+ * payés, les BV ACCEPTÉS au Centre de validations (nouveau circuit — engagés, puis consommés quand leur paiement est
+ * « fait » : `budget-bv-acceptes.ts`), les BV saisis à la main, et les dossiers — jamais un dossier verrouillé (pipeline)
+ * à qui ne les voit pas. Un même BV ne vit que dans un circuit (le verrou de la demande y veille) : rien n'est compté deux fois.
  */
 
 /** Les dossiers encore en cours : ceux dont le BV 75 % peut être attendu. */
@@ -42,7 +46,7 @@ export async function vueBvParDossier(user: SessionUser, overview: BudgetOvervie
   const verrou = regulatoryLockWhere(user);
   const deLaSociete = societe ? { OR: [{ companyId: societe }, { companyId: null }] } : {};
 
-  const [ordres, saisies] = await Promise.all([
+  const [ordres, saisies, acceptes] = await Promise.all([
     prisma.expenseOrder.findMany({
       where: {
         sourceType: "REGULATORY_PRODUCT",
@@ -61,13 +65,18 @@ export async function vueBvParDossier(user: SessionUser, overview: BudgetOvervie
           select: { id: true, categoryId: true, amount: true, date: true, regulatoryProductId: true },
         })
       : Promise.resolve([] as { id: string; categoryId: string; amount: unknown; date: Date; regulatoryProductId: string | null }[]),
+    lireBvAcceptes(),
   ]);
+  // LES BV ACCEPTÉS AU CENTRE DE VALIDATIONS, lus comme des ordres : engagés (« demandés, pas réglés ») tant que leur
+  // paiement n'est pas « fait », puis payés — dans la période, comme un ordre réglé. Jamais « à ranger » : leur ligne
+  // se déduit de la date d'acceptation, elle ne se range pas à la main.
+  const acceptesDeLaPeriode = acceptes.filter((b) => !b.paiementFait || (b.payeLe !== null && b.payeLe >= from && b.payeLe <= to));
   const txIds = ordres.map((o) => o.transactionId).filter((x): x is string => Boolean(x));
   const ecritures = txIds.length
     ? new Map((await prisma.financeTransaction.findMany({ where: { id: { in: txIds } }, select: { id: true, budgetCategoryId: true } })).map((t) => [t.id, t.budgetCategoryId]))
     : new Map<string, string | null>();
 
-  const idsCites = [...new Set([...ordres.map((o) => o.sourceId), ...saisies.map((s) => s.regulatoryProductId)].filter((x): x is string => Boolean(x)))];
+  const idsCites = [...new Set([...ordres.map((o) => o.sourceId), ...saisies.map((s) => s.regulatoryProductId), ...acceptesDeLaPeriode.map((b) => b.productId)].filter((x): x is string => Boolean(x)))];
   const dossiersRaw = await prisma.regulatoryProduct.findMany({
     where: { AND: [verrou, societe ? { OR: [{ companyId: societe }, { companyId: null }] } : {}, { OR: [{ id: { in: idsCites } }, { status: { in: [...EN_COURS] } }] }] },
     select: { id: true, reference: true, dci: true, brandName: true, status: true, workflow: true, targetSubmissionDate: true },
@@ -87,6 +96,14 @@ export async function vueBvParDossier(user: SessionUser, overview: BudgetOvervie
       paidDate: o.paidDate, createdAt: o.createdAt, budgetCategoryId: o.budgetCategoryId,
       transactionCategoryId: o.transactionId ? ecritures.get(o.transactionId) ?? null : null,
     }));
+  for (const b of acceptesDeLaPeriode) {
+    if (!visibles.has(b.productId)) continue;
+    ordresBv.push({
+      id: b.validationId, productId: b.productId, label: LIBELLE_NATURE_BV[b.nature], amount: b.montant,
+      status: b.paiementFait ? "PAID" : "PENDING", paidDate: b.payeLe, createdAt: b.accepteLe,
+      budgetCategoryId: b.categoryId, transactionCategoryId: b.paiementFait ? b.categoryId : null, circuit: "VALIDATION",
+    });
+  }
   const saisiesBv: SaisieBv[] = saisies
     .filter((s) => s.regulatoryProductId && visibles.has(s.regulatoryProductId))
     .map((s) => ({ id: s.id, productId: s.regulatoryProductId as string, categoryId: s.categoryId, amount: toNumber(s.amount as Parameters<typeof toNumber>[0]), date: s.date }));
@@ -105,24 +122,4 @@ export async function vueBvParDossier(user: SessionUser, overview: BudgetOvervie
     dossiers: dossiersRaw.map((d) => ({ id: d.id, libelle: `${d.reference} — ${d.brandName ?? d.dci}` })),
     lienDossiers: userCan(user, "REGULATORY", "VIEW"),
   };
-}
-
-/**
- * LA CATÉGORIE OÙ RANGER UN BV DEMANDÉ — celle de sa nature (25 % ou 75 %) dans l'enveloppe Regulatory ACTIVE qui couvre
- * la date (la plus récente si plusieurs). `null` quand le libellé ne dit pas la part, ou qu'aucune enveloppe ne l'attend :
- * le règlement suivra alors son chemin ordinaire (classement par les Finances).
- */
-export async function categorieBvPourOrdre(label: string, date: Date = new Date()): Promise<string | null> {
-  const nature = natureDuLibelle(label);
-  if (!nature) return null;
-  const c = await prisma.budgetCategoryLine.findFirst({
-    where: {
-      cle: CLE_DE_LA_NATURE[nature],
-      parentId: null,
-      envelope: { domaine: "REGULATORY", isActive: true, periodStart: { lte: date }, periodEnd: { gte: date } },
-    },
-    orderBy: { envelope: { periodStart: "desc" } },
-    select: { id: true },
-  });
-  return c?.id ?? null;
 }

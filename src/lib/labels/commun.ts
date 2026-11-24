@@ -296,6 +296,9 @@ export const VALIDATION_OBJECT_TYPE: Record<string, string> = {
   INFO_MED_DIRECTEUR_OPS: "Décision du Directeur des Opérations",
   BON_DE_COMMANDE: "Validation du bon de commande",
   PREVALIDATION_BC: "Pré-validation d'un bon de commande",
+  // Le BV d'un dossier réglementaire (`OBJET_BV_REGULATORY`, `regulatory/bv-validation.ts`).
+  REGULATORY_BV_25: "Autorisation du BV 25 % (dossier réglementaire)",
+  REGULATORY_BV_75: "Autorisation du BV 75 % (dossier réglementaire)",
 };
 
 /** Le libellé de la nature d'une demande de validation — `null` quand elle n'en a pas (rien à afficher). */

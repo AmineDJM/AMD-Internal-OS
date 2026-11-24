@@ -463,16 +463,19 @@ suite("ops de domaine & lots — goldens (fixtures partagées)", () => {
       expect(payload.args.checked).toBe("true");
     });
 
-    it("request_bv : montant DZD obligatoire, l'ordre de dépense est annoncé (SENSIBLE)", async () => {
+    it("request_bv : montant DZD et part obligatoires, le Centre de validations est annoncé (SENSIBLE)", async () => {
       const missing = await buildProposal("regulatory_operation", { op: "request_bv", reference: `${TAG}-REG-1` }, regSA());
       expect("error" in missing && missing.error).toMatch(/montant/i);
+      const sansPart = await buildProposal("regulatory_operation", { op: "request_bv", reference: `${TAG}-REG-1`, amount: "120000", bvType: "BV1" }, regSA());
+      expect("error" in sansPart && sansPart.error).toMatch(/25 %/);
       const p = await buildProposal("regulatory_operation", {
-        op: "request_bv", reference: `${TAG}-REG-1`, amount: "120000", bvType: "BV1",
+        op: "request_bv", reference: `${TAG}-REG-1`, amount: "120000", bvType: "25",
       }, regSA());
       expect("error" in p).toBe(false);
       if ("error" in p) return;
       expect(p.level).toBe("SENSITIVE");
-      expect(p.warnings.join(" ")).toMatch(/ORDRE DE DÉPENSE/);
+      expect(p.warnings.join(" ")).toMatch(/CENTRE DE VALIDATIONS/);
+      expect((p.payload as Extract<AssistantActionPayload, { kind: "domain_op" }>).args.stepKey).toBe("bv25_req");
       expect(JSON.stringify(p.fields)).toMatch(/120.000.DZD/);
     });
 

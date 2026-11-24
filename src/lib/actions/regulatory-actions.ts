@@ -34,9 +34,12 @@ import {
   avisDePresoumission, etapeMiseAJour, synchroniserLesDossiersDrive,
 } from "@/lib/actions/internes/regulatory/processus";
 import {
-  confierLeDossier, creerLeDossier, deposerLaVariation, ecrireLaFiche, ecrireLaPriorite, ecrireLEtape, emettreLeBv,
+  confierLeDossier, creerLeDossier, deposerLaVariation, ecrireLaFiche, ecrireLaPriorite, ecrireLEtape,
   etiquettesDuClassement, relancerLeDossier, annoncerLeDossier, acterLaVariation,
 } from "@/lib/actions/internes/regulatory/fiche";
+import { demanderLeBvAuCentre, refusDuPaiementBv } from "@/lib/actions/internes/regulatory/bv";
+import { ETAPES_BV } from "@/lib/budget-regulatory/bv";
+import { etapeDeDemandeSelonLaDecision } from "@/lib/regulatory/bv-validation";
 import { actionReversible } from "@/lib/effets/reversible";
 // Découpé par responsabilité (lot V4) : aides, lectures et corps internes dans `actions/internes/regulatory/{dossier,structurel,processus,fiche}` — les actions restent ici (leur clé de contrat, leur porte, leur audit).
 
@@ -632,6 +635,10 @@ export async function setRegulatoryStepState(formData: FormData): Promise<Action
 
   const product = await prisma.regulatoryProduct.findUnique({ where: { id: productId }, select: { workflow: true, status: true, reference: true } });
   if (!product) return { ok: false, error: "Dossier introuvable." };
+  // LE PAIEMENT D'UN BV EST VERROUILLÉ tant que sa demande n'est pas acceptée (ou, ancien circuit, son ordre autorisé) :
+  // seul le retour à « à faire » reste libre — il ne paie rien.
+  const verrou = await refusDuPaiementBv(productId, stepKey, status);
+  if (verrou) return { ok: false, error: verrou };
 
   const wf = etapeMiseAJour(product.workflow, stepKey, status, str(formData, "date"), str(formData, "note"));
 
@@ -692,9 +699,13 @@ export async function setRegulatoryStepNote(formData: FormData): Promise<ActionR
 }
 
 /**
- * « Demande de BV » : émet un ordre de dépense (envoyé à l'espace comptable) avec
- * montant + échéance, et joint éventuellement un justificatif (proforma BV). Le
- * comptable le voit dans les ordres de dépense / Finances.
+ * « DEMANDE DU BV 25 % / 75 % » — LA DEMANDE D'AUTORISATION PART AU CENTRE DE VALIDATIONS (Super Admin, 24/11/2026).
+ *
+ * Le pharmacien saisit le montant (pièces et commentaire facultatifs) ; toute personne qui a accès au Centre de
+ * validations accepte ou refuse, une décision suffit. Plus d'ordre de dépense : ni centre de paiement, ni Finances —
+ * l'acceptation engage le montant au budget Regulatory, le paiement « fait » le consomme. L'étape « Demande du BV »
+ * passe « en cours » ; elle sera « faite » à l'acceptation (`apresDecisionBv`). Les BV déjà émis en ordres finissent
+ * leur parcours d'avant.
  */
 export async function requestBV(formData: FormData): Promise<ActionResult> {
   return actionReversible("regulatory-actions:requestBV", "Demande de BV", async () => {
@@ -703,37 +714,38 @@ export async function requestBV(formData: FormData): Promise<ActionResult> {
     if (!productId) return { ok: false, error: "Dossier introuvable." };
     if (!(await canAccessEntity(user, "REGULATORY_PRODUCT", productId, "UPDATE"))) return { ok: false, error: "Non autorisé." };
 
-    const product = await prisma.regulatoryProduct.findUnique({ where: { id: productId }, select: { reference: true, dci: true, workflow: true, status: true } });
+    const product = await prisma.regulatoryProduct.findUnique({ where: { id: productId }, select: { reference: true, dci: true, brandName: true, workflow: true, status: true } });
     if (!product) return { ok: false, error: "Dossier introuvable." };
 
-    // LA NATURE DU BV EST CELLE DE L'ÉTAPE d'où l'on part (« Demande du BV 25 % » → BV 25 %) : un
-    // `bvType` envoyé à côté ne la contredit pas. Sans étape (assistant, ancien appel), le libellé libre.
+    // LA NATURE DU BV EST CELLE DE L'ÉTAPE d'où l'on part (« Demande du BV 25 % » → BV 25 %) : un `bvType` envoyé à côté
+    // ne la contredit pas. Sans étape (assistant), le libellé doit dire la part.
     const stepKey = str(formData, "stepKey");
     const etapeValide = stepKey && isRegStepKey(stepKey) ? stepKey : null;
-    const emis = await emettreLeBv(formData, { user, productId, product, etapeValide });
-    if (!emis.ok) return emis;
-    const { order, bvType, amount, pieces } = emis;
+    const pose = await demanderLeBvAuCentre(formData, { user, productId, product, etapeValide });
+    if (!pose.ok) return pose;
+    const { demande, nature, bvType, amount, pieces, validateurs } = pose;
 
     await recordAudit({
       actorId: user.id, action: "CREATE", module: "Regulatory", entityType: "REGULATORY_PRODUCT", entityId: productId,
-      summary: `Demande de ${bvType} (${amount.toLocaleString("fr-FR")} DZD)${pieces ? ` · ${pieces} pièce·s` : ""} → ordre ${order.reference}`,
+      field: bvType, newValue: "PENDING",
+      summary: `Demande d'autorisation du ${bvType} (${amount.toLocaleString("fr-FR")} DZD)${pieces ? ` · ${pieces} pièce·s` : ""} → Centre de validations, ${demande.reference}`,
     });
 
-    // DEMANDÉ DEPUIS LE PROCESSUS : l'étape « Demande du BV … » est faite — la demande EST
-    // l'étape. La cocher à part serait redire d'un second geste ce que le premier a prouvé.
-    if (etapeValide) {
-      const wf = { ...((product.workflow as RegWorkflowState | null) ?? {}) };
-      if (wf[etapeValide]?.status !== "DONE") {
-        wf[etapeValide] = { ...wf[etapeValide], status: "DONE", date: wf[etapeValide]?.date ?? new Date().toISOString().slice(0, 10) };
-        await prisma.regulatoryProduct.update({ where: { id: productId }, data: { workflow: wf as unknown as Prisma.InputJsonValue } });
-        await syncStatusFromWorkflow(productId, wf, product.status, product.reference, user.id);
-      }
+    // L'ÉTAPE « DEMANDE DU BV » EST EN COURS tant que le centre n'a pas tranché : un BV demandé mais pas encore accepté
+    // n'est pas un BV qui attend son paiement (`etapeDeDemandeSelonLaDecision`, niveau de process juste).
+    const cle = ETAPES_BV[nature].demande;
+    const wf = { ...((product.workflow as RegWorkflowState | null) ?? {}) };
+    const voulu = etapeDeDemandeSelonLaDecision("PENDING");
+    if (wf[cle]?.status !== voulu) {
+      wf[cle] = { ...wf[cle], status: voulu };
+      await prisma.regulatoryProduct.update({ where: { id: productId }, data: { workflow: wf as unknown as Prisma.InputJsonValue } });
+      await syncStatusFromWorkflow(productId, wf, product.status, product.reference, user.id);
     }
 
     revalidatePath(`/regulatory/${productId}`);
-    revalidatePath("/finances");
-    revalidatePath("/centre-de-paiement");
-    return { ok: true, message: `Demande de ${bvType} envoyée au centre de paiement (${order.reference}) : les Finances la régleront une fois autorisée.` };
+    revalidatePath("/centre-de-validations");
+    revalidatePath("/validations");
+    return { ok: true, id: demande.requestId, message: `Demande d'autorisation du ${bvType} envoyée au Centre de validations (${demande.reference}) — ${validateurs} personne${validateurs > 1 ? "s peuvent" : " peut"} l'accepter ou la refuser.` };
   });
 }
 

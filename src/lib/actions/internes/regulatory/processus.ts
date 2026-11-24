@@ -1,17 +1,13 @@
 /**
  * REGULATORY — le PROCESSUS ANPP lu et composé par les actions : une étape mise à jour, l'avis de présoumission,
- * l'avancement jusqu'à un jalon, les segments admis, les pièces d'un BV et l'ordre émis sous verrou (un BV de chaque
- * nature à la fois), et les dossiers Drive synchronisés après une ouverture du cadenas.
+ * l'avancement jusqu'à un jalon, les segments admis, les pièces d'un BV (jugées avant la demande, `bv.ts`), et les
+ * dossiers Drive synchronisés après une ouverture du cadenas.
  *
- * Sorti de `actions/regulatory-actions.ts` (lot V4). Les écritures du dossier, les gardes et l'émission de l'ordre
- * (`createExpenseOrder`, passée ici en fonction) restent dans les actions.
+ * Sorti de `actions/regulatory-actions.ts` (lot V4). Les écritures du dossier et les gardes restent dans les actions.
  */
-import { prisma } from "@/lib/prisma";
 import type { RegulatoryStatus } from "@prisma/client";
 import { getAppSettings } from "@/lib/settings";
 import { validateUpload } from "@/lib/storage";
-import { natureDuLibelle } from "@/lib/budget-regulatory/bv";
-import { bloqueUneNouvelleDemande, etatDeLOrdreBv, ETAT_BV, type OrdrePourEtatBv } from "@/lib/regulatory/bv-circuit";
 import { synchroniserDossierDrive } from "@/lib/regulatory-drive-dossier";
 import {
   REG_PRESUB_OUTCOME, PRESUB_ANSWER_STEP, REG_STATUS_MILESTONE, completeStepsThrough, type RegPresubOutcome,
@@ -85,35 +81,6 @@ export async function refusDesPieces(files: File[]): Promise<string | null> {
     }
   }
   return null;
-}
-
-/** Ce qu'on lit d'un ordre BV déjà demandé. */
-type OrdreBv = OrdrePourEtatBv & { reference: string; label: string };
-
-/**
- * UN BV DE CETTE NATURE À LA FOIS, PAR DOSSIER : le contrôle et l'émission se font SOUS UN VERROU propre au couple
- * (dossier, nature). Rend l'ordre vivant qui bloque, ou celui qui vient d'être émis.
- */
-export async function emettreSousVerrou<T>(
-  productId: string, nature: string, emettre: () => Promise<T>,
-): Promise<{ deja: OrdreBv; cree: null } | { deja: null; cree: T }> {
-  return prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('bv-demande'), hashtext(${`${productId}:${nature}`}))`;
-    const existants = await tx.expenseOrder.findMany({
-      where: { sourceType: "REGULATORY_PRODUCT", sourceId: productId, status: { not: "CANCELLED" } },
-      select: { reference: true, label: true, status: true, centralStatus: true },
-      orderBy: { createdAt: "desc" },
-    });
-    const vivant = existants.find((o) => natureDuLibelle(o.label) === nature && bloqueUneNouvelleDemande(o));
-    if (vivant) return { deja: vivant, cree: null };
-    return { deja: null, cree: await emettre() };
-  }, { maxWait: 10_000, timeout: 30_000 });
-}
-
-/** Un BV déjà demandé : la seconde demande ferait payer deux fois le même bon. */
-export function refusBvDejaDemande(bvType: string, deja: OrdreBv): string {
-  const etat = etatDeLOrdreBv(deja) ?? "DEMANDE";
-  return `Le ${bvType} de ce dossier est déjà demandé (${deja.reference} — ${ETAT_BV[etat].label.toLowerCase()}, ${ETAT_BV[etat].detail}). Une seconde demande ferait payer deux fois le même bon ; on ne redemande qu'un BV refusé par le centre de paiement.`;
 }
 
 /** Entrés au suivi : chacun reçoit son dossier Drive, l'un après l'autre, en arrière-plan. */

@@ -39,9 +39,11 @@ export interface DemandeVue {
 /**
  * Les natures de demande (`ValidationRequest.objectType`) dont un seul validateur suffit à trancher.
  * Écrites en clair (module au socle, sans import) : c'est `OBJET_DECISION_INFO_MED`
- * (`medical-info/decideur.ts`) — le test de ce module tient l'égalité des deux.
+ * (`medical-info/decideur.ts`) et les deux natures du BV d'un dossier réglementaire, que tranche toute personne ayant
+ * accès au Centre de validations (`OBJET_BV_REGULATORY`, `regulatory/bv-validation.ts`) — le test de ce module tient
+ * l'égalité.
  */
-const OBJETS_UN_SEUL_SUFFIT: ReadonlySet<string> = new Set(["INFO_MED_DIRECTEUR_OPS"]);
+const OBJETS_UN_SEUL_SUFFIT: ReadonlySet<string> = new Set(["INFO_MED_DIRECTEUR_OPS", "REGULATORY_BV_25", "REGULATORY_BV_75"]);
 
 export function unSeulSuffit(objectType: string | null | undefined): boolean {
   return objectType != null && OBJETS_UN_SEUL_SUFFIT.has(objectType);

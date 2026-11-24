@@ -118,10 +118,11 @@ Retired modules are also covered: Ventes (manual), Commandes & logistique, Marke
 - **Status as a request** [V]: `updateRegulatoryStatus` (`regulatory-actions.ts:956`) no longer writes `status`. A posted status is turned into "tick every step up to its milestone" (`REG_STATUS_MILESTONE`, `completeStepsThrough`, `regulatory-workflow.ts:269,282`). This also fills a FAVORABLE presub outcome when needed, and never unticks anything.
 - **Progress display gate** [V]: `regProgress` (L224) counts the steps done, but shows the dossier as being at step 1 "Réception du CTD complet" until the presub outcome is FAVORABLE.
 - **Pipeline** [V]: the `REGULATORY_PIPELINE` module plus `pipelineView` / `pipelineManage`. `scopeRegulatory` is an OR of a "suivi" half (`isLocked:false`, `REGULATORY` scope) and a "pipeline" half (`isLocked:true`). `regulatoryLockWhere` (L1920) is used by reads that do not go through `scopeRegulatory` (stock product pickers, PCH "our product" matching, counters).
-- **BV → money** [V]: `requestBV` (`regulatory-actions.ts:1125`):
-  - takes a per-(dossier, BV kind) lock inside a `$transaction`, and refuses a second BV unless the existing one was refused or cancelled (`bloqueUneNouvelleDemande`);
-  - creates an `ExpenseOrder`, budget category `categorieBvPourOrdre(label)` (Budget Regulatory 25 %/75 %), pending at the payment centre;
-  - ticks the `bv*_req` step.
+- **BV → money** [V, 2026-11-24]: `requestBV` → `demanderLeBvAuCentre` (`actions/internes/regulatory/bv.ts`):
+  - takes the per-(dossier, BV kind) lock `bv-demande` inside a `$transaction`, and refuses a second BV while a live old-circuit order or a PENDING/APPROVED validation exists;
+  - creates a `ValidationRequest` (objectType `REGULATORY_BV_25|75`, entity `REGULATORY_PRODUCT`, PARALLEL, one decision suffices) for every active user with effective `VALIDATION_CENTRE` access (`regulatory/bv-centre.ts`); no `ExpenseOrder`;
+  - sets `bv*_req` to DOING; the decision (`decideValidation` → `apresDecisionBv`) sets it DONE (accepted) or TODO (refused). `bv*_pay` is locked server-side until accepted (old order AUTHORISED/PAID counts);
+  - budget is derived: accepted = committed on the BV line of the Regulatory envelope covering the acceptance date, `bv*_pay` DONE = consumed (`budget-regulatory/bv-acceptes.ts`). Old orders keep their payment-centre → Finances path.
 
   At settlement, `bv-reglement.ts` requires the *quittance* (payment receipt), files it on the dossier's payment step and ticks `bv*_pay` (`cocherPaiementBv`, L91).
 - **Regulatory Intelligence OS** (CTD analysis) [V, structural only]: `RegulatoryDossier` (schema L10343, optional `productId` link to `RegulatoryProduct`) with versions, documents, extractions, findings, reserve cycles, an AI-cost ledger (`RegulatoryAiCall`, `aiBudgetUsd`), jobs (`runDueRegulatoryJobs` in `scheduled.ts:109`). It is gated per company by `RegulatoryFeatureAccess` and fine-grained `regCan` permissions (`intelligence/access.ts:89`). Routes: `/regulatory/enregistrement/{analyse,corpus,entrainement,reserves}`.

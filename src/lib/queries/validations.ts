@@ -8,6 +8,9 @@ import type { DocItem } from "@/components/documents/document-list";
 import { sortByUrgency, type SupervisedRow } from "@/lib/validation-supervision";
 import { entityHref } from "@/lib/entity-href";
 import { depuisEtapeValidation, instantDeReprise } from "@/lib/validations/decision";
+import { natureDeLObjetBv, OBJETS_BV_REGULATORY, uneEtapeParDemandeBv } from "@/lib/regulatory/bv-validation";
+import { ETAPES_BV } from "@/lib/budget-regulatory/bv";
+import { voitLesBvDuCentre } from "@/lib/regulatory/bv-centre";
 
 export interface PendingValidationItem {
   stepId: string;
@@ -89,13 +92,17 @@ export async function getPendingValidations(userId: string, opts: { requestId?: 
   // de mes propres demandes : l'intérim ne fait pas s'approuver soi-même.
   const auNom = await auNomDeQui(userId);
   const absents = auNom.absents.map((a) => a.userId);
-  const steps = await prisma.validationStep.findMany({
+  // LE BV D'UN DOSSIER RÉGLEMENTAIRE va à TOUS ceux qui ont accès au Centre de validations — y compris quelqu'un à qui
+  // la console l'a ouvert après la demande (`regulatory/bv-centre.ts`) : sa file le montre, une seule fois.
+  const accesAuCentre = await voitLesBvDuCentre(userId);
+  const brutes = await prisma.validationStep.findMany({
     where: {
       ...(opts.requestId ? { requestId: opts.requestId } : {}),
       status: "PENDING", request: { status: "PENDING" },
       OR: [
         { validatorId: userId },
         ...(absents.length ? [{ validatorId: { in: absents }, request: { status: "PENDING" as const, requesterId: { not: userId } } }] : []),
+        ...(accesAuCentre ? [{ request: { status: "PENDING" as const, objectType: { in: [...OBJETS_BV_REGULATORY] }, requesterId: { not: userId } } }] : []),
       ],
     },
     include: {
@@ -106,6 +113,7 @@ export async function getPendingValidations(userId: string, opts: { requestId?: 
     orderBy: { createdAt: "asc" },
     take: 200,
   });
+  const steps = uneEtapeParDemandeBv(brutes, userId, accesAuCentre);
   const isActionable = (s: (typeof steps)[number]) => s.request.mode === "PARALLEL" || s.order === s.request.currentOrder;
 
   // LA REPRISE D'UNE DEMANDE RESOUMISE se lit au journal — `resoumettreValidation` est le seul écrivain du
@@ -127,12 +135,18 @@ export async function getPendingValidations(userId: string, opts: { requestId?: 
   // VALIDATION_REQUEST) + celles de l'objet lié quand il est renseigné (ex. le bon
   // de commande). Récupérées en LOT pour éviter les requêtes N+1.
   const reqIds = steps.map((s) => s.request.id);
+  // Pour un BV de dossier, l'objet lié est tout le dossier (le CTD, des centaines de pièces) : on n'en montre que les
+  // pièces de l'étape « Demande du BV », déposées avec la demande ou après.
+  const etapeDuBv = (s: (typeof steps)[number]) => {
+    const n = natureDeLObjetBv(s.request.objectType);
+    return n ? ETAPES_BV[n].demande : null;
+  };
   const linkedPairs = steps
     .filter((s) => s.request.entityType && s.request.entityId)
-    .map((s) => ({ entityType: s.request.entityType as EntityType, entityId: s.request.entityId as string }));
+    .map((s) => ({ entityType: s.request.entityType as EntityType, entityId: s.request.entityId as string, stepKey: etapeDuBv(s) }));
   const orClauses: Prisma.DocumentWhereInput[] = [];
   if (reqIds.length) orClauses.push({ entityType: "VALIDATION_REQUEST", entityId: { in: reqIds } });
-  for (const p of linkedPairs) orClauses.push({ entityType: p.entityType, entityId: p.entityId });
+  for (const p of linkedPairs) orClauses.push({ entityType: p.entityType, entityId: p.entityId, ...(p.stepKey ? { stepKey: p.stepKey } : {}) });
   const documents = orClauses.length
     ? await prisma.document.findMany({
         where: { OR: orClauses },
@@ -147,15 +161,19 @@ export async function getPendingValidations(userId: string, opts: { requestId?: 
   });
   const byAttachKey = new Map<string, DocItem[]>(); // clé `${entityType}:${entityId}` → pièces
   for (const d of documents) {
-    const key = `${d.entityType}:${d.entityId}`;
-    (byAttachKey.get(key) ?? byAttachKey.set(key, []).get(key)!).push(toItem(d));
+    for (const key of [`${d.entityType}:${d.entityId}`, ...(d.stepKey ? [`${d.entityType}:${d.entityId}:${d.stepKey}`] : [])]) {
+      (byAttachKey.get(key) ?? byAttachKey.set(key, []).get(key)!).push(toItem(d));
+    }
   }
 
   return steps
     .map((s) => {
       const own = byAttachKey.get(`VALIDATION_REQUEST:${s.request.id}`) ?? [];
+      const cleBv = etapeDuBv(s);
       const linked = s.request.entityType && s.request.entityId
-        ? byAttachKey.get(`${s.request.entityType}:${s.request.entityId}`) ?? []
+        ? cleBv
+          ? (byAttachKey.get(`${s.request.entityType}:${s.request.entityId}:${cleBv}`) ?? []).filter((d) => d.createdAt >= s.request.createdAt.toISOString())
+          : byAttachKey.get(`${s.request.entityType}:${s.request.entityId}`) ?? []
         : [];
       return {
         stepId: s.id,

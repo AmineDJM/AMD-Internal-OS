@@ -80,7 +80,7 @@ export const DECLARATIONS_METIERS: Readonly<Record<string, DeclarationAnnulation
   "promo-material-actions:cancelPromoMaterial": retour("le dossier, ses demandes au secrétariat, leurs validations et leurs ordres reprennent leur statut d'avant"),
   "promo-material-actions:initiatePayment": compensation(`le dossier revient au BC envoyé ; ${ORDRE}`),
   "promo-material-actions:settle": compensation(`le dossier revient à « facturé » (ou l'ordre de règlement est retiré) ; ${ORDRE}`),
-  "regulatory-actions:requestBV": compensation(`${ORDRE} ; l'étape du processus revient ; la pièce déposée suit sa ligne`),
+  "regulatory-actions:requestBV": compensation("la demande au Centre de validations est retirée avec ses étapes, ses notifications non lues aussi (rectificatif à qui l'a lue) ; l'étape du processus revient ; la pièce déposée suit sa ligne"),
   "relance-paiement-actions:relancerPaiement": compensation("la relance est retirée du fil ; les notifications non lues sont retirées, un rectificatif va à qui l'a lue — la poussée ne se reprend pas"),
   "reservation-fiche-actions:deposerBillet": compensation("la fiche revient à son état d'avant la réservation ; les billets déposés sont retirés ; la notification est retirée ou rectifiée"),
   "reservation-fiche-actions:envoyerFiche": compensation(FICHE),
