@@ -95,6 +95,8 @@ export const ENTITY_MODULE: Record<EntityType, Module> = {
   RECLAMATION: "ADMIN",
   // Un relevé du stock PCH central (identifié par la date du mail) : la chaîne d'approvisionnement, `accesAuReleveStockPch`.
   STOCK_PCH_RELEVE: "STOCKS",
+  // Une échéance d'impôt ou de cotisation (Finances › Impôts & cotisations) : la source des ordres qui la paient.
+  TAX_PAYMENT: "FINANCES_IMPOTS",
 };
 
 /**

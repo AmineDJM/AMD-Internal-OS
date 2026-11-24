@@ -101,3 +101,10 @@ export {
 } from "./domaine/pieces-legal";
 // `type Proposition` (domaine/pieces-legal) : réexport mis en commentaire — aucun appelant hors du domaine (knip, 04/11).
 // export type { Proposition } from "./domaine/pieces-legal";
+
+// Les impôts et taxes dans le budget (Super Admin, 24/11/2026) : l'enveloppe « Impôts & taxes » et ses lignes, des clés
+// STABLES que la campagne budgétaire et les autres lots importent d'ici.
+export {
+  CATEGORIES_BUDGET_IMPOTS, CATEGORIES_SOUS_NATURES, type CleLigneBudgetImpots, type CleSousNatureTaxe, CODE_ENVELOPPE_IMPOTS,
+  LIGNES_BUDGET_IMPOTS, nomEnveloppeImpots, SOUS_NATURES_AUTRES_TAXES,
+} from "./domaine/budget-impots";

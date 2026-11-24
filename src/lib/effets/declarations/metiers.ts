@@ -25,6 +25,14 @@ export const DECLARATIONS_METIERS: Readonly<Record<string, DeclarationAnnulation
   "ad-pro-item-actions:annulerOrdrePoste": retour("l'ordre, la facture et le poste reprennent leur statut d'avant ; refusée si l'ordre a été réémis depuis"),
   "ad-pro-item-actions:deleteAdProItem": retour("le poste revient de la corbeille avec ses éléments liés (même identifiant), l'ordre reprend son statut"),
   "ad-pro-item-actions:demanderPaiementPoste": compensation(ORDRE),
+  // Finances › Impôts & cotisations (24/11/2026) — l'envoi émet un ordre : l'annuler le retire (ou le passe à ANNULÉ).
+  "impots-cotisations-actions:envoyerImpotAuCentre": compensation(ORDRE),
+  "impots-cotisations-actions:envoyerPaiementPonctuel": compensation(ORDRE),
+  "impots-cotisations-actions:enregistrerBrouillonImpot": retour("les saisies d'avant reviennent (journal des effets), si la ligne n'est pas partie depuis"),
+  "impots-cotisations-actions:retirerImpotDuCentre": retour("l'ordre reprend son statut « en attente du centre » et la ligne s'y rattache, si le centre n'a rien décidé entre-temps"),
+  "impots-cotisations-actions:corrigerImpotRefuse": retour("la ligne se rattache de nouveau à l'ordre refusé (journal des effets)"),
+  "impots-cotisations-actions:joindreQuittanceImpot": retour("la quittance jointe est retirée de la ligne et de l'ordre (journal des effets)"),
+  "impots-cotisations-actions:enregistrerCalendrierFiscal": retour("chaque obligation reprend ses valeurs d'avant, les retirées reviennent, les lignes créées par l'enregistrement sont retirées si rien ne les a touchées"),
   // D2 (décision 0057) : l'accès par base — un réglage daté se révoque ; l'annulation remet l'état d'avant.
   "acces-bases-actions:poserReglageBase": retour("le réglage créé est retiré (journal des effets) : la base revient à son niveau d'avant"),
   "acces-bases-actions:revoquerReglageBase": retour("le réglage révoqué reprend vigueur (journal des effets)"),

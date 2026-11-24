@@ -52,3 +52,6 @@ export { fileAInstruire, instruitLesDemandes, myPaymentRequests } from "./infra/
 export {
   peutSupprimerUneDemandePaiement, refusSuppressionDemandePaiement,
 } from "./infra/requetes/demande-paiement-suppression";
+
+// ── Impôts & cotisations (24/11/2026) : l'écran, et la tâche planifiée du calendrier (lignes de la période, rappel J-7) ──
+export { chargerImpotsCotisations, type DonneesImpots, echeancesFiscalesDues } from "./infra/impots";

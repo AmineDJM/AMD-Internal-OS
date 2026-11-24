@@ -123,6 +123,8 @@ const COMPANY_OF_SOURCE: Partial<Record<EntityType, (id: string) => Promise<{ co
   REGULATORY_PRODUCT: (id) => prisma.regulatoryProduct.findUnique({ where: { id }, select: { companyId: true } }),
   // LA PAIE D'UNE ENTITÉ (§118.176) : le virement porte l'entité dont on vire les salaires.
   PAYROLL: (id) => prisma.payrollWire.findUnique({ where: { id }, select: { companyId: true } }),
+  // UNE ÉCHÉANCE D'IMPÔT OU DE COTISATION (24/11/2026) : la société qui doit l'impôt.
+  TAX_PAYMENT: (id) => prisma.echeanceFiscale.findUnique({ where: { id }, select: { companyId: true } }),
 };
 
 /**

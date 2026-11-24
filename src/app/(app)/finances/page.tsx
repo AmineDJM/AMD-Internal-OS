@@ -38,4 +38,5 @@ const ECRANS: readonly { module: Module; href: string }[] = [
   { module: "FINANCES_BANQUE", href: "/finances/paiements-a-faire" },
   { module: "FINANCES_COMPTABILITE", href: "/finances/comptabilite" },
   { module: "FINANCES_DOUBLONS", href: "/finances/doublons-factures" },
+  { module: "FINANCES_IMPOTS", href: "/finances/impots-cotisations" },
 ];

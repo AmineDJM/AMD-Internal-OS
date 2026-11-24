@@ -1,5 +1,5 @@
 {
- "schemaModeles": 520,
+ "schemaModeles": 522,
  "bases": [
   {
    "cle": "personnel",
@@ -340,6 +340,10 @@
       "libelle": "Doublons de factures"
      },
      {
+      "cle": "FINANCES_IMPOTS",
+      "libelle": "Impôts & cotisations"
+     },
+     {
       "cle": "PAYMENT_CENTRE",
       "libelle": "Centre de paiement"
      }
@@ -366,7 +370,7 @@
      "Périmètre d'entité (`UserCompanyAccess`) ; accès ligne à ligne (`RowGrant`, FINANCE_TRANSACTION / EXPENSE_ORDER)"
     ]
    },
-   "nombreTables": 12,
+   "nombreTables": 14,
    "tables": [
     {
      "modele": "PaymentRequest",
@@ -492,6 +496,22 @@
       "payment-centre-actions",
       "payment-request-actions",
       "relance-paiement-actions"
+     ]
+    },
+    {
+     "modele": "ObligationFiscale",
+     "libelle": "Obligation fiscale ou sociale au calendrier d'une société (G50, CNAS, acompte…)",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "impots-cotisations-actions"
+     ]
+    },
+    {
+     "modele": "EcheanceFiscale",
+     "libelle": "Échéance d'impôt ou de cotisation à payer (montants saisis, proposition de la paie, ordre)",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "impots-cotisations-actions"
      ]
     },
     {

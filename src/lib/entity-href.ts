@@ -40,6 +40,8 @@ export function entityHref(type: string | null | undefined, id: string | null | 
     // LE VIREMENT DE LA PAIE D'UNE ENTITÉ (§118.176) se lit sur la paie : la carte de son entité y
     // dit ce qui est saisi, envoyé, viré. Le centre qui l'autorise doit pouvoir l'ouvrir.
     case "PAYROLL": return "/rh/paie";
+    // UNE ÉCHÉANCE D'IMPÔT OU DE COTISATION (24/11/2026) : la ligne s'ouvre dans Finances › Impôts & cotisations.
+    case "TAX_PAYMENT": return `/finances/impots-cotisations?ligne=${id}`;
 
     // ── Les circuits métier ──
     case "REGULATORY_PRODUCT": return `/regulatory/${id}`;

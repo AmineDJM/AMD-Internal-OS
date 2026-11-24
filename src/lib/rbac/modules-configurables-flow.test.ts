@@ -15,7 +15,11 @@ try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
 const suite = dbOk ? describe : describe.skip;
 
 const TAG = "__modconf__";
-const MIGRATION = "prisma/migrations/20270246200000_modules_configurables/migration.sql";
+const MIGRATIONS = [
+  "prisma/migrations/20270246200000_modules_configurables/migration.sql",
+  // La clé « Impôts & cotisations » (24/11/2026) recopie à son tour les accès de FINANCES.
+  "prisma/migrations/20270247400000_impots_cotisations/migration.sql",
+];
 
 async function acteur(id: string): Promise<CurrentUser> {
   const u = await prisma.user.findUniqueOrThrow({ where: { id } });
@@ -25,11 +29,27 @@ async function acteur(id: string): Promise<CurrentUser> {
 
 const destinations = (items: NavItem[]): string[] => items.flatMap((i) => [i.href, ...destinations(i.children ?? [])]);
 
-/** La migration TELLE QU'ELLE PART EN PRODUCTION — lue dans son fichier, instruction par instruction (idempotente). */
+/** Les instructions d'un script SQL — un `;` à l'intérieur d'un bloc `DO $$ … $$` ne coupe pas. */
+function instructions(sql: string): string[] {
+  const out: string[] = [];
+  let courant = "";
+  let dansBloc = false;
+  for (const morceau of sql.split(/(\$\$|;)/)) {
+    if (morceau === "$$") dansBloc = !dansBloc;
+    if (morceau === ";" && !dansBloc) { out.push(courant.trim()); courant = ""; continue; }
+    courant += morceau;
+  }
+  out.push(courant.trim());
+  return out.filter(Boolean);
+}
+
+/** Les migrations TELLES QU'ELLES PARTENT EN PRODUCTION — lues dans leur fichier, instruction par instruction (idempotentes). */
 async function jouerLaMigration() {
-  const sql = readFileSync(join(process.cwd(), MIGRATION), "utf8")
-    .split("\n").filter((l) => !l.trim().startsWith("--")).join("\n");
-  for (const instruction of sql.split(";").map((x) => x.trim()).filter(Boolean)) await prisma.$executeRawUnsafe(instruction);
+  for (const migration of MIGRATIONS) {
+    const sql = readFileSync(join(process.cwd(), migration), "utf8")
+      .split("\n").filter((l) => !l.trim().startsWith("--")).join("\n");
+    for (const instruction of instructions(sql)) await prisma.$executeRawUnsafe(instruction);
+  }
 }
 
 const ligne = (userId: string, module: string, p: Partial<Record<"canView" | "canCreate" | "canUpdate" | "canDelete" | "canValidate" | "canExport", boolean>>) =>
@@ -81,10 +101,10 @@ suite("modules configurables — la migration, le menu et les centres", () => {
   it("la migration reproduit un BLOCAGE de FINANCES sur les trois écrans — rien ne s'ouvre, le groupe disparaît du menu", async () => {
     const lignes = await prisma.userAccess.findMany({ where: { userId: u.fbmBloque }, orderBy: { module: "asc" } });
     expect(lignes.map((l) => [l.module, l.canView])).toEqual([
-      ["FINANCES", false], ["FINANCES_BANQUE", false], ["FINANCES_COMPTABILITE", false], ["FINANCES_DOUBLONS", false],
+      ["FINANCES", false], ["FINANCES_BANQUE", false], ["FINANCES_COMPTABILITE", false], ["FINANCES_DOUBLONS", false], ["FINANCES_IMPOTS", false],
     ]);
     const a = await acteur(u.fbmBloque);
-    for (const m of ["FINANCES_BANQUE", "FINANCES_COMPTABILITE", "FINANCES_DOUBLONS"] as const) expect(userCan(a, m, "VIEW"), m).toBe(false);
+    for (const m of ["FINANCES_BANQUE", "FINANCES_COMPTABILITE", "FINANCES_DOUBLONS", "FINANCES_IMPOTS"] as const) expect(userCan(a, m, "VIEW"), m).toBe(false);
     expect(destinations(await navigationFor(a)).filter((d) => d.startsWith("/finances"))).toEqual([]);
   });
 
@@ -116,7 +136,7 @@ suite("modules configurables — la migration, le menu et les centres", () => {
   it("BLOQUÉ sur Doublons de factures : il ne voit plus Doublons, il voit toujours Banque & paiements et la Comptabilité", async () => {
     const a = await acteur(u.fbmSansDoublons);
     const finances = (await navigationFor(a)).find((i) => i.label === "Finances");
-    expect(finances?.children?.map((c) => c.href)).toEqual(["/finances/paiements-a-faire", "/finances/comptabilite"]);
+    expect(finances?.children?.map((c) => c.href)).toEqual(["/finances/paiements-a-faire", "/finances/comptabilite", "/finances/impots-cotisations"]);
     expect(finances?.href).toBe("/finances/paiements-a-faire");
   });
 

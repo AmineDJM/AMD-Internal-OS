@@ -370,6 +370,14 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/finances/infra/revision-ordre.ts → src/lib/notify",
     "src/modules/finances/infra/settle-invoice.ts → src/lib/refs",
     "src/modules/finances/infra/verser-remise.ts → src/lib/notify",
+    // IMPÔTS & COTISATIONS (24/11/2026) : le rappel J-7 aux gestionnaires (`notify`), les sociétés de la personne
+    // (`company`, même cible « entités » que ci-dessous) et le dépôt de la pièce sur l'ordre (`storage`, cible « pièces »).
+    "src/modules/finances/infra/impots.ts → src/lib/notify",
+    "src/modules/finances/infra/impots.ts → src/lib/company",
+    "src/modules/finances/actions-impots.ts → src/lib/company",
+    "src/modules/finances/actions-impots.ts → src/lib/storage",
+    // L'enveloppe « Impôts & taxes » s'ouvre sous la file de `refs` (deux envois simultanés n'en ouvrent pas deux).
+    "src/modules/finances/infra/budget-impots.ts → src/lib/refs",
     // L'ENTITÉ DE L'ARGENT (Adventum, Novapharm…) et la visibilité par entité : `company` et `entity-access`
     // décident quelle société voit quel ordre. Cible = une porte « entités » du socle (proposition §5.3).
     "src/modules/finances/actions-demandes.ts → src/lib/company",

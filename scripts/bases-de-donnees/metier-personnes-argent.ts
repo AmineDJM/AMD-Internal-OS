@@ -90,7 +90,7 @@ export const BASES_PERSONNES_ARGENT: BaseDef[] = [
     raison: "Les demandes de paiement, ordres de dépense, mouvements, comptes de trésorerie et le centre de paiement.",
     sensibilite: "confidentiel",
     ecritPar: "Finances (`src/modules/finances/`, écrans Finances, Centre de paiement, Demandes de paiement)",
-    modules: ["FINANCES", "FINANCES_BANQUE", "FINANCES_COMPTABILITE", "FINANCES_DOUBLONS", "PAYMENT_CENTRE"],
+    modules: ["FINANCES", "FINANCES_BANQUE", "FINANCES_COMPTABILITE", "FINANCES_DOUBLONS", "FINANCES_IMPOTS", "PAYMENT_CENTRE"],
     famillesIa: ["BUDGETS"],
     mecanismes: [
       "Centre de paiement : siège réservé (`PaymentCentreSeat`, règle `sitsOnPaymentCentre`)",
@@ -108,6 +108,8 @@ export const BASES_PERSONNES_ARGENT: BaseDef[] = [
       LigneActualisationSoldes: "Solde déclaré pour un compte",
       PaymentCentreSeat: "Siège au centre de paiement",
       PaymentCentreMessage: "Message du centre de paiement",
+      ObligationFiscale: "Obligation fiscale ou sociale au calendrier d'une société (G50, CNAS, acompte…)",
+      EcheanceFiscale: "Échéance d'impôt ou de cotisation à payer (montants saisis, proposition de la paie, ordre)",
       PaymentThreshold: "Seuil de signature d'un paiement",
       DocumentRequest: "Demande de pièce justificative",
     },

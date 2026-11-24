@@ -5900,6 +5900,69 @@
   "annulation": "retour",
   "appelable": false
  },
+ "impots-cotisations-actions:corrigerImpotRefuse": {
+  "risque": "R4",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "impots-cotisations-actions:enregistrerBrouillonImpot": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "impots-cotisations-actions:enregistrerCalendrierFiscal": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "impots-cotisations-actions:envoyerImpotAuCentre": {
+  "risque": "R4",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "compensation",
+  "appelable": true
+ },
+ "impots-cotisations-actions:envoyerPaiementPonctuel": {
+  "risque": "R4",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "compensation",
+  "appelable": true
+ },
+ "impots-cotisations-actions:joindreQuittanceImpot": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "impots-cotisations-actions:retirerImpotDuCentre": {
+  "risque": "R4",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
  "integration-adpro-actions:annulerIntegrationAdPro": {
   "risque": "R1",
   "familles": [

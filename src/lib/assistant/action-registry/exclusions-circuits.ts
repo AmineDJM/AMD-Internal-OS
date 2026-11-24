@@ -117,6 +117,16 @@ export function classerExclusionsCircuits(): void {
     + "(`/finances/actualisation-soldes/[id]`), ouvert par sa notification. Adam est en pause de développement (Super Admin seul).", [
     "actualisation-soldes-actions:repondreActualisationSoldes",
   ]);
+  X("FINANCES › IMPÔTS & COTISATIONS (Super Admin, 24/11/2026) : préparer une G50, une CNAS, un acompte ou un paiement "
+    + "ponctuel, l'envoyer au centre de paiement AVEC son justificatif, le retirer, reprendre un refus, joindre la quittance, régler "
+    + "le calendrier. Chaque montant se recopie de la déclaration que les Finances ont SOUS LES YEUX (la plateforme ne calcule "
+    + "aucun impôt) et la pièce est un fichier qu'elles joignent : ces gestes se font devant l'écran `/finances/impots-cotisations`. "
+    + "Adam est en pause de développement (Super Admin seul).", [
+    "impots-cotisations-actions:enregistrerBrouillonImpot", "impots-cotisations-actions:envoyerImpotAuCentre",
+    "impots-cotisations-actions:retirerImpotDuCentre", "impots-cotisations-actions:corrigerImpotRefuse",
+    "impots-cotisations-actions:joindreQuittanceImpot", "impots-cotisations-actions:envoyerPaiementPonctuel",
+    "impots-cotisations-actions:enregistrerCalendrierFiscal",
+  ]);
   X("INFORMATION MÉDICALE › RELANCER UNE PIÈCE (Direction, 07/10) : une notification à la personne sollicitée, limitée à une "
     + "toutes les quatre heures. Le geste se décide en REGARDANT la fiche du dossier (depuis quand la pièce est attendue, "
     + "dernière relance) ; Adam est en pause de développement (Super Admin seul).", [

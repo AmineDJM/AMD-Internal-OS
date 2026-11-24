@@ -99,6 +99,7 @@ export const MODULE_LABELS: Record<Module, string> = {
   FINANCES_BANQUE: "Banque & paiements",
   FINANCES_COMPTABILITE: "Comptabilité",
   FINANCES_DOUBLONS: "Doublons de factures",
+  FINANCES_IMPOTS: "Impôts & cotisations",
   RH: "Ressources humaines",
   PAIE: "Paie",
   CONGRESS_INTERNATIONAL: "Prises en charge Internationales",
@@ -327,6 +328,8 @@ export const NAVIGATION: NavItem[] = [
       { module: "FINANCES_COMPTABILITE", label: "Comptabilité", href: "/finances/comptabilite", icon: "BookOpen", group: "Pôles", pole: "ADMINISTRATION" },
       // LE RECENSEMENT DES DOUBLONS DE FACTURES (Direction, 14/10/2026) — lecture ; « Modifier » marque un groupe examiné.
       { module: "FINANCES_DOUBLONS", label: "Doublons de factures", href: "/finances/doublons-factures", icon: "Copy", group: "Pôles", pole: "ADMINISTRATION" },
+      // IMPÔTS & COTISATIONS (maquette validée, 24/11/2026) — G50, CNAS, acomptes : préparés ici, autorisés au centre, payés à la banque.
+      { module: "FINANCES_IMPOTS", label: "Impôts & cotisations", href: "/finances/impots-cotisations", icon: "ReceiptText", group: "Pôles", pole: "ADMINISTRATION" },
     ],
   },
   // LES BONS DE COMMANDE — un module À PART (décision de la Direction, 01/10/2026, §118.176).

@@ -12,13 +12,24 @@ Ancien emplacement : `src/lib/{finance,finances,payments}/`, `src/lib/expense-or
 |---|---|
 | `partage.ts` | **Porte pure** : autorisation du centre (`canDisburse`, `applyDecision`, `canResubmitAuCentre`, `ROLES_CENTRE_DE_PAIEMENT`), chemins de paiement, porte budgétaire (`budgetGate`), règlement, machine d'état des demandes, trésorerie, libellés |
 | `api.ts` | **Porte serveur** : `createExpenseOrder` (l'unique écrivain), `reviserOrdreNonRegle`, `annulerOrdreNonRegle`, `verserLaRemise`, `syncInvoiceSettlement`, comptes ; les lectures des écrans (`chargerCentre`, `chargerOrdresDesFinances`, `getFinanceData`, `getComptaData`…) |
-| `actions-*.ts` | `actions-depenses` (`expense-actions` : payer, reporter, purger), `actions-centre` (`payment-centre-actions` : décider), `actions-sieges` (`payment-centre-seat-actions`), `actions-demandes` (`payment-request-actions`), `actions-relances` (`relance-paiement-actions`), `actions-soldes` (`actualisation-soldes-actions`), `actions-tresorerie` (`finance-actions`) — chacun sous sa **clé historique** (`src/lib/actions/parc.ts`) |
+| `actions-*.ts` | `actions-depenses` (`expense-actions` : payer, reporter, purger), `actions-centre` (`payment-centre-actions` : décider), `actions-sieges` (`payment-centre-seat-actions`), `actions-demandes` (`payment-request-actions`), `actions-relances` (`relance-paiement-actions`), `actions-soldes` (`actualisation-soldes-actions`), `actions-tresorerie` (`finance-actions`), `actions-impots` (`impots-cotisations-actions`) — chacun sous sa **clé historique** (`src/lib/actions/parc.ts`) |
 | `domaine/` | `authorization` (le centre), `chemins-paiement` (ex-`finances/settlement` : `PAYMENT_PATHS`), `settlement` (UNPAID / DEFERRED / PAID), `settle-budget`, `payment-request`, `payment-dossier`, `correction-demande`, `dossier-auto`, `relance-paiement`, `montant-facture`, `money-entity`, `deadline-nature`, `entite-centre` (l'entité ouverte au centre de paiement, son seul filtre : une file unique toutes origines confondues depuis le 24/11/2026), `reglement`, `tresorerie`, `virement-paie`, `payroll-cost`, `payroll-mass`, `soldes-au-reglement` (les statuts de sponsoring qu'un règlement solde, venus d'`ad-pro`), `actualisation-soldes`, `resultat-mensuel`, `ledger-audit`, `intelligence`, `invariants-argent` |
 | `infra/` | `expense-orders`, `revision-ordre`, `annulation`, `verser-remise`, `settle-invoice`, `compagnon-regle`, `comptes`, `next-ref`, `facture-ordre`, `pieces-depense`, `a-imputer`, `relance-destinataires`, `paie-centre`, `demandes` (aides privées des actions de demande) |
 | `infra/requetes/` | les lectures des écrans : `centre-paiement`, `paiements-a-faire`, `finance`, `compta`, `my-payment-requests`, `demande-paiement-suppression` |
 
 - **Tables** : `ExpenseOrder`, `PaymentCentreSeat`, `PaymentCentreMessage`, `PaymentRequest`, `PaymentPiece`,
-  `PaymentRequestEvent`, `FinanceTransaction`, `TreasuryAccount`, `PayrollWire`.
+  `PaymentRequestEvent`, `FinanceTransaction`, `TreasuryAccount`, `PayrollWire`, `ObligationFiscale`, `EcheanceFiscale`.
+- **Impôts & cotisations** (24/11/2026, clé `FINANCES_IMPOTS`, `/finances/impots-cotisations`) : le calendrier des obligations par
+  société (`ObligationFiscale`) fait naître les lignes de la période (`EcheanceFiscale`, tâche `finances.impots-cotisations`, rappel J-7) ;
+  l'IRG et la CNAS sont PROPOSÉS par la somme des retenues des fiches salariés (`Employee.retIrg`, `retSS9`, `retSS35`), la TVA
+  par les factures du mois (`infra/impots.ts › prerempliTva`, la place du lot « tva » : `null` aujourd'hui → saisie depuis la G50),
+  modifiables, l'écart tracé ; le TAP et le reste recopiés de la déclaration (`domaine/impots`, ni taux ni assiette) ; l'envoi émet l'ordre par `createExpenseOrder`
+  (source `TAX_PAYMENT`, bénéficiaire l'organisme), justificatif obligatoire déposé SUR L'ORDRE ; l'état se lit sur l'ordre ;
+  la quittance se range sur l'ordre une fois payé. Écran : `ecrans/impots-cotisations/`.
+  **Le budget** (24/11/2026) : chaque ordre est imputé à l'enveloppe « Impôts & taxes » de la société (code `IMPOTS_TAXES`,
+  `BudgetEnvelope.module`), ouverte d'office à 0 (`infra/budget-impots.ts`) ; lignes à clé stable `TVA_NETTE`, `IBS`,
+  `IRG_SALAIRES`, `CNAS`, `AUTRES_TAXES` (`domaine/budget-impots.ts`, exportées par `partage.ts`). Une G50 émet un ordre
+  par ligne du budget (`ordresIds`), le principal portant pièce et quittance.
 - **La paie VERSÉE** (décision du 28/10/2026 : les RH décident les salaires, les Finances les versent) :
   `infra/paie-centre` (`solderVirementPaie` au règlement, `instantDuCentreDePaie`, la masse salariale actualisée),
   `domaine/virement-paie` (mois de la paie, état d'un salaire et du virement), `domaine/payroll-cost` (coût

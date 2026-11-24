@@ -451,6 +451,9 @@ enum EntityType {
   /// UN RELEVÉ DU STOCK PCH CENTRAL reçu par mail — l'identifiant est la DATE du mail (AAAA-MM-JJ) : le mail
   /// ou le PDF de la PCH s'y joint. Aucune table : les quantités sont des `StockSnapshot` (scope PCH / ANNEX).
   STOCK_PCH_RELEVE
+  /// UNE ÉCHÉANCE D'IMPÔT OU DE COTISATION (Finances › Impôts & cotisations, 24/11/2026) — la G50, la CNAS, un acompte
+  /// d'IBS, un paiement ponctuel : la source de l'ordre de dépense qui la paie (`EcheanceFiscale`).
+  TAX_PAYMENT
 }
 
 enum DocumentCategory {
@@ -1912,6 +1915,8 @@ model Company {
   treasuryAccounts            TreasuryAccount[]
   demandesActualisationSoldes DemandeActualisationSoldes[]
   payrollWires                PayrollWire[]
+  obligationsFiscales         ObligationFiscale[]
+  echeancesFiscales           EcheanceFiscale[]
   medicalInfoDeclarations     MedicalInfoDeclaration[]
   stockSnapshots              StockSnapshot[]
   logisticsOrders             LogisticsOrder[]
@@ -7390,6 +7395,93 @@ model PayrollEntry {
   @@index([status])
   @@index([employeeNotifyAt])
   @@index([payrollWireId])
+}
+
+/// IMPÔTS & COTISATIONS — LE CALENDRIER DES OBLIGATIONS D'UNE SOCIÉTÉ (maquette validée par le Super Admin, 24/11/2026).
+///
+/// « La plateforme ne contient aucun calendrier fiscal » : c'est CE tableau, réglé par les Finances, qui fait naître chaque
+/// période une `EcheanceFiscale` « À préparer » et qui envoie le rappel avant le jour limite. Rien n'y est prérempli : un
+/// organisme, une nature, une périodicité et un jour limite saisis par quelqu'un, et confirmés par quelqu'un.
+model ObligationFiscale {
+  id                String            @id @default(cuid())
+  companyId         String
+  company           Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  organisme         String
+  nature            String
+  /// La décomposition à la préparation : `G50` (IRG + TVA + TAP + autres lignes), `CNAS` (parts salariale et
+  /// patronale), `MONTANT` (un montant unique, recopié du bordereau ou de l'avis).
+  composition       String            @default("MONTANT")
+  /// `MENSUELLE`, `TRIMESTRIELLE`, `ANNUELLE`, `SELON_AVIS`.
+  periodicite       String            @default("MENSUELLE")
+  /// Le jour limite dans le mois qui SUIT la période (1..31) ; nul = à renseigner (la liste le dit).
+  jourLimite        Int?
+  /// Une obligation ANNUELLE : le mois de l'année suivante où tombe le jour limite (le solde de l'IBS au 30 avril) ;
+  /// nul = janvier.
+  moisLimite        Int?
+  /// Le jour confirmé par les Finances — tant qu'il ne l'est pas, la liste affiche « à confirmer ».
+  jourConfirmeLe    DateTime?
+  jourConfirmeParId String?
+  /// Rappel aux Finances sept jours avant le jour limite.
+  rappel            Boolean           @default(true)
+  /// Retirée du calendrier : plus aucune ligne n'en naît ; celles d'avant restent, avec leur histoire.
+  retireeLe         DateTime?
+  createdById       String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  echeances         EcheanceFiscale[]
+
+  @@index([companyId])
+}
+
+/// UNE ÉCHÉANCE À PAYER — une période d'une obligation du calendrier, ou un paiement ponctuel (taxe foncière, pénalité…).
+///
+/// Les Finances y recopient les montants de la déclaration (la plateforme ne calcule aucun impôt) ; l'IRG et la CNAS sont
+/// PROPOSÉS par la somme des retenues inscrites par les RH sur les fiches salariés, modifiables, et l'écart est gardé.
+/// L'envoi crée l'ordre de dépense (`createExpenseOrder`, source `TAX_PAYMENT`) ; son état (au centre, autorisé, payé,
+/// refusé) se LIT sur l'ordre, jamais recopié ici.
+model EcheanceFiscale {
+  id                  String             @id @default(cuid())
+  companyId           String
+  company             Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// Nulle pour un paiement ponctuel (hors calendrier).
+  obligationId        String?
+  obligation          ObligationFiscale? @relation(fields: [obligationId], references: [id], onDelete: SetNull)
+  organisme           String
+  nature              String
+  composition         String             @default("MONTANT")
+  /// La clé de la période (« 2026-11 », « 2026-T4 », « 2026 », « 2026-A1 ») — nulle pour un ponctuel.
+  periode             String?
+  periodeLibelle      String
+  echeance            DateTime?
+  /// Les saisies des Finances, brouillon compris : `{ irg, tvaC, tvaD, tap, autres: [{ libelle, montant }], sal, pat, montant }`.
+  saisies             Json?
+  /// Ce que la paie PROPOSAIT au moment de l'envoi (`{ irg, sal, pat, fiches }`) : l'écart avec l'envoyé reste lisible.
+  propositions        Json?
+  /// La décomposition envoyée au centre : `[{ label, source, montant, propose }]`.
+  decomposition       Json?
+  montant             Decimal?           @db.Decimal(14, 2)
+  /// L'ordre de dépense en cours (au centre, autorisé, payé ou refusé). Nul tant que la ligne est « À préparer ».
+  expenseOrderId      String?            @unique
+  /// TOUS les ordres de l'envoi en cours, un par ligne de l'enveloppe « Impôts & taxes » (principal compris) : une G50
+  /// ventilée sur plusieurs lignes du budget en émet plusieurs ; `expenseOrderId` est le principal (pièce, quittance).
+  ordresIds           String[]           @default([])
+  /// Le justificatif joint à l'ORDRE (G50 signée, bordereau) — un `Document` de l'ordre, là où tout ordre porte sa pièce.
+  justificatifId      String?
+  justificatifNom     String?
+  /// La quittance de l'organisme, jointe à l'ordre une fois payé.
+  quittanceId         String?
+  quittanceNumero     String?
+  /// Le motif du dernier refus du centre, gardé quand la ligne revient « À préparer » pour être corrigée.
+  motifRefusPrecedent String?
+  envoyeLe            DateTime?
+  envoyeParId         String?
+  rappelEnvoyeLe      DateTime?
+  createdById         String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@unique([obligationId, periode])
+  @@index([companyId])
 }
 
 /// LE VIREMENT DE LA PAIE D'UNE ENTITÉ POUR UN MOIS (§118.176) — « pour la paie, c'est un bouton
