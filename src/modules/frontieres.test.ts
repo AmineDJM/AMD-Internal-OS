@@ -401,7 +401,14 @@ const DETTE_HERITEE: Record<string, string[]> = {
     // L'ENTITÉ DE L'ARGENT (Adventum, Novapharm…) et la visibilité par entité : `company` et `entity-access`
     // décident quelle société voit quel ordre. Cible = une porte « entités » du socle (proposition §5.3).
     "src/modules/finances/actions-demandes.ts → src/lib/company",
-    "src/modules/finances/actions-demandes.ts → src/lib/entity-access",
+    // `entityTypeOf` sorti du fichier d'actions (taille) : même couplage, autre adresse.
+    "src/modules/finances/infra/demandes.ts → src/lib/entity-access",
+    // LE RÉFÉRENTIEL DES NATURES (24/11/2026) RÉUNIT l'existant au lieu de le recopier (§118.5) : les libellés d'Ad & Pro et
+    // les natures de la caisse des moyens généraux (deux modules purs, sans import) ; la ligne pré-choisie suit la règle du
+    // règlement (`pickAutoCategory`).
+    "src/modules/finances/domaine/natures-depense.ts → src/lib/budget/natures",
+    "src/modules/finances/domaine/natures-depense.ts → src/lib/general-means/natures",
+    "src/modules/finances/infra/ordre-de-demande.ts → src/lib/budget/auto-category",
     "src/modules/finances/actions-depenses.ts → src/lib/entity-access",
     "src/modules/finances/actions-soldes.ts → src/lib/company",
     "src/modules/finances/actions-tresorerie.ts → src/lib/company",

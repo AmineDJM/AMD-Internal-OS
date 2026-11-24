@@ -25,6 +25,7 @@
 import type { PaymentPieceKind, PaymentUrgency } from "@prisma/client";
 import { canSubmitDossier, isBonDeVersement, type DossierPiece } from "./payment-dossier";
 import { deadlineNatureRank } from "./deadline-nature";
+import type { RubriqueNature } from "./natures-depense";
 
 export type PaymentState =
   | "DRAFT" | "SUBMITTED" | "UNDER_REVIEW" | "ON_HOLD"
@@ -324,6 +325,13 @@ export const kindOf = (raw: string | null): PaymentPieceKind => {
 
 // ── Ce que les actions écrivent et disent — une seule rédaction pour chaque geste ──────────────
 
+/** Ce que la nature de la dépense change à l'ordre (`infra/ordre-de-demande.ts` le calcule). */
+export interface OrdreSelonLaNature {
+  rubrique: RubriqueNature;
+  montant: number;
+  budgetCategoryId: string | null;
+}
+
 /** La demande telle que la lit l'action qui en fait un ordre de dépense. */
 export interface DemandeEnOrdre {
   id: string; reference: string; title: string; payee: string; amount: number;
@@ -335,11 +343,17 @@ export interface DemandeEnOrdre {
  * antérieur à l'ordre-à-la-soumission. Le même libellé, la même catégorie, le même bénéficiaire
  * dans les deux cas : c'est ce que le centre de paiement lit avant d'autoriser.
  */
-export function ordreDeLaDemande(req: DemandeEnOrdre, notes: string | null) {
+export function ordreDeLaDemande(req: DemandeEnOrdre, notes: string | null, nature?: OrdreSelonLaNature) {
   return {
     label: `${req.reference} — ${req.title}`,
-    amount: req.amount,
-    category: "FOURNISSEUR" as const,
+    // LA NATURE DE LA DÉPENSE (24/11/2026) : sa rubrique, sa ligne pré-choisie, et le NET quand une retenue à la source
+    // est gardée. Sans nature (demande d'avant la règle), l'ordre d'avant : le montant demandé, en « FOURNISSEUR ».
+    amount: nature?.montant ?? req.amount,
+    category: (nature?.rubrique ?? "FOURNISSEUR") as RubriqueNature,
+    budgetCategoryId: nature?.budgetCategoryId ?? null,
+    // La facture n'est exigée que par la règle d'avant (`FOURNISSEUR` ne l'exigeait pas) : une rubrique « événement » ne
+    // doit pas l'exiger d'un bon de versement, dont la quittance n'existe qu'après le paiement.
+    requiresInvoice: false,
     beneficiary: req.payee,
     sourceType: "PAYMENT_REQUEST" as const,
     sourceId: req.id,

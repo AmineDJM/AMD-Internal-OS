@@ -13,7 +13,7 @@ import { etatsDesBC } from "@/lib/bons-de-commande/etat";
 import { LIBELLE_ETAPE_BC } from "@/lib/bons-de-commande/regle";
 import { compositionDesPieces } from "@/lib/queries/composition-pieces";
 import { getAppSettings } from "@/lib/settings";
-import { myPaymentRequests } from "@/modules/finances/api";
+import { lireTauxRetenue, myPaymentRequests } from "@/modules/finances/api";
 import { lignesMesDemandes } from "@/modules/finances/partage";
 import { DemanderUneValidation } from "./demande-validation";
 import { NewPaymentButton } from "./paiements/new-payment-button";
@@ -108,7 +108,7 @@ export default async function ValidationsPage(props: { searchParams: Promise<{ f
             composition={compositionBC}
           />
           {/* LA DEMANDE DE PAIEMENT SE FAIT D'ICI — sa seule porte d'entrée ; le dossier passe ensuite par le centre de paiement. */}
-          <NewPaymentButton />
+          <NewPaymentButton tauxRetenue={await lireTauxRetenue()} />
         </>
       }
       paiements={

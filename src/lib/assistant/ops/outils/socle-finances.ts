@@ -160,7 +160,7 @@ export const OUTILS_SOCLE_FINANCES: Record<string, DomainToolSpec> = {
           parent: { type: "string", description: "create_budget_category : catégorie parente (sous-catégorie)." },
           transaction: { type: "string", description: "attribute_transaction / update_transaction : libellé ou référence de l'écriture." },
           person: { type: "string", description: "set_department_budget_access : la personne à ajouter/retirer." },
-          nature: { type: "string", description: "set_department_budget_access : accès | moyens généraux | masse salariale | activité." },
+          nature: { type: "string", description: "set_department_budget_access : accès | moyens généraux | masse salariale | activité. create_payment_request : la NATURE de la dépense, obligatoire (loyer, honoraires de médecin, transport des livraisons, dons…) — absente, elle est proposée d'après l'objet et la personne la confirme." },
           mode: { type: "string", description: "set_department_budget_access : « retirer » pour enlever (défaut : ajouter)." },
           kind: { type: "string", description: "Nature du budget départemental : moyens généraux (OPERATING) | masse salariale (HR) | activité (ACTIVITY)." },
           reason: { type: "string", description: "Motif (demande de budget, rallonge de caisse ; defer_payment : obligatoire si l'échéance a été déclarée fixe non négociable)." },

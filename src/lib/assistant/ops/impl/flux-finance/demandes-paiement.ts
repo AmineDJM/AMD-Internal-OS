@@ -6,6 +6,10 @@ import { prisma } from "./erp";
 import { toNumber } from "@/lib/utils";
 import { createPaymentRequest, submitPaymentRequest, decidePaymentRequest, cancelPaymentRequest, addPaymentComment, commentPaymentPiece, reviewPaymentPiece, updatePaymentRequestDetails } from "@/modules/finances/actions-demandes";
 import type { PaymentMove } from "@/modules/finances/partage";
+import {
+  calculerRetenue, libelleTaux, lireTauxRetenue, natureDepense, NATURES_DEMANDE, type NatureDepense, phraseRangement,
+  proposerNature, rechercherNatures,
+} from "@/modules/finances/api";
 import type { OpImpl, OpProposalDraft } from "../../types";
 import { opStr } from "../../types";
 import { runFd, runFd2, dzd, fieldsOf, isoDate } from "../../helpers";
@@ -29,6 +33,23 @@ async function resolvePayment(raw: string) {
   if (exact.length === 1) return exact[0];
   if (rows.length === 1) return rows[0];
   return { error: `Plusieurs demandes correspondent à « ${q} » : ${rows.map((r) => `${r.reference} — ${r.title} (${dzd(toNumber(r.amount))})`).join(" ; ")} — donner la référence exacte.` } as const;
+}
+
+/**
+ * LA NATURE DE LA DÉPENSE (obligatoire, 24/11/2026) — celle que la personne a dite (code ou mots du libellé), sinon celle
+ * que l'objet suggère, PROPOSÉE sur la carte et confirmée par la personne. Rien qui ressorte : on demande, on ne devine pas.
+ */
+function natureDeLaDemande(dite: string, objet: string): { nature: NatureDepense; proposee: boolean } | { error: string } {
+  if (dite) {
+    const exacte = natureDepense(dite);
+    if (exacte && NATURES_DEMANDE.includes(exacte)) return { nature: exacte, proposee: false };
+    const trouvees = rechercherNatures(dite);
+    if (trouvees.length === 1) return { nature: trouvees[0], proposee: false };
+    if (trouvees.length > 1) return { error: `Plusieurs natures correspondent à « ${dite} » : ${trouvees.slice(0, 6).map((x) => x.libelle).join(" ; ")} — préciser (champ « nature »).` };
+  }
+  const devinee = proposerNature(objet);
+  if (devinee) return { nature: devinee, proposee: true };
+  return { error: "Précisez la nature de la dépense (champ « nature ») : loyer, honoraires de médecin, transport des livraisons, dons… — elle est obligatoire et range la dépense au budget." };
 }
 
 /** Une pièce d'une demande de paiement, par le nom de son document. */
@@ -147,10 +168,18 @@ export const DEMANDES_PAIEMENT_OPS_IMPL: Record<string, OpImpl> = {
       // La chaîne part telle quelle : `deadlineNatureOf`, côté Finances, est seul juge de ce
       // qu'elle vaut — et retombe sur « moyenne » pour tout ce qu'il ne reconnaît pas.
       const nature = natureCodeOf(opStr(input, "deadlineNature") || opStr(input, "deadline"));
+      const depense = natureDeLaDemande(opStr(input, "natureDepense") || opStr(input, "nature"), `${title} ${opStr(input, "description")}`);
+      if ("error" in depense) return depense;
+      // Une nature qui porte une RETENUE À LA SOURCE : la carte montre brut / retenue / net, au taux réglé (à confirmer).
+      const taux = depense.nature.retenue ? (await lireTauxRetenue())[depense.nature.retenue] : null;
+      const retenue = taux ? calculerRetenue(amount, taux.taux) : null;
       return {
         title: `Demande de paiement (brouillon) — ${payee} · ${dzd(amount)}`,
         fields: fieldsOf([
           ["Objet", title], ["Bénéficiaire", payee], ["Montant", dzd(amount)],
+          ["Nature de la dépense", `${depense.nature.libelle}${depense.proposee ? " (proposée d'après l'objet — à confirmer)" : ""}`],
+          ["Rangement", phraseRangement(depense.nature)],
+          ["Retenue à la source", retenue && taux ? `${dzd(retenue.retenue)} (${libelleTaux(taux)}) — net à verser ${dzd(retenue.net)}` : null],
           ["Échéance", dueDate], ["Nature de l'échéance", dueDate ? NATURE_FR[nature] ?? null : null],
           ["Urgence", dueDate ? null : urgency.label],
           ["Contact chez le bénéficiaire", opStr(input, "contactName") || null],
@@ -162,7 +191,7 @@ export const DEMANDES_PAIEMENT_OPS_IMPL: Record<string, OpImpl> = {
         ],
         args: {
           title, payee, amount: String(amount), description: opStr(input, "description") || null,
-          dueDate, urgency: urgency.code, deadlineNature: nature, submit: "0",
+          dueDate, urgency: urgency.code, deadlineNature: nature, submit: "0", natureDepense: depense.nature.code,
           contactName: opStr(input, "contactName") || null,
           contactPhone: opStr(input, "contactPhone") || null,
           contactEmail: opStr(input, "contactEmail") || null,

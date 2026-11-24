@@ -77,6 +77,8 @@ export const DECLARATIONS_ARGENT: Readonly<Record<string, DeclarationAnnulation>
   "finance-actions:createQuickIncome": ARGENT,
   // La question des Finances au demandeur (Banque & paiements, 24/11/2026) : des événements du fil, une pièce, des
   // notifications — le journal des effets les retire ; aucune écriture d'argent.
+  "finances-natures:choisirNatureDemande": RETOUR,
+  "finances-natures:reglerTauxRetenue": RETOUR,
   "finances-questions:marquerReponseLue": RETOUR,
   "finances-questions:poserQuestionAuDemandeur": RETOUR,
   "finances-questions:relancerQuestionDemandeur": RETOUR,

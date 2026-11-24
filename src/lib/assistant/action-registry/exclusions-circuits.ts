@@ -495,6 +495,13 @@ export function classerExclusionsCircuits(): void {
     + "clic sur /validations/paiements/<id> › « Corriger la demande ».", [
     "payment-request-actions:corrigerDemandePaiement",
   ]);
+  X("CHOISIR LA NATURE D'UN BROUILLON DE DEMANDE DE PAIEMENT ET RÉGLER LES TAUX DE RETENUE À LA SOURCE (Super Admin, "
+    + "24/11/2026) — la nature d'une demande sans ordre est le geste de son DEMANDEUR, devant sa demande (Adam, lui, la "
+    + "propose à la création du brouillon, et la personne la confirme) ; le taux d'une retenue est un réglage fiscal du "
+    + "Super Admin, « à confirmer par le cabinet » tant qu'il ne l'a pas confirmé — jamais posé par un agent. Un clic sur "
+    + "/validations/paiements/<id> › « Nature de la dépense », et un formulaire dans Administration › Réglages & diffusion.", [
+    "finances-natures:choisirNatureDemande", "finances-natures:reglerTauxRetenue",
+  ]);
   X("SUPPRIMER DÉFINITIVEMENT SA DEMANDE DE PAIEMENT (Direction, 19/10/2026) — retirée ou restée brouillon, elle part en "
     + "lot avec son ordre de dépense annulé, ses pièces et son fil, restaurable depuis la corbeille. Le geste du DEMANDEUR (ou "
     + "du Super Admin), décidé devant la fenêtre qui montre ce qui part avec. Adam est en pause de développement : aucun "

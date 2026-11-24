@@ -8,8 +8,10 @@ import { Sheet } from "@/components/ui/sheet";
 import { Input, Select, Textarea, Label } from "@/components/ui/input";
 import { PAYMENT_PIECE_KIND_OPTIONS, PAYMENT_URGENCY_OPTIONS } from "@/lib/labels";
 import {
-  aRemplir, DEADLINE_NATURE_OPTIONS, dossierHint, pieceQuiRemplit, type ChampRempli, type DocumentLegalPropose, type LecturePourDemande,
+  aRemplir, DEADLINE_NATURE_OPTIONS, dossierHint, pieceQuiRemplit, REFUS_SANS_NATURE, tauxEnVigueur, type ChampRempli,
+  type DocumentLegalPropose, type LecturePourDemande, type RegimeRetenueSource, type TauxRetenue,
 } from "@/modules/finances/partage";
+import { NatureDepenseChamp } from "./nature-depense-champ";
 import { createPaymentRequest } from "@/modules/finances/actions-demandes";
 import { lirePieceDePaiement } from "@/modules/finances/actions-pieces-paiement";
 import { ChoisirDansLegal } from "./choisir-dans-legal";
@@ -63,8 +65,12 @@ function LuSur({ source }: { source: string | undefined }) {
  * le contact (`pieceQuiRemplit`). Un champ que la personne a TOUCHÉ n'est jamais réécrit (`aRemplir`) ; un champ
  * rempli le dit (« Lu sur … — vérifiez »). Un RIB lu coche l'attestation du moyen de paiement, que la personne confirme.
  */
-export function NewPaymentButton() {
+export function NewPaymentButton({ tauxRetenue }: { tauxRetenue?: Record<RegimeRetenueSource, TauxRetenue> } = {}) {
   const router = useRouter();
+  // LA NATURE (obligatoire, 24/11/2026) et le montant brut qu'elle lit pour l'aperçu d'une retenue à la source.
+  const [nature, setNature] = React.useState("");
+  const [montant, setMontant] = React.useState<number | null>(null);
+  const taux = tauxRetenue ?? tauxEnVigueur([]);
   const [open, setOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
@@ -100,6 +106,7 @@ export function NewPaymentButton() {
     setPieces([]); setMethodStated(false); setErr(null); setConnue(null); setEcart(null); setJustification(""); setConfirme(false);
     setLegaux([]); setChoisir(false); setLectures({}); setRemplis({}); setRibNote(null); setPayeeLu(null); setDepuisAnnuaire(null);
     setAnnuaireLu(null); setRetenuAuto(null); dernierAnnuaire.current = ""; setSansPiece(false); setSurvol(false);
+    setNature(""); setMontant(null);
     touches.current = new Set(); methodTouche.current = false;
   };
 
@@ -134,6 +141,7 @@ export function NewPaymentButton() {
       if (el instanceof HTMLInputElement) el.value = valeur;
     }
     if (poser.payee) setPayeeLu(poser.payee);
+    if (poser.amount) setMontant(Number(poser.amount) || null);
     setRemplis((prev) => {
       const n = { ...prev };
       for (const c of Object.keys(poser) as ChampRempli[]) n[c] = meilleure.lu.libelle;
@@ -198,7 +206,7 @@ export function NewPaymentButton() {
 
   const prendreMontantFacture = () => {
     const champ = formRef.current?.elements.namedItem("amount");
-    if (ecart && champ instanceof HTMLInputElement) champ.value = String(ecart.total);
+    if (ecart && champ instanceof HTMLInputElement) { champ.value = String(ecart.total); setMontant(ecart.total); }
     setEcart(null); setJustification(""); setConfirme(false);
   };
 
@@ -233,7 +241,8 @@ export function NewPaymentButton() {
 
   // LA MÊME RÈGLE QUE LE SERVEUR, dite avant qu'on essaie. `entityType: null` : ce formulaire ne
   // crée jamais de bon de versement — celui-ci naît de l'Information médicale, avec son exemption.
-  const manque = dossierHint({ entityType: null, pieces: [...pieces, ...legaux.map((l) => ({ kind: l.doc.nature }))], paymentMethodStated: methodStated });
+  const manque = dossierHint({ entityType: null, pieces: [...pieces, ...legaux.map((l) => ({ kind: l.doc.nature }))], paymentMethodStated: methodStated })
+    ?? (nature ? null : REFUS_SANS_NATURE);
 
   const submit = async (draft: boolean) => {
     const form = formRef.current;
@@ -293,6 +302,7 @@ export function NewPaymentButton() {
           onInput={(e) => {
             const nom = (e.target as HTMLInputElement).name;
             if (!nom) return;
+            if (nom === "amount") setMontant(Number((e.target as HTMLInputElement).value) || null);
             touches.current.add(nom);
             setRemplis((r) => { if (!(nom in r)) return r; const n = { ...r }; delete n[nom as ChampRempli]; return n; });
           }}
@@ -402,6 +412,9 @@ export function NewPaymentButton() {
           {/* Les champs restent dans le formulaire même cachés : la lecture de la pièce les remplit par leur nom. */}
           <div className={pieces.length > 0 || legaux.length > 0 || sansPiece ? "space-y-4" : "hidden"}>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <NatureDepenseChamp value={nature} onChange={setNature} montant={montant} taux={taux} />
+            </div>
             <div className="space-y-1.5 sm:col-span-2">
               <Label htmlFor="pay-title">Objet du paiement <span className="text-destructive">*</span></Label>
               <Input id="pay-title" name="title" required placeholder="Ex. Facture agence — brochure Cardiomax" />

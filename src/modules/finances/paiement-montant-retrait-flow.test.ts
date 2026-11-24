@@ -67,6 +67,8 @@ const lisible = (s: string | null | undefined) => (s ?? "").replace(/[   ]/
 function fd(fields: Record<string, string>, fichiers: Record<string, File> = {}): FormData {
   const f = new FormData();
   for (const [k, v] of Object.entries(fields)) f.set(k, v);
+  // La nature est obligatoire sur une demande de paiement (24/11/2026) : le banc en pose une, neutre.
+  if (!f.has("natureDepense")) f.set("natureDepense", "ACHATS.FOURNISSEUR");
   for (const [k, v] of Object.entries(fichiers)) f.set(k, v);
   return f;
 }

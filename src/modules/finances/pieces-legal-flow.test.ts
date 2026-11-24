@@ -42,6 +42,8 @@ async function acteur(id: string, role: SessionUser["role"]): Promise<CurrentUse
 function form(champs: Record<string, string>, legaux: string[] = [], fichiers: { nom: string; kind: string }[] = []): FormData {
   const fd = new FormData();
   for (const [k, v] of Object.entries(champs)) fd.set(k, v);
+  // La nature est obligatoire sur une demande de paiement (24/11/2026) : le banc en pose une, neutre.
+  if (!fd.has("natureDepense")) fd.set("natureDepense", "ACHATS.FOURNISSEUR");
   for (const id of legaux) fd.append("legalDocumentIds", id);
   fichiers.forEach((f, i) => { fd.append("files", new File(["x"], f.nom, { type: "application/pdf" })); fd.set(`kind_${i}`, f.kind); });
   return fd;

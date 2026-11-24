@@ -10,6 +10,7 @@ import {
   refusSeparationDesTaches, ordreAFacture, nextFinanceRef, canDisburse, blockedReason, type CentralStatus,
   checkDeferral, budgetGate, dossierHrefByOrder, compteDeLEcriture, verserLaRemise, solderLeDossierCompagnon,
   solderVirementPaie, STATUTS_SOLDES_PAR_UN_REGLEMENT, lireSaisieReglement, noteDeReference, justificatifsDesOrdres, REFUS_REGLEMENT_SANS_JUSTIFICATIF,
+  constaterRetenueAuReglement,
 } from "@/modules/finances/api";
 import { pickAutoCategory } from "@/lib/budget/auto-category";
 import { prisma } from "@/lib/prisma";
@@ -235,7 +236,10 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
       },
     });
     await tx.expenseOrder.update({ where: { id }, data: { transactionId: ecriture.id } });
-    return ecriture;
+    // LA RETENUE À LA SOURCE (24/11/2026) : l'écriture est le NET versé ; la retenue devient « à reverser » sur le mois du
+    // paiement et consomme la MÊME ligne budgétaire — la dépense coûte le brut. Même transaction : jamais l'un sans l'autre.
+    const retenue = await constaterRetenueAuReglement(tx, { ordreId: id, reference: order.reference, budgetCategoryId, date: saisie.date, acteurId: user.id });
+    return { ...ecriture, retenue };
   });
   if (!reglement) {
     // Quelqu'un d'autre a réglé (ou annulé, ou le centre a retiré son accord) pendant ce règlement.
@@ -331,7 +335,7 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
   revalidatePath("/rh/paie");
   revalidatePath("/moyens-generaux");
   revalidatePath("/mon-espace");
-  return { ok: true };
+  return tx.retenue ? { ok: true, message: `Payé (net). ${tx.retenue}` } : { ok: true };
 }); }
 
 /**

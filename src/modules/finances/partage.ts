@@ -62,6 +62,16 @@ export {
 export { auditLedger, auditSummary } from "./domaine/ledger-audit";
 export { checkMoneyEntity, groupByEntity, resolveMoneyEntity, unassignedWarning } from "./domaine/money-entity";
 export {
+  FAMILLES_NATURE, LIBELLE_POLE, libelleNatureDepense, NATURE_NON_PRECISEE, type NatureDepense, natureDepense, NATURES_DEMANDE,
+  NATURES_DEPENSE, naturesParFamille, phraseRangement, type PoleNature, proposerNature, rechercherNatures, REFUS_SANS_NATURE,
+  refusNatureDemande, type RubriqueNature,
+} from "./domaine/natures-depense";
+export {
+  type CalculRetenue, calculerRetenue, estRegimeRetenue, LIBELLE_REGIME_RETENUE, LIBELLE_STATUT_RETENUE, libelleTaux,
+  lireTauxSaisi, MENTION_A_CONFIRMER, moisDeLaRetenue, phraseRetenue, REGIMES_RETENUE, type RegimeRetenueSource,
+  type StatutRetenue, TAUX_RETENUE_DEFAUT, type TauxRetenue, tauxEnVigueur, totalRetenues,
+} from "./domaine/retenues";
+export {
   confronterMontantAuxFactures, LIBELLE_CONFIRMATION_ECART, noteEcartAssume,
   PHRASE_MONTANT_NON_LU, phraseEcartMontant, refusEcartMontant,
 } from "./domaine/montant-facture";
