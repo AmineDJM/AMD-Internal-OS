@@ -20,8 +20,9 @@ import { etatCleDrivePourSante } from "@/lib/storage/cle-drive-empreinte";
  *  3. les ERREURS RÉPÉTÉES de ce processus (journal unique, quinze dernières minutes) —
  *     `etat: "degrade"` quand un événement dépasse le seuil. Ce n'est PAS un 503 : redémarrer
  *     l'instance ne répare pas une requête qui échoue, et Render bouclerait sur des redémarrages ;
- *  4. la CLÉ DES FICHIERS (audit Drive du 24/11, A2) — `cleFichiers` : « ok », « absente » ou « invalide »
- *     (DRIVE_ENCRYPTION_KEY de CE service), « divergente » (autre clé que la référence commune : ce service
+ *  4. la CLÉ DES FICHIERS (audit Drive du 24/11, A2) — `cleFichiers` : « ok », « absente » (pas de
+ *     DRIVE_ENCRYPTION_KEY : repli sur la dérivation d'avant, décision du 24/11/2026) ou « invalide » (variable
+ *     fausse), « divergente » (autre clé que la référence commune : ce service
  *     refuse d'enregistrer des fichiers), « inconnue » (référence illisible). Tout sauf « ok » rend
  *     `etat: "degrade"`, jamais un 503 : le reste de l'ERP sert, et un redémarrage ne corrigerait pas la variable.
  *

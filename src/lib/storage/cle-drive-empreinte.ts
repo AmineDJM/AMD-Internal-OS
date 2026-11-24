@@ -13,6 +13,11 @@ import { ErreurCleDrive, jugerEmpreinte, lireTrousseau } from "./cle-drive";
  *
  * Hors production, la divergence est seulement journalisée : un poste de développement change de clé
  * sans que cela engage personne.
+ *
+ * SANS `DRIVE_ENCRYPTION_KEY` EN PRODUCTION (Super Admin, 24/11/2026 : déploiement sans clé posée, à poser plus tard), le
+ * service chiffre avec la dérivation d'avant (`cle-drive.ts`) : il écrit et lit, mais l'état est « absente » — dégradé,
+ * avertissement au démarrage. L'empreinte joue pareil : un service dont le secret diffère reste « divergente » et
+ * refuse d'écrire.
  */
 
 export type EtatCleFichiers = "ok" | "absente" | "invalide" | "divergente" | "inconnue";
@@ -52,8 +57,17 @@ export async function verifierCleDrive(o: {
     t = lireTrousseau(o.env ?? process.env);
   } catch (e) {
     if (!(e instanceof ErreurCleDrive)) throw e;
-    return { etat: e.message.includes("manquante") ? "absente" : "invalide", message: e.message };
+    return { etat: "invalide", message: e.message };
   }
+  const env = o.env ?? process.env;
+  const repli: VerificationCle = t.source === "repli" && env.NODE_ENV === "production"
+    ? {
+        etat: "absente",
+        message: "DRIVE_ENCRYPTION_KEY n'est pas posée : les fichiers se chiffrent avec la clé dérivée du secret d'authentification "
+          + "(comportement d'avant). Posez la MÊME clé sur chaque service (web, Adventum IA, worker) dans Render › Environment, "
+          + "avec l'ancienne clé dérivée dans DRIVE_ENCRYPTION_KEYS — voir docs/readme/37-sauvegardes-restauration.md.",
+      }
+    : { etat: "ok", message: null };
   let reference: string | null;
   try {
     reference = await magasin.lire();
@@ -67,7 +81,7 @@ export async function verifierCleDrive(o: {
       await magasin.avancer(reference, t.active.id);
       j = "conforme";
     }
-    if (j !== "divergente") return { etat: "ok", message: null };
+    if (j !== "divergente") return repli;
   } catch (e) {
     journal.avertissement("drive.cle.empreinte-illisible", {}, e);
     return { etat: "inconnue", message: "Empreinte de la clé des fichiers illisible (base en retard de migration ?)." };
@@ -88,7 +102,8 @@ export function refusEcritureCle(): string | null {
 }
 
 function appliquer(v: VerificationCle, production = process.env.NODE_ENV === "production"): VerificationCle {
-  if (production) refus = v.etat === "divergente" ? v.message : v.etat === "ok" ? null : refus;
+  // « absente » (repli sur la dérivation d'avant) écrit normalement : seule la divergence ferme l'écriture.
+  if (production) refus = v.etat === "divergente" ? v.message : v.etat === "ok" || v.etat === "absente" ? null : refus;
   return v;
 }
 
@@ -99,6 +114,7 @@ export async function verifierCleDriveAuDemarrage(o: { magasin?: MagasinEmpreint
     return { etat: "inconnue" as const, message: null };
   }), o.production);
   if (v.etat === "ok") journal.info("drive.cle.verifiee", {});
+  else if (v.etat === "absente") journal.avertissement("drive.cle.repli", { message: v.message });
   else journal.erreur("drive.cle." + v.etat, { message: v.message });
   return v;
 }

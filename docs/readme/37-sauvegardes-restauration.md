@@ -60,17 +60,20 @@ base et donc dans la copie.
 **La clé (`DRIVE_ENCRYPTION_KEY`).** Tous les fichiers (Drive, documents, pièces) sont chiffrés AES-256-GCM avec
 cette clé : 32 octets, en hexadécimal (64 caractères) ou base64 (44). Depuis le 24/11/2026 :
 
-- elle est **obligatoire en production** et doit être **identique** sur `amd-internal-os`, `adventum-ia` et
-  `amd-worker` (plus aucun repli sur `NEXTAUTH_SECRET`/`AUTH_SECRET`, qui différaient d'un service à l'autre) ;
+- elle doit être **identique** sur `amd-internal-os`, `adventum-ia` et `amd-worker`. Elle est **facultative** pour
+  l'instant (Super Admin, 24/11/2026 : déploiement sans clé posée, à poser plus tard) : ABSENTE, chaque service
+  chiffre avec l'ancienne dérivation (sha256 de `NEXTAUTH_SECRET` ou `AUTH_SECRET`) — avertissement au démarrage,
+  `/api/health` répond `"cleFichiers": "absente"` (`"etat": "degrade"`, jamais 503), et l'empreinte commune
+  ci-dessous protège toujours d'un service dont le secret diffère ;
 - une clé **mal formée** (collée tronquée) est une **erreur**, plus un repli silencieux ;
 - chaque fichier garde l'empreinte de sa clé (`FileBlob.keyId`) ; un redépôt ne réemploie jamais un fichier
   d'une autre clé ; les fichiers d'avant (sans empreinte) se relisent avec la clé active, et prennent leur
   empreinte à la première lecture réussie ;
 - le premier service qui démarre pose l'empreinte de sa clé dans les réglages (`AppSetting.driveKeyFingerprint`) ;
   un service qui démarre avec une autre clé **refuse d'enregistrer des fichiers** et `/api/health` répond
-  `"cleFichiers": "divergente"` (`"absente"` / `"invalide"` si la variable manque ou est fausse ; `"etat": "degrade"`).
+  `"cleFichiers": "divergente"` (`"absente"` si la variable manque — repli —, `"invalide"` si elle est fausse ; `"etat": "degrade"`).
 
-*Première mise en place* (avant de déployer cette version) : poser sur les **trois** services la clé
+*Poser la clé* (quand le Super Admin le décidera) : poser sur les **trois** services la clé
 qu'utilisait jusqu'ici le service web — sa `DRIVE_ENCRYPTION_KEY` si elle existait ; sinon, dans le Shell Render
 du service web, `node -e "console.log(require('crypto').createHash('sha256').update(process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET).digest('hex'))"`.
 Si `adventum-ia` ou le worker ont écrit des fichiers avec leur propre secret (fichiers « illisibles »),

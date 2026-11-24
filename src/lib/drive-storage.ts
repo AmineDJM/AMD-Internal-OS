@@ -29,8 +29,8 @@ import { attendu, sansBloquer } from "@/lib/journal";
  */
 
 /**
- * La clé qui chiffre une ÉCRITURE (`storage/cle-drive.ts`) : une clé mal formée, ou absente en production,
- * lève une erreur qui dit le remède — plus de repli silencieux sur une clé que les autres services n'ont pas.
+ * La clé qui chiffre une ÉCRITURE (`storage/cle-drive.ts`) : une clé mal formée lève une erreur qui dit le remède ;
+ * une clé ABSENTE se replie sur la dérivation d'avant (Super Admin, 24/11/2026), signalée au démarrage et par la santé.
  * En production, un service dont la clé diverge de la référence commune refuse d'écrire.
  */
 function cleEcriture(): CleDrive {

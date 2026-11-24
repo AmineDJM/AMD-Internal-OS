@@ -49,8 +49,12 @@ describe("Clé des fichiers — règles pures (A2)", () => {
       .toBe(identifiantCle(Buffer.from(CLE_A, "hex")));
   });
 
-  it("en production, DRIVE_ENCRYPTION_KEY est obligatoire : aucun repli sur le secret d'authentification", () => {
-    expect(() => lireTrousseau({ NODE_ENV: "production", NEXTAUTH_SECRET: "x" } as NodeJS.ProcessEnv)).toThrow(/manquante/);
+  it("production sans clé → repli sur l'ancienne dérivation (Super Admin, 24/11/2026) ; une clé présente l'emporte", () => {
+    const repli = lireTrousseau({ NODE_ENV: "production", NEXTAUTH_SECRET: "x" } as NodeJS.ProcessEnv);
+    expect(repli.source).toBe("repli");
+    // Exactement la clé d'avant le lot drvstock : sha256 du secret d'authentification.
+    expect(repli.active.cle.equals(crypto.createHash("sha256").update("x").digest())).toBe(true);
+    expect(lireTrousseau({ NODE_ENV: "production", AUTH_SECRET: "x" } as NodeJS.ProcessEnv).active.id).toBe(repli.active.id);
     const t = lireTrousseau({ NODE_ENV: "production", DRIVE_ENCRYPTION_KEY: CLE_B, DRIVE_ENCRYPTION_KEYS: `${CLE_A}, ${CLE_B}` } as NodeJS.ProcessEnv);
     expect(t.source).toBe("DRIVE_ENCRYPTION_KEY");
     expect(t.anciennes.map((c) => c.id)).toEqual([identifiantCle(Buffer.from(CLE_A, "hex"))]); // l'active n'est pas dupliquée
@@ -69,7 +73,22 @@ describe("Clé des fichiers — règles pures (A2)", () => {
     expect((await verifierCleDrive({ magasin: m, ecrire: true, env: { ...envB, DRIVE_ENCRYPTION_KEYS: CLE_A } })).etat).toBe("ok");
     expect(m.valeur).toBe(lireTrousseau(envB).active.id); // rotation : la référence avance
     expect(jugerEmpreinte(null, lireTrousseau(envA))).toBe("a-poser");
-    expect((await verifierCleDrive({ magasin: m, env: { NODE_ENV: "production" } as NodeJS.ProcessEnv })).etat).toBe("absente");
+    // En repli, la santé dit « absente » (dégradé, l'écriture reste permise) ; un repli au secret différent de la
+    // référence reste « divergente ».
+    const vierge = magasin();
+    const repli = { NODE_ENV: "production", NEXTAUTH_SECRET: "secret-du-web" } as NodeJS.ProcessEnv;
+    const r = await verifierCleDrive({ magasin: vierge, ecrire: true, env: repli });
+    expect(r.etat).toBe("absente");
+    expect(r.message).toMatch(/DRIVE_ENCRYPTION_KEY n'est pas posée/);
+    expect(vierge.valeur).toBe(lireTrousseau(repli).active.id);
+    expect((await verifierCleDrive({ magasin: vierge, env: { NODE_ENV: "production", NEXTAUTH_SECRET: "autre" } as NodeJS.ProcessEnv })).etat).toBe("divergente");
+    expect((await verifierCleDrive({ magasin: m, env: { NODE_ENV: "production" } as NodeJS.ProcessEnv })).etat).toBe("divergente");
+  });
+
+  it("repli : l'état est « absente » (dégradé, l'écriture permise) ; une clé PRÉSENTE mais mal formée reste « invalide »", async () => {
+    const env = { NODE_ENV: "production", NEXTAUTH_SECRET: "secret-du-web" } as NodeJS.ProcessEnv;
+    expect((await verifierCleDrive({ magasin: magasin(), ecrire: true, env })).etat).toBe("absente");
+    expect((await verifierCleDrive({ magasin: magasin(), env: { ...env, DRIVE_ENCRYPTION_KEY: "a".repeat(63) } })).etat).toBe("invalide");
   });
 });
 

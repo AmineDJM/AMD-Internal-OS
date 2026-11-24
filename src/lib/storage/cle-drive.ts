@@ -10,15 +10,19 @@ import crypto from "crypto";
  *
  * Désormais :
  *   • une clé DÉFINIE mais invalide est une erreur, partout ;
- *   • en production, `DRIVE_ENCRYPTION_KEY` est obligatoire (aucun repli) ;
+ *   • `DRIVE_ENCRYPTION_KEY` ABSENTE : repli sur l'ancienne dérivation (sha256 du secret d'authentification), en
+ *     production comme ailleurs — décision du Super Admin du 24/11/2026 : on déploie sans clé posée, elle le sera plus
+ *     tard. Le repli n'est pas silencieux : avertissement au démarrage, `/api/health` dit `cleFichiers: "absente"`
+ *     (état dégradé, jamais 503), et l'empreinte commune protège toujours d'un service au secret différent ;
  *   • chaque clé a un IDENTIFIANT court (HMAC) écrit dans `FileBlob.keyId` : on sait avec quelle clé
  *     relire un blob, et l'on ne réemploie jamais un blob d'une autre clé ;
  *   • `DRIVE_ENCRYPTION_KEYS` porte les ANCIENNES clés (rotation, blobs écrits par un service mal
  *     configuré) : elles servent à lire, jamais à écrire.
  *
  * Format d'une clé : 32 octets, en hexadécimal (64 caractères) ou en base64 (44 caractères).
- * Hors production, sans `DRIVE_ENCRYPTION_KEY`, la clé reste dérivée du secret d'authentification
- * (comportement d'avant : les fichiers de développement et des bancs restent lisibles).
+ * Sans `DRIVE_ENCRYPTION_KEY`, la clé reste dérivée du secret d'authentification — exactement le comportement d'avant :
+ * les fichiers déjà écrits restent lisibles, et poser la clé plus tard se fait par rotation (la clé dérivée — sha256 du
+ * secret, en hexadécimal — entre alors dans `DRIVE_ENCRYPTION_KEYS`, voir docs/readme/37-sauvegardes-restauration.md).
  *
  * Module pur (ni base, ni réseau) : il lit l'environnement qu'on lui passe.
  */
@@ -41,11 +45,9 @@ export interface TrousseauDrive {
   readonly active: CleDrive;
   /** Les anciennes clés, pour LIRE seulement. */
   readonly anciennes: readonly CleDrive[];
-  /** `repli` : clé dérivée du secret d'authentification (hors production seulement). */
+  /** `repli` : clé dérivée du secret d'authentification (`DRIVE_ENCRYPTION_KEY` absente). */
   readonly source: "DRIVE_ENCRYPTION_KEY" | "repli";
 }
-
-const GENERER = "node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"";
 
 /** Identifiant d'une clé : HMAC tronqué, stable, non réversible. */
 export function identifiantCle(cle: Buffer): string {
@@ -76,14 +78,9 @@ export function lireTrousseau(env: NodeJS.ProcessEnv = process.env): TrousseauDr
   if (explicite) {
     active = cleDe(decoder(explicite, "DRIVE_ENCRYPTION_KEY"));
     source = "DRIVE_ENCRYPTION_KEY";
-  } else if (env.NODE_ENV === "production") {
-    throw new ErreurCleDrive(
-      "DRIVE_ENCRYPTION_KEY manquante : en production, les fichiers ne se chiffrent qu'avec une clé explicite, "
-      + "LA MÊME sur chaque service (web, Adventum IA, worker). Posez-la dans Render › le service › Environment "
-      + `(générer : ${GENERER}) — voir docs/readme/37-sauvegardes-restauration.md.`,
-    );
   } else {
-    // Hors production : la dérivation d'avant, pour que les fichiers de développement restent lisibles.
+    // ABSENTE : la dérivation d'avant (Super Admin, 24/11/2026 — déploiement sans clé posée ; à poser plus tard). Le
+    // démarrage l'avertit et `/api/health` la dit « absente » (`cle-drive-empreinte.ts`).
     const secret = env.NEXTAUTH_SECRET ?? env.AUTH_SECRET ?? "amd-internal-os";
     active = cleDe(crypto.createHash("sha256").update(secret).digest());
     source = "repli";
