@@ -9,6 +9,7 @@ import { getAppSettings } from "@/lib/settings";
 import { canManageMeeting } from "@/lib/meetings";
 import { sansBloquer } from "@/lib/journal";
 import { inscrirePiece } from "@/modules/bibliotheque/api-inscription";
+import { typeDeDepot } from "@/lib/drive/mime-nom";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +44,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   if (previous && previous !== blobId) await releaseBlob(previous).catch(sansBloquer("recording-route.POST.releaseBlob"));
   // L'enregistrement entre à la bibliothèque (J1) — clé exclusive : il remplace le précédent. Sa transcription sera celle d'ici.
   await inscrirePiece({
-    blobId, empreinte: sha256, nom: file.name || "reunion.webm", mime: file.type || "audio/webm", taille: buf.length, source: "CONVERSATION",
+    blobId, empreinte: sha256, nom: file.name || "reunion.webm", mime: typeDeDepot(file.name || "reunion.webm", file.type, "audio/webm"), taille: buf.length, source: "CONVERSATION",
     objet: { famille: "REUNION_AUDIO", id: meeting.id }, proprietaireId: user.id, role: "enregistrement",
   });
 

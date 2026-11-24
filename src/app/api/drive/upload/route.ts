@@ -11,6 +11,7 @@ import { refusDepotDrive, enregistrerFichierDrive } from "@/lib/drive/depot";
 import { BLOB_MAX_BYTES } from "@/lib/storage/limites-blob";
 import { MAX_SANS_STOCKAGE_OBJET_MO } from "@/lib/storage/phrases-stockage";
 import { refusSansStockageObjet } from "@/lib/storage/televersement-direct";
+import { typeDeDepot } from "@/lib/drive/mime-nom";
 
 /** Upload a new file (under `parentId`) or a new version (of `nodeId`). */
 export async function POST(req: NextRequest) {
@@ -80,13 +81,14 @@ export async function POST(req: NextRequest) {
   // Un contenu dédupliqué n'occupe pas de place NEUVE : le compter gonflerait l'occupation jusqu'à
   // refuser des envois qui tiennent parfaitement.
   if (!deduplicated) addPhysicalUsage(storedSize ?? size); // le COMPRIMÉ quand le stockage l'a compressé
-  const mimeType = file.type || "application/octet-stream";
+  const mimeType = typeDeDepot(file.name, file.type);
 
   const res = await enregistrerFichierDrive(user, cible, { blobId, size, mimeType, name: file.name, sha256: ecrit.sha256 });
   timer.mark("base");
-  // Le découpage part dans la réponse (l'écran le montre quand un envoi traîne) ET dans le
-  // journal du serveur — on peut ainsi diagnostiquer sans demander à personne de rejouer le cas.
+  // Le découpage part dans le journal du serveur SEULEMENT (audit Drive F7) : ses étapes disent si le
+  // contenu était « déjà présent » (dédupliqué), donc si quelqu'un, quelque part, détient déjà ce fichier.
+  // Renvoyé au client, c'était un oracle d'existence ; le diagnostic se lit dans les journaux.
   const t = timer.done(objectStorageConfigured() ? "objet" : "base", size);
   console.info("[drive upload]", file.name, formatTiming(t));
-  return NextResponse.json({ id: res.id, ...(res.version ? { version: res.version } : {}), timing: t });
+  return NextResponse.json({ id: res.id, ...(res.version ? { version: res.version } : {}) });
 }

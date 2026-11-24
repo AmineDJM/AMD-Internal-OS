@@ -4,7 +4,7 @@ import { createHash, randomBytes } from "crypto";
 import { mkdtemp, writeFile, rm } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
-import { inspectZip, inspectZipFile, unsafePath } from "./zip-inspector";
+import { DEFAULT_ZIP_LIMITS, inspectZip, inspectZipFile, PLAFOND_ENTREE_OCTETS, unsafePath } from "./zip-inspector";
 
 async function makeZip(files: Record<string, Buffer | string>): Promise<Buffer> {
   const z = new JSZip();
@@ -21,6 +21,41 @@ async function makeZipFile(files: Record<string, Buffer | string>): Promise<stri
   await writeFile(path, await makeZip(files));
   return path;
 }
+
+/** Fait MENTIR la PREMIÈRE entrée de l'archive : sa taille décompressée annoncée (local + central) devient `n`. */
+function mentirSurLaTaille(zip: Buffer, n: number): Buffer {
+  const b = Buffer.from(zip);
+  let local = false, central = false;
+  for (let i = 0; i + 30 < b.length; i++) {
+    if (!local && b.readUInt32LE(i) === 0x04034b50) { b.writeUInt32LE(n, i + 22); local = true; }
+    if (!central && b.readUInt32LE(i) === 0x02014b50) { b.writeUInt32LE(n, i + 24); central = true; }
+  }
+  return b;
+}
+
+describe("F10 — une entrée se décompresse EN FLUX, au compteur RÉEL, 256 Mo au plus", () => {
+  it("le plafond par entrée ne dépasse jamais 256 Mo (ni par défaut, ni par variable)", () => {
+    expect(PLAFOND_ENTREE_OCTETS).toBe(256 * 1024 * 1024);
+    expect(DEFAULT_ZIP_LIMITS.maxFileUncompressed).toBeLessThanOrEqual(PLAFOND_ENTREE_OCTETS);
+  });
+  it("une entrée qui ANNONCE 10 octets et en contient 2 Mo est coupée au plafond (inspectZip, en mémoire)", async () => {
+    const z = new JSZip();
+    z.file("menteur.bin", Buffer.alloc(2 * 1024 * 1024, 0x41));
+    z.file("sain.pdf", Buffer.from("ok"));
+    const buf = mentirSurLaTaille(await z.generateAsync({ type: "nodebuffer", compression: "DEFLATE" }), 10);
+    const res = await inspectZip(buf, { maxFileUncompressed: 100 * 1024 });
+    expect(res.ok).toBe(true);
+    expect(res.entries.find((e) => e.filename === "menteur.bin")?.securityStatus).toBe("BLOCKED_OVERSIZE");
+    expect(res.entries.find((e) => e.filename === "sain.pdf")?.securityStatus).toBe("SAFE");
+  });
+  it("le compteur réel borne aussi le VOLUME TOTAL, malgré les tailles annoncées", async () => {
+    const z = new JSZip();
+    z.file("a.bin", Buffer.alloc(300 * 1024, 0x42));
+    const buf = mentirSurLaTaille(await z.generateAsync({ type: "nodebuffer", compression: "DEFLATE" }), 10);
+    const res = await inspectZip(buf, { maxTotalUncompressed: 100 * 1024, maxRatio: 1e9 });
+    expect(res.rejection?.code).toBe("TOTAL_TOO_LARGE");
+  });
+});
 
 describe("inspectZip — ingestion CTD sécurisée", () => {
   it("accepte une archive saine et calcule le SHA-256 exact", async () => {

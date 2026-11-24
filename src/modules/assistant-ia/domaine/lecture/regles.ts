@@ -205,3 +205,27 @@ export interface AudioDuTour {
   coupe?: boolean;
   erreur?: string;
 }
+
+// ─────────────── Les nœuds Drive non classés et les copies de pièces de module (audit Drive F16) ───────────────
+
+/**
+ * LES DOSSIERS MIROIR — où le Drive range les COPIES des pièces déposées dans les modules (RH, pharmacovigilance,
+ * Regulatory…). Leur confidentialité est celle du module d'origine, que la copie ne porte pas : l'assistant ne
+ * les lit jamais ; la pièce se lit depuis son module, sous ses règles. Les noms sont ceux des racines posées par
+ * `lib/drive/mirror-path.ts`, `lib/regulatory-drive-mirror.ts` et l'espace de `rh/infra/hr-drive-mirror.ts`
+ * (un test les tient alignés).
+ */
+export const RACINES_MIROIR: readonly string[] = ["Mes documents importés", "Regulatory — Dossiers produits"];
+export const ESPACES_MIROIR: readonly string[] = ["RH — Contrats"];
+
+/** Le nœud est-il dans un dossier miroir ? `ancetres` : les noms de la racine jusqu'au parent direct. */
+export function estDansUnMiroir(ancetres: readonly string[], espace: string | null): boolean {
+  return (espace !== null && ESPACES_MIROIR.includes(espace)) || (ancetres.length > 0 && RACINES_MIROIR.includes(ancetres[0]));
+}
+
+export const REFUS_MIROIR =
+  "Copie d'une pièce de module (dossier « Mes documents importés », Regulatory ou RH) : l'assistant ne la lit pas ici. Ouvrez-la depuis son module, ou joignez l'original.";
+
+/** Une pièce non encore classée se lit sur ce serveur seulement : ni vision, ni transcription. */
+export const phraseNonClassee = (nom: string): string =>
+  `« ${nom} » n'est pas encore classée : seul son texte, lu sur ce serveur, est transmis — ni image ni son ne partent au modèle.`;

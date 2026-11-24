@@ -23,6 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { celluleCsv } from "@/lib/formats/csv-cellule";
 
 export interface Column<T> {
   key: string;
@@ -58,11 +59,17 @@ function accessorValue<T>(col: Column<T>, row: T): string {
   return raw === null || raw === undefined ? "" : String(raw);
 }
 
+/** La valeur BRUTE d'une colonne : un nombre reste un nombre, pour que le CSV ne le prenne pas pour une formule. */
+function valeurBrute<T>(col: Column<T>, row: T): unknown {
+  return col.accessor ? col.accessor(row) : (row as Record<string, unknown>)[col.key];
+}
+
 function toCsv<T>(columns: Column<T>[], rows: T[]): string {
-  const escape = (s: string) => `"${s.replace(/"/g, '""')}"`;
+  // `celluleCsv` neutralise `= + - @` en tête de texte (une formule dans le tableur de qui ouvre le fichier).
+  const escape = (v: unknown) => celluleCsv(v, { separateur: ",", guillemets: "toujours" });
   const header = columns.map((c) => escape(c.header)).join(",");
   const body = rows
-    .map((row) => columns.map((c) => escape(accessorValue(c, row))).join(","))
+    .map((row) => columns.map((c) => escape(valeurBrute(c, row))).join(","))
     .join("\n");
   return `﻿${header}\n${body}`; // BOM for Excel UTF-8
 }

@@ -47,6 +47,17 @@ describe("OnlyOffice — JWT HS256", () => {
     const t = signJwt({ a: 1 }, -10); // déjà expiré
     expect(verifyJwt(t)).toBeNull();
   });
+  it("F14 — rejette un jeton correctement signé mais SANS expiration (ou à expiration non numérique)", async () => {
+    const { createHmac } = await import("node:crypto");
+    const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
+    const forger = (charge: Record<string, unknown>) => {
+      const data = `${b64({ alg: "HS256", typ: "JWT" })}.${b64(charge)}`;
+      return `${data}.${createHmac("sha256", "test-secret-123").update(data).digest("base64url")}`;
+    };
+    expect(verifyJwt(forger({ nodeId: "n", userId: "u", kind: "lecture" }))).toBeNull();
+    expect(verifyJwt(forger({ nodeId: "n", exp: "9999999999" }))).toBeNull();
+    expect(verifyJwt(forger({ nodeId: "n", exp: Math.floor(Date.now() / 1000) + 60 }))).toMatchObject({ nodeId: "n" });
+  });
   it("rejette un jeton signé avec un autre secret", () => {
     const t = signJwt({ a: 1 });
     process.env.ONLYOFFICE_JWT_SECRET = "autre-secret";

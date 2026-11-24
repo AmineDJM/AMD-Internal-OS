@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUserPourEcrire, getCurrentUser } from "@/lib/session";
 import { interrupteurIaCoupe, REFUS_IA_COUPEE } from "@/lib/ai-settings";
 import { capterPhoto, capterVocal, lireCaptations, peutCapterTerrain, TAILLE_MAX_CAPTATION } from "@/modules/assistant-ia/api";
+import { typeDeDepot } from "@/lib/drive/mime-nom";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -29,7 +30,7 @@ export async function POST(req: Request) {
     cle: String(form.get("cle") ?? ""),
     octets: Buffer.from(await fichier.arrayBuffer()),
     nom: fichier.name || (sorte === "photo" ? "photo.jpg" : "vocal.webm"),
-    mime: (fichier.type || "application/octet-stream").split(";")[0].trim().toLowerCase(),
+    mime: typeDeDepot(fichier.name, fichier.type),
     dureeS: Number.isFinite(Number(form.get("dureeS"))) ? Math.round(Number(form.get("dureeS"))) : null,
     sorte: (String(form.get("sortePhoto") ?? "") || null) as never,
   };

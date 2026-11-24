@@ -1,6 +1,6 @@
 import { fluxEntreeZip, ErreurZip, type EntreeZip, type SourceZip } from "@/lib/storage/zip-lecteur";
 import { dispositionPourBucket } from "@/lib/http/types-actifs";
-import { headObjectSize, presignGetUrl, putObjectStream } from "@/lib/storage/object-storage";
+import { headObjectSize, presignGetUrl, putObjectStream, VALIDITE_MAX_LECTURE_S } from "@/lib/storage/object-storage";
 import { contentDisposition } from "@/lib/http/content-disposition";
 import { sansBloquer } from "@/lib/journal";
 
@@ -19,8 +19,11 @@ import { sansBloquer } from "@/lib/journal";
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-/** Validité de l'adresse signée : le lecteur PDF continue de demander des plages pendant la lecture. */
-const VALIDITE_APERCU_S = 2 * 3600;
+/**
+ * Validité de l'adresse signée : le plafond de lecture (5 min, audit Drive F12). Le lecteur PDF demande des
+ * plages pendant la lecture ; passé ce délai, rouvrir l'aperçu signe une adresse neuve, droits revérifiés.
+ */
+const VALIDITE_APERCU_S = VALIDITE_MAX_LECTURE_S;
 const MAX_SIMULTANEES = 2;
 const MAX_PRETS_MEMORISES = 2000;
 const OUBLI_ECHEC_MS = 30_000;

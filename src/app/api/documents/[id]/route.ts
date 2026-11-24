@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { dispositionPourBucket } from "@/lib/http/types-actifs";
+import { dispositionPourBucket, typeAEmettre } from "@/lib/http/types-actifs";
 import { getCurrentUser } from "@/lib/session";
 import { peutOuvrirDocument } from "@/lib/entity-access/ouverture-pieces";
 import { readFileByKey } from "@/lib/storage";
 import { cleObjetDirect, infoBlob } from "@/lib/drive-storage";
-import { presignGetUrl } from "@/lib/storage/object-storage";
+import { presignGetUrl, VALIDITE_MAX_LECTURE_S } from "@/lib/storage/object-storage";
 import { recordAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { contentDisposition } from "@/lib/http/content-disposition";
@@ -59,10 +59,10 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
           })
           : undefined,
         redirection: () => direct
-          ? presignGetUrl(direct, 900, {
+          ? presignGetUrl(direct, VALIDITE_MAX_LECTURE_S, {
             // Le bucket ne porte pas de CSP : un type actif (HTML, SVG, XML) s'y télécharge (`lib/http/types-actifs.ts`).
             "response-content-disposition": contentDisposition(doc.name, dispositionPourBucket(mime, download ? "attachment" : "inline")),
-            "response-content-type": mime,
+            "response-content-type": typeAEmettre(mime),
           })
           : null,
       },

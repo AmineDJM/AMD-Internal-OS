@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { contentDisposition } from "@/lib/http/content-disposition";
-import { entetesAntiExecution } from "@/lib/http/types-actifs";
+import { entetesAntiExecution, typeAEmettre } from "@/lib/http/types-actifs";
 import { extensionDejaCompressee, lireQualite, type EstimationTelechargement, type Qualite } from "@/lib/compression/politique";
 import { obtenirReduction } from "@/lib/compression/reduction-cache";
 import { ecrireZip, enFluxWeb, LIMITE_ZIP_OCTETS, type EntreeZip, type NiveauZip } from "@/lib/compression/zip-ecriture";
@@ -77,7 +77,7 @@ export async function repondreFichier(f: FichierServi, o: OptionsPorte): Promise
       await o.journaliser?.("reduite");
       return new NextResponse(new Uint8Array(r.octets), {
         headers: {
-          "Content-Type": r.mime,
+          "Content-Type": typeAEmettre(r.mime),
           "Content-Disposition": contentDisposition(r.nom, o.telecharger ? "attachment" : "inline"),
           ...entetesAntiExecution(r.mime),
           "Content-Length": String(r.octets.length),
@@ -106,9 +106,9 @@ async function servirOriginal(f: FichierServi, o: OptionsPorte, directRedirect: 
   await o.journaliser?.("max");
   return new NextResponse(new Uint8Array(octets), {
     headers: {
-      "Content-Type": f.mime,
+      "Content-Type": typeAEmettre(f.mime),
       "Content-Disposition": contentDisposition(f.nom, o.telecharger ? "attachment" : "inline"),
-      // Un type actif (HTML, SVG, XML) s'affiche sans jamais s'exécuter dans l'ERP (`lib/http/types-actifs.ts`).
+      // Hors liste passive (HTML, SVG, XML, inconnu, mal formé), rien ne s'exécute dans l'ERP (`lib/http/types-actifs.ts`).
       ...entetesAntiExecution(f.mime),
       "Content-Length": String(octets.length),
       "X-Qualite": "max",

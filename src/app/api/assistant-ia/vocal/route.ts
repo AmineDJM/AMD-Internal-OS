@@ -4,6 +4,7 @@ import { peutUtiliserAssistantIA, REFUS_ASSISTANT_IA } from "@/lib/rbac";
 import { interrupteurIaCoupe, REFUS_IA_COUPEE } from "@/lib/ai-settings";
 import { deposerAudio, deposerMessage, DUREE_VOCAL_MAX_S, nomDeVocal, traiterFil } from "@/modules/assistant-ia/api";
 import { TAILLE_MAX_STT } from "@/lib/media/stt";
+import { typeDeDepot } from "@/lib/drive/mime-nom";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -40,7 +41,7 @@ export async function POST(req: Request) {
   if (Number.isFinite(dureeS) && dureeS > DUREE_VOCAL_MAX_S + 5) {
     return NextResponse.json({ error: `Vocal trop long : ${Math.round(DUREE_VOCAL_MAX_S / 60)} minutes au plus.` }, { status: 413 });
   }
-  const type = (fichier.type || "audio/webm").split(";")[0].trim().toLowerCase();
+  const type = typeDeDepot(fichier.name, fichier.type, "audio/webm");
   const ext = FORMATS[type];
   if (!ext) return NextResponse.json({ error: `Format d'enregistrement non pris en charge (${type}).` }, { status: 415 });
 

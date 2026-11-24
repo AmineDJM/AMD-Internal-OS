@@ -7,6 +7,7 @@ import { sansBloquer } from "@/lib/journal";
 import { randomUUID } from "node:crypto";
 import type { Confidentiality, DocumentCategory, EntityType } from "@prisma/client";
 import { inscrireDocumentEcrit } from "@/modules/bibliotheque/api-inscription";
+import { nomPourCle, typeDeDepot } from "@/lib/drive/mime-nom";
 
 /**
  * Stockage des fichiers de **documents** (modèle Document, hors Drive).
@@ -40,14 +41,35 @@ export async function saveFile(key: string, buffer: Buffer): Promise<{ blobId: s
   return { blobId, sha256 };
 }
 
+/**
+ * Le chemin du repli disque d'une clé, CONFINÉ au dossier `uploads` (audit Drive F6) — `null` si la clé
+ * en sortirait (`../`, chemin absolu, octet nul). La clé contient un nom venu du navigateur : sans ce
+ * confinement, `readFileByKey("../../.env")` lisait n'importe quel fichier du serveur.
+ */
+export function cheminDeRepli(key: string, racine = UPLOAD_DIR): string | null {
+  if (!key || key.includes("\0")) return null;
+  const base = path.resolve(racine);
+  const cible = path.resolve(base, key);
+  return cible.startsWith(base + path.sep) ? cible : null;
+}
+
+/** L'erreur « introuvable » du repli, au même code que celle du disque : les appelants la traitent pareil. */
+function introuvable(key: string): NodeJS.ErrnoException {
+  return Object.assign(new Error(`Fichier introuvable : ${key}`), { code: "ENOENT" });
+}
+
 export async function readFileByKey(key: string): Promise<Buffer> {
   const stored = await prisma.storedFile.findUnique({ where: { key }, select: { blobId: true } });
   if (stored) {
     const bytes = await getBlob(stored.blobId);
     if (bytes) return bytes;
   }
-  // Repli : ancien fichier écrit sur le disque local (dev / avant migration).
-  return readFile(path.join(UPLOAD_DIR, key));
+  // Repli : ancien fichier écrit sur le disque local (dev / avant migration). En production le disque
+  // est éphémère (Render) : le repli n'y trouve rien et n'est qu'une surface d'attaque — il est coupé.
+  if (process.env.NODE_ENV === "production") throw introuvable(key);
+  const chemin = cheminDeRepli(key);
+  if (!chemin) throw introuvable(key);
+  return readFile(chemin);
 }
 
 export async function deleteFileByKey(key: string): Promise<void> {
@@ -97,15 +119,15 @@ export function validateDocumentUpload(
  * bibliothèque (J1) : le geste que neuf écrivains répétaient (justificatifs d'une dépense, d'un BV, d'une
  * formation, d'une directive, d'une validation, d'une demande RH, d'un congé, d'une information médicale).
  *
- * Une écriture au coffre ratée GARDE la fiche (métadonnées seules) : une pièce annoncée puis introuvable se voit
- * et se redemande ; une pièce silencieusement disparue laisse croire au dépôt. Rien n'est alors inscrit — il n'y a
- * rien à lire. (`persistUploadedDocument`, `lib/documents.ts`, est le dépôt complet : versions, miroir Drive.)
+ * Une écriture au coffre ratée GARDE la fiche (métadonnées seules), marquée INEXPLOITABLE (`fileKey` nul) : une
+ * pièce annoncée puis introuvable se voit et se redemande ; une pièce silencieusement disparue laisse croire au
+ * dépôt. Rien n'est alors inscrit — il n'y a rien à lire. (`persistUploadedDocument`, `lib/documents.ts`, est le dépôt complet : versions, miroir Drive.)
  */
 export async function deposerPieceDeModule(file: File, d: {
   entityType: EntityType; entityId: string; category: DocumentCategory; confidentiality: Confidentiality;
   uploadedById: string | null; stepKey?: string | null; journal: string;
 }): Promise<{ id: string }> {
-  const key = `${d.entityType}/${d.entityId}/${randomUUID()}__${file.name}`;
+  const key = `${d.entityType}/${d.entityId}/${randomUUID()}__${nomPourCle(file.name)}`;
   let ecrit: { blobId: string; sha256: string } | null = null;
   try {
     // `saveFile` sur une clé NEUVE (aléa) : le blob et sa correspondance, écrits ici pour que le contrat des actions
@@ -119,7 +141,9 @@ export async function deposerPieceDeModule(file: File, d: {
   const doc = await prisma.document.create({
     data: {
       name: file.name, category: d.category, entityType: d.entityType, entityId: d.entityId, stepKey: d.stepKey ?? null,
-      fileKey: key, mimeType: file.type || null, sizeBytes: file.size, confidentiality: d.confidentiality, uploadedById: d.uploadedById,
+      // Écriture ratée : la fiche est marquée INEXPLOITABLE (sans clé) — jamais une clé qui ne mène à rien,
+      // que les lecteurs prendraient pour un fichier présent et qui finirait en erreur 500 (audit Drive F6).
+      fileKey: ecrit ? key : null, mimeType: typeDeDepot(file.name, file.type), sizeBytes: file.size, confidentiality: d.confidentiality, uploadedById: d.uploadedById,
     },
     select: { id: true, entityType: true, category: true, confidentiality: true, name: true, mimeType: true, sizeBytes: true, uploadedById: true },
   });

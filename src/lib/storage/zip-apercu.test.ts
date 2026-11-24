@@ -13,6 +13,7 @@ vi.mock("@/lib/storage/object-storage", () => ({
     bucket.set(cle, Buffer.concat(morceaux)); // l'objet n'apparaît qu'une fois complet, comme un multipart finalisé
   },
   presignGetUrl: (cle: string, _exp: number, q: Record<string, string>) => `https://bucket.test/${cle}?${new URLSearchParams(q)}`,
+  VALIDITE_MAX_LECTURE_S: 300,
 }));
 
 const { assurerApercu, etatApercu, apercuDisponible, adresseApercu } = await import("./zip-apercu");

@@ -5,6 +5,7 @@ import { construireDeckVerifie } from "@/lib/artifact/decks/build";
 import { versDeckExecutif } from "@/lib/missions/artifacts/deck";
 import { ligneDeTotaux } from "@/lib/missions/artifacts/totaux";
 import { construireClasseur } from "@/lib/missions/artifacts/xlsx";
+import { celluleCsv } from "@/lib/formats/csv-cellule";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -106,10 +107,8 @@ export async function rendre(spec: ArtefactSpec): Promise<RenduArtefact> {
 export function rendreCsv(spec: ArtefactSpec): Buffer {
   const f = (spec.sheets ?? [])[0];
   if (!f) return Buffer.from("", "utf8");
-  const echapper = (v: unknown): string => {
-    const s = v === null || v === undefined ? "" : String(v);
-    return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
+  // Neutralise aussi `= + - @` en tête de texte : une valeur ne devient pas une formule dans le tableur.
+  const echapper = (v: unknown): string => celluleCsv(v);
   // LA LIGNE DE TOTAUX EST CALCULÉE ICI (§118.59) : le CSV n'a pas de formules, et `totals`
   // n'est plus une intention que seul le classeur honore.
   const totaux = ligneDeTotaux(f);

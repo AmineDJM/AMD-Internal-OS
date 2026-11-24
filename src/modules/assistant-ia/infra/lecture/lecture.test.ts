@@ -16,7 +16,11 @@ import { putBlob } from "@/lib/drive-storage";
 import { enregistrerFichierDrive } from "@/lib/drive/depot";
 import { jouerTour } from "../fil/tour";
 import { DEPENDANCES_REELLES, lirePieces, type DependancesLecture, type PieceChargee } from "./pieces";
-import { CARACTERES_PAR_PIECE, OCTETS_MAX_LECTURE, REFUS_COFFRE, REFUS_CONTROLE_LOCAL, texteParlable } from "../../domaine/lecture/regles";
+import {
+  CARACTERES_PAR_PIECE, ESPACES_MIROIR, estDansUnMiroir, OCTETS_MAX_LECTURE, RACINES_MIROIR, REFUS_COFFRE, REFUS_CONTROLE_LOCAL, REFUS_MIROIR, texteParlable,
+} from "../../domaine/lecture/regles";
+import { IMPORT_DRIVE_ROOT } from "@/lib/drive/mirror-path";
+import { readFileSync } from "node:fs";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -179,6 +183,42 @@ suite("Assistant IA — lecture des pièces jointes (texte, scan, image, coffre,
     expect(lignes.length).toBeGreaterThan(0);
   });
 
+  it("F16 — un nœud NON CLASSÉ se lit sur ce serveur seulement : ni vision, ni transcription", async () => {
+    const vision = modeleFactice([{ texte: "ne devrait jamais être appelé" }]);
+    remplacerModelesPourTests([vision.modele as never]);
+    const photo = chargee("note-manuscrite.jpg", PNG, { nonClassee: true });
+    const a = await lire(photo, deps(photo, { texteLocal: async () => ({ texte: "Commande : 12 boîtes de Cardiozen pour la pharmacie centrale", methode: "ocr", tronque: false, raisonOcr: null }) }));
+    expect(a.lectures[0]).toMatchObject({ methode: "OCR de ce serveur" });
+    expect(a.lectures[0].limite).toMatch(/pas encore classée/);
+    expect(a.pourModele).toContain("12 boîtes de Cardiozen");
+
+    const vide = await lire(photo, deps(photo));
+    expect(vide.lectures[0].statut).toBe("REFUSEE");
+
+    const scan = chargee("scan.pdf", Buffer.from("%PDF-1.4 scan"), { nonClassee: true });
+    const b = await lire(scan, deps(scan, { texteLocal: async () => ({ texte: "Procès-verbal de réception des marchandises", methode: "ocr", tronque: false, raisonOcr: null }) }));
+    expect(b.lectures[0].methode).toBe("OCR de ce serveur");
+
+    const vocal = chargee("reunion.mp3", Buffer.from("ID3"), { nonClassee: true });
+    const c = await lire(vocal, deps(vocal, { transcrire: async () => { throw new Error("la transcription ne doit pas être appelée"); } }));
+    expect(c.lectures[0].statut).toBe("REFUSEE");
+    expect(vision.promptsRecus).toHaveLength(0);
+  });
+
+  it("F16 — une COPIE rangée dans un dossier miroir ne se lit pas du tout ; le chargeur réel la reconnaît", async () => {
+    const copie = chargee("declaration-pv.txt", Buffer.from("Effet indésirable grave déclaré"), { miroir: true });
+    const r = await lire(copie, deps(copie, { texteLocal: DEPENDANCES_REELLES.texteLocal }));
+    expect(r.lectures[0]).toMatchObject({ statut: "REFUSEE", limite: REFUS_MIROIR });
+    expect(r.pourModele).not.toContain("Effet indésirable");
+
+    const racine = await prisma.driveNode.create({ data: { name: IMPORT_DRIVE_ROOT, type: "FOLDER", ownerId: moi.id, createdById: moi.id } });
+    const sous = await prisma.driveNode.create({ data: { name: "Pharmacovigilance", type: "FOLDER", parentId: racine.id, ownerId: moi.id, createdById: moi.id } });
+    const blob = await putBlob(Buffer.from("Effet indésirable grave déclaré"));
+    const { id } = await enregistrerFichierDrive(moi, { parentId: sous.id }, { blobId: blob.blobId, size: blob.size, mimeType: "text/plain", name: `${TAG}pv.txt`, sha256: blob.sha256 });
+    const c = await DEPENDANCES_REELLES.charger(moi, id);
+    expect("erreur" in c ? c.erreur : { miroir: c.miroir, nonClassee: c.nonClassee }).toEqual({ miroir: true, nonClassee: true });
+  });
+
   it("de bout en bout : une pièce du Drive jointe au message est LUE et son contenu atteint le modèle du tour", async () => {
     const octets = Buffer.from("Ordre du jour du comité du 30/10 : 1. budget promotion 2. lancement Cardiozen 3. divers");
     const blob = await putBlob(octets);
@@ -190,6 +230,22 @@ suite("Assistant IA — lecture des pièces jointes (texte, scan, image, coffre,
     const prompt = JSON.stringify(faux.promptsRecus[0]);
     expect(prompt).toContain("lancement Cardiozen");
     expect(prompt).toContain("CONTENU_NON_FIABLE");
+  });
+});
+
+describe("F16 — les dossiers miroir, alignés sur ceux qui les créent", () => {
+  it("racines et espace miroir = ceux posés par les miroirs Drive, Regulatory et RH", () => {
+    expect(RACINES_MIROIR).toContain(IMPORT_DRIVE_ROOT);
+    const reg = readFileSync("src/lib/regulatory-drive-mirror.ts", "utf8").match(/REG_DRIVE_ROOT = "([^"]+)"/)?.[1];
+    expect(RACINES_MIROIR).toContain(reg);
+    const rh = readFileSync("src/modules/rh/infra/hr-drive-mirror.ts", "utf8").match(/HR_CONTRACT_SPACE = "([^"]+)"/)?.[1];
+    expect(ESPACES_MIROIR).toContain(rh);
+  });
+  it("seule la RACINE compte (un sous-dossier homonyme ne fait pas un miroir)", () => {
+    expect(estDansUnMiroir([IMPORT_DRIVE_ROOT, "RH"], null)).toBe(true);
+    expect(estDansUnMiroir(["Projets", IMPORT_DRIVE_ROOT], null)).toBe(false);
+    expect(estDansUnMiroir([], "RH — Contrats")).toBe(true);
+    expect(estDansUnMiroir([], null)).toBe(false);
   });
 });
 

@@ -14,6 +14,7 @@ import {
   type ClientS3Direct, type PlanEnvoi,
 } from "@/lib/storage/televersement-direct";
 import { sansBloquer } from "@/lib/journal";
+import { typeDeDepot } from "@/lib/drive/mime-nom";
 
 /**
  * GROS FICHIERS DU DRIVE — déposés DIRECTEMENT dans le bucket par le navigateur.
@@ -93,11 +94,11 @@ export async function ouvrirDepotDirect(
   }
 
   const cle = `direct/${user.id}/${randomBytes(12).toString("hex")}`;
-  const { uploadId, plan } = await ouvrirEnvoi(cle, taille, entree.type, client);
+  const { uploadId, plan } = await ouvrirEnvoi(cle, taille, typeDeDepot(nom, entree.type), client);
   const session = await prisma.directUpload.create({
     data: {
       userId: user.id, purpose: "DRIVE", objectKey: cle, uploadId, fileName: nom.slice(0, 255),
-      mimeType: entree.type || null, totalBytes: BigInt(taille), partSize: plan.taillePartie,
+      mimeType: typeDeDepot(nom, entree.type), totalBytes: BigInt(taille), partSize: plan.taillePartie,
       fingerprint, target: JSON.parse(target),
     },
     select: { id: true },
@@ -166,6 +167,8 @@ export async function finaliserDepotDirect(
     const blob = await prisma.fileBlob.create({
       // Empreinte non calculée (voir l'en-tête) : la clé d'objet, préfixée, tient lieu d'identité
       // unique et ne peut coïncider avec aucun SHA-256 hexadécimal.
+      // NON CHIFFRÉ PAR L'ERP (`iv` vide) : seul le chiffrement au repos du bucket le protège — R2 chiffre
+      // tout objet (AES-256) ; sur S3, la règle SSE par défaut du bucket doit être active (audit Drive F12).
       data: { sha256: `direct:${s.objectKey}`, size: total, iv: Buffer.alloc(0), data: null, storageKey: s.objectKey, refCount: 1 },
       select: { id: true },
     });

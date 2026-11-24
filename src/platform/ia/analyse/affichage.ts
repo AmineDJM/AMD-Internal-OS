@@ -1,4 +1,5 @@
 import type { CelluleAnalyse, ColonneAnalyse, FormatColonne } from "@/platform/ia/workspace/analyse";
+import { celluleCsv } from "@/lib/formats/csv-cellule";
 
 /**
  * L'AFFICHAGE D'UNE ANALYSE — pur, sans import de valeur : le serveur (aperçu du modèle) et l'écran (tableau, CSV)
@@ -54,7 +55,7 @@ export function totauxDe(lignes: readonly CelluleAnalyse[][], additives: readonl
 
 /** Le CSV : séparateur « ; » et BOM (Excel en français l'ouvre tel quel), nombres bruts au point décimal remplacé par la virgule. */
 export function versCsv(colonnes: readonly ColonneAnalyse[], lignes: readonly CelluleAnalyse[][]): string {
-  const champ = (v: string): string => (/[";\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+  const champ = (v: string): string => celluleCsv(v); // neutralise aussi `= + - @` en tête (formule)
   const cellule = (v: CelluleAnalyse): string => (v === null ? "" : typeof v === "number" ? String(v).replace(".", ",") : champ(v));
   return `﻿${[colonnes.map((c) => champ(c.libelle)).join(";"), ...lignes.map((r) => colonnes.map((_, j) => cellule(r[j] ?? null)).join(";"))].join("\r\n")}\r\n`;
 }

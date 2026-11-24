@@ -7,6 +7,7 @@ import { recordAudit } from "@/lib/audit";
 import { enSerie } from "@/lib/refs";
 import { isTopManagement, rolesWithModule, userCan, type SessionUser } from "@/lib/rbac";
 import { inscrireDocumentExistant } from "@/modules/bibliotheque/api-inscription";
+import { nomPourCle } from "@/lib/drive/mime-nom";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -183,7 +184,7 @@ function motifDeTri(offre: CandidatureLue["offre"], trouvee: { stage: string | n
   return `Le poste « ${trouvee.titre} » n'est plus ouvert (étape ${trouvee.stage}) : à rattacher, ou à classer.`;
 }
 
-const cleDeStockage = (siteId: string, nom: string) => `site-candidatures/${siteId}/${nom}`;
+const cleDeStockage = (siteId: string, nom: string) => `site-candidatures/${siteId}/${nomPourCle(nom)}`;
 
 /**
  * REÇOIT UNE CANDIDATURE du site. Idempotente sur l'identifiant du site ; le CV est écrit AVANT la

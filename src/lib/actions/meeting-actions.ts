@@ -16,6 +16,7 @@ import type { CalendarInviteStatus } from "@prisma/client";
 import { lienTache } from "@/lib/chemins/espace";
 import { sansBloquer } from "@/lib/journal";
 import { inscrirePieceJointe } from "@/modules/bibliotheque/api-inscription";
+import { typeDeDepot } from "@/lib/drive/mime-nom";
 
 const DENIED: ActionResult = { ok: false, error: "Non autorisé." };
 const MAX_MSG_ATTACHMENT = 25 * 1024 * 1024; // 25 Mo par pièce jointe du fil de réunion
@@ -385,7 +386,7 @@ export async function postMeetingMessage(formData: FormData): Promise<ActionResu
     const buf = Buffer.from(await f.arrayBuffer());
     const ecrit = await putBlob(buf);
     const pj = await prisma.meetingMessageAttachment.create({
-      data: { messageId: msg.id, blobId: ecrit.blobId, name: (f.name || "fichier").slice(0, 200), mime: f.type || "application/octet-stream", size: ecrit.size },
+      data: { messageId: msg.id, blobId: ecrit.blobId, name: (f.name || "fichier").slice(0, 200), mime: typeDeDepot(f.name, f.type), size: ecrit.size },
       select: { id: true, name: true, mime: true },
     });
     // La pièce entre à la bibliothèque (J1), ouverte par la règle de sa famille. Ne lève jamais.

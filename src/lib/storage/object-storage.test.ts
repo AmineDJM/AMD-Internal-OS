@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { intoParts, uploadPartsBounded, hostAndPath, objectStorageConfigured, presignPutUrl, presignUploadPartUrl, _deriveSigningKeyHex, parseBucketNames, euJurisdictionHost } from "./object-storage";
+import { intoParts, uploadPartsBounded, hostAndPath, objectStorageConfigured, presignGetUrl, presignPutUrl, presignUploadPartUrl, _deriveSigningKeyHex, parseBucketNames, euJurisdictionHost } from "./object-storage";
+import { VALIDITE_URL_S } from "./televersement-direct";
 
 /**
  * Vérifie la signature SigV4 faite main (chantier 1 — upload direct S3/R2) SANS bucket réel :
@@ -73,6 +74,21 @@ describe("object-storage — SigV4 (S3/R2), sans dépendance SDK", () => {
     // la signature. S'ils étaient collés après coup, elle serait identique.
     const other = new URL(presignUploadPartUrl("reg-uploads/co/abc.zip", "UPLOAD-ID-42", 8, 3600)!);
     expect(other.searchParams.get("X-Amz-Signature")).not.toBe(u.searchParams.get("X-Amz-Signature"));
+  });
+
+  it("F12 — dépôt signé 1 h au plus, lecture signée 5 min au plus, quoi que demande l'appelant", () => {
+    process.env.REG_S3_ENDPOINT = "https://acct.r2.cloudflarestorage.com";
+    process.env.REG_S3_BUCKET = "ctd";
+    process.env.REG_S3_ACCESS_KEY_ID = "AKIAEXAMPLE";
+    process.env.REG_S3_SECRET_ACCESS_KEY = "secretexample";
+    const expire = (u: string | null) => Number(new URL(u!).searchParams.get("X-Amz-Expires"));
+    expect(expire(presignUploadPartUrl("k", "u", 1, 6 * 3600))).toBe(3600);
+    expect(expire(presignPutUrl("k", 24 * 3600))).toBe(3600);
+    expect(expire(presignGetUrl("k", 900))).toBe(300);
+    expect(expire(presignGetUrl("k", 2 * 3600))).toBe(300);
+    expect(expire(presignGetUrl("k"))).toBe(300);
+    expect(expire(presignGetUrl("k", 60))).toBe(60);
+    expect(VALIDITE_URL_S).toBeLessThanOrEqual(3600);
   });
 
   it("une partie présignée sans stockage configuré rend null, comme le PUT simple", () => {

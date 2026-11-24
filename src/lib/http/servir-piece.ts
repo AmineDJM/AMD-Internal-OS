@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { entetesAntiExecution } from "@/lib/http/types-actifs";
+import { entetesAntiExecution, typeAEmettre } from "@/lib/http/types-actifs";
 import { dispositionFor, extensionOf } from "@/lib/files/attachment-policy";
 
 /**
@@ -18,7 +18,7 @@ export function servirPiece(
   piece: { octets: Uint8Array; nom: string; mime: string | null | undefined },
   options: { disposition: "selon-type" | "en-ligne"; bacASable: boolean },
 ): NextResponse {
-  const mime = piece.mime || "application/octet-stream";
+  const mime = typeAEmettre(piece.mime);
   const telecharger = req.nextUrl.searchParams.get("dl") === "1";
   const disposition = telecharger ? "attachment" : options.disposition === "en-ligne" ? "inline" : dispositionFor(extensionOf(piece.nom));
   return new NextResponse(new Uint8Array(piece.octets), {

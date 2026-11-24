@@ -9,6 +9,7 @@ import { sendPushToUser } from "@/lib/push";
 import type { DirectiveAudience, DirectiveScope } from "./audience";
 import { sansBloquer } from "@/lib/journal";
 import { inscrireDocumentEcrit } from "@/modules/bibliotheque/api-inscription";
+import { nomPourCle, typeDeDepot } from "@/lib/drive/mime-nom";
 
 /**
  * DE LA PORTÉE AUX PERSONNES — et de la publication à l'envoi.
@@ -142,7 +143,7 @@ export async function attachDirectiveFiles(
   for (const file of files) {
     const invalid = validateUpload(file.name, file.size, maxMb);
     if (invalid) return invalid;
-    const key = `DIRECTIVE/${directiveId}/${randomUUID()}__${file.name}`;
+    const key = `DIRECTIVE/${directiveId}/${randomUUID()}__${nomPourCle(file.name)}`;
     let ecrit: { blobId: string; sha256: string } | null = null;
     try {
       ecrit = await saveFile(key, Buffer.from(await file.arrayBuffer()));
@@ -152,7 +153,7 @@ export async function attachDirectiveFiles(
     const docEcrit = await prisma.document.create({
       data: {
         name: file.name, category: "OTHER", entityType: "DIRECTIVE", entityId: directiveId,
-        fileKey: key, mimeType: file.type || null, sizeBytes: file.size,
+        fileKey: key, mimeType: typeDeDepot(file.name, file.type), sizeBytes: file.size,
         confidentiality: "INTERNAL", uploadedById: uploaderId,
       },
     });
