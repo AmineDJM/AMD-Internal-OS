@@ -6,6 +6,7 @@ import { X, Download, Printer, Pencil, Trash2, Check, Loader2, ExternalLink, Max
 import { ApercuUniversel } from "./apercu-universel";
 import { natureApercu } from "@/lib/formats/apercu";
 import { ZipViewer } from "./zip-viewer";
+import { VersionsDocument } from "./versions-document";
 import { printDocument } from "@/lib/print-document";
 import { deleteDocument, renameDocument } from "@/lib/actions/document-actions";
 import { useScrollLock } from "@/lib/use-scroll-lock";
@@ -27,7 +28,7 @@ const iconBtn = "rounded-lg p-2.5 text-muted-foreground sm:p-2 transition-colors
 /**
  * Document : **nom cliquable** qui ouvre une fenêtre d'aperçu in-app (PDF, image, Word, Excel,
  * PowerPoint ; sinon message + téléchargement). Toutes les actions vivent DANS l'aperçu, en barre
- * d'outils : **imprimer, modifier (éditeur Office), renommer, enregistrer (télécharger), supprimer**
+ * d'outils : **imprimer, modifier (éditeur Office), renommer, enregistrer (télécharger), versions, supprimer**
  * — selon les droits reçus. Plus d'icônes entassées dans la liste : le nom seul suffit à tout ouvrir.
  */
 export function DocumentPreview({
@@ -96,7 +97,8 @@ export function DocumentPreview({
     }
   }
   async function onDelete() {
-    if (!(await confirmer("Supprimer définitivement ce document ?"))) return;
+    // `deleteDocument` met à la corbeille (restaurable par un administrateur) ; une action propre au module dit la sienne.
+    if (!(await confirmer(supprimer ? "Supprimer définitivement ce document ?" : "Mettre ce document à la corbeille ? Un administrateur peut le restaurer."))) return;
     setDeleting(true);
     try {
       const r = await (supprimer ?? deleteDocument)(id, path);
@@ -155,6 +157,8 @@ export function DocumentPreview({
                   {canEditFile && <a href={`/documents/${id}/edit`} className={iconBtn} title="Modifier dans l'éditeur Office"><ExternalLink className="h-4 w-4" /></a>}
                   {canRename && <button onClick={() => { setDraft(name); setRenaming(true); }} className={iconBtn} title="Renommer"><Pencil className="h-4 w-4" /></button>}
                   {hasFile && <BoutonTelecharger href={`${src}?dl=1`} nom={name} sansChoix={Boolean(srcOverride)} className={iconBtn} title="Enregistrer (télécharger)"><Download className="h-4 w-4" /></BoutonTelecharger>}
+                  {/* Les versions d'un Document (l'éditeur garde chaque enregistrement) — pas d'une pièce servie ailleurs. */}
+                  {hasFile && !srcOverride && <VersionsDocument id={id} name={name} className={iconBtn} />}
                   {canDelete && (
                     <button onClick={onDelete} disabled={deleting} className="rounded-lg p-2.5 text-muted-foreground sm:p-2 transition-colors hover:bg-destructive/10 hover:text-destructive" title="Supprimer">
                       {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}

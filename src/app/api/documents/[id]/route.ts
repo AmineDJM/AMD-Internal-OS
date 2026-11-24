@@ -9,12 +9,17 @@ import { recordAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { contentDisposition } from "@/lib/http/content-disposition";
 import { qualiteDeLaRequete, repondreFichier } from "@/lib/http/telechargement";
+import { cleDeVersionDocument } from "@/lib/document-versions";
+import { nomDeVersion } from "@/lib/document-versions-partage";
 
 /**
  * Secure document download: authenticates, enforces row-level access, streams.
  *
  * `?qualite=max|reduite|estimer` — voir `@/lib/http/telechargement` (la porte unique). Les DROITS
  * sont ceux d'avant et ne dépendent pas de la qualité : la version réduite n'ouvre rien de plus.
+ *
+ * `?version=N` — une ANCIENNE version (« Versions » de la fiche, `DocumentVersion`), sous les mêmes droits que la
+ * version d'aujourd'hui : qui peut ouvrir le document peut ouvrir son historique.
  */
 export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -38,7 +43,13 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
     // Aperçu in-app : on sert le fichier « inline » par défaut (l'iframe/img peut
     // l'afficher) ; `?dl=1` force le téléchargement. On ne journalise que le téléchargement.
     const download = req.nextUrl.searchParams.get("dl") === "1";
-    const fileKey = doc.fileKey;
+    const demandee = Number(req.nextUrl.searchParams.get("version") ?? "");
+    const ancienne = Number.isInteger(demandee) && demandee > 0 && demandee !== doc.version ? await cleDeVersionDocument(doc.id, demandee) : null;
+    if (Number.isInteger(demandee) && demandee > 0 && demandee !== doc.version && !ancienne) {
+      return NextResponse.json({ error: `La version ${demandee} de ce document n'existe pas.` }, { status: 404 });
+    }
+    const fileKey = ancienne ?? doc.fileKey;
+    const nom = ancienne ? nomDeVersion(doc.name, demandee) : doc.name;
     const stocke = await prisma.storedFile.findUnique({ where: { key: fileKey }, select: { blobId: true } });
     const info = stocke ? await infoBlob(stocke.blobId) : null;
     // GROS FICHIER DÉPOSÉ EN DIRECT : le navigateur le lit dans le bucket, sur une adresse signée
@@ -47,7 +58,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
     const direct = stocke ? await cleObjetDirect(stocke.blobId) : null;
     const mime = doc.mimeType ?? "application/octet-stream";
     return await repondreFichier(
-      { nom: doc.name, mime, charger: () => readFileByKey(fileKey), empreinte: info?.sha256 ?? null, taille: info?.size ?? doc.sizeBytes },
+      { nom, mime, charger: () => readFileByKey(fileKey), empreinte: info?.sha256 ?? null, taille: info?.size ?? (ancienne ? null : doc.sizeBytes) },
       {
         qualite: qualiteDeLaRequete(req),
         telecharger: download,
@@ -55,13 +66,13 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
           ? recordAudit({
             actorId: user.id, action: "EXPORT", module: "Documents",
             entityType: doc.entityType, entityId: doc.entityId,
-            summary: `Téléchargement de « ${doc.name} »${q === "reduite" ? " (taille réduite)" : ""}`,
+            summary: `Téléchargement de « ${nom} »${q === "reduite" ? " (taille réduite)" : ""}`,
           })
           : undefined,
         redirection: () => direct
           ? presignGetUrl(direct, 900, {
             // Le bucket ne porte pas de CSP : un type actif (HTML, SVG, XML) s'y télécharge (`lib/http/types-actifs.ts`).
-            "response-content-disposition": contentDisposition(doc.name, dispositionPourBucket(mime, download ? "attachment" : "inline")),
+            "response-content-disposition": contentDisposition(nom, dispositionPourBucket(mime, download ? "attachment" : "inline")),
             "response-content-type": mime,
           })
           : null,

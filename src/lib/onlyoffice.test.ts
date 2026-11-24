@@ -1,8 +1,8 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   onlyofficeConfigured, onlyofficeDocType, onlyofficeEditable, fileExt,
   signJwt, verifyJwt, makeFileReadToken, readFileReadToken, makeDocReadToken, readDocReadToken,
-  makeSaveToken, readSaveToken, lireRappelOnlyoffice,
+  makeSaveToken, readSaveToken, lireRappelOnlyoffice, DUREE_JETON_ENREGISTREMENT_S,
 } from "./onlyoffice";
 
 const PREV = { url: process.env.ONLYOFFICE_URL, secret: process.env.ONLYOFFICE_JWT_SECRET };
@@ -89,12 +89,14 @@ describe("OnlyOffice — le rappel d'enregistrement n'est cru que signé, chez l
   it("enregistre un rappel signé (dans le corps) dont l'adresse est chez le Document Server", () => {
     const url = "https://office.example.com/cache/files/node-1_7/output.docx";
     const r = lireRappelOnlyoffice({ ...base, jeton: jeton(), corps: { token: signe({ status: 2, url }) } });
-    expect(r).toEqual({ action: "enregistrer", jeton: { cible: "drive", id: "node-1", userId: "user-9", kind: "enregistrement" }, url });
+    expect(r).toEqual({ action: "enregistrer", jeton: { cible: "drive", id: "node-1", userId: "user-9", kind: "enregistrement" }, url, forcage: false });
   });
   it("lit aussi la signature en en-tête (corps enveloppé dans `payload`), schéma http toléré", () => {
     const url = "http://office.example.com/cache/x.docx";
     const r = lireRappelOnlyoffice({ ...base, jeton: jeton(), corps: { status: 2, url }, autorisation: `Bearer ${signe({ payload: { status: 6, url } })}` });
     expect(r.action).toBe("enregistrer");
+    // Statut 6 : un enregistrement FORCÉ — la session continue, la route garde la clé d'édition.
+    expect(r).toMatchObject({ forcage: true });
   });
   it("REFUSE un corps non signé, même avec un jeton d'enregistrement valide", () => {
     const r = lireRappelOnlyoffice({ ...base, jeton: jeton(), corps: { status: 2, url: "https://office.example.com/x.docx" } });
@@ -132,5 +134,39 @@ describe("OnlyOffice — le rappel d'enregistrement n'est cru que signé, chez l
     for (const status of [1, 4]) {
       expect(lireRappelOnlyoffice({ ...base, jeton: jeton(), corps: { token: signe({ status }) } }).action).toBe("ignorer");
     }
+  });
+});
+
+describe("OnlyOffice — un onglet ouvert plus d'un jour enregistre encore (audit du Drive, 24/11, A3)", () => {
+  afterEach(() => { vi.useRealTimers(); });
+  const url = "https://office.example.com/cache/files/node-1_7/output.docx";
+
+  it("le jeton d'enregistrement vit 30 jours", () => {
+    expect(DUREE_JETON_ENREGISTREMENT_S).toBe(30 * 24 * 3600);
+  });
+  it("un jeton émis il y a 25 h est ACCEPTÉ au rappel final", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-20T08:00:00Z"));
+    const jeton = makeSaveToken("drive", "node-1", "user-9");
+    vi.setSystemTime(new Date("2026-11-21T09:00:00Z")); // 25 h plus tard
+    // Le Document Server signe son rappel au moment où il l'envoie.
+    const r = lireRappelOnlyoffice({ jeton, id: "node-1", docId: null, autorisation: null, corps: { token: signJwt({ status: 2, url }) } });
+    expect(r).toMatchObject({ action: "enregistrer", url, forcage: false });
+  });
+  it("…mais le JWT du Document Server reste EXIGÉ : sans corps signé, même ce jeton est refusé", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-20T08:00:00Z"));
+    const jeton = makeSaveToken("drive", "node-1", "user-9");
+    vi.setSystemTime(new Date("2026-11-21T09:00:00Z"));
+    const r = lireRappelOnlyoffice({ jeton, id: "node-1", docId: null, autorisation: null, corps: { status: 2, url } });
+    expect(r.action).toBe("refuser");
+  });
+  it("au-delà de 30 jours, le jeton est refusé", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-01T08:00:00Z"));
+    const jeton = makeSaveToken("drive", "node-1", "user-9");
+    vi.setSystemTime(new Date("2026-11-01T09:00:00Z"));
+    const r = lireRappelOnlyoffice({ jeton, id: "node-1", docId: null, autorisation: null, corps: { token: signJwt({ status: 2, url }) } });
+    expect(r.action).toBe("refuser");
   });
 });

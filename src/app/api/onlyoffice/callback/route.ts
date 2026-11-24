@@ -1,17 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { putBlob } from "@/lib/drive-storage";
-import { saveFile } from "@/lib/storage";
+import { ajouterVersionDrive, rendreBlobOrphelin } from "@/lib/drive/versions";
+import { enregistrerVersionDocument } from "@/lib/document-versions";
 import { recordAudit } from "@/lib/audit";
 import { onlyofficeConfigured, lireRappelOnlyoffice } from "@/lib/onlyoffice";
 import { peutEnregistrerOnlyoffice } from "@/lib/onlyoffice-session";
-import { inscrireDocumentExistant, inscrireFichierDrive } from "@/modules/bibliotheque/api-inscription";
+import { inscrireFichierDrive } from "@/modules/bibliotheque/api-inscription";
 
 /**
  * Callback du Document Server : à l'enregistrement (status 2 ou 6), il fournit l'URL
  * du document édité ; on le récupère et on crée une **nouvelle version**.
- * Gère le Drive (FileVersion) ET les documents (modèle Document). Triple sécurité :
+ * Gère le Drive (FileVersion) ET les documents (modèle Document, `DocumentVersion` : chaque enregistrement garde le
+ * précédent lisible). Le numéro de version se prend sous verrou : deux rappels simultanés font deux versions. Un
+ * enregistrement FORCÉ (statut 6) est marqué : la clé d'édition (`onlyoffice-session.ts`) l'ignore, la session
+ * continue au lieu de se scinder. Triple sécurité :
  * notre jeton d'ENREGISTREMENT (lié au nœud/document + utilisateur, émis en mode édition seulement),
  * le JWT du Document Server (OBLIGATOIRE), et le droit d'enregistrer relu au moment d'écrire.
  * Doit toujours répondre `{ error: 0 }` en cas de succès.
@@ -54,32 +57,31 @@ export async function POST(req: NextRequest) {
     if (!res.ok) return NextResponse.json({ error: 1 });
     const buf = Buffer.from(await res.arrayBuffer());
 
-    // ─── Document (pièce d'un dossier / Regulatory / etc.) ───
+    // ─── Document (pièce d'un dossier / Regulatory / etc.) : une NOUVELLE clé, l'ancienne reste lisible ───
     if (cible === "document") {
-      const docId = id;
-      const doc = await prisma.document.findUnique({ where: { id: docId }, select: { fileKey: true, entityType: true, entityId: true, name: true } });
-      if (!doc) return NextResponse.json({ error: 1 });
-      const key = doc.fileKey || `${doc.entityType}/${doc.entityId}/${randomUUID()}__${doc.name}`;
-      await saveFile(key, buf);
-      await prisma.document.update({ where: { id: docId }, data: { fileKey: key, sizeBytes: buf.length, version: { increment: 1 } } });
-      await recordAudit({ actorId: userId, action: "UPLOAD", module: "Documents", entityType: doc.entityType, entityId: doc.entityId, summary: `Édition Office enregistrée — ${doc.name}` });
-      // La version éditée entre à la bibliothèque (J1), sous la clé du document. Ne lève jamais.
-      await inscrireDocumentExistant(docId, userId);
+      const r = await enregistrerVersionDocument(id, buf, userId, { forcesave: rappel.forcage });
+      if (!r.ok) return NextResponse.json({ error: 1 });
+      const doc = await prisma.document.findUnique({ where: { id }, select: { entityType: true, entityId: true, name: true } });
+      if (doc) await recordAudit({ actorId: userId, action: "UPLOAD", module: "Documents", entityType: doc.entityType, entityId: doc.entityId, summary: `Édition Office enregistrée (v${r.version}) — ${doc.name}` });
+      // La version éditée est entrée à la bibliothèque (J1) avec son écriture (`enregistrerVersionDocument`).
       return NextResponse.json({ error: 0 });
     }
 
     // ─── Drive (DriveNode + FileVersion) ───
     const { blobId, size, sha256 } = await putBlob(buf);
-    const last = await prisma.fileVersion.findFirst({ where: { nodeId: id }, orderBy: { version: "desc" }, select: { version: true, mimeType: true } });
-    const version = (last?.version ?? 0) + 1;
-    await prisma.fileVersion.create({
-      data: { nodeId: id, blobId, version, size, mimeType: last?.mimeType ?? "application/octet-stream", createdById: userId },
-    });
-    await prisma.driveNode.update({ where: { id }, data: { size } });
-    await recordAudit({ actorId: userId, action: "UPLOAD", module: "Drive", entityType: "DRIVE_NODE", entityId: id, summary: `Édition Office enregistrée (v${version})` });
+    let ecrit: { version: number; mimeType: string };
+    try {
+      ecrit = await ajouterVersionDrive({ nodeId: id, blobId, size, createdById: userId, forcesave: rappel.forcage });
+    } catch (e) {
+      // Rien n'est inscrit : le contenu compté pour ce rappel se rend (le Document Server renverra le rappel).
+      await rendreBlobOrphelin(blobId, "onlyoffice.callback.rendreBlob");
+      throw e;
+    }
+    const { version, mimeType } = ecrit;
+    await recordAudit({ actorId: userId, action: "UPLOAD", module: "Drive", entityType: "DRIVE_NODE", entityId: id, summary: `Édition Office enregistrée (v${version})${rappel.forcage ? " — enregistrement en cours de session" : ""}` });
     // La nouvelle version entre à la bibliothèque (J1) : la clé du nœud passe à ce contenu. Ne lève jamais.
     const noeud = await prisma.driveNode.findUnique({ where: { id }, select: { name: true } });
-    await inscrireFichierDrive({ nodeId: id, version, blobId, sha256, nom: noeud?.name ?? "document", mime: last?.mimeType ?? null, taille: size, deposeParId: userId });
+    await inscrireFichierDrive({ nodeId: id, version, blobId, sha256, nom: noeud?.name ?? "document", mime: mimeType, taille: size, deposeParId: userId });
     return NextResponse.json({ error: 0 });
   } catch (e) {
     console.error("[onlyoffice] save failed", e);

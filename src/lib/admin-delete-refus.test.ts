@@ -42,7 +42,10 @@ describe("Registre des suppressions — le refus et la réserve", () => {
     // il part en lot avec ses lignes et ses livraisons attendues, et REFUSE quand il a été livré.
     // 38 → 39 : le cas de pharmacovigilance (Direction, 08/11) — le KAM qui l'a signalé le supprime, à tout statut ;
     // il part en lot avec ses participants, ses pièces et son fil.
-    expect(DELETABLE_KINDS).toHaveLength(39);
+    // 39 → 41 (audit du Drive, 24/11) : le DOCUMENT (pièce jointe hors Drive) — `deleteDocument` l'effaçait avec son
+    // fichier ; il part à la corbeille, et REFUSE quand il justifie un paiement ou une étape terminée — et la CATÉGORIE
+    // du Drive, effacée d'un clic avec tout son contenu, qui part désormais en lot.
+    expect(DELETABLE_KINDS).toHaveLength(41);
   });
 
   it("le poste Ad & Pro part EN LOT et ne refuse rien lui-même — c'est le lot qui refuse ce qui a quitté l'ERP", () => {
@@ -80,7 +83,9 @@ describe("Registre des suppressions — le refus et la réserve", () => {
       // Un praticien qui porte des visites rapportées ou des montants Ad & Pro (audit 27/10, DONNEES-07).
       "DOCTOR",
       // Un bon de commande de marché déjà livré (audit 27/10, DONNEES-15).
-      "PCH_ORDER"];
+      "PCH_ORDER",
+      // La pièce d'un paiement ou d'une étape terminée (audit du Drive, 24/11) — éprouvé dans `document-versions-flow`.
+      "DOCUMENT"];
     // LEGAL_DOCUMENT (§118.209) : une pièce signée, réglée ou dont une autre découle ne se supprime pas ; le refus
     // vit chez l'écrivain (`refusSuppressionDeLaPiece`), éprouvé dans `legal-suppression-flow`.
     // PAYMENT_REQUEST (19/10/2026) : une demande vivante, un compagnon, un paiement sorti ne se suppriment pas
@@ -92,7 +97,8 @@ describe("Registre des suppressions — le refus et la réserve", () => {
     // 28 → 29 (10/2026) : l'élément du Drive, qui ne refuse ni ne réserve rien — tout ce qui part revient.
     // 29 → 28 (audit 27/10, DONNEES-07) : le praticien passe chez ceux qui refusent (`AVEC_REFUS`).
     // 28 → 29 (08/11) : le cas de pharmacovigilance, qui ne refuse ni ne réserve rien — tout ce qui part revient.
-    expect(anciens).toHaveLength(29);
+    // 29 → 30 (audit du Drive, 24/11) : la catégorie du Drive, qui ne refuse ni ne réserve rien — tout ce qui part revient.
+    expect(anciens).toHaveLength(30);
     for (const k of anciens) {
       expect(DELETE_REGISTRY[k].refuse, `${k} ne refusait rien avant ce lot`).toBeUndefined();
       expect(DELETE_REGISTRY[k].reserve, `${k} n'annonçait aucune réserve avant ce lot`).toBeUndefined();

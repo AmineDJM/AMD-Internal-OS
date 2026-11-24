@@ -5,6 +5,7 @@ import { recordAudit } from "@/lib/audit";
 import type { SessionUser } from "@/lib/rbac";
 import { signalerFichierDrive } from "@/lib/enrichissement/signalement";
 import { inscrireFichierDrive } from "@/modules/bibliotheque/api-inscription";
+import { ajouterVersionDrive, rendreBlobOrphelin } from "@/lib/drive/versions";
 
 /**
  * DÉPOSER UN FICHIER DANS LE DRIVE — la porte et l'écriture, une seule fois pour les deux chemins.
@@ -61,6 +62,13 @@ export async function enregistrerFichierDrive(
     /** L'empreinte du contenu quand l'appelant l'a (`putBlob().sha256`) ; sinon relue sur le blob. */
     sha256?: string | null;
   },
+  options: {
+    /**
+     * Rendre le blob si l'inscription échoue (défaut : oui — `putBlob` l'a compté pour l'appelant, et sans ligne qui
+     * le tienne il resterait compté pour rien). Le dépôt DIRECT dit non : son objet doit survivre pour la reprise.
+     */
+    rendreSiEchec?: boolean;
+  } = {},
 ): Promise<{ id: string; version?: number }> {
   const { blobId, size, mimeType, name } = fichier;
   // La pièce nourrit les fiches (refonte, lot V2-A), une fois le fichier inscrit — interrupteur fermé : rien.
@@ -69,12 +77,19 @@ export async function enregistrerFichierDrive(
     await signalerFichierDrive({ nodeId, version, blobId, sha256: fichier.sha256 ?? null, nom: name, mime: mimeType, taille: size, deposeParId: user.id });
     await inscrireFichierDrive({ nodeId, version, blobId, sha256: fichier.sha256 ?? null, nom: name, mime: mimeType, taille: size, deposeParId: user.id });
   };
+  const rendre = async () => {
+    if (options.rendreSiEchec !== false) await rendreBlobOrphelin(blobId, "drive.depot.enregistrerFichierDrive.rendreBlob");
+  };
   if (cible.nodeId) {
     const nodeId = cible.nodeId;
-    const last = await prisma.fileVersion.findFirst({ where: { nodeId }, orderBy: { version: "desc" }, select: { version: true } });
-    const version = (last?.version ?? 0) + 1;
-    await prisma.fileVersion.create({ data: { nodeId, blobId, version, size, mimeType, createdById: user.id } });
-    await prisma.driveNode.update({ where: { id: nodeId }, data: { size, mimeType } });
+    // Numéro sous verrou (`ajouterVersionDrive`) : deux nouvelles versions déposées en même temps en font deux, pas une P2002.
+    let version: number;
+    try {
+      ({ version } = await ajouterVersionDrive({ nodeId, blobId, size, mimeType, createdById: user.id }));
+    } catch (e) {
+      await rendre();
+      throw e;
+    }
     await recordAudit({ actorId: user.id, action: "UPLOAD", module: "Drive", entityType: "DRIVE_NODE", entityId: nodeId, summary: `Nouvelle version (v${version})` });
     await signaler(nodeId, version);
     return { id: nodeId, version };
@@ -83,13 +98,19 @@ export async function enregistrerFichierDrive(
   const category = (cible.category ?? "").trim() || null;
   const parentId = cible.parentId ?? null;
   const effSpaceId = await effectiveSpaceId(parentId, cible.spaceId ?? null);
-  const node = await prisma.driveNode.create({
-    data: {
-      name, type: "FILE", parentId, spaceId: effSpaceId, ownerId: user.id, mimeType, size, category, createdById: user.id,
-      versions: { create: { blobId, version: 1, size, mimeType, createdById: user.id } },
-    },
-    select: { id: true },
-  });
+  let node: { id: string };
+  try {
+    node = await prisma.driveNode.create({
+      data: {
+        name, type: "FILE", parentId, spaceId: effSpaceId, ownerId: user.id, mimeType, size, category, createdById: user.id,
+        versions: { create: { blobId, version: 1, size, mimeType, createdById: user.id } },
+      },
+      select: { id: true },
+    });
+  } catch (e) {
+    await rendre();
+    throw e;
+  }
 
   // Crée les partages (EDIT prioritaire sur VIEW ; on ignore l'auteur et les IDs invalides).
   const editorIds = new Set((cible.editors ?? []).filter((id) => id && id !== user.id));

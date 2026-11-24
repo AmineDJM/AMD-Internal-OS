@@ -5,7 +5,7 @@ import { requireUser } from "@/lib/session";
 import { canCreateDriveSpace, canManageDriveSpace } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { getAppSettings } from "@/lib/settings";
-import { releaseBlob } from "@/lib/drive-storage";
+import { supprimerReversible } from "@/lib/suppression/coeur";
 import { recordAudit } from "@/lib/audit";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 
@@ -91,22 +91,19 @@ export async function archiveDriveSpace(formData: FormData): Promise<ActionResul
 }
 
 /**
- * Supprime DÉFINITIVEMENT une catégorie et TOUT son contenu (fichiers/dossiers) — réservé au
- * Super Admin (action destructive). Les blobs sous-jacents sont libérés.
+ * Supprime une catégorie et TOUT son contenu (fichiers/dossiers) — réservé au Super Admin. RÉVERSIBLE (audit du
+ * Drive, 24/11, point A5) : la catégorie part à la corbeille du Super Admin avec tout ce qu'elle contient, et en
+ * revient de même ; les octets ne sont rendus qu'à la destruction réelle (`destroyDeletedRecord`).
  */
 export async function deleteDriveSpace(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (user.role !== "SUPER_ADMIN") return { ok: false, error: "Suppression d'une catégorie réservée au Super Admin." };
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Identifiant manquant." };
-  const space = await prisma.driveSpace.findUnique({ where: { id }, select: { name: true } });
+  const space = await prisma.driveSpace.findUnique({ where: { id }, select: { name: true, _count: { select: { nodes: true } } } });
   if (!space) return { ok: false, error: "Catégorie introuvable." };
-  // Récupère les blobs de tous les nœuds de la catégorie AVANT suppression (sinon blobs orphelins).
-  const nodeIds = (await prisma.driveNode.findMany({ where: { spaceId: id }, select: { id: true } })).map((n) => n.id);
-  const versions = nodeIds.length ? await prisma.fileVersion.findMany({ where: { nodeId: { in: nodeIds } }, select: { blobId: true } }) : [];
-  await prisma.driveSpace.delete({ where: { id } }); // cascade → DriveNode → FileVersion
-  for (const v of versions) await releaseBlob(v.blobId);
-  await recordAudit({ actorId: user.id, action: "DELETE", module: "Drive", summary: `Catégorie « ${space.name} » supprimée (${nodeIds.length} élément(s))` });
+  const r = await supprimerReversible("DRIVE_SPACE", id, user.id, `Catégorie « ${space.name} » mise à la corbeille (${space._count.nodes} élément(s)) — restaurable depuis la corbeille`);
+  if (!r.ok) return { ok: false, error: r.error };
   revalidatePath("/drive");
   return { ok: true };
 }

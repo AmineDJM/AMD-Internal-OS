@@ -288,6 +288,7 @@ describe("les actions qui CHARGENT un écran voient la personne visualisée", ()
     "src/lib/actions/partage-actions.ts": ["listerDestinatairesPartage"],
     "src/lib/actions/drive-actions.ts": ["getDriveNodeShares", "getDriveNodeVersions"],
     "src/lib/actions/drive-comment-actions.ts": ["listDriveComments"],
+    "src/lib/actions/document-actions.ts": ["listerVersionsDuDocument"],
     "src/lib/regulatory/intelligence/knowledge/actions.ts": ["loadDossierChatAction"],
     "src/lib/actions/market-actions.ts": ["searchMarketProducts", "marketSuggestions"],
     "src/modules/ad-pro/actions-congres-beneficiaires.ts": ["listBeneficiaryRefs"],

@@ -5801,6 +5801,24 @@ model Document {
   @@index([pieceId])
 }
 
+/// UNE VERSION D'UN DOCUMENT (hors Drive) : chaque enregistrement (éditeur Office, éditeur de texte) écrit une NOUVELLE
+/// clé de stockage, l'ancienne reste lisible et n'est rendue qu'à la destruction réelle. Sans clé étrangère : un document
+/// mis en corbeille garde ses versions, qui le retrouvent à la restauration (`lib/document-versions.ts`).
+model DocumentVersion {
+  id          String   @id @default(cuid())
+  documentId  String
+  version     Int
+  fileKey     String
+  size        Float?
+  /// Née d'un enregistrement FORCÉ de l'éditeur Office (statut 6) : la clé d'édition ne change pas.
+  forcesave   Boolean  @default(false)
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@unique([documentId, version])
+  @@index([documentId])
+}
+
 model Comment {
   id         String     @id @default(cuid())
   entityType EntityType
@@ -7078,6 +7096,8 @@ model FileVersion {
   size        Float
   mimeType    String?
   note        String?
+  /// Née d'un enregistrement FORCÉ de l'éditeur Office (statut 6) : la session continue, la clé d'édition ne change pas.
+  forcesave   Boolean   @default(false)
   createdById String?
   createdAt   DateTime  @default(now())
 

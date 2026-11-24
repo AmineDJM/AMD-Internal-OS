@@ -1,11 +1,13 @@
 /**
- * Registre des suppressions — les entrées : la conversation, la notification, l'élément du Drive.
+ * Registre des suppressions — les entrées : la conversation, la notification, l'élément du Drive, le document
+ * (pièce jointe hors Drive) et la catégorie du Drive.
  * Un morceau CONTIGU de `DELETE_REGISTRY`, dans l'ordre du registre (`registre.ts` les recompose
  * dans cet ordre : `DELETABLE_KINDS` en dépend).
  */
 
 import type { EntityType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { REG_STEPS, regStepStatus, type RegWorkflowState } from "@/lib/regulatory-workflow";
 import type { DeletableKind, KindSpec } from "./types";
 
 export const REGISTRE_MESSAGERIE_DRIVE = {
@@ -129,6 +131,72 @@ export const REGISTRE_MESSAGERIE_DRIVE = {
         const parent = await prisma.driveNode.findUnique({ where: { id: node.parentId }, select: { isTrashed: true } });
         if (!parent || parent.isTrashed) await prisma.driveNode.update({ where: { id }, data: { parentId: null } });
       }
+    },
+  },
+
+  /**
+   * UN DOCUMENT (pièce jointe d'un objet métier, hors Drive) — audit du Drive, 24/11, points A5 et F8.
+   *
+   * `deleteDocument` effaçait la ligne ET le fichier : la pièce d'un paiement approuvé pouvait disparaître sous la
+   * main de son déposant. La ligne part désormais à la corbeille ; le FICHIER et ses VERSIONS (`DocumentVersion`,
+   * sans clé étrangère) restent au stockage, et ne sont rendus qu'à la destruction réelle. Restaurer recrée la ligne,
+   * mêmes identifiant et clé : ses versions la retrouvent.
+   */
+  DOCUMENT: {
+    label: "document",
+    module: "Documents",
+    redirect: "/documents",
+    model: "document",
+    // Pas d'`entityType` : un document est lui-même la pièce polymorphe d'un objet — il n'en porte pas.
+    searchFields: ["name"],
+    async describe(id) {
+      const d = await prisma.document.findUnique({ where: { id }, select: { name: true } });
+      return d ? d.name : null;
+    },
+    async refuse(id) {
+      const d = await prisma.document.findUnique({ where: { id }, select: { entityType: true, entityId: true, stepKey: true } });
+      if (!d) return null; // l'inexistence se dit « introuvable », pas « refusé ».
+      // LA PIÈCE D'UN PAIEMENT justifie un règlement (`PaymentPiece.documentId`, sans clé étrangère) : la retirer
+      // laisserait le paiement sans justificatif, en silence.
+      const piece = await prisma.paymentPiece.findFirst({ where: { documentId: id }, select: { request: { select: { reference: true } } } });
+      if (piece) {
+        return `Ce document est une pièce de la demande de paiement ${piece.request.reference} : il justifie ce paiement et reste attaché. Pour le corriger, déposez une nouvelle pièce depuis la demande de paiement (elle remplacera celle-ci).`;
+      }
+      // LA PIÈCE D'UNE ÉTAPE TERMINÉE (Regulatory) : l'étape est validée sur cette pièce.
+      if (d.entityType === "REGULATORY_PRODUCT" && d.stepKey) {
+        const p = await prisma.regulatoryProduct.findUnique({ where: { id: d.entityId }, select: { workflow: true } });
+        if (p && regStepStatus(p.workflow as RegWorkflowState | null, d.stepKey) === "DONE") {
+          const etape = REG_STEPS.find((s) => s.key === d.stepKey)?.label ?? d.stepKey;
+          return `Cette pièce justifie l'étape « ${etape} », déjà terminée : elle reste au dossier. Rouvrez d'abord l'étape (statut « En cours ») si la pièce doit vraiment être retirée.`;
+        }
+      }
+      return null;
+    },
+    async remove(id) {
+      // La ligne seule : le fichier (`fileKey`) et ses versions restent au stockage jusqu'à la destruction réelle.
+      await prisma.document.delete({ where: { id } });
+    },
+  },
+
+  /**
+   * UNE CATÉGORIE DU DRIVE et tout son contenu — audit du Drive, 24/11, point A5. `deleteDriveSpace` effaçait la
+   * catégorie, ses dossiers, ses fichiers et leurs octets d'un clic, sans corbeille. Un LOT désormais : la catégorie
+   * part avec ses éléments (versions, partages, commentaires) et revient avec eux ; les octets ne sont rendus qu'à
+   * la destruction réelle. Réservé au Super Admin.
+   */
+  DRIVE_SPACE: {
+    label: "catégorie du Drive",
+    module: "Drive",
+    redirect: "/drive",
+    model: "driveSpace",
+    searchFields: ["name"],
+    lot: true,
+    async describe(id) {
+      const s = await prisma.driveSpace.findUnique({ where: { id }, select: { name: true } });
+      return s ? `Catégorie « ${s.name} »` : null;
+    },
+    async remove(id) {
+      await prisma.driveSpace.delete({ where: { id } });
     },
   },
 } satisfies Partial<Record<DeletableKind, KindSpec>>;
