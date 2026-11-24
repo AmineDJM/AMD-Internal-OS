@@ -5,15 +5,12 @@ import { Upload, Search, Eye, Pencil, FolderUp, FileUp, ChevronDown, Loader2 } f
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Label } from "@/components/ui/input";
-import { useBackgroundUpload } from "@/components/layout/background-upload";
-import { ensureDriveFolders } from "@/lib/actions/drive-actions";
 import { useLimitesEnvoi } from "@/components/layout/use-limites-envoi";
-// L'essai « contenu déjà là » et l'import d'arborescence sont PARTAGÉS avec la messagerie (Direction, 06/10).
-import { envoiDrive, envoiArborescenceDrive, preflightDrive as makePreflight } from "@/components/drive/envoi-drive";
 import { cn } from "@/lib/utils";
-import { useRetours } from "@/components/ui/retour";
-import { actionFailureMessage } from "@/lib/action-outcome";
+import { estIOS, phraseLimite } from "@/lib/drive/depot-regles";
 import { useNouvelleVersion } from "./nouvelle-version";
+// L'essai « contenu déjà là », la question « existe déjà ici » et l'import d'arborescence : un seul chemin de dépôt.
+import { useDepotDrive } from "./depot-drive";
 
 type Perm = "none" | "view" | "edit";
 interface UserLite { id: string; name: string }
@@ -21,20 +18,22 @@ interface UserLite { id: string; name: string }
 const CATEGORY_SUGGESTIONS = ["Contrat", "Facture", "Réglementaire", "Présentation", "Analyse", "Compte rendu", "RH", "Marché PCH", "Autre"];
 
 export function UploadButton({
-  parentId, nodeId, label, users, spaceId,
+  parentId, nodeId, nomActuel, label, users, spaceId,
 }: {
   parentId?: string | null;
   nodeId?: string;
+  /** Nouvelle version : le nom actuel, pour confirmer un dépôt d'un autre type. */
+  nomActuel?: string;
   label?: string;
-  /** Si fourni (import d'un nouveau fichier), ouvre le choix catégorie + permissions. */
+  /** Si fourni (import d'un nouveau fichier), ouvre le choix du type de document + permissions. */
   users?: UserLite[];
   /** Catégorie (espace partagé) de destination à la racine — hérité par les nouveaux nœuds. */
   spaceId?: string | null;
 }) {
-  const { enqueue } = useBackgroundUpload();
   const inputRef = React.useRef<HTMLInputElement>(null);
   const limites = useLimitesEnvoi();
   const envoyerVersion = useNouvelleVersion();
+  const depot = useDepotDrive({ parentId: parentId ?? null, spaceId });
 
   // Mode simple (nouvelle version, ou pas de liste d'utilisateurs) : envoi en arrière-plan.
   const rich = Boolean(users) && !nodeId;
@@ -45,18 +44,8 @@ export function UploadButton({
     if (!list?.length) return;
     // Un fichier vide n'est plus écarté en silence : le gestionnaire d'envois le DIT (constat 13).
     const files = Array.from(list);
-    if (nodeId) {
-      envoyerVersion(nodeId, files[0]);
-    } else {
-      enqueue({
-        label: `${files.length} fichier${files.length > 1 ? "s" : ""} (Drive)`,
-        files,
-        concurrency: 6,
-        ...envoiDrive({ parentId, spaceId }, limites),
-        preflight: makePreflight({ parentId, spaceId }),
-        makeRequest: (file) => { const fd = new FormData(); fd.append("file", file); if (parentId) fd.append("parentId", parentId); if (spaceId) fd.append("spaceId", spaceId); return { url: "/api/drive/upload", formData: fd }; },
-      });
-    }
+    if (nodeId) void envoyerVersion(nodeId, files[0], nomActuel);
+    else void depot.deposerFichiers(files);
     if (inputRef.current) inputRef.current.value = "";
   }
 
@@ -64,9 +53,11 @@ export function UploadButton({
     return (
       <span className="inline-flex items-center gap-2">
         <input ref={inputRef} type="file" multiple={!nodeId} hidden onChange={onChangeSimple} />
-        <Button variant="outline" onClick={() => inputRef.current?.click()} type="button">
+        {/* LE GESTE PRINCIPAL est plein (audit Drive, C7) — et la limite réelle se lit au survol (C9). */}
+        <Button variant={nodeId ? "outline" : "primary"} onClick={() => inputRef.current?.click()} type="button" title={phraseLimite(limites, "drive") ?? undefined}>
           <Upload className="h-4 w-4" /> {label ?? "Importer"}
         </Button>
+        {depot.dialogue}
       </span>
     );
   }
@@ -75,9 +66,8 @@ export function UploadButton({
 }
 
 function RichUpload({ parentId, users, label, spaceId }: { parentId: string | null; users: UserLite[]; label?: string; spaceId: string | null }) {
-  const { enqueue } = useBackgroundUpload();
   const limites = useLimitesEnvoi();
-  const retours = useRetours();
+  const depot = useDepotDrive({ parentId, spaceId });
   const [open, setOpen] = React.useState(false);
   const [menu, setMenu] = React.useState(false);
   const [files, setFiles] = React.useState<File[]>([]);
@@ -85,6 +75,10 @@ function RichUpload({ parentId, users, label, spaceId }: { parentId: string | nu
   const [perm, setPerm] = React.useState<Record<string, Perm>>({});
   const [search, setSearch] = React.useState("");
   const [err, setErr] = React.useState<string | null>(null);
+  // Le choix d'un DOSSIER n'existe pas sur iOS (audit Drive, C15) : l'entrée n'y est pas proposée.
+  const [ios, setIos] = React.useState(false);
+  React.useEffect(() => { setIos(estIOS(navigator.userAgent, navigator.platform, navigator.maxTouchPoints)); }, []);
+  const limite = phraseLimite(limites, "drive");
 
   // ───────── Import de DOSSIER (arborescence exacte recréée) ─────────
   const folderInputRef = React.useRef<HTMLInputElement>(null);
@@ -96,37 +90,19 @@ function RichUpload({ parentId, users, label, spaceId }: { parentId: string | nu
   }, []);
 
   const rel = (f: File) => (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name;
-  const dirOf = (p: string) => { const i = p.lastIndexOf("/"); return i >= 0 ? p.slice(0, i) : ""; };
 
   async function onImportFolder(e: React.ChangeEvent<HTMLInputElement>) {
-    const list = e.target.files;
-    const picked = Array.from(list ?? []); // un fichier vide est dit par le gestionnaire, pas écarté
+    const picked = Array.from(e.target.files ?? []); // un fichier vide est dit par le gestionnaire, pas écarté
     if (folderInputRef.current) folderInputRef.current.value = "";
     if (picked.length === 0) return;
     setFolderBusy(true);
-    // Crée d'abord l'arborescence de dossiers (chemins relatifs uniques) côté serveur.
-    const dirs = [...new Set(picked.map((f) => dirOf(rel(f))).filter(Boolean))];
-    let r: Awaited<ReturnType<typeof ensureDriveFolders>>;
     try {
-      r = await ensureDriveFolders(parentId ?? null, dirs, spaceId);
-    } catch {
-      retours.erreur(actionFailureMessage("THROWN"));
-      return;
+      // Six en parallèle, envoi direct au-delà du seuil, contenu déjà connu non retransféré, chaque
+      // fichier dans SON dossier : la construction est commune avec le dépôt de la messagerie.
+      await depot.deposerEntrees(picked.map((file) => ({ file, path: rel(file) })));
     } finally {
       setFolderBusy(false);
     }
-    if (!r.ok || !r.map) { retours.erreur(r.error ?? "Import du dossier impossible."); return; }
-    const rootName = rel(picked[0]).split("/")[0] || "dossier";
-    // Six en parallèle, envoi direct au-delà du seuil, contenu déjà connu non retransféré, chaque
-    // fichier dans SON dossier : la construction est commune avec le dépôt de la messagerie.
-    enqueue(envoiArborescenceDrive({
-      label: `Dossier « ${rootName} » (${picked.length} fichier${picked.length > 1 ? "s" : ""})`,
-      entrees: picked.map((file) => ({ file, path: rel(file) })),
-      map: r.map,
-      parentId: parentId ?? null,
-      spaceId,
-      limites,
-    }));
   }
 
   const shared = Object.values(perm).filter((p) => p !== "none").length;
@@ -138,29 +114,12 @@ function RichUpload({ parentId, users, label, spaceId }: { parentId: string | nu
     setFiles([]); setCategory(""); setPerm({}); setSearch(""); setErr(null);
   }
 
-  /** Confie l'import (avec classement + permissions) au gestionnaire global : non bloquant. */
+  /** Confie l'import (avec type de document + permissions) au gestionnaire global : non bloquant. */
   function submit() {
     if (files.length === 0) { setErr("Choisissez au moins un fichier."); return; }
     const viewers = Object.entries(perm).filter(([, p]) => p === "view").map(([id]) => id);
     const editors = Object.entries(perm).filter(([, p]) => p === "edit").map(([id]) => id);
-    const cat = category.trim();
-    enqueue({
-      label: `${files.length} fichier${files.length > 1 ? "s" : ""} (Drive)`,
-      files,
-      concurrency: 6,
-      ...envoiDrive({ parentId, spaceId, category: cat || null, viewers, editors }, limites),
-      preflight: makePreflight({ parentId, spaceId, category: cat, viewers, editors }),
-      makeRequest: (file) => {
-        const fd = new FormData();
-        fd.append("file", file);
-        if (parentId) fd.append("parentId", parentId);
-        if (spaceId) fd.append("spaceId", spaceId);
-        if (cat) fd.append("category", cat);
-        viewers.forEach((id) => fd.append("viewers", id));
-        editors.forEach((id) => fd.append("editors", id));
-        return { url: "/api/drive/upload", formData: fd };
-      },
-    });
+    void depot.deposerFichiers(files, { category, viewers, editors });
     setOpen(false); reset();
   }
 
@@ -169,7 +128,7 @@ function RichUpload({ parentId, users, label, spaceId }: { parentId: string | nu
       {/* Un seul bouton « Importer » : Fichiers/ZIP OU Dossier (comme Google Drive). */}
       <input ref={folderInputRef} type="file" hidden multiple onChange={onImportFolder} />
       <div className="relative inline-flex">
-        <Button variant="outline" type="button" onClick={() => setMenu((v) => !v)} disabled={folderBusy}>
+        <Button type="button" onClick={() => setMenu((v) => !v)} disabled={folderBusy} title={limite ?? undefined}>
           {folderBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} {label ?? "Importer"}
           <ChevronDown className="h-3.5 w-3.5 opacity-70" />
         </Button>
@@ -183,11 +142,13 @@ function RichUpload({ parentId, users, label, spaceId }: { parentId: string | nu
                 <FileUp className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <span className="min-w-0"><span className="font-medium">Fichiers ou ZIP</span><span className="block text-xs text-muted-foreground">Un ou plusieurs fichiers (ZIP inclus)</span></span>
               </button>
-              <button type="button" onClick={() => { setMenu(false); folderInputRef.current?.click(); }}
-                className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm hover:bg-secondary">
-                <FolderUp className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <span className="min-w-0"><span className="font-medium">Dossier</span><span className="block text-xs text-muted-foreground">Arborescence exacte recréée dans le Drive</span></span>
-              </button>
+              {!ios && (
+                <button type="button" onClick={() => { setMenu(false); folderInputRef.current?.click(); }}
+                  className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm hover:bg-secondary">
+                  <FolderUp className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0"><span className="font-medium">Dossier</span><span className="block text-xs text-muted-foreground">Arborescence exacte recréée dans le Drive</span></span>
+                </button>
+              )}
             </div>
           </>
         )}
@@ -197,7 +158,7 @@ function RichUpload({ parentId, users, label, spaceId }: { parentId: string | nu
         open={open}
         onClose={() => setOpen(false)}
         title="Importer un document"
-        description="Choisissez le classement et qui peut le voir ou le modifier. L'envoi se fait en arrière-plan."
+        description={`Choisissez le type de document et qui peut le voir ou le modifier. L'envoi se fait en arrière-plan${limite ? ` · ${limite}` : ""}.`}
         width="lg"
         footer={
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -226,7 +187,7 @@ function RichUpload({ parentId, users, label, spaceId }: { parentId: string | nu
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="category">Catégorie</Label>
+            <Label htmlFor="category">Type de document</Label>
             <Input id="category" list="drive-cats" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="ex. Contrat, Facture, Réglementaire…" />
             <datalist id="drive-cats">{CATEGORY_SUGGESTIONS.map((c) => <option key={c} value={c} />)}</datalist>
           </div>
@@ -262,6 +223,7 @@ function RichUpload({ parentId, users, label, spaceId }: { parentId: string | nu
           {err && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
         </div>
       </Sheet>
+      {depot.dialogue}
     </>
   );
 }

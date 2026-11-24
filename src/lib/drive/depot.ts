@@ -5,6 +5,7 @@ import { recordAudit } from "@/lib/audit";
 import type { SessionUser } from "@/lib/rbac";
 import { signalerFichierDrive } from "@/lib/enrichissement/signalement";
 import { inscrireFichierDrive } from "@/modules/bibliotheque/api-inscription";
+import { refusDepotPhrase, nomLibre, nomApresNouvelleVersion, type ChoixDoublon } from "@/lib/drive/depot-regles";
 
 /**
  * DÉPOSER UN FICHIER DANS LE DRIVE — la porte et l'écriture, une seule fois pour les deux chemins.
@@ -25,6 +26,12 @@ export interface CibleDepot {
   category?: string | null;
   viewers?: string[];
   editors?: string[];
+  /**
+   * Un fichier du même nom existe déjà à cet endroit (audit Drive, C2) : « version » = nouvelle
+   * version de celui-ci (si l'on peut le modifier), « garder » = un second fichier, renommé
+   * « nom (2).ext ». Absent = comportement d'avant (le dépôt ne regarde pas les noms).
+   */
+  siExiste?: ChoixDoublon | null;
 }
 
 /**
@@ -38,15 +45,77 @@ export interface CibleDepot {
  */
 export async function refusDepotDrive(user: SessionUser, cible: CibleDepot): Promise<{ error: string; status: number } | null> {
   if (cible.nodeId) {
-    if ((await resolveDriveAccess(user, cible.nodeId)) !== "EDIT") return { error: "Non autorisé.", status: 403 };
+    if ((await resolveDriveAccess(user, cible.nodeId)) !== "EDIT") return { error: refusDepotPhrase(await quiOuvre(cible.nodeId, null)), status: 403 };
   } else if (cible.parentId) {
-    if ((await resolveDriveAccess(user, cible.parentId)) !== "EDIT") return { error: "Dossier non autorisé.", status: 403 };
+    if ((await resolveDriveAccess(user, cible.parentId)) !== "EDIT") return { error: refusDepotPhrase(await quiOuvre(cible.parentId, null)), status: 403 };
   } else if (cible.spaceId) {
-    if (!(await canCreateInSpace(user, cible.spaceId))) return { error: "Catégorie non autorisée.", status: 403 };
+    if (!(await canCreateInSpace(user, cible.spaceId))) return { error: refusDepotPhrase(await quiOuvre(null, cible.spaceId)), status: 403 };
   } else if (!userCan(user, "DRIVE", "UPLOAD")) {
-    return { error: "Non autorisé.", status: 403 };
+    return { error: "Vous ne pouvez pas encore déposer dans « Mes fichiers » : demandez le droit « Téléverser » du Drive à l'administrateur de la plateforme.", status: 403 };
   }
   return null;
+}
+
+/**
+ * QUI PEUT OUVRIR L'ACCÈS (le remède d'un refus, point C10) : les gestionnaires nommés de la
+ * catégorie, sinon le propriétaire du dossier ou du fichier. `null` quand personne n'est nommé.
+ */
+async function quiOuvre(nodeId: string | null, spaceId: string | null): Promise<string | null> {
+  let sid = spaceId;
+  if (nodeId) {
+    const n = await prisma.driveNode.findUnique({ where: { id: nodeId }, select: { spaceId: true, owner: { select: { name: true } } } });
+    if (!n) return null;
+    if (!n.spaceId) return n.owner?.name ?? null;
+    sid = n.spaceId;
+  }
+  if (!sid) return null;
+  const s = await prisma.driveSpace.findUnique({ where: { id: sid }, select: { name: true, managerUserIds: true } });
+  if (!s) return null;
+  const noms = (await prisma.user.findMany({ where: { id: { in: s.managerUserIds }, isActive: true }, select: { name: true }, take: 2 })).map((u) => u.name);
+  return noms.length ? noms.join(" ou ") : `un gestionnaire de la catégorie « ${s.name} »`;
+}
+
+/** Les fichiers (non corbeillés) déjà présents à cet endroit sous l'un de ces noms. */
+export async function fichiersHomonymes(
+  emplacement: { parentId?: string | null; spaceId?: string | null; ownerId: string },
+  noms: string[],
+): Promise<{ id: string; name: string }[]> {
+  if (noms.length === 0) return [];
+  const ou = emplacement.parentId
+    ? { parentId: emplacement.parentId }
+    : emplacement.spaceId ? { parentId: null, spaceId: emplacement.spaceId } : { parentId: null, spaceId: null, ownerId: emplacement.ownerId };
+  return prisma.driveNode.findMany({
+    where: { ...ou, type: "FILE", isTrashed: false, OR: noms.map((n) => ({ name: { equals: n, mode: "insensitive" as const } })) },
+    select: { id: true, name: true }, orderBy: { createdAt: "asc" },
+  });
+}
+
+/**
+ * APPLIQUE LE CHOIX « EXISTE DÉJÀ ICI » : la cible devient le fichier existant (nouvelle version,
+ * si on peut le modifier), ou le nom devient libre (garder les deux). Une nouvelle version d'un
+ * autre type prend l'extension du contenu déposé (sinon l'aperçu se tromperait de format).
+ */
+async function appliquerChoixDoublon(user: SessionUser, cible: CibleDepot, nom: string): Promise<{ cible: CibleDepot; nom: string }> {
+  if (!cible.nodeId && cible.siExiste) {
+    const ou = { parentId: cible.parentId ?? null, spaceId: cible.parentId ? null : cible.spaceId ?? null, ownerId: user.id };
+    const homonymes = await fichiersHomonymes(ou, [nom]);
+    if (homonymes.length > 0) {
+      const premier = homonymes[0];
+      if (cible.siExiste === "version" && (await resolveDriveAccess(user, premier.id)) === "EDIT") {
+        cible = { ...cible, nodeId: premier.id };
+      } else {
+        // Garder les deux — ou une version refusée faute de droit sur l'existant : on n'écrase rien.
+        const voisins = await prisma.driveNode.findMany({ where: { parentId: ou.parentId, ...(ou.parentId ? {} : { spaceId: ou.spaceId, ...(ou.spaceId ? {} : { ownerId: user.id }) }), isTrashed: false }, select: { name: true } });
+        nom = nomLibre(nom, voisins.map((v) => v.name));
+      }
+    }
+  }
+  if (cible.nodeId) {
+    const n = await prisma.driveNode.findUnique({ where: { id: cible.nodeId }, select: { name: true } });
+    const renomme = n ? nomApresNouvelleVersion(n.name, nom) : null;
+    if (n && renomme && renomme !== n.name) await prisma.driveNode.update({ where: { id: cible.nodeId }, data: { name: renomme } });
+  }
+  return { cible, nom };
 }
 
 /**
@@ -62,6 +131,9 @@ export async function enregistrerFichierDrive(
     sha256?: string | null;
   },
 ): Promise<{ id: string; version?: number }> {
+  const choix = await appliquerChoixDoublon(user, cible, fichier.name);
+  cible = choix.cible;
+  fichier = { ...fichier, name: choix.nom };
   const { blobId, size, mimeType, name } = fichier;
   // La pièce nourrit les fiches (refonte, lot V2-A), une fois le fichier inscrit — interrupteur fermé : rien.
   // Et elle entre à la bibliothèque (J1) : registre, clé d'accès du nœud, file d'ingestion. Ni l'un ni l'autre ne lève.

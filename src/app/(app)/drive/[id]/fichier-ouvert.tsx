@@ -57,7 +57,7 @@ export function FichierOuvert({
     <div ref={wrapRef} className={cn("flex flex-col overflow-hidden rounded-lg border border-border bg-background", pleinEcran ? "h-[100dvh] rounded-none border-0" : "app-viewport")}>
       <div className="flex items-center gap-1.5 border-b border-border bg-card px-1.5 py-1 sm:gap-2 sm:px-2">
         <BackLink href={retour} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground sm:h-8">
-          <ArrowLeft className="h-4 w-4" /> <span className="sr-only sm:not-sr-only">Drive</span>
+          <ArrowLeft className="h-4 w-4" /> <span className="sr-only sm:not-sr-only">Retour</span>
         </BackLink>
         <div className="flex min-w-0 flex-1 items-center gap-2" data-fichier-ouvert={id}>
           <FileGlyph name={name} isFile />

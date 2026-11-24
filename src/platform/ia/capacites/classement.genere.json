@@ -4714,6 +4714,16 @@
   "annulation": "compensation",
   "appelable": true
  },
+ "drive-actions:doublonsAuDepot": {
+  "risque": "R1",
+  "familles": [
+   "DRIVE",
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": true
+ },
  "drive-actions:ensureDriveFolders": {
   "risque": "R1",
   "familles": [
@@ -4772,6 +4782,16 @@
   "annulation": "retour",
   "appelable": true
  },
+ "drive-actions:restaurerVersionDrive": {
+  "risque": "R1",
+  "familles": [
+   "DRIVE",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
  "drive-actions:restoreNode": {
   "risque": "R1",
   "familles": [
@@ -4779,6 +4799,16 @@
    "ECRITURES"
   ],
   "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "drive-actions:restoreNodes": {
+  "risque": "R1",
+  "familles": [
+   "DRIVE",
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
   "annulation": "retour",
   "appelable": true
  },
@@ -10911,6 +10941,15 @@
   "annulation": "compensation",
   "appelable": true
  },
+ "relecture-visite-actions:relireRapportVisite": {
+  "risque": "R2",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
  "reminder-actions:arreterRappelAssistant": {
   "risque": "R1",
   "familles": [
@@ -12599,6 +12638,15 @@
  },
  "ventes-pch-actions:reglerFournisseurVentesPch": {
   "risque": "R4",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "visite-medicale-actions:prevenirSuperviseurPanelVide": {
+  "risque": "R2",
   "familles": [
    "ECRITURES"
   ],

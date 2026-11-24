@@ -4,7 +4,7 @@ import { ChevronRight, House } from "lucide-react";
 import { requireModule } from "@/lib/session";
 import { userCan, canCreateDriveSpace } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
-import { getDriveListing, getDriveSpacesForUser } from "@/lib/queries/drive";
+import { getDriveListing, getDriveSpacesForUser, compterDansLaCorbeille } from "@/lib/queries/drive";
 import { canCreateInSpace } from "@/lib/drive";
 import { getAppSettings } from "@/lib/settings";
 import { onlyofficeConfigured, onlyofficeApiJs, onlyofficeEditable, onlyofficeTypeOuvrable } from "@/lib/onlyoffice";
@@ -13,8 +13,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { formatDateTime } from "@/lib/utils";
 import { UploadButton } from "./upload-button";
-import { NewFolderButton } from "./new-folder-button";
-import { NewOfficeButton } from "./new-office-button";
+import { NouveauMenu } from "./nouveau-menu";
 import { CreateSpaceButton } from "./drive-space-manager";
 import { DriveTable, type DriveRow } from "./drive-table";
 import { DriveCanvas } from "./drive-canvas";
@@ -22,7 +21,7 @@ import { ExplorerNav } from "./explorer-nav";
 import { DriveToolbar } from "./drive-toolbar";
 import { QuickAccessList, type QuickRow } from "./quick-access-list";
 import { DriveSearch } from "./drive-search";
-import { parseView, VIEW_TITLE, fileTypeLabel, explorerSize } from "@/lib/drive/explorer";
+import { parseView, VIEW_TITLE, fileTypeLabel, explorerSize, MES_FICHIERS } from "@/lib/drive/explorer";
 import { getRecentFiles } from "@/lib/queries/drive-quick-access";
 import { searchDrive } from "@/lib/queries/drive-search";
 import { normalizeQuery, searchSummary } from "@/lib/drive/search";
@@ -45,9 +44,10 @@ export default async function DrivePage(
   // ignore `folder`. Chercher dans le dossier où l'on se trouve déjà ne sert à rien — si l'on
   // savait où regarder, on n'aurait pas ouvert la barre de recherche.
   if (query) {
-    const [outcome, navSpaces] = await Promise.all([
+    const [outcome, navSpaces, dansLaCorbeille] = await Promise.all([
       searchDrive(user, query),
       getDriveSpacesForUser(user),
+      compterDansLaCorbeille(user, query),
     ]);
     const found: QuickRow[] = outcome.rows.map((r) => ({
       id: r.id, name: r.name, isFile: r.isFile, size: r.size, updatedAt: r.updatedAt,
@@ -73,6 +73,12 @@ export default async function DrivePage(
               <p className="text-xs text-muted-foreground">
                 Tous les résultats ne sont pas affichés — précisez votre recherche.
               </p>
+            )}
+            {/* La recherche ignore la corbeille ; elle le DIT, sinon un fichier supprimé passe pour perdu (audit Drive, C15). */}
+            {dansLaCorbeille > 0 && (
+              <Link href="/drive?trash=1" className="inline-block text-sm text-primary hover:underline">
+                {dansLaCorbeille} résultat{dansLaCorbeille > 1 ? "s" : ""} dans la corbeille
+              </Link>
             )}
           </div>
         </div>
@@ -152,7 +158,7 @@ export default async function DrivePage(
   const moveTargets = trash
     ? []
     : [
-        { id: "", name: "Racine (Drive)" },
+        { id: "", name: MES_FICHIERS },
         ...(await prisma.driveNode.findMany({
           where: {
             type: "FOLDER", isTrashed: false, spaceId: null,
@@ -182,7 +188,9 @@ export default async function DrivePage(
       updatedAt: n.updatedAt.toISOString(),
       updatedLabel: formatDateTime(n.updatedAt),
       canEdit: n.canEdit,
-      href: isFile ? `/drive/${n.id}` : `/drive?folder=${n.id}`,
+      // Corbeille : pas de lien vers ce qu'on ne peut plus ouvrir (il mènerait à une page introuvable).
+      href: trash && !n.ouvrable ? null : isFile ? `/drive/${n.id}` : `/drive?folder=${n.id}`,
+      supprimeDe: n.supprimeDe,
       counts: n.counts,
       convertible: isFile && peutConvertir && onlyofficeEditable(n.name),
       office: isFile && officeApiJs !== null && onlyofficeTypeOuvrable(n.name) !== null,
@@ -195,7 +203,7 @@ export default async function DrivePage(
         <DriveSearch />
         <DriveToolbar
           trashHref={trash ? "/drive" : "/drive?trash=1"}
-          trashLabel={trash ? "Mes fichiers" : "Corbeille"}
+          trashLabel={trash ? MES_FICHIERS : "Corbeille"}
           settings={!trash && canCreateSpace ? <CreateSpaceButton users={users} /> : undefined}
           // LA PAPETERIE VIT DANS LE MENU « ⋯ », et n'apparaît qu'à qui la tient. Elle avait un
           // écran à elle (« Bureautique ») que tout le monde voyait pour un réglage que deux
@@ -204,8 +212,7 @@ export default async function DrivePage(
           tools={letterheadTools}
           primary={!trash && canCreate ? (
             <>
-              <NewFolderButton parentId={folderId} />
-              <NewOfficeButton parentId={folderId} officeEnabled={onlyofficeConfigured()} letterheads={letterheads} companyId={letterheadCompanyId} />
+              <NouveauMenu parentId={folderId} officeEnabled={onlyofficeConfigured()} letterheads={letterheads} companyId={letterheadCompanyId} />
               <UploadButton parentId={folderId} users={users} />
             </>
           ) : undefined}
@@ -237,7 +244,9 @@ export default async function DrivePage(
         <div className="min-w-0 flex-1">
           <DriveCanvas parentId={folderId} canCreate={!trash && canCreate} officeEnabled={onlyofficeConfigured()}>
             {listing.nodes.length === 0 ? (
-              <EmptyState icon="FolderOpen" title={trash ? "Corbeille vide" : "Dossier vide"} description={trash ? "Aucun élément supprimé." : "Importez des fichiers, ou faites un clic droit ici pour créer un dossier."} />
+              <EmptyState icon="FolderOpen" title={trash ? "Corbeille vide" : "Dossier vide"} description={trash ? "Vous n'avez rien supprimé." : canCreate ? "Importez des fichiers, ou glissez-les ici depuis votre ordinateur." : undefined}>
+                {!trash && canCreate && <UploadButton parentId={folderId} />}
+              </EmptyState>
             ) : (
               <DriveTable rows={rows} moveTargets={moveTargets} trash={trash} users={canCreate ? users : undefined} spaceId={null} categories={dropCategories} folderId={folderId} ancestorIds={listing.breadcrumb.map((c) => c.id)} officeApiJs={officeApiJs} />
             )}

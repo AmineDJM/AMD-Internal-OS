@@ -358,6 +358,12 @@ export function classerExclusionsAttestations(): void {
   X("plomberie / lecture du Drive (initialisation de dossiers, liste des partages, versions et commentaires lus à l'ouverture de leur panneau) — pas un geste métier", [
     "drive-actions:ensureDriveFolders", "drive-actions:getDriveNodeShares",
     "drive-actions:getDriveNodeVersions", "drive-comment-actions:listDriveComments",
+    "drive-actions:doublonsAuDepot",
+  ]);
+  X("restaurer UNE version précise de l'historique d'un fichier Drive : la personne choisit en voyant les versions (date, "
+    + "auteur, téléchargement) — l'assistant ne lit pas cet historique et ne doit pas choisir une version à l'aveugle ; "
+    + "rien n'est écrasé (la version restaurée devient une nouvelle version)", [
+    "drive-actions:restaurerVersionDrive",
   ]);
   X("IDENTITÉ D'ENTREPRISE : l'annuaire décide À QUELLE ADRESSE part un message signé du PDG. Le tenir "
     + "est un geste d'assistante de direction, posé à l'écran avec son audit — pas une capacité conversationnelle. "

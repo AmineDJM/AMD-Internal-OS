@@ -10,6 +10,8 @@ export interface LimitesEnvoi {
   stockageObjet: boolean;
   seuilDirectOctets: number;
   maxSansStockageObjetMo: number;
+  /** Super Admin : les refus lui donnent la marche à suivre technique ; aux autres, une phrase simple. */
+  technique?: boolean;
 }
 
 let promesse: Promise<LimitesEnvoi | null> | null = null;

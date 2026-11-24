@@ -25,5 +25,7 @@ export async function GET() {
     stockageObjet: objectStorageConfigured(),
     seuilDirectOctets: SEUIL_DIRECT_OCTETS,
     maxSansStockageObjetMo: MAX_SANS_STOCKAGE_OBJET_MO,
+    // La marche à suivre technique d'un refus (variables du stockage objet) ne s'adresse qu'au Super Admin.
+    technique: user.role === "SUPER_ADMIN",
   }, { headers: { "Cache-Control": "private, max-age=60" } });
 }

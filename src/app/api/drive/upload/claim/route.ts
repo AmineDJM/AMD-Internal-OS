@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserPourEcrire } from "@/lib/session";
-import { userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { getAppSettings } from "@/lib/settings";
-import { resolveDriveAccess, effectiveSpaceId, canCreateInSpace, canViewDrive } from "@/lib/drive";
+import { resolveDriveAccess, canViewDrive } from "@/lib/drive";
 import { quotaVerdict } from "@/lib/drive/quota";
 import { userUsageBytes, physicalUsageBytes } from "@/lib/drive/usage";
-import { recordAudit } from "@/lib/audit";
+import { validateDriveUpload } from "@/lib/storage";
+import { retainBlob, releaseBlob } from "@/lib/drive-storage";
+import { refusDepotDrive, enregistrerFichierDrive } from "@/lib/drive/depot";
+import { lireChoixDoublon } from "@/lib/drive/depot-regles";
+import { mimeFromName } from "@/lib/drive/mime-nom";
 import { attendu } from "@/lib/journal";
 
 /**
@@ -40,7 +43,7 @@ export async function POST(req: NextRequest) {
   const body = (await req.json().catch(attendu("corps de requête illisible : c'est une erreur du client, il reçoit le repli", null))) as {
     sha256?: string; name?: string; size?: number;
     parentId?: string | null; spaceId?: string | null; category?: string | null;
-    viewers?: string[]; editors?: string[];
+    viewers?: string[]; editors?: string[]; siExiste?: string;
   } | null;
 
   const hash = (body?.sha256 ?? "").trim().toLowerCase();
@@ -50,14 +53,18 @@ export async function POST(req: NextRequest) {
   const parentId = body?.parentId || null;
   const spaceId = body?.spaceId || null;
 
-  // Mêmes gardes que l'envoi normal — le chemin rapide ne doit ouvrir aucune porte de plus.
-  if (parentId) {
-    if ((await resolveDriveAccess(user, parentId)) !== "EDIT") return NextResponse.json({ error: "Dossier non autorisé." }, { status: 403 });
-  } else if (spaceId) {
-    if (!(await canCreateInSpace(user, spaceId))) return NextResponse.json({ error: "Catégorie non autorisée." }, { status: 403 });
-  } else if (!userCan(user, "DRIVE", "UPLOAD")) {
-    return NextResponse.json({ error: "Non autorisé." }, { status: 403 });
-  }
+  // MÊMES GARDES ET MÊME CRÉATION que l'envoi normal (audit Drive, C16) — le chemin rapide n'ouvre
+  // aucune porte de plus : droit de dépôt, politique de types, puis `enregistrerFichierDrive` (partages,
+  // doublon, signalement aux fiches et inscription à la bibliothèque, comme tout fichier déposé).
+  const cible = {
+    parentId, spaceId, category: body?.category ?? null,
+    viewers: body?.viewers ?? [], editors: body?.editors ?? [], siExiste: lireChoixDoublon(body?.siExiste),
+  };
+  const refus = await refusDepotDrive(user, cible);
+  if (refus) return NextResponse.json({ error: refus.error }, { status: refus.status });
+  const settings = await getAppSettings();
+  const invalide = validateDriveUpload(name, Number(body?.size ?? 1), settings.maxDriveUploadMb);
+  if (invalide) return NextResponse.json({ error: invalide }, { status: 400 });
 
   const blob = await prisma.fileBlob.findUnique({ where: { sha256: hash }, select: { id: true, size: true } });
   if (!blob) return NextResponse.json({ known: false });
@@ -74,7 +81,6 @@ export async function POST(req: NextRequest) {
 
   // Les quotas s'appliquent quand même : le fichier compte dans l'espace de la personne, même si
   // le contenu ne prend pas de place NEUVE sur le disque (d'où la capacité globale inchangée).
-  const settings = await getAppSettings();
   const [myUsage, physical] = await Promise.all([userUsageBytes(user.id), physicalUsageBytes()]);
   const verdict = quotaVerdict({
     userUsageBytes: myUsage, physicalUsageBytes: physical, fileSize: 0,
@@ -82,51 +88,13 @@ export async function POST(req: NextRequest) {
   });
   if (!verdict.ok) return NextResponse.json({ error: verdict.error }, { status: 400 });
 
-  const mimeType = mimeOf(name);
-  const category = (body?.category ?? "").trim() || null;
-  const effSpaceId = await effectiveSpaceId(parentId, spaceId);
-
-  await prisma.fileBlob.update({ where: { id: blob.id }, data: { refCount: { increment: 1 } } });
-  const node = await prisma.driveNode.create({
-    data: {
-      name, type: "FILE", parentId, spaceId: effSpaceId, ownerId: user.id,
-      mimeType, size: blob.size, category, createdById: user.id,
-      versions: { create: { blobId: blob.id, version: 1, size: blob.size, mimeType, createdById: user.id } },
-    },
-    select: { id: true },
-  });
-
-  const editorIds = new Set((body?.editors ?? []).filter((id) => id && id !== user.id));
-  const viewerIds = new Set((body?.viewers ?? []).filter((id) => id && id !== user.id && !editorIds.has(id)));
-  const ids = [...editorIds, ...viewerIds];
-  if (ids.length) {
-    const valid = new Set(
-      (await prisma.user.findMany({ where: { id: { in: ids }, isActive: true }, select: { id: true } })).map((u) => u.id),
-    );
-    const shareData = [
-      ...[...editorIds].filter((id) => valid.has(id)).map((userId) => ({ nodeId: node.id, userId, access: "EDIT" as const })),
-      ...[...viewerIds].filter((id) => valid.has(id)).map((userId) => ({ nodeId: node.id, userId, access: "VIEW" as const })),
-    ];
-    if (shareData.length) await prisma.driveShare.createMany({ data: shareData, skipDuplicates: true });
+  // Le nouveau détenteur est compté AVANT l'inscription ; une inscription qui échoue le rend.
+  if (!(await retainBlob(blob.id))) return NextResponse.json({ known: false });
+  try {
+    const res = await enregistrerFichierDrive(user, cible, { blobId: blob.id, size: blob.size, mimeType: mimeFromName(name), name, sha256: hash });
+    return NextResponse.json({ known: true, id: res.id, ...(res.version ? { version: res.version } : {}) });
+  } catch (e) {
+    await releaseBlob(blob.id);
+    throw e;
   }
-
-  await recordAudit({
-    actorId: user.id, action: "UPLOAD", module: "Drive", entityType: "DRIVE_NODE", entityId: node.id,
-    summary: `Fichier « ${name} » (contenu déjà présent — aucun transfert)${category ? ` · ${category}` : ""}`,
-  });
-  return NextResponse.json({ known: true, id: node.id });
-}
-
-/** Type MIME depuis l'extension — le navigateur ne l'envoie pas ici, et il ne sert qu'à l'affichage. */
-function mimeOf(name: string): string {
-  const ext = name.split(".").pop()?.toLowerCase() ?? "";
-  const map: Record<string, string> = {
-    pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif",
-    webp: "image/webp", svg: "image/svg+xml", zip: "application/zip", txt: "text/plain", csv: "text/csv",
-    doc: "application/msword", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    xls: "application/vnd.ms-excel", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    ppt: "application/vnd.ms-powerpoint", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    mp4: "video/mp4", mp3: "audio/mpeg",
-  };
-  return map[ext] ?? "application/octet-stream";
 }

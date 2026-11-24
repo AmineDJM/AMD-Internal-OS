@@ -19,6 +19,10 @@ import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { creerArborescenceDrive } from "@/lib/drive/arborescence";
 import { supprimerReversible } from "@/lib/suppression/coeur";
 import { inscrireFichierDrive } from "@/modules/bibliotheque/api-inscription";
+import { enregistrerFichierDrive, fichiersHomonymes } from "@/lib/drive/depot";
+import { nomApresNouvelleVersion } from "@/lib/drive/depot-regles";
+import { extensionDuMime } from "@/lib/drive/mime-nom";
+import { MES_FICHIERS } from "@/lib/drive/explorer";
 
 const DENIED: ActionResult = { ok: false, error: "Non autorisé." };
 
@@ -132,14 +136,64 @@ export async function getDriveNodeShares(
 /** L'historique des versions d'un fichier — lu à l'ouverture de son panneau, jamais avant. */
 export async function getDriveNodeVersions(
   nodeId: string,
-): Promise<{ ok: boolean; error?: string; versions?: { id: string; version: number; size: number; createdAt: string }[] }> {
+): Promise<{ ok: boolean; error?: string; canEdit?: boolean; versions?: { id: string; version: number; size: number; createdAt: string; mimeType: string | null; auteur: string | null }[] }> {
   const user = await enLecture(requireUser);
-  if ((await resolveDriveAccess(user, nodeId)) === "NONE") return { ok: false, error: "Non autorisé." };
+  const level = await resolveDriveAccess(user, nodeId);
+  if (level === "NONE") return { ok: false, error: "Non autorisé." };
   const versions = await prisma.fileVersion.findMany({
     where: { nodeId }, orderBy: { version: "desc" }, take: 50,
-    select: { id: true, version: true, size: true, createdAt: true },
+    select: { id: true, version: true, size: true, createdAt: true, mimeType: true, createdById: true },
   });
-  return { ok: true, versions: versions.map((v) => ({ ...v, createdAt: v.createdAt.toISOString() })) };
+  // L'AUTEUR de chaque version (audit Drive, C3) : « qui a déposé celle-ci ? » est la première question d'un historique.
+  const auteurs = new Map((await prisma.user.findMany({
+    where: { id: { in: [...new Set(versions.map((v) => v.createdById).filter((x): x is string => !!x))] } }, select: { id: true, name: true },
+  })).map((u) => [u.id, u.name]));
+  return {
+    ok: true, canEdit: level === "EDIT",
+    versions: versions.map(({ createdById, ...v }) => ({ ...v, createdAt: v.createdAt.toISOString(), auteur: createdById ? auteurs.get(createdById) ?? null : null })),
+  };
+}
+
+/**
+ * RESTAURER UNE VERSION (audit Drive, C3) — sans rien écraser : le contenu de la version choisie
+ * devient une NOUVELLE version (même blob, un détenteur de plus). Celle d'aujourd'hui reste dans
+ * l'historique, on peut revenir en arrière de la même façon. Le numéro est celui du dépôt commun.
+ */
+export async function restaurerVersionDrive(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  const nodeId = fdStr(formData, "nodeId");
+  const numero = Number(fdStr(formData, "version"));
+  if (!nodeId || !Number.isInteger(numero)) return { ok: false, error: "Version introuvable." };
+  if ((await resolveDriveAccess(user, nodeId)) !== "EDIT") {
+    return { ok: false, error: "Vous ne pouvez pas modifier ce fichier : demandez à son propriétaire de vous le partager en « Modifier »." };
+  }
+  const [node, v] = await Promise.all([
+    prisma.driveNode.findUnique({ where: { id: nodeId }, select: { name: true, mimeType: true, isTrashed: true } }),
+    prisma.fileVersion.findUnique({ where: { nodeId_version: { nodeId, version: numero } }, select: { blobId: true, size: true, mimeType: true } }),
+  ]);
+  if (!node || !v) return { ok: false, error: "Version introuvable." };
+  if (node.isTrashed) return { ok: false, error: "Le fichier est à la corbeille : restaurez-le d'abord." };
+  // Une version d'un autre type reprend son extension (sinon l'aperçu se tromperait de format).
+  const ext = v.mimeType && v.mimeType !== node.mimeType ? extensionDuMime(v.mimeType) : null;
+  const nom = ext ? nomApresNouvelleVersion(node.name, `x.${ext}`) : node.name;
+  if (!(await retainBlob(v.blobId))) return { ok: false, error: "Le contenu de cette version n'est plus disponible." };
+  const r = await enregistrerFichierDrive(user, { nodeId }, { blobId: v.blobId, size: v.size, mimeType: v.mimeType ?? node.mimeType ?? "application/octet-stream", name: nom });
+  await recordAudit({ actorId: user.id, action: "UPDATE", module: "Drive", entityType: "DRIVE_NODE", entityId: nodeId, field: "version", oldValue: String(numero), newValue: String(r.version ?? ""), summary: `Version ${numero} restaurée (devient la v${r.version ?? "?"})` });
+  revalidatePath("/drive");
+  return { ok: true, message: `Version ${numero} restaurée : elle devient la v${r.version ?? "?"}. La précédente reste dans l'historique.` };
+}
+
+/**
+ * Les fichiers DÉJÀ PRÉSENTS à l'endroit d'un dépôt (audit Drive, C2), pour poser la question
+ * « Nouvelle version / Garder les deux » AVANT d'envoyer. Une lecture : le choix lui-même est
+ * appliqué par le dépôt, qui revérifie tout.
+ */
+export async function doublonsAuDepot(parentId: string | null, spaceId: string | null, noms: string[]): Promise<{ ok: boolean; noms: string[] }> {
+  const user = await enLecture(requireUser);
+  if (parentId && !canViewDrive(await resolveDriveAccess(user, parentId))) return { ok: false, noms: [] };
+  if (!parentId && spaceId && !(await canCreateInSpace(user, spaceId))) return { ok: false, noms: [] };
+  const trouves = await fichiersHomonymes({ parentId, spaceId: parentId ? null : spaceId, ownerId: user.id }, noms.slice(0, 500));
+  return { ok: true, noms: [...new Set(trouves.map((t) => t.name))] };
 }
 
 export async function renameNode(formData: FormData): Promise<ActionResult> {
@@ -223,18 +277,35 @@ export async function restoreNode(formData: FormData): Promise<ActionResult> {
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Élément introuvable." };
   if ((await resolveDriveAccess(user, id)) !== "EDIT") return DENIED;
-  const node = await prisma.driveNode.findUnique({ where: { id }, select: { parentId: true } });
+  const n = await prisma.driveNode.findUnique({ where: { id }, select: { name: true, parentId: true, parent: { select: { name: true } }, space: { select: { name: true } } } });
+  const node = n ? { name: n.name, parentId: n.parentId, parentName: n.parent?.name ?? null, spaceName: n.space?.name ?? null } : null;
   // Restaure le dossier ET tout son sous-arbre.
   const ids = await collectSubtree(id);
   await prisma.driveNode.updateMany({ where: { id: { in: ids } }, data: { isTrashed: false } });
   // Si le parent est lui-même à la corbeille (ou supprimé), on restaure à la racine.
+  let lieu = node?.parentName ?? null;
   if (node?.parentId) {
     const parent = await prisma.driveNode.findUnique({ where: { id: node.parentId }, select: { isTrashed: true } });
-    if (!parent || parent.isTrashed) await prisma.driveNode.update({ where: { id }, data: { parentId: null } });
+    if (!parent || parent.isTrashed) { await prisma.driveNode.update({ where: { id }, data: { parentId: null } }); lieu = null; }
   }
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "Drive", entityType: "DRIVE_NODE", entityId: id, field: "isTrashed", newValue: "false", summary: "Restauré" });
   revalidatePath("/drive");
-  return { ok: true };
+  // LE LIEU DE RESTAURATION EST DIT (audit Drive, C13) : sinon on cherche l'élément qu'on vient de sauver.
+  return { ok: true, message: `« ${node?.name ?? "Élément"} » restauré dans « ${lieu ?? node?.spaceName ?? MES_FICHIERS} ».` };
+}
+
+/** « Restaurer » sur toute la sélection de la corbeille — un refus ponctuel n'annule pas le reste. */
+export async function restoreNodes(formData: FormData): Promise<BulkResult> {
+  const ids = Array.from(new Set(formData.getAll("id").map(String).filter(Boolean)));
+  if (ids.length === 0) return { ok: false, done: 0, denied: 0, error: "Aucun élément sélectionné." };
+  let done = 0;
+  let denied = 0;
+  for (const id of ids) {
+    const fd = new FormData();
+    fd.set("id", id);
+    if ((await restoreNode(fd)).ok) done += 1; else denied += 1;
+  }
+  return { ok: done > 0, done, denied, error: done === 0 ? "Vous ne pouvez restaurer aucun des éléments sélectionnés." : undefined };
 }
 
 /** « Supprimer définitivement » depuis la corbeille du Drive — vers la corbeille du Super Admin, restaurable. */
@@ -518,16 +589,16 @@ export async function trashNodes(formData: FormData): Promise<BulkResult> {
     // Cascade : un dossier mis à la corbeille y emmène tout son contenu.
     const subtree = await collectSubtree(id);
     await prisma.driveNode.updateMany({ where: { id: { in: subtree } }, data: { isTrashed: true } });
+    // UNE TRACE PAR ÉLÉMENT : c'est elle qui range l'élément dans la corbeille de celui qui l'a supprimé
+    // (corbeille unifiée, `getCorbeille`). Une seule trace pour le lot laissait les autres sans auteur.
+    await recordAudit({
+      actorId: user.id, action: "UPDATE", module: "Drive", entityType: "DRIVE_NODE", entityId: id,
+      field: "isTrashed", newValue: "true",
+      summary: subtree.length > 1 ? `Mis à la corbeille (${subtree.length} éléments)` : "Mis à la corbeille",
+    });
     done += 1;
   }
-  if (done > 0) {
-    await recordAudit({
-      actorId: user.id, action: "UPDATE", module: "Drive", entityType: "DRIVE_NODE", entityId: ids[0],
-      field: "isTrashed", newValue: "true",
-      summary: `Mis à la corbeille (${done} élément·s${denied ? `, ${denied} refusé·s` : ""})`,
-    });
-    revalidatePath("/drive");
-  }
+  if (done > 0) revalidatePath("/drive");
   return {
     ok: done > 0,
     done,

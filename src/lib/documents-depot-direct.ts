@@ -80,7 +80,7 @@ export async function ouvrirDepotDirectDocument(
 ): Promise<ResultatOuvertureDoc> {
   const { nom, taille } = entree;
   const cible: CibleDocument = { ...entree.cible, folder: dossierSur(entree.cible.folder) };
-  if (!objectStorageConfigured()) return { ok: false, status: 413, error: refusSansStockageObjet(taille, MAX_SANS_STOCKAGE_OBJET_MO) };
+  if (!objectStorageConfigured()) return { ok: false, status: 413, error: refusSansStockageObjet(taille, MAX_SANS_STOCKAGE_OBJET_MO, user.role === "SUPER_ADMIN") };
   const refus = await refusDepotDocument(user, cible);
   if (refus) return { ok: false, ...refus };
   // La TAILLE est celle d'une personne (10 Go), dite en Go ; la POLITIQUE de types vaut ici comme partout.

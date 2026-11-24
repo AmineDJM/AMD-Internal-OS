@@ -21,17 +21,23 @@ const TYPES: { kind: OfficeKind; label: string; hint: string; icon: React.Elemen
 
 /** Crée un document Office (vierge ou sur papier en-tête) dans le Drive ; ouvre l'éditeur si OnlyOffice est actif. */
 export function NewOfficeButton({
-  parentId, officeEnabled, spaceId, letterheads = [], companyId = null,
+  parentId, officeEnabled, spaceId, letterheads = [], companyId = null, ouvert, onFermer,
 }: {
   parentId: string | null;
   officeEnabled: boolean;
   spaceId?: string | null;
   letterheads?: LetterheadOption[];
   companyId?: string | null;
+  /** Piloté par le menu « Nouveau » (pas de bouton à soi). */
+  ouvert?: boolean;
+  onFermer?: () => void;
 }) {
   const router = useRouter();
   const { rafraichir } = useRafraichir();
-  const [open, setOpen] = React.useState(false);
+  const [interne, setInterne] = React.useState(false);
+  const pilote = ouvert !== undefined;
+  const open = pilote ? ouvert : interne;
+  const setOpen = (v: boolean) => { if (!pilote) setInterne(v); else if (!v) onFermer?.(); };
   const [kind, setKind] = React.useState<OfficeKind>("word");
   const [letterheadId, setLetterheadId] = React.useState<string | null>(null);
   const [saving, setSaving] = React.useState(false);
@@ -39,9 +45,11 @@ export function NewOfficeButton({
 
   return (
     <>
-      <Button variant="outline" type="button" onClick={() => { setErr(null); setOpen(true); }}>
-        <FilePlus2 className="h-4 w-4" /> Nouveau document
-      </Button>
+      {!pilote && (
+        <Button variant="outline" type="button" onClick={() => { setErr(null); setOpen(true); }}>
+          <FilePlus2 className="h-4 w-4" /> Nouveau document
+        </Button>
+      )}
       <Sheet open={open} onClose={() => !saving && setOpen(false)} title="Nouveau document Office" width="md">
         {/* `onSubmit` et non `action={…}` : une action de formulaire tourne dans une transition React,
             qui RETIENT `setSaving(true)` jusqu'à la fin de l'appel (aucun retour visuel, double clic

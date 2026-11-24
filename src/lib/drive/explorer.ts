@@ -109,17 +109,17 @@ export interface NavEntry {
 }
 
 /**
- * L'ACCÈS RAPIDE — et la fin de l'emplacement « Drive ».
+ * L'ACCÈS RAPIDE — et UN SEUL NOM pour l'espace personnel.
  *
- * Il y avait deux entrées pour un seul endroit : « Drive » (l'espace personnel) et
- * « Téléchargements » (une reconstitution de l'historique des téléchargements). Personne ne
- * distingue les deux au premier regard, et l'explorateur Windows ne le fait pas non plus : chez
- * lui, **Téléchargements est un vrai dossier**, pas un journal. On a donc fondu les deux :
- * « Téléchargements » EST l'espace personnel, et l'emplacement « Drive » disparaît.
+ * Il en portait quatre (« Téléchargements », « Mes fichiers », « Racine (Drive) », « Drive » —
+ * audit Drive du 24/11, C6) : quatre mots pour un seul endroit, et l'on cherchait son fichier au
+ * mauvais. Partout, il s'appelle désormais « Mes fichiers » (`MES_FICHIERS`).
  */
+export const MES_FICHIERS = "Mes fichiers";
+
 export const QUICK_ACCESS: NavEntry[] = [
   { key: "recent", label: "Récents", icon: "Clock", href: "/drive?view=recent" },
-  { key: "root", label: "Téléchargements", icon: "Download", href: "/drive" },
+  { key: "root", label: MES_FICHIERS, icon: "HardDrive", href: "/drive" },
 ];
 
 export const TRASH_ENTRY: NavEntry = { key: "trash", label: "Corbeille", icon: "Trash2", href: "/drive?trash=1" };
@@ -133,7 +133,7 @@ export function parseView(raw: string | undefined, trash: boolean): ExplorerView
 }
 
 export const VIEW_TITLE: Record<ExplorerView, string> = {
-  browse: "Téléchargements",
+  browse: MES_FICHIERS,
   recent: "Récents",
   trash: "Corbeille",
 };

@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
  *   • finalisation : incomplet → nommé et reprenable ; complet → un fichier au Drive, une seule
  *     fois même finalisé deux fois ; l'objet est désigné comme « déposé en direct » ;
  *   • droits : déposer dans le dossier d'un autre est refusé, à l'ouverture ET à la finalisation ;
- *   • sans stockage objet : refus qui NOMME les variables à poser, rien n'est écrit.
+ *   • sans stockage objet : refus en phrase simple (variables nommées au Super Admin seul), rien n'est écrit.
  * L'acteur est un délégué SANS vue globale.
  */
 
@@ -143,13 +143,14 @@ suite("Drive — envoi direct au bucket", () => {
     expect((await prisma.directUpload.findUniqueOrThrow({ where: { id: a.sessionId } })).status).toBe("ABORTED");
   });
 
-  it("sans stockage objet : refus qui NOMME les variables à poser, rien n'est ouvert", async () => {
+  it("sans stockage objet : refus en phrase simple (les variables à poser ne s'adressent qu'au Super Admin), rien n'est ouvert", async () => {
     const sauve = process.env.S3_ENDPOINT;
     delete process.env.S3_ENDPOINT;
     try {
       const r = await ouvrirDepotDirect(moi, entree(`${TAG}-sans.zip`, 3000 * MO), bucket().client);
       expect(r.ok).toBe(false);
-      if (!r.ok) expect(r.error).toMatch(/S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY/);
+      // Un délégué lit le remède qui le concerne ; la marche technique (S3_…, Render) est servie au Super Admin seul.
+      if (!r.ok) { expect(r.error).toMatch(/Compressez-le|Super Admin/); expect(r.error).not.toMatch(/S3_ENDPOINT/); }
       expect(await prisma.directUpload.count({ where: { fileName: `${TAG}-sans.zip` } })).toBe(0);
     } finally { process.env.S3_ENDPOINT = sauve; }
   });

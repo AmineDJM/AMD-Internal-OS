@@ -8,6 +8,7 @@ import { userUsageBytes, physicalUsageBytes, addPhysicalUsage } from "@/lib/driv
 import { objectStorageConfigured } from "@/lib/storage/object-storage";
 import { startTimer, formatTiming } from "@/lib/drive/timing";
 import { refusDepotDrive, enregistrerFichierDrive } from "@/lib/drive/depot";
+import { lireChoixDoublon } from "@/lib/drive/depot-regles";
 import { BLOB_MAX_BYTES } from "@/lib/storage/limites-blob";
 import { MAX_SANS_STOCKAGE_OBJET_MO } from "@/lib/storage/phrases-stockage";
 import { refusSansStockageObjet } from "@/lib/storage/televersement-direct";
@@ -32,6 +33,7 @@ export async function POST(req: NextRequest) {
     category: (form.get("category") as string) || null,
     viewers: form.getAll("viewers").map(String).filter(Boolean),
     editors: form.getAll("editors").map(String).filter(Boolean),
+    siExiste: lireChoixDoublon(form.get("siExiste")),
   };
 
   const refus = await refusDepotDrive(user, cible);
@@ -45,7 +47,7 @@ export async function POST(req: NextRequest) {
   // (≈ 1 Go sur l'offre gratuite) et ferait tomber l'application entière. Il se refuse, et le
   // refus nomme les variables à poser pour l'accepter.
   if (!objectStorageConfigured() && file.size > MAX_SANS_STOCKAGE_OBJET_MO * 1024 * 1024) {
-    return NextResponse.json({ error: refusSansStockageObjet(file.size, MAX_SANS_STOCKAGE_OBJET_MO) }, { status: 413 });
+    return NextResponse.json({ error: refusSansStockageObjet(file.size, MAX_SANS_STOCKAGE_OBJET_MO, user.role === "SUPER_ADMIN") }, { status: 413 });
   }
 
   // Au-delà de 2 Go, le coffre chiffré ne peut pas tenir le fichier : seul l'envoi direct au bucket

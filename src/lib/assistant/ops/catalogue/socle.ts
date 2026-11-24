@@ -108,7 +108,7 @@ export const OPS_SOCLE: OpMeta[] = [
     risk: "NORMAL",
     summary: "Restaure un élément de la corbeille Drive (avec son sous-arbre) ; si son parent a disparu, il revient à la racine.",
     gate: (u) => userCan(u, "DRIVE", "VIEW"),
-    covers: ["drive-actions:restoreNode"],
+    covers: ["drive-actions:restoreNode", "drive-actions:restoreNodes"],
   },
   {
     tool: "drive_operation", op: "delete", module: "Drive",

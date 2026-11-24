@@ -98,7 +98,7 @@ export default async function AppLayout({
     <IdentiteProvider id={user.id} vue={Boolean(user.impersonatedBy)}>
     <GardeIdentite marque={marqueVue} />
     <UploadProvider>
-    <BackgroundUploadProvider>
+    <BackgroundUploadProvider diagnostic={user.role === "SUPER_ADMIN"}>
     {/* L'APPEL VIT AU NIVEAU DU LAYOUT, pas de la page Chief of Staff : naviguer dans l'ERP
         pendant un appel ne démonte pas la session WebRTC — la conversation continue. */}
     {/* I6 (décision 0070) : l'appel global de l'ANCIEN moteur est masqué — la voix passe par le moteur unique (conversation
