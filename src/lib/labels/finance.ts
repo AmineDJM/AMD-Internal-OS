@@ -109,6 +109,14 @@ export const PAYMENT_PIECE_KIND: Record<string, string> = {
   DELIVERY_NOTE: "Bon de livraison",
   CONTRACT: "Contrat",
   PROOF: "Justificatif",
+  // Les justificatifs d'un paiement qui n'est pas une facture (justificatif obligatoire, 24/11/2026).
+  PROFORMA: "Proforma",
+  REQUEST_LETTER: "Lettre de demande",
+  PAYROLL_STATE: "État de paie",
+  PAYSLIP: "Fiche de paie",
+  PAYMENT_RECEIPT: "Quittance / bordereau",
+  CASH_VOUCHER: "Bon de remise",
+  DECLARATION: "Déclaration",
   OTHER: "Autre pièce",
 };
 

@@ -160,18 +160,19 @@ suite("Budget Marketing — la dépense d'un poste Ad & Pro, de l'imputation au 
     expect((await changerBudgetDepensePoste(form({ id: postes.p1, categorieId: catB }))).ok).toBe(false);
   });
 
-  it("consommer sans facture : un ordre naît au centre de paiement ; la différence est rendue au budget", async () => {
+  it("consommer sans facture : un ordre naît, en attente de son justificatif (avant le centre) ; la différence est rendue au budget", async () => {
     await commePm();
     expect((await consommerDepensePoste(form({ id: postes.p1, montant: "5000000" }))).ok, "pas plus que l'engagé").toBe(false);
     const r = await consommerDepensePoste(form({ id: postes.p1, montant: "4000000" }));
     expect(r.ok, r.error).toBe(true);
     const poste = await prisma.adProItem.findUniqueOrThrow({ where: { id: postes.p1 } });
     const ordre = await prisma.expenseOrder.findUniqueOrThrow({ where: { id: poste.expenseOrderId! } });
-    expect(ordre).toMatchObject({ status: "PENDING", centralStatus: "AWAITING", budgetCategoryId: catB, requiresInvoice: true });
+    // JUSTIFICATIF OBLIGATOIRE (24/11/2026) : sans facture ni devis, l'ordre n'entre pas au centre — il attend sa pièce.
+    expect(ordre).toMatchObject({ status: "PENDING", centralStatus: "AWAITING_PROOF", budgetCategoryId: catB, requiresInvoice: true });
     expect(Number(ordre.amount)).toBe(4_000_000);
     expect(poste.orderStage).toBe("ISSUED");
     const { ligne: l, ov, donnees } = await ligne(postes.p1);
-    expect(l).toMatchObject({ etat: "CONSOMMEE", lieu: "CENTRE_PAIEMENT", consomme: 4_000_000, facture: null });
+    expect(l).toMatchObject({ etat: "CONSOMMEE", lieu: "JUSTIFICATIF", consomme: 4_000_000, facture: null });
     expect(engageDe(ov, catB)).toBe(4_000_000);
     expect(ov.totals.enCircuit).toBe(4_000_000);
     expect(donnees.tuiles).toMatchObject({ engage: 0, consomme: 4_000_000, disponible: 44_000_000 });

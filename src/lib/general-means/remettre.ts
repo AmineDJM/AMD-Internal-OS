@@ -14,6 +14,11 @@ export interface DemandeRemise {
   holderName: string | null;
   createdById: string;
   nature: "REMISE" | "RALLONGE";
+  /**
+   * LE BON DE REMISE — le justificatif de la remise (justificatif obligatoire, 24/11/2026). Joint au geste, il part avec
+   * l'ordre ; absent, l'ordre attend la pièce avant le centre, et les Moyens généraux la joignent au dossier de paiement.
+   */
+  bonDeRemise?: File | null;
 }
 
 export function ordreDeRemise(d: DemandeRemise) {
@@ -25,6 +30,7 @@ export function ordreDeRemise(d: DemandeRemise) {
     beneficiary: d.holderName ?? "Caisse d'avance",
     requestedById: d.createdById,
     companyId: d.departement.companyId,
+    justificatif: d.bonDeRemise && d.bonDeRemise.size > 0 ? { fichier: d.bonDeRemise, nature: "CASH_VOUCHER" as const } : undefined,
     notes: `${d.nature === "RALLONGE" ? "Rallonge" : "Remise"} en caisse d'avance${d.holderName ? ` à ${d.holderName}` : ""} — ${d.departement.name}, ${d.periode}. Un achat payé sur la caisse s'impute ensuite à son budget : la remise elle-même ne se classe pas.`,
   };
 }

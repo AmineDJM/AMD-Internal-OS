@@ -100,6 +100,11 @@ const form = (fields: Record<string, string>): FormData => {
   for (const [k, v] of Object.entries(fields)) fd.set(k, v);
   return fd;
 };
+/** LE JUSTIFICATIF DU GESTE (24/11/2026) : l'état de paie de l'envoi, le bon de remise de la caisse. */
+const avecPiece = (fd: FormData, champ: "etatDePaie" | "bonDeRemise"): FormData => {
+  fd.set(champ, new File([`${champ} ${Math.random()}`], `${champ}.pdf`, { type: "application/pdf" }));
+  return fd;
+};
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -132,7 +137,7 @@ suite("Paie et caisse d'avance par le centre de paiement", () => {
   };
   const envoyer = async (fields: Record<string, string>) => {
     ACTOR = await rh();
-    return envoyerPaieAuCentre(form({ companyId: aId, year: String(YEAR), month: String(MONTH), ...fields }));
+    return envoyerPaieAuCentre(avecPiece(form({ companyId: aId, year: String(YEAR), month: String(MONTH), ...fields }), "etatDePaie"));
   };
   const autoriser = async (orderId: string) => {
     ACTOR = await direction();
@@ -234,9 +239,15 @@ suite("Paie et caisse d'avance par le centre de paiement", () => {
 
       // PRÉMISSE : l'entité C existe, et elle n'est pas ouverte à la RH.
       ACTOR = await rh();
-      const autre = await envoyerPaieAuCentre(form({ companyId: cId, year: String(YEAR), month: String(MONTH), amount: "1000" }));
+      const autre = await envoyerPaieAuCentre(avecPiece(form({ companyId: cId, year: String(YEAR), month: String(MONTH), amount: "1000" }), "etatDePaie"));
       expect(autre.ok).toBe(false);
       expect(autre.error).toMatch(/ne vous est pas ouverte/);
+
+      // L'ÉTAT DE PAIE EST EXIGÉ (justificatif obligatoire, 24/11/2026) : refusé AVANT que rien ne naisse.
+      ACTOR = await rh();
+      const sansEtat = await envoyerPaieAuCentre(form({ companyId: aId, year: String(YEAR), month: String(MONTH), amount: "210000" }));
+      expect(sansEtat.ok).toBe(false);
+      expect(sansEtat.error).toMatch(/état de paie/);
 
       const categorieForgee = await envoyer({ amount: "210000", budgetCategoryId: categoryId });
       expect(categorieForgee.ok).toBe(false);
@@ -251,6 +262,8 @@ suite("Paie et caisse d'avance par le centre de paiement", () => {
       const wire = await prisma.payrollWire.findFirstOrThrow({ where: { companyId: aId, year: YEAR, month: MONTH } });
       const ordre = await prisma.expenseOrder.findUniqueOrThrow({ where: { id: wire.expenseOrderId! } });
       expect(ordre.centralStatus).toBe("AWAITING");
+      // L'état de paie joint à l'envoi est le justificatif, rangé au dossier sous sa nature.
+      expect(await prisma.paymentPiece.count({ where: { request: { expenseOrderId: ordre.id }, kind: "PAYROLL_STATE" } })).toBe(1);
       expect(ordre.companyId).toBe(aId);
       expect(ordre.category).toBe("SALAIRE");
       expect(ordre.sourceType).toBe("PAYROLL");
@@ -397,7 +410,7 @@ suite("Paie et caisse d'avance par le centre de paiement", () => {
       // Un salaire saisi APRÈS la bascule, même mois, même entité : lui seul part au centre.
       ACTOR = await rh();
       expect((await markSalaryPaid(form({ employeeId: empA2, year: String(YEAR), month: String(AVRIL), employerCost: "160000", net: "110000" }))).ok).toBe(true);
-      const r = await envoyerPaieAuCentre(form({ companyId: aId, year: String(YEAR), month: String(AVRIL), amount: "110000" }));
+      const r = await envoyerPaieAuCentre(avecPiece(form({ companyId: aId, year: String(YEAR), month: String(AVRIL), amount: "110000" }), "etatDePaie"));
       expect(r.ok, r.error).toBe(true);
       // Une partie du mois a déjà été versée : c'est un COMPLÉMENT — et il ne couvre que la saisie neuve.
       expect(r.message).toMatch(/^Le complément de paie d'avril 2033 de .+ est envoyé au centre de paiement/);
@@ -422,7 +435,7 @@ suite("Paie et caisse d'avance par le centre de paiement", () => {
       // PRÉMISSE : la RH travaille chez A ; le département de la caisse est chez B. Le repli sur sa
       // fiche rattacherait la remise à la mauvaise société.
       ACTOR = await rh();
-      const r = await allotPettyCash(form({ departmentId: deptBId, holderId, amount: "24000", period: "2033-03" }));
+      const r = await allotPettyCash(avecPiece(form({ departmentId: deptBId, holderId, amount: "24000", period: "2033-03" }), "bonDeRemise"));
       expect(r.ok, r.error).toBe(true);
       const remise = await prisma.pettyCashAllotment.findFirstOrThrow({ where: { departmentId: deptBId } });
       remiseId = remise.id;
@@ -510,7 +523,7 @@ suite("Paie et caisse d'avance par le centre de paiement", () => {
 
     it("UNE REMISE DÉJÀ CRÉDITÉE SOUS LA RÈGLE DU 28/10 ne bouge pas : en main, et un règlement tardif n'y touche pas", async () => {
       ACTOR = await rh();
-      expect((await allotPettyCash(form({ departmentId: deptBId, holderId, amount: "6000", period: "2033-06" }))).ok).toBe(true);
+      expect((await allotPettyCash(avecPiece(form({ departmentId: deptBId, holderId, amount: "6000", period: "2033-06" }), "bonDeRemise"))).ok).toBe(true);
       const ancienne = await prisma.pettyCashAllotment.findFirstOrThrow({ where: { departmentId: deptBId, amount: 6000 } });
       // L'état qu'a laissé la règle du 28/10 : ordre réglé à l'autorisation, remise en main sans confirmation.
       await prisma.expenseOrder.update({ where: { id: ancienne.expenseOrderId! }, data: { centralStatus: "APPROVED", status: "PAID", paidDate: new Date() } });
@@ -524,7 +537,7 @@ suite("Paie et caisse d'avance par le centre de paiement", () => {
 
     it("REFUSÉE PAR LE CENTRE : la remise sort du fond, la raison s'écrit sur elle, la détentrice l'apprend", async () => {
       ACTOR = await rh();
-      expect((await allotPettyCash(form({ departmentId: deptBId, holderId, amount: "5000", period: "2033-04" }))).ok).toBe(true);
+      expect((await allotPettyCash(avecPiece(form({ departmentId: deptBId, holderId, amount: "5000", period: "2033-04" }), "bonDeRemise"))).ok).toBe(true);
       const refusee = await prisma.pettyCashAllotment.findFirstOrThrow({ where: { departmentId: deptBId, amount: 5000 } });
       expect((await refuser(refusee.expenseOrderId!, "Caisse déjà suffisante ce mois-ci")).ok).toBe(true);
       const apres = await prisma.pettyCashAllotment.findUniqueOrThrow({ where: { id: refusee.id }, include: { expenseOrder: true } });
@@ -540,7 +553,7 @@ suite("Paie et caisse d'avance par le centre de paiement", () => {
 
     it("SOLDER LA CAISSE NE SOLDE PAS UNE REMISE QUI ATTEND LE CENTRE", async () => {
       ACTOR = await rh();
-      expect((await allotPettyCash(form({ departmentId: deptBId, holderId, amount: "8000", period: "2033-05" }))).ok).toBe(true);
+      expect((await allotPettyCash(avecPiece(form({ departmentId: deptBId, holderId, amount: "8000", period: "2033-05" }), "bonDeRemise"))).ok).toBe(true);
       const enAttente = await prisma.pettyCashAllotment.findFirstOrThrow({ where: { departmentId: deptBId, amount: 8000 } });
       ACTOR = await actorFor(holderId, "DIRECTION_ASSISTANT");
       const r = await closePettyCash(form({ id: remiseId }));

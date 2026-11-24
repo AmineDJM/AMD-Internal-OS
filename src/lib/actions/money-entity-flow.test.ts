@@ -167,6 +167,7 @@ suite("L'entité de l'argent", () => {
       const fd = new FormData();
       fd.set("companyId", phaId); fd.set("year", "2031"); fd.set("month", "3");
       fd.set("amount", "80000"); fd.set("budgetCategoryId", cat.id);
+      fd.set("etatDePaie", new File([`etat ${Math.random()}`], "etat-de-paie.pdf", { type: "application/pdf" })); // le justificatif exigé (24/11/2026)
       const r = await envoyerPaieAuCentre(fd);
       expect(r.ok, r.error).toBe(true);
       const wire = await prisma.payrollWire.findFirstOrThrow({ where: { companyId: phaId, year: 2031, month: 3 } });

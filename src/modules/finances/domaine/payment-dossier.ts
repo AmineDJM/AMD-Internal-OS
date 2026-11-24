@@ -43,7 +43,8 @@
  */
 
 /** Les pièces qui disent ce que la société doit, à qui et pour combien. */
-export const JUSTIFYING_KINDS: readonly string[] = ["INVOICE", "PURCHASE_ORDER", "QUOTE"];
+// La PROFORMA (24/11/2026) est un devis sous son vrai nom : la refuser ici après l'avoir proposée au dépôt serait un piège.
+export const JUSTIFYING_KINDS: readonly string[] = ["INVOICE", "PURCHASE_ORDER", "QUOTE", "PROFORMA"];
 
 export interface DossierPiece {
   kind: string;

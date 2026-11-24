@@ -156,7 +156,10 @@ suite("Rattacher à une entité depuis la paie ; la paie dans le résultat de so
       expect(audit).toMatchObject({ actorId: rhId, oldValue: null, newValue: aId });
 
       ACTOR = await rh();
-      const envoi = await envoyerPaieAuCentre(form({ companyId: aId, year: String(YEAR), month: "3", amount: "80000" }));
+      const envoiForm = form({ companyId: aId, year: String(YEAR), month: "3", amount: "80000" });
+      // L'état de paie, justificatif exigé à l'envoi (24/11/2026).
+      envoiForm.set("etatDePaie", new File([`etat ${Math.random()}`], "etat-de-paie.pdf", { type: "application/pdf" }));
+      const envoi = await envoyerPaieAuCentre(envoiForm);
       expect(envoi.ok).toBe(true);
       const couverte = await prisma.payrollEntry.findUniqueOrThrow({ where: { id: ligne.id }, select: { payrollWire: { select: { companyId: true } } } });
       expect(couverte.payrollWire?.companyId).toBe(aId);

@@ -30,6 +30,8 @@ import { ENTITY_MODULE } from "@/lib/entity-access";
 import { verifierFacturesAvantDepot, marquerDoublonPossible, type FichierDepose } from "@/lib/factures/connues";
 import { supprimerReversible } from "@/lib/suppression/coeur";
 import { libellesDeCorrection, valeursDeLaDemande } from "./domaine/correction-demande";
+import { estRegularisation, refusDeDepotDePiece } from "./domaine/justificatif";
+import { libererLesOrdresJustifies } from "./infra/justificatif";
 import {
   dateOf, kindOf, messageDeCorrection, messageDeDepot, ordreDeLaDemande, TITRE_DECISION_DEMANDE, urgencyOf,
 } from "./domaine/payment-request";
@@ -273,7 +275,9 @@ export async function addPaymentPiece(formData: FormData): Promise<ActionResult>
     const req = await prisma.paymentRequest.findUnique({ where: { id: requestId } });
     if (!req) return { ok: false, error: "Demande introuvable." };
     if (!isRequester(user, req) && !isFinance(user)) return { ok: false, error: "Non autorisé." };
-    if (isClosed(req.status)) return { ok: false, error: "Ce dossier est clos : il ne reçoit plus de pièce." };
+    // UN PAIEMENT SOLDÉ SE RÉGULARISE (24/11/2026) : son dossier compagnon reçoit encore une pièce — ajoutée, jamais retirée.
+    const refusDepot = refusDeDepotDePiece({ status: req.status, origin: req.origin, remplace: Boolean(fdStr(formData, "replacesId")) });
+    if (refusDepot) return { ok: false, error: refusDepot };
 
     const file = formData.get("file");
     if (!(file instanceof File) || file.size === 0) return { ok: false, error: "Choisissez un fichier." };
@@ -330,7 +334,10 @@ export async function addPaymentPiece(formData: FormData): Promise<ActionResult>
     if (replacesId && ancienne && needsReplacement(ancienne.status)) {
       await prisma.paymentPiece.update({ where: { id: replacesId }, data: { status: "ACCEPTED", reviewNote: "Remplacée par une nouvelle version." } });
     }
-    await trace(requestId, user.id, "PIECE_ADDED", replacesId ? "Pièce remplacée." : "Pièce ajoutée.", piece.id);
+    const regularisation = estRegularisation(req.status, req.origin);
+    await trace(requestId, user.id, "PIECE_ADDED", regularisation ? "Pièce ajoutée pour régulariser un paiement soldé." : replacesId ? "Pièce remplacée." : "Pièce ajoutée.", piece.id);
+    // L'ordre qui attendait ce justificatif entre au centre de paiement (justificatif obligatoire, 24/11/2026).
+    await libererLesOrdresJustifies(user.id);
     // UNE FACTURE AJOUTÉE OU REMPLACÉE SE CONFRONTE AU MONTANT DE LA DEMANDE (`domaine/montant-facture.ts`) — la pièce
     // n'est pas refusée (elle est la bonne, c'est souvent le montant qui ne l'est plus), mais l'écart se DIT : dans le fil,
     // que les Finances lisent, et au déposant, qui corrige le montant. La transmission suivante l'exigera.
@@ -347,7 +354,7 @@ export async function addPaymentPiece(formData: FormData): Promise<ActionResult>
     // demandait de revoir ne se corrigeait plus, le dossier n'était plus chez lui. Un geste du
     // demandeur ne lui retire jamais son dossier : il le renvoie quand sa correction est complète
     // (« Envoyer aux Finances »). Un geste des Finances, lui, peut le ramener chez elles.
-    if (!parLeDemandeur) await syncStatus(requestId, req.status, user.id);
+    if (!parLeDemandeur && !regularisation) await syncStatus(requestId, req.status, user.id);
     for (const p of garde.probables) await marquerDoublonPossible({ marque: p.marque, ordreIds: [req.expenseOrderId], demandeId: requestId, acteurId: user.id });
     revalidate(requestId);
     const resteChezLui = parLeDemandeur && req.status === "CHANGES_REQUESTED";

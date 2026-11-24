@@ -247,6 +247,8 @@ suite("Secrétariat — la fin d'un achat trouve sa facture où l'écran la rang
     expect(await statut(t.id!)).toBe("AWAITING_PAYMENT");
 
     for (const id of [c.id!, t.id!]) {
+      // LE DEVIS DE L'ACHAT, justificatif du paiement (24/11/2026) — sans lui, le règlement serait refusé.
+      await prisma.document.create({ data: { name: `${TAG}devis.pdf`, entityType: "ADMIN_REQUEST", entityId: id, category: "QUOTE", confidentiality: "INTERNAL", uploadedById: u.asst } });
       const ordre = await prisma.expenseOrder.findFirstOrThrow({ where: { sourceType: "ADMIN_REQUEST", sourceId: id }, select: { id: true } });
       // LE CENTRE A AUTORISÉ — son geste, pas celui qu'on éprouve ici.
       await prisma.expenseOrder.update({ where: { id: ordre.id }, data: { centralStatus: "APPROVED" } });

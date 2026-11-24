@@ -91,6 +91,8 @@ export interface CentreOrder {
 
 const TONE: Record<CentralStatus, BadgeTone> = {
   NOT_REQUIRED: "neutral",
+  // Jamais listé au centre (il n'y est pas entré) ; le ton existe pour que la table reste exhaustive.
+  AWAITING_PROOF: "neutral",
   AWAITING: "warning",
   CHANGES_REQUESTED: "info",
   INFO_REQUESTED: "info",

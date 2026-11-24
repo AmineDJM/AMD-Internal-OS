@@ -24,6 +24,12 @@ Ancien emplacement : `src/lib/{finance,finances,payments}/`, `src/lib/expense-or
   `domaine/virement-paie` (mois de la paie, état d'un salaire et du virement), `domaine/payroll-cost` (coût
   employeur), `domaine/payroll-mass` (masse salariale) — venus de `src/modules/rh/`, qui les lit par nos portes
   (`rh → finances` ; ce module ne lit jamais `rh`, la carte reste sans cycle). Même règle pour `ad-pro` (`ad-pro → finances`).
+- **Le justificatif obligatoire** (Super Admin, 24/11/2026) : `domaine/justificatif` (`JUSTIFICATIF_DE_SOURCE`, la table
+  exhaustive par origine : natures acceptées, lieux, service qui joint la pièce) et `infra/justificatif` (la lecture en lot,
+  `justificatifsDesOrdres`, `libererLesOrdresJustifies`). Sans pièce reconnue, l'ordre naît `AWAITING_PROOF` — ni au centre
+  ni aux Finances — et son émetteur a une ligne « Joindre le justificatif » ; la pièce jointe (dossier, fiche, registre,
+  ordre) le fait entrer seul au centre. `ExpenseOrder.justificatifExige` marque les ordres nés sous la règle : eux seuls
+  sont bloqués au règlement si la pièce disparaît ; les ordres d'avant sont signalés au centre, jamais bloqués.
 - **Règles tenues par des tests du module** : un seul écrivain d'ordre, qui le fait naître au centre ; liste FERMÉE des
   écrivains de l'autorisation, de `PAID` et du montant (`centre-ecrivains.test.ts`) ; écrivains de la trésorerie
   (`ecrivains-tresorerie.test.ts`) ; deux issues au centre (`centre-deux-issues.test.ts`).

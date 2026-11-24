@@ -56,6 +56,8 @@ const fd = (o: Record<string, string>) => {
   for (const [k, v] of Object.entries(o)) f.set(k, v);
   return f;
 };
+/** LE JUSTIFICATIF DU DÉCOR (24/11/2026) : sans lui, l'ordre n'entrerait pas au centre — la règle n'est pas affaiblie, la pièce est jointe. */
+const piece = () => ({ fichier: new File([`facture ${Math.random()}`], "facture.pdf", { type: "application/pdf" }), nature: "INVOICE" as const });
 const session = async (id: string, role: string): Promise<SessionUser> =>
   ({ id, name: `${TAG}${role}`, email: `${TAG}${id}@t.dz`, role, secondaryRole: null, access: await getAccess(id, role as never), mustChangePassword: false }) as unknown as SessionUser;
 
@@ -131,7 +133,7 @@ suite("les portes du centre, par leurs vrais points d'entrée", () => {
   // ── 2. RELEVER LE BUDGET D'UN CONGRÈS RENVOIE SON ORDRE AU CENTRE ─────────────────────────────
   it("`updateGrantedBudget` : relever un montant AUTORISÉ le renvoie au centre ; le baisser ne rouvre rien", async () => {
     ACTEUR = sa;
-    const ordre = await createExpenseOrder({ label: `${TAG}congrès`, amount: 500_000, category: "EVENEMENT", requestedById: dirId });
+    const ordre = await createExpenseOrder({ label: `${TAG}congrès`, amount: 500_000, category: "EVENEMENT", requestedById: dirId, justificatif: piece() });
     // Le centre autorise — par SON action, pas par une ligne posée à la main.
     const autorise = await decidePayment(fd({ id: ordre.id, decision: "APPROVE" }));
     expect(autorise.ok, autorise.ok ? "" : autorise.error).toBe(true);
@@ -170,7 +172,7 @@ suite("les portes du centre, par leurs vrais points d'entrée", () => {
   it("`updateGrantedBudget` : un ordre REFUSÉ ou RÉGLÉ ne suit pas le nouveau budget — et la phrase le dit", async () => {
     ACTEUR = sa;
     // REFUSÉ par le centre — par SON action. Le chiffre refusé reste celui que le centre a vu.
-    const refuse = await createExpenseOrder({ label: `${TAG}congrès refusé`, amount: 300_000, category: "EVENEMENT", requestedById: dirId });
+    const refuse = await createExpenseOrder({ label: `${TAG}congrès refusé`, amount: 300_000, category: "EVENEMENT", requestedById: dirId, justificatif: piece() });
     const non = await decidePayment(fd({ id: refuse.id, decision: "REFUSE", body: "Pas de budget cette année." }));
     expect(non.ok, non.ok ? "" : non.error).toBe(true);
     const c1 = await prisma.congressNational.create({
@@ -185,7 +187,7 @@ suite("les portes du centre, par leurs vrais points d'entrée", () => {
     expect(o1?.centralStatus).toBe("REFUSED");
 
     // RÉGLÉ : l'argent est parti au montant d'avant.
-    const regle = await createExpenseOrder({ label: `${TAG}congrès réglé`, amount: 200_000, category: "EVENEMENT", requestedById: dirId });
+    const regle = await createExpenseOrder({ label: `${TAG}congrès réglé`, amount: 200_000, category: "EVENEMENT", requestedById: dirId, justificatif: piece() });
     await prisma.expenseOrder.update({ where: { id: regle.id }, data: { status: "PAID", centralStatus: "APPROVED" } });
     const c2 = await prisma.congressNational.create({
       data: { name: `${TAG}Congrès réglé`, requestStatus: "APPROVED" as never, finalAmount: 200_000, expenseOrderId: regle.id },
@@ -222,7 +224,10 @@ suite("les portes du centre, par leurs vrais points d'entrée", () => {
     ]);
     const livreAvant = await prisma.financeTransaction.count({ where: { createdById: saId } });
 
-    const r = await decidePettyCashTopUp(fd({ id: accordee.id, decision: "APPROVED", amountGranted: "15000" }));
+    // Le bon de remise joint à l'accord : la rallonge entre au centre d'emblée (justificatif obligatoire, 24/11/2026).
+    const accord = fd({ id: accordee.id, decision: "APPROVED", amountGranted: "15000" });
+    accord.set("bonDeRemise", new File([`bon ${Math.random()}`], "bon.pdf", { type: "application/pdf" }));
+    const r = await decidePettyCashTopUp(accord);
     expect(r.ok, r.ok ? "" : r.error).toBe(true);
     expect(await prisma.financeTransaction.count({ where: { createdById: saId } }), "rien au livre avant le versement").toBe(livreAvant);
     expect(Number((await prisma.pettyCashAllotment.findUnique({ where: { id: caisse.id }, select: { amount: true } }))?.amount), "le fond d'origine n'est pas gonflé avant le versement").toBe(50_000);
@@ -298,7 +303,7 @@ suite("les portes du centre, par leurs vrais points d'entrée", () => {
     expect(sansRien.ok).toBe(false);
     expect(sansRien.ok ? "" : sansRien.error).toMatch(/Aucun règlement n'est rattaché/);
 
-    const ordre = await createExpenseOrder({ label: `${TAG}kakémonos`, amount: 90_000, category: "AUTRE", sourceType: "PROMO_MATERIAL", sourceId: dossier.id, requestedById: autreId });
+    const ordre = await createExpenseOrder({ label: `${TAG}kakémonos`, amount: 90_000, category: "AUTRE", sourceType: "PROMO_MATERIAL", sourceId: dossier.id, requestedById: autreId, justificatif: piece() });
     const enAttente = await clore();
     expect(enAttente.ok).toBe(false);
     expect(enAttente.ok ? "" : enAttente.error).toContain(ordre.reference);

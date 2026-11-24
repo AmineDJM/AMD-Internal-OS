@@ -32,6 +32,7 @@
 /** Où en est un règlement rattaché au dossier. */
 export type EtatReglement =
   | "REGLE"         // l'ordre est payé (ou la facture enregistrée comme déjà réglée)
+  | "JUSTIFICATIF"  // l'ordre attend son justificatif — il n'est pas encore entré au centre (24/11/2026)
   | "AU_CENTRE"     // l'ordre attend le centre de paiement (ou une réponse du demandeur au centre)
   | "REFUSE"        // le centre a refusé l'ordre
   | "AUX_FINANCES"  // autorisé, pas encore réglé par les Finances
@@ -39,6 +40,7 @@ export type EtatReglement =
 
 export const LIBELLE_ETAT_REGLEMENT: Record<EtatReglement, string> = {
   REGLE: "réglé",
+  JUSTIFICATIF: "en attente du justificatif (pas encore au centre de paiement)",
   AU_CENTRE: "en attente du centre de paiement",
   REFUSE: "refusé par le centre de paiement",
   AUX_FINANCES: "autorisé, à régler par les Finances",
@@ -56,6 +58,7 @@ export function etatDeLOrdre(o: { status: string; centralStatus: string }): Etat
   if (o.status === "PAID") return "REGLE";
   if (o.status === "CANCELLED") return "NON_ENVOYE";
   if (o.centralStatus === "REFUSED") return "REFUSE";
+  if (o.centralStatus === "AWAITING_PROOF") return "JUSTIFICATIF";
   if (o.centralStatus === "AWAITING" || o.centralStatus === "CHANGES_REQUESTED" || o.centralStatus === "INFO_REQUESTED") {
     return "AU_CENTRE";
   }

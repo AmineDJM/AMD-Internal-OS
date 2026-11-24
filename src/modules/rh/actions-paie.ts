@@ -255,6 +255,15 @@ export async function envoyerPaieAuCentre(formData: FormData): Promise<ActionRes
   if (!sommeSaisie) return { ok: false, error: SOMME_A_VIRER_MANQUANTE };
   const somme = lireSommeAVirer(sommeSaisie);
   if (!somme.ok) return { ok: false, error: somme.erreur };
+  // L'ÉTAT DE PAIE EST LE JUSTIFICATIF DU VIREMENT (Super Admin, 24/11/2026 : « tout paiement doit avoir une justification
+  // — […] une fiche de paie »). Exigé ICI, avant que rien ne soit créé : une paie sans pièce n'entrerait pas au centre, et
+  // le refus clair vaut mieux qu'un virement en attente que personne ne verrait.
+  const etat = formData.get("etatDePaie");
+  if (!(etat instanceof File) || etat.size === 0) {
+    return { ok: false, error: "Joignez l'état de paie du mois (le fichier qui détaille les salaires virés) : sans lui, la paie ne part pas au centre de paiement." };
+  }
+  const etatInvalide = validateUpload(etat.name, etat.size, (await getAppSettings()).maxUploadMb);
+  if (etatInvalide) return { ok: false, error: etatInvalide };
 
   // L'ENTITÉ DOIT ÊTRE L'UNE DES VÔTRES : envoyer la paie d'une société qu'on ne voit pas, c'est
   // engager son argent sans en avoir le droit.
@@ -331,6 +340,7 @@ export async function envoyerPaieAuCentre(formData: FormData): Promise<ActionRes
         requestedById: user.id,
         notes: noteVirementPaie({ declare: somme.montant, salaires: aCouvrir.length, nets: mois.netsAEnvoyer }),
         budgetCategoryId: budgetCategoryId ?? null,
+        justificatif: { fichier: etat, nature: "PAYROLL_STATE" },
       });
     } catch (e) {
       // RIEN N'EST PARTI : on ne laisse pas un virement sans ordre, qui se lirait « annulé » sans

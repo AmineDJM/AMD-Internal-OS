@@ -26,6 +26,10 @@ export { createExpenseOrder, dossierHrefByOrder, SERIE_DEMANDES_PAIEMENT } from 
 export { apresRevisionOrdre, type ResultatRevision, reviserOrdreNonRegle } from "./infra/revision-ordre";
 export { annulerOrdreNonRegle } from "./infra/annulation";
 export { prevenirQuiALaMain } from "./infra/relance-destinataires";
+// Le justificatif obligatoire (24/11/2026) : l'entrée au centre à la pièce jointe, et l'état des pièces pour le centre.
+export {
+  type JustificatifDeLOrdre, justificatifsDesOrdres, libererLesOrdresJustifies,
+} from "./infra/justificatif";
 
 // ── Commandes : le règlement (l'argent sort, l'écriture se pose) ─────────────────────────────
 export { verserLaRemise } from "./infra/verser-remise";

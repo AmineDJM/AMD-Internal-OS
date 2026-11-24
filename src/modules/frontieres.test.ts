@@ -389,6 +389,8 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/finances/actions-demandes.ts → src/lib/documents",
     "src/modules/finances/actions-demandes.ts → src/lib/suppression/coeur",
     "src/modules/finances/actions-depenses.ts → src/lib/storage",
+    // Le justificatif joint au geste qui émet l'ordre (état de paie, bon de remise — 24/11/2026) se range par le dépôt commun.
+    "src/modules/finances/infra/expense-orders.ts → src/lib/documents",
     "src/modules/finances/infra/pieces-depense.ts → src/lib/entity-href",
     "src/modules/finances/infra/pieces-depense.ts → src/lib/lecteurs/fichiers-emis",
     "src/modules/finances/infra/pieces-depense.ts → src/lib/partage",

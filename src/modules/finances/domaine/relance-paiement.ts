@@ -37,7 +37,8 @@ export function etatDuPaiement(i: { ordre?: OrdrePourEtat | null; demande?: Dema
     if (o.status === "PAID") return "PAYE";
     if (o.status === "CANCELLED" || o.centralStatus === "REFUSED") return "CLOS";
     if (o.centralStatus === "AWAITING") return "CENTRE";
-    if (o.centralStatus === "CHANGES_REQUESTED" || o.centralStatus === "INFO_REQUESTED") return "DEMANDEUR";
+    // Sans justificatif, la main est au demandeur : c'est lui qui joint la pièce (24/11/2026).
+    if (o.centralStatus === "CHANGES_REQUESTED" || o.centralStatus === "INFO_REQUESTED" || o.centralStatus === "AWAITING_PROOF") return "DEMANDEUR";
     return "FINANCES";
   }
   const d = i.demande;

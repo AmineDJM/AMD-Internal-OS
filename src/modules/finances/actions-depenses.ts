@@ -9,7 +9,7 @@ import { ouvrirPourEcrire } from "@/lib/queries/porte-ecriture";
 import {
   refusSeparationDesTaches, ordreAFacture, nextFinanceRef, canDisburse, blockedReason, type CentralStatus,
   checkDeferral, budgetGate, dossierHrefByOrder, compteDeLEcriture, verserLaRemise, solderLeDossierCompagnon,
-  solderVirementPaie, STATUTS_SOLDES_PAR_UN_REGLEMENT,
+  solderVirementPaie, STATUTS_SOLDES_PAR_UN_REGLEMENT, justificatifsDesOrdres, REFUS_REGLEMENT_SANS_JUSTIFICATIF,
 } from "@/modules/finances/api";
 import { pickAutoCategory } from "@/lib/budget/auto-category";
 import { prisma } from "@/lib/prisma";
@@ -66,6 +66,12 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
   // financière (§118.185, audit 360° I6) : trois écritures de la même question divergeaient.
   if (order.requiresInvoice && !(await ordreAFacture({ id: order.id, sourceType: order.sourceType, sourceId: order.sourceId }))) {
     return { ok: false, error: "Facture obligatoire : joignez la facture à l'ordre, à son dossier ou à la fiche d'origine (ou enregistrez-la dans Legal) avant de régler, ou demandez-la au demandeur." };
+  }
+  // LE JUSTIFICATIF, POUR TOUT AUTRE ORDRE NÉ SOUS LA RÈGLE (24/11/2026) — la nature que la table accepte pour son origine
+  // (proforma, état de paie, bon de remise…). Il était là à l'entrée au centre ; s'il a été refusé ou retiré depuis, l'argent
+  // ne sort pas sans lui. Les ordres d'avant la règle (`justificatifExige` faux) ne sont pas bloqués rétroactivement.
+  if (!order.requiresInvoice && order.justificatifExige && !(await justificatifsDesOrdres([order.id])).get(order.id)?.present) {
+    return { ok: false, error: REFUS_REGLEMENT_SANS_JUSTIFICATIF };
   }
 
   // ── LE BV D'UN DOSSIER RÉGLEMENTAIRE SE RÈGLE AVEC SA QUITTANCE (Direction, 10/2026) ────────

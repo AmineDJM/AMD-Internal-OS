@@ -69,7 +69,9 @@ suite("la chaîne réelle émission → centre → règlement tient l'invariant"
     envId = (await prisma.budgetEnvelope.create({ data: { name: `${TAG}Env`, modules: ["FINANCES"], periodStart: new Date("2026-01-01"), periodEnd: new Date("2026-12-31"), totalAmount: 10_000_000 } })).id;
     catId = (await prisma.budgetCategoryLine.create({ data: { envelopeId: envId, name: `${TAG}Cat`, allocated: 10_000_000 } })).id;
     for (const amount of [12_345.67, 1_000.1, 250_000, 0.3, 99_999.99]) {
-      const ordre = await createExpenseOrder({ label: `${TAG} fournisseur ${amount}`, amount, category: "FOURNISSEUR", beneficiary: "SARL Atlas", requestedById: u.dem.id, budgetCategoryId: catId });
+      const ordre = await createExpenseOrder({ label: `${TAG} fournisseur ${amount}`, amount, category: "FOURNISSEUR", beneficiary: "SARL Atlas", requestedById: u.dem.id, budgetCategoryId: catId,
+        // La facture du fournisseur, justificatif exigé (24/11/2026).
+        justificatif: { fichier: new File([`facture ${Math.random()}`], "facture.pdf", { type: "application/pdf" }), nature: "INVOICE" } });
       ordres.push(ordre.id);
     }
   }, 60_000);

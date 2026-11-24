@@ -8,6 +8,7 @@ import { dedoublonner, trierConges, PREFIXE_CONGE, PREFIXE_DEMANDE_ADMIN, PREFIX
 import { clausePlansADecider } from "@/lib/sfe/tournee";
 import { userCan, hasGlobalView, hasRole, scopeRegulatory, scopeDirectives, type SessionUser } from "@/lib/rbac";
 import { lignesInformationMedicale } from "@/lib/queries/action-center-info-med";
+import { lignesJustificatifsAJoindre, STATUTS_VUS_DES_FINANCES } from "@/lib/queries/action-center-justificatifs";
 import { getPendingValidations } from "@/lib/queries/validations";
 import { dossiersPromoAMonTour } from "@/lib/queries/promo-circuit";
 import { clauseDemandesSecretariatVisibles } from "@/lib/queries/visibilite-listes";
@@ -614,7 +615,8 @@ export async function getActionCenter(user: SessionUser) {
   //    ouvrir l'écran), mais régler n'est pas leur travail quotidien : soixante ordres dans
   //    leur espace noyaient ce qui les attend vraiment. Le Super Admin, lui, voit tout.
   if (hasRole(user, "FINANCE_BUDGET_MANAGER") || user.role === "SUPER_ADMIN") {
-    const orders = await prisma.expenseOrder.findMany({ where: { status: "PENDING" }, orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }], take: 60 });
+    // Seuls les ordres que les Finances VOIENT (`visibleToFinance`) : ni ceux qui attendent le centre, ni ceux qui attendent leur justificatif.
+    const orders = await prisma.expenseOrder.findMany({ where: { status: "PENDING", centralStatus: { in: STATUTS_VUS_DES_FINANCES } }, orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }], take: 60 });
     for (const o of orders) {
       // Depuis l'autorisation du centre quand il y en a une — c'est elle qui le rend réglable —, sinon
       // depuis l'émission de l'ordre.
@@ -792,6 +794,8 @@ export async function getActionCenter(user: SessionUser) {
   // 6c. Information médicale — l'instruction du pharmacien À SON TOUR, la validation finale du Directeur des Opérations
   //     (`action-center-info-med.ts` : la ligne suit le tour de l'écran « À faire », pas le seul statut). Un échec n'éteint pas la file.
   items.push(...(await lignesInformationMedicale(user).catch(sansBloquer("action-center.lignesInformationMedicale", []))));
+  // 6c bis. « Joindre le justificatif » — mes ordres qui n'entrent pas au centre faute de pièce (24/11/2026).
+  items.push(...(await lignesJustificatifsAJoindre(user).catch(sansBloquer("action-center.lignesJustificatifsAJoindre", []))));
 
   // 6d. Matériel promotionnel — étape en attente de l'acteur courant.
   //
