@@ -40,7 +40,7 @@ export { genererEtRemettreOrdreDeMission, referenceOrdreMissionSuggeree, societe
 export { compteSuitLaFiche } from "./infra/depart";
 
 // ── Lectures des écrans
-export { getLeavesToDecide, getMyLeaveRequests, getMyWorkspace, getRhData } from "./infra/requetes/hr";
+export { getLeavesToDecide, getMyAdvances, getMyLeaveBalance, getMyLeaveRequests, getRhData } from "./infra/requetes/hr";
 export { getEmployeeHrDossier, getHrRequestQueue, getHrRequestsPretes, getMyHrDossier, type HrDocumentDTO, type HrQueueItem, type HrRequestDTO } from "./infra/requetes/hr-documents";
 export { getHrPulse } from "./infra/requetes/hr-pulse";
 export { complementsConges, discussionsDesConges } from "./infra/requetes/conges-discussion";

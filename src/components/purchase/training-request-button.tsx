@@ -20,8 +20,8 @@ import { Input, Label, Textarea } from "@/components/ui/input";
  * sa pièce, c'est empêcher d'en parler. Le montant annoncé suffit à ouvrir la discussion ; la
  * pièce se dépose ensuite sur la fiche.
  */
-/** `compact` : le bouton discret du bloc « Moi » d'Aujourd'hui (« Demander ») — même formulaire, même action. */
-export function TrainingRequestButton({ managerName, compact = false }: { managerName: string | null; compact?: boolean }) {
+/** `libelle` : le bouton du bloc « Demander » d'Aujourd'hui (« Une formation ») — même formulaire, même action. */
+export function TrainingRequestButton({ managerName, libelle }: { managerName: string | null; libelle?: string }) {
   const { rafraichir } = useRafraichir();
   const [open, setOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
@@ -33,9 +33,9 @@ export function TrainingRequestButton({ managerName, compact = false }: { manage
           « Ajouter une note de frais », dans l'en-tête de Mon espace : trois gestes du même
           rang. En laisser un en `md` et les deux autres en `sm` donnait trois hauteurs et deux
           tailles de texte sur une même ligne — on lit alors une hiérarchie qui n'existe pas. */}
-      {compact ? (
-        <Button variant="outline" size="sm" onClick={() => { setMsg(null); setOpen(true); }} aria-label="Demander une formation">
-          Demander
+      {libelle ? (
+        <Button variant="outline" className="font-medium" onClick={() => { setMsg(null); setOpen(true); }}>
+          {libelle}
         </Button>
       ) : (
         <Button variant="outline" onClick={() => { setMsg(null); setOpen(true); }}>

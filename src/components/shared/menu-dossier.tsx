@@ -11,7 +11,13 @@ import { MoreHorizontal } from "lucide-react";
  * si bien qu'un clic dans la fenêtre n'est pas un « clic ailleurs » qui la refermerait. Même menu que celui de la
  * fiche du matériel promotionnel (`promo-material/[id]/menu-dossier.tsx`).
  */
-export function MenuDossier({ children }: { children: React.ReactNode }) {
+export function MenuDossier({ children, label = "Autres actions", doigt = false }: {
+  children: React.ReactNode;
+  /** Le nom du bouton pour un lecteur d'écran (« Autres actions sur ce rappel »). */
+  label?: string;
+  /** 40 px au téléphone (une liste où le menu côtoie des boutons de 40 px). */
+  doigt?: boolean;
+}) {
   const [open, setOpen] = React.useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
 
@@ -36,8 +42,8 @@ export function MenuDossier({ children }: { children: React.ReactNode }) {
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label="Autres actions"
-        className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground sm:h-8 sm:w-8"
+        aria-label={label}
+        className={`flex ${doigt ? "h-10 w-10" : "h-9 w-9"} items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground sm:h-8 sm:w-8`}
       >
         <MoreHorizontal className="h-4 w-4" />
       </button>

@@ -17,7 +17,7 @@ import {
 import type { ModuleTab } from "@/components/shared/module-tabs";
 import type { TaskCommentItem } from "@/app/(app)/mon-espace/taches/[id]/comments";
 import type { DocItem } from "@/components/documents/document-list";
-import { invitationsMissionAAccepter, ordresMissionAValider, MARCHE_N1_MISSIONS, type InvitationMissionDTO, type OrdreAValiderDTO } from "@/lib/queries/missions";
+import { invitationsMissionAAccepter, ordresMissionAValider, type InvitationMissionDTO, type OrdreAValiderDTO } from "@/lib/queries/missions";
 import { sansBloquer } from "@/lib/journal";
 
 /**
@@ -223,18 +223,16 @@ export async function compteTachesQuiMAttendent(userId: string): Promise<number>
   return prisma.task.count({ where: clauseQuiMAttendent(userId) });
 }
 
-/** Les onglets de « Mon espace », l'onglet « Tâches » portant son compteur. */
+/**
+ * Les onglets de « Mon espace », l'onglet « Tâches » portant son compteur. (« Missions terrain » n'est plus un
+ * onglet depuis le 24/11/2026 : son compteur partait avec lui — ses invitations et ordres sont des lignes de la file.)
+ */
 export async function ongletsEspace(user: SessionUser, compte?: number): Promise<ModuleTab[]> {
-  const [tabs, n, missions] = await Promise.all([
+  const [tabs, n] = await Promise.all([
     visibleTabs(user, WORKSPACE_TABS),
     compte ?? compteTachesQuiMAttendent(user.id).catch(sansBloquer("mes-taches.ongletsEspace.compteTachesQuiMAttendent", 0)),
-    // « Mes missions » compte ce qui attend un geste : mes invitations et les ordres de mission à valider (N+1).
-    Promise.all([
-      prisma.missionAssignment.count({ where: { userId: user.id, archivedAt: null, response: "INVITEE" } }),
-      prisma.hrDocumentRequest.count({ where: MARCHE_N1_MISSIONS(user.id) }),
-    ]).then(([a, b]) => a + b).catch(sansBloquer("mes-taches.ongletsEspace.missionAssignment", 0)),
   ]);
-  return tabs.map((t) => (t.href === ONGLET_TACHES_HREF ? { ...t, compte: n } : t.href === "/mon-espace/missions" && missions > 0 ? { ...t, compte: missions } : t));
+  return tabs.map((t) => (t.href === ONGLET_TACHES_HREF ? { ...t, compte: n } : t));
 }
 
 /** Les tâches terminées de la personne : faites, ou annulées, depuis 30 jours — hors « à vérifier ». */

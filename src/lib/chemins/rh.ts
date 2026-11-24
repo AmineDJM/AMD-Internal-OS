@@ -52,6 +52,9 @@ export const CHEMIN_PAIE_RH = "/rh/paie";
  */
 export const LIEN_CONGES_A_SIGNER = "/mon-espace#conges-a-signer";
 
-/** « Mes avances sur salaire » — l'historique, dans l'espace personnel. */
+/**
+ * « Mes avances sur salaire » — l'historique, dans Mon dossier RH (il quittait « Aujourd'hui », écran simplifié du
+ * 24/11/2026). Les notifications déjà écrites vers `/mon-espace#mes-avances` y sont renvoyées par la page.
+ */
 export const ANCRE_MES_AVANCES = "mes-avances";
-export const LIEN_MES_AVANCES = `/mon-espace#${ANCRE_MES_AVANCES}`;
+export const LIEN_MES_AVANCES = `/mon-dossier#${ANCRE_MES_AVANCES}`;

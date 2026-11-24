@@ -460,19 +460,22 @@ suite("« Mon espace » — ce qui m'attend, une ligne par objet, et depuis quan
   });
 
   it("POINTS D'APPEL — la page, la file des congés, la page du plan et la boîte d'Adam lisent ce que le centre rend", () => {
-    // « AUJOURD'HUI » (Direction, 14/10/2026) : la page lit le centre par `chargerAujourdhui`, qui le groupe par lot
-    // (`regrouperFile`) ; les congés gardent leur bloc, nourri par la MÊME lecture que les lignes.
+    // « AUJOURD'HUI » (Direction, 14/10/2026 ; simplifié le 24/11/2026) : la page lit le centre par `chargerAujourdhui`,
+    // qui le groupe par lot (`regrouperFile`) ; chaque congé est une ligne de la file qui ouvre son panneau de décision,
+    // nourri par la MÊME lecture que les lignes — pas de seconde requête des congés.
     const page = source("src/app/(app)/mon-espace/page.tsx");
     expect(page).toContain("chargerAujourdhui(user");
-    expect(page, "le bloc des congés vient du centre").toContain("trierConges(jour.conges)");
+    expect(page, "le panneau des congés vient du centre").toContain("trierConges(jour.conges)");
     expect(page, "la page ne relit pas la file des congés à côté").not.toContain("getLeavesToDecide");
-    expect(page).toContain('<section id="conges-a-signer"');
+    const file = source("src/app/(app)/mon-espace/file-a-faire.tsx");
+    expect(file, "les congés se décident depuis Aujourd'hui, avec le composant de décision existant").toContain("<LeaveApprovals leaves={visibles}");
+    expect(file, "l'ancre des notifications existe sur la page").toContain('const ANCRE_CONGES = "conges-a-signer"');
     const lecture = source("src/lib/queries/aujourdhui-espace.ts");
     expect(lecture).toContain("getActionCenter(user)");
     expect(lecture).toContain("regrouperFile([...centre.items, ...piecesADeposer], now)");
     expect(lecture).not.toContain("getLeavesToDecide");
     expect(source("src/lib/espace/aujourdhui.ts"), "chaque ligne sait depuis quand elle attend").toContain("attente: attenteDe(e, now)");
-    expect(source("src/app/(app)/mon-espace/file-a-faire.tsx"), "la ligne dit depuis quand").toContain("{l.attente} j");
+    expect(source("src/lib/espace/a-faire.ts"), "la ligne dit depuis quand").toContain("attend depuis ${l.attente} j");
     const conges = source("src/components/hr/leave-approvals.tsx");
     expect(conges).toContain("depuisLisible(leave.depuis");
     expect(conges, "la ligne du congé dit depuis quand").toContain("En attente {attente}");
