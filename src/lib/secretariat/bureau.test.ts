@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   montantDeLaDemande, lignesDeMontant, montantEstimeDesChamps, friseDeLaDemande, chezQuiDeLaDemande, gesteSuivant,
-  dansLaTuile, enRetard, FAITS_VIDES, PRECEDENCE_MONTANT,
+  enRetard, FAITS_VIDES, PRECEDENCE_MONTANT,
 } from "./bureau";
 
-const JOUR = 86_400_000;
 const AUJ = Date.parse("2026-10-14T10:00:00.000Z");
 
 describe("montantDeLaDemande — UN montant, le fait le plus avancé l'emporte", () => {
@@ -114,18 +113,11 @@ describe("chezQuiDeLaDemande et gesteSuivant", () => {
   });
 });
 
-describe("tuiles-filtres", () => {
+describe("le retard de la fiche (les tuiles-filtres du tableau sont retirées, 24/11/2026)", () => {
   it("en retard : ouverte, et le jour de l'échéance est passé — pas l'échéance du jour", () => {
     expect(enRetard({ statut: "IN_PROGRESS", echeance: "2026-10-12T00:00:00.000Z" }, AUJ)).toBe(true);
     expect(enRetard({ statut: "IN_PROGRESS", echeance: "2026-10-14T00:00:00.000Z" }, AUJ)).toBe(false);
     expect(enRetard({ statut: "DONE", echeance: "2026-10-01T00:00:00.000Z" }, AUJ)).toBe(false);
     expect(enRetard({ statut: "NEW", echeance: null }, AUJ)).toBe(false);
-  });
-  it("terminées sur 30 jours, et « en cours » compte une demande bloquée", () => {
-    expect(dansLaTuile({ statut: "DONE", echeance: null, termineeLe: new Date(AUJ - 5 * JOUR).toISOString() }, "DONE_30", AUJ)).toBe(true);
-    expect(dansLaTuile({ statut: "DONE", echeance: null, termineeLe: new Date(AUJ - 40 * JOUR).toISOString() }, "DONE_30", AUJ)).toBe(false);
-    expect(dansLaTuile({ statut: "BLOCKED", echeance: null, termineeLe: null }, "IN_PROGRESS", AUJ)).toBe(true);
-    expect(dansLaTuile({ statut: "NEW", echeance: null, termineeLe: null }, "NEW", AUJ)).toBe(true);
-    expect(dansLaTuile({ statut: "NEW", echeance: null, termineeLe: null }, "AWAITING_PAYMENT", AUJ)).toBe(false);
   });
 });

@@ -118,7 +118,8 @@ export async function navigationFor(user: SessionUser): Promise<NavItem[]> {
     recettes: await voitDesRecettes(user).catch(sansBloquer("nav-access.navigationFor.voitDesRecettes", false)),
     // LE PARCOURS AGENCE (15/11/2026) : la file de l'assistante (et de la Direction Marketing qui la suit), celle de
     // l'information médicale, et « Ma signature » pour qui signe des bons de commande en ligne.
-    agences: hasRole(user, "DIRECTION_ASSISTANT") || hasRole(user, "PRODUCT_MANAGER") || hasRole(user, "SUPER_ADMIN"),
+    // « Suivi des agences » : la Direction Marketing et le Super Admin. L'assistante travaille ses postes au bureau (24/11/2026).
+    agences: hasRole(user, "PRODUCT_MANAGER") || hasRole(user, "SUPER_ADMIN"),
     conformite: hasRole(user, "MEDICAL_INFO_PHARMACIST") || hasRole(user, "SUPER_ADMIN"),
     signatureEnLigne: hasRole(user, "PRODUCT_MANAGER") || hasRole(user, "SUPER_ADMIN") || userCan(user, "PURCHASE_ORDERS", "UPDATE"),
   };

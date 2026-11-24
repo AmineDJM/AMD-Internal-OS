@@ -115,7 +115,6 @@ export const enTexte = (f: Record<string, unknown>) =>
 export function rafraichirLaDemande(id: string): void {
   revalidatePath(`/demandes/${id}`);
   revalidatePath("/demandes");
-  revalidatePath("/demandes/assistant");
 }
 
 /** Les participants ajoutés par le demandeur, ceux qui sont encore actifs. */

@@ -120,14 +120,13 @@ export const MODULES_TERRAIN_ET_ADMINISTRATION: readonly ModulePlateforme[] = [
   // ── ADMINISTRATION & RH ───────────────────────────────────────────────────────────────────
   {
     id: "secretariat", nom: "Bureau du secrétariat", route: "/demandes", domaine: "administration", rbac: ["ADMIN_REQUESTS"],
-    resume: "Le bureau de l'assistante de direction : déplacements, courriers, signatures, achats, devis, paiements, visas d'invités…",
+    resume: "Le bureau de l'assistante de direction, UN tableau : demandes (déplacements, courriers, signatures, achats, devis, paiements, visas d'invités…), billets et hôtels Ad & Pro, prospection d'agences, bons de commande de poste — chaque ligne ouvre sa fiche.",
     pourQui: "Tout le monde demande ; les Assistantes de direction traitent ; DRH et Finances voient tout en lecture.",
     gestes: [
       { label: "Nouvelle demande", qui: "Tout le monde", effet: "Les assistantes sont prévenues ; 30 min pour modifier ou supprimer en silence." },
       { label: "Commencer le traitement", qui: "Assistante de direction", effet: "Le demandeur lit « En cours — chez l'assistante de direction »." },
       { label: "Fin du traitement", qui: "Assistante de direction", effet: "Un achat exige sa facture et son imputation ; la demande est archivée dans le Drive." },
       { label: "Retenir des lignes de devis → générer le BC", qui: "Demandeur (ou Super Admin)", effet: "Un BC par fournisseur → centre de validations (au-dessus du seuil) → signature." },
-      { label: "Accuser réception des originaux", qui: "Assistante", effet: "Débloque le traitement RH d'une note de frais." },
       { label: "Rouvrir… / Annuler la demande…", qui: "Assistante", effet: "Motif exigé ; une annulée ne se rouvre pas." },
     ],
     regles: ["Plus aucun statut posé à la main : deux gestes (Commencer, Fin).", "L'approbation N+1 d'un achat reste en amont (« Attente validation »)."],
@@ -137,7 +136,6 @@ export const MODULES_TERRAIN_ET_ADMINISTRATION: readonly ModulePlateforme[] = [
       { vers: "centre-paiement", pourquoi: "Paiements" },
       { vers: "moyens-generaux", pourquoi: "Imputation d'un achat" },
       { vers: "drive", pourquoi: "Archive « Dossier traité »" },
-      { vers: "rh", pourquoi: "Originaux des notes de frais" },
     ],
   },
   {
@@ -146,7 +144,8 @@ export const MODULES_TERRAIN_ET_ADMINISTRATION: readonly ModulePlateforme[] = [
     pourQui: "Qui tient les RH (Direction, DG par défaut — il n'y a pas de rôle « RH »).",
     gestes: [
       { label: "Traiter une demande RH", qui: "RH", effet: "Attestations, congés, arrêts, entrevues (date négociée → rendez-vous)." },
-      { label: "Valider une note de frais", qui: "RH", effet: "Mois demandé / mois suivant / refuser — verrouillé tant que le secrétariat n'a pas les originaux." },
+      { label: "Originaux reçus", qui: "RH", effet: "Accusé de réception des originaux d'une note de frais ; débloque la décision." },
+      { label: "Valider une note de frais", qui: "RH", effet: "Mois demandé / mois suivant / refuser — verrouillé tant que les RH n'ont pas accusé réception des originaux (« Originaux reçus »)." },
       { label: "Saisir la paie (matrice)", qui: "RH Modifier", effet: "Saisi → Envoyé → Viré." },
       { label: "Envoyer la paie au centre", qui: "RH Modifier", effet: "Un virement par entité et par mois, somme déclarée à la main." },
       { label: "Valider un intérim", qui: "RH", effet: "L'intérimaire reçoit les modules prêtés pendant le congé." },

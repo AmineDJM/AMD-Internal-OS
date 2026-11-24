@@ -82,6 +82,12 @@ const REGLES: Regle[] = [
   { motif: /^\/promo-material\/catalogue$/, cible: () => CHEMIN_CATALOGUE_PROMO },
   { motif: /^\/promo-material\/stock$/, cible: (_m, p) => lienStockPromo(vueStockPromo(p.get("vue"))), consomme: ["vue"] },
 
+  // ── Bureau du secrétariat (un seul tableau, une page par ligne — 24/11/2026) ──
+  // L'onglet « Ad & Pro » n'existe plus : la fiche billet / hôtel a sa page ; sans fiche, le bureau.
+  { motif: /^\/demandes$/, cible: (_m, p) => (p.get("fiche") ? `/demandes/fiches/${enc(p.get("fiche")!)}` : "/demandes"), consomme: ["onglet", "fiche"] },
+  // Les courses et le coursier sont supprimés ; la page « Bureau de Donna » aussi : le bureau.
+  { motif: /^\/demandes\/(courses|driver|assistant)$/, cible: () => "/demandes", sansContexte: true },
+
   // ── Modules retirés ──
   // « Retours & réclamations » a été retiré (10/2026) : ses notifications n'ont plus d'écran — l'espace
   // personnel plutôt qu'un 404.

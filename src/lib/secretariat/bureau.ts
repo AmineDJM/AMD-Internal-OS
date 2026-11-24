@@ -12,7 +12,7 @@
  *   • `friseDeLaDemande`   — Déposée → Validée → Traitement → Paiement → Terminée ;
  *   • `chezQuiDeLaDemande` — où en est la demande, et chez qui ;
  *   • `gesteSuivant`       — le bouton principal de l'en-tête ;
- *   • `TUILES` / `dansLaTuile` — les tuiles-filtres du tableau.
+ *   • `enRetard`           — la règle du retard de la fiche (le tableau du bureau lit `tableau-bureau.ts`).
  *
  * Module PUR (aucun import) : la page serveur, le tableau client et les bancs lisent la même règle.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -249,17 +249,7 @@ export function gesteSuivant(e: { statut: string; commencee: boolean; gere: bool
   return null;
 }
 
-// ─────────────────────────── Les tuiles du tableau ───────────────────────────
-
-export type CleTuile = "NEW" | "IN_PROGRESS" | "AWAITING_VALIDATION" | "AWAITING_PAYMENT" | "RETARD" | "DONE_30";
-export const TUILES: readonly { cle: CleTuile; libelle: string; alerte?: boolean }[] = [
-  { cle: "NEW", libelle: "À traiter" },
-  { cle: "IN_PROGRESS", libelle: "En cours" },
-  { cle: "AWAITING_VALIDATION", libelle: "En validation" },
-  { cle: "AWAITING_PAYMENT", libelle: "En paiement" },
-  { cle: "RETARD", libelle: "En retard", alerte: true },
-  { cle: "DONE_30", libelle: "Terminées (30 j)" },
-];
+// ─────────────────────────── Le retard ───────────────────────────
 
 const JOUR_MS = 86_400_000;
 
@@ -268,18 +258,4 @@ export function enRetard(r: { statut: string; echeance: string | null }, mainten
   if (!r.echeance || r.statut === "DONE" || r.statut === "CANCELLED") return false;
   const t = Date.parse(r.echeance);
   return Number.isFinite(t) && t + JOUR_MS <= maintenant;
-}
-
-/** La ligne entre-t-elle dans la tuile ? « En cours » compte aussi une demande bloquée (elle attend quelqu'un). */
-export function dansLaTuile(r: { statut: string; echeance: string | null; termineeLe: string | null }, tuile: CleTuile, maintenant: number): boolean {
-  switch (tuile) {
-    case "RETARD": return enRetard(r, maintenant);
-    case "DONE_30": {
-      if (r.statut !== "DONE") return false;
-      const t = r.termineeLe ? Date.parse(r.termineeLe) : NaN;
-      return Number.isFinite(t) && maintenant - t <= 30 * JOUR_MS;
-    }
-    case "IN_PROGRESS": return r.statut === "IN_PROGRESS" || r.statut === "BLOCKED";
-    default: return r.statut === tuile;
-  }
 }

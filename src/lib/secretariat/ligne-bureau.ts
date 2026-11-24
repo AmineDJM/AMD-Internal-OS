@@ -62,6 +62,15 @@ export interface LigneBureau {
   depuis: string;
   /** Le chemin de la fiche adaptée à ce type de demande. */
   href: string;
+  /** Close (terminée ou annulée) : depuis quand, ISO — les closes de plus de 30 jours se masquent. Absent : `depuis`. */
+  termineeLe?: string | null;
+  /** Ce que la recherche lit en plus de l'objet, de la référence et du demandeur (la personne concernée, le poste…). */
+  recherche?: string | null;
+  /**
+   * L'objet MÉTIER que la ligne désigne (« poste:<id>:bc »…) : deux familles qui voient le même objet n'en
+   * montrent qu'UNE ligne — la première famille de l'assemblage l'emporte.
+   */
+  cleMetier?: string | null;
 }
 
 /**

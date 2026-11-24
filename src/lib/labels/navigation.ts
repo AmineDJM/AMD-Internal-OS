@@ -247,7 +247,7 @@ export const NAVIGATION: NavItem[] = [
   // LES BAT À CONTRÔLER (parcours agence, 15/11/2026) — la file de l'information médicale, avant impression.
   { module: "MEDICAL_INFO", label: "Contrôles de conformité", href: "/information-medicale/conformite", icon: "FileCheck2", group: "Pôles", pole: "REGULATORY", gate: "conformite" },
   // LA PROSPECTION D'AGENCES (parcours agence, 15/11/2026) — la file de l'assistante de direction ; la Direction Marketing y suit tout.
-  { module: "WORKSPACE", label: "Prospection d'agences", href: "/agences", icon: "Building2", group: "Pôles", pole: "MARKETING", gate: "agences" },
+  { module: "WORKSPACE", label: "Suivi des agences", href: "/agences", icon: "Building2", group: "Pôles", pole: "MARKETING", gate: "agences" },
   // PHARMACOVIGILANCE (Direction, 06/10) — la boîte de réception des cas signalés par les KAM. GARDE
   // `pharmacovigilance` : l'entrée ne s'affiche qu'à qui reçoit les cas (portée TOUT) ; le KAM, qui ne lit que ses
   // signalements, les retrouve dans les Rapports terrain — il n'a rien à faire dans le pôle Regulatory.

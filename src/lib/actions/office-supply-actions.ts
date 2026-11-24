@@ -27,7 +27,7 @@ function readArticle(formData: FormData): ArticleFields {
   }, LABELS);
 }
 
-const REVALIDATE = ["/demandes", "/demandes/assistant", "/moyens-generaux"];
+const REVALIDATE = ["/demandes", "/moyens-generaux"];
 const refresh = () => { for (const p of REVALIDATE) revalidatePath(p); };
 
 /**
@@ -78,7 +78,6 @@ export async function createSupplyArticle(formData: FormData): Promise<ActionRes
   });
   await recordAudit({ actorId: user.id, action: "CREATE", module: "Bureau du secrétariat", entityType: "OFFICE_SUPPLY_ARTICLE", entityId: created.id, summary: `Article « ${a.name} » ajouté au catalogue` });
   revalidatePath("/demandes");
-  revalidatePath("/demandes/assistant");
   revalidatePath("/moyens-generaux");
   return { ok: true, id: created.id };
 }
@@ -113,7 +112,6 @@ export async function updateSupplyArticle(formData: FormData): Promise<ActionRes
   });
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "Bureau du secrétariat", entityType: "OFFICE_SUPPLY_ARTICLE", entityId: id, summary: `Article « ${a.name} » modifié` });
   revalidatePath("/demandes");
-  revalidatePath("/demandes/assistant");
   revalidatePath("/moyens-generaux");
   return { ok: true, id };
 }
@@ -129,7 +127,6 @@ export async function toggleSupplyArticle(formData: FormData): Promise<ActionRes
   await prisma.officeSupplyArticle.update({ where: { id }, data: { active: !a.active } });
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "Bureau du secrétariat", entityType: "OFFICE_SUPPLY_ARTICLE", entityId: id, summary: `Article « ${a.name} » ${a.active ? "désactivé" : "réactivé"}` });
   revalidatePath("/demandes");
-  revalidatePath("/demandes/assistant");
   revalidatePath("/moyens-generaux");
   return { ok: true };
 }

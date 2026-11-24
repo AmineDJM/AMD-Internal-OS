@@ -7,7 +7,7 @@ import { buildProposal, type AssistantActionPayload } from "@/lib/assistant";
 
 /**
  * GOLDEN OPS VAGUE 7 — demandes administratives : décision hiérarchique qui annonce l'ordre de
- * dépense au montant saisi, mission chauffeur avec points « Lieu : consigne », lot de cellules,
+ * dépense au montant saisi (les courses sont supprimées : leurs ops aussi), lot de cellules,
  * fenêtre demandeur (propre demande seulement, FUSION), suppression à MOTIF OBLIGATOIRE +
  * restauration d'une demande supprimée, fin d'achat qui exige l'imputation, pièce soumise à
  * validation par NOM (déjà en cours → refus par l'action, annoncé), achat moyens généraux à
@@ -41,8 +41,6 @@ let validatorId = "";
 let requestId = "";
 let approvalId = "";
 let deletedReqId = "";
-let missionId = "";
-let stopId = "";
 let docId = "";
 
 const sa = () => userWith({
@@ -109,16 +107,6 @@ suite("ops vague 7 — demandes administratives et achats", () => {
       },
     });
     deletedReqId = deleted.id;
-
-    const mission = await prisma.driverMission.create({
-      data: {
-        title: `${TAG} Course banque + ANPP`, assignedToId: v.id, status: "NEW", createdById: s.id,
-        stops: { create: [{ position: 0, location: "Banque BNA Didouche", task: "Déposer les chèques" }, { position: 1, location: "ANPP", task: null }] },
-      },
-      include: { stops: true },
-    });
-    missionId = mission.id;
-    stopId = mission.stops[0].id;
   });
 
 
@@ -150,17 +138,11 @@ suite("ops vague 7 — demandes administratives et achats", () => {
     }
   });
 
-  // (Golden « create_mission » retiré : les missions chauffeur ne se créent plus — Direction, 10/2026 — et l'op
-  // n'existe plus. Les courses déjà posées se mènent encore : toggle_mission_stop, update_mission ci-dessous.)
-
-  it("toggle_mission_stop : le point se désigne par son LIEU et annonce le sens du basculement", async () => {
-    const p = await buildProposal("request_operation", {
-      op: "toggle_mission_stop", target: "Course banque", location: "BNA",
-    }, sa());
-    expect("error" in p).toBe(false);
-    if (!("error" in p)) {
-      expect(domainArgs(p).id).toBe(stopId);
-      expect(p.title).toMatch(/Cocher/);
+  // LES COURSES SONT SUPPRIMÉES (Super Admin, 24/11/2026) : leurs ops n'existent plus — Adam ne les propose pas.
+  it("toggle_mission_stop / update_mission : les ops des courses n'existent plus", async () => {
+    for (const op of ["toggle_mission_stop", "update_mission"]) {
+      const p = await buildProposal("request_operation", { op, target: "Course banque" }, sa());
+      expect("error" in p, op).toBe(true);
     }
   });
 

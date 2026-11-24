@@ -92,6 +92,7 @@ export async function demanderProspection(formData: FormData): Promise<ActionRes
   await audit(user, owner.parent, owner.id, "UPDATE", `Prospection d'agences demandée à ${assistante.name} pour le poste « ${item.label} ».`);
   revalidate(owner.parent, owner.id);
   revalidatePath("/agences");
+  revalidatePath("/demandes");
   return { ok: true, id: item.id, message: `Prospection demandée à ${assistante.name}.` };
 }
 
@@ -125,6 +126,7 @@ export async function transmettreDevisAgences(formData: FormData): Promise<Actio
   await audit(user, owner.parent, owner.id, "UPDATE", `${devis.length} devis d'agences transmis à la Direction Marketing pour le poste « ${item.label} ».`);
   revalidate(owner.parent, owner.id);
   revalidatePath("/agences");
+  revalidatePath("/demandes");
   const peu = devis.length < 3 ? ` Seulement ${devis.length} devis : la Direction Marketing le verra.` : "";
   return { ok: true, id: item.id, message: `${devis.length} devis transmis à la Direction Marketing.${peu}` };
 }
@@ -257,6 +259,7 @@ async function retenirLesAgences(formData: FormData, lire: LectureDuChoix): Prom
   }
   revalidate(owner.parent, owner.id);
   revalidatePath("/agences");
+  revalidatePath("/demandes");
   const tete = scission ? `Poste scindé en ${plan.retenues.length} postes, un BC par agence.` : "";
   // LE BUDGET RESTE À CHOISIR (recette 24/11/2026) — en parallèle du BC : c'est lui que l'information médicale attend.
   const suiteBudget = sansBudget > 0 ? [`À choisir aussi : le budget ${sansBudget > 1 ? "de chaque poste" : "du poste"} (« Choisir le budget ») — l'information médicale l'attend.`] : [];
@@ -311,6 +314,7 @@ export async function soumettreBcMarketing(formData: FormData): Promise<ActionRe
   await audit(user, owner.parent, owner.id, "UPDATE", `Bon de commande du poste « ${item.label} » finalisé et soumis à la Direction Marketing.`);
   revalidate(owner.parent, owner.id);
   revalidatePath("/agences");
+  revalidatePath("/demandes");
   return { ok: true, id: item.id, message: "BC soumis à la Direction Marketing." };
 }
 
@@ -369,6 +373,7 @@ export async function validerSignerBcMarketing(formData: FormData): Promise<Acti
   await audit(user, owner.parent, owner.id, "UPDATE", `Bon de commande du poste « ${item.label} » validé${signe.ok ? ", signé et cacheté en ligne" : " (signature à reprendre)"} par ${parQuiMarketing(user)}.`);
   revalidate(owner.parent, owner.id);
   revalidatePath("/agences");
+  revalidatePath("/demandes");
   return signe.ok
     ? { ok: true, id: item.id, message: `${emis.message ?? "BC émis."} Signé et cacheté par ${parQuiMarketing(user)}.` }
     : { ok: false, error: `Le BC est émis, mais la signature n'a pas été apposée : ${signe.error} — « Signer et cacheter le BC » la reprend.` };

@@ -210,7 +210,7 @@ export async function performAction(user: CurrentUser, payload: AssistantActionP
       actorId: user.id, action: "CREATE", module: "Assistant IA", entityType: "ADMIN_REQUEST",
       entityId: created.id, summary: `Demande ${created.reference} — ${title} créée via l'assistant`,
     }).catch(sansBloquer("assistant.performAction.recordAudit"));
-    return { ok: true, message: `Demande ${created.reference} — « ${title} » créée.`, link: `/demandes/${created.id}`, revalidate: ["/demandes", "/demandes/assistant"] };
+    return { ok: true, message: `Demande ${created.reference} — « ${title} » créée.`, link: `/demandes/${created.id}`, revalidate: ["/demandes"] };
   }
 
   if (payload?.kind === "send_message") {

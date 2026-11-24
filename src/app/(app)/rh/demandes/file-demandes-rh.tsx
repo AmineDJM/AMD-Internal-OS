@@ -15,7 +15,7 @@ import { cn, formatCurrency, formatDate, formatDateTime, formatMonth, initials }
 import { joursCivilsDepuis } from "@/lib/calendar-tz";
 import { CATEGORIE_DU_DEPOT, hrNature, type HrNature } from "@/modules/rh/partage";
 import {
-  addHrRequestComment, decideExpenseReport, decideHrLeave, deleteHrRequest, processHrRequest,
+  ackExpenseOriginals, addHrRequestComment, decideExpenseReport, decideHrLeave, deleteHrRequest, processHrRequest,
 } from "@/modules/rh/actions-documents";
 import type { HrQueueItem } from "@/modules/rh/api";
 import { OrdreMissionForm } from "../[id]/ordre-mission-form";
@@ -292,7 +292,7 @@ function frise(r: HrQueueItem, nature: HrNature): Etape[] {
       ? { texte: "Décision prise", etat: "fait" }
       : r.originalsAckAt
         ? { texte: "Décision à prendre — RH", etat: "encours" }
-        : { texte: "Originaux attendus — secrétariat", etat: "encours" };
+        : { texte: "Originaux attendus — RH", etat: "encours" };
   } else if (nature === "INTERVIEW") {
     milieu = r.meetingConfirmedAt ? { texte: "Entrevue fixée", etat: "fait" } : { texte: "Date à fixer", etat: "encours" };
   } else {
@@ -337,6 +337,19 @@ function PanneauTraitement({ r, nature, referenceOrdreMission, currentUserId }: 
     finally { setDepot(false); }
   };
 
+  // NOTE DE FRAIS — « Originaux reçus » (24/11/2026) : l'accusé de réception se fait ici, par les RH ; il ouvre la décision.
+  const accuserOriginaux = async () => {
+    setDecision("ORIGINAUX"); setErr(null);
+    const fd = new FormData(); fd.set("id", r.id);
+    try {
+      const res = await ackExpenseOriginals(fd);
+      if (!res.ok) setErr(res.error ?? "L'accusé de réception n'a pas été enregistré."); else rafraichir();
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setDecision(null);
+    }
+  };
   // Note de frais : valider pour le mois demandé ou le suivant.
   const decider = async (choix: "APPROVE" | "APPROVE_NEXT") => {
     setDecision(choix); setErr(null);
@@ -477,8 +490,15 @@ function PanneauTraitement({ r, nature, referenceOrdreMission, currentUserId }: 
           <p className={cn("text-xs", r.originalsAckAt ? "text-success" : "text-warning-foreground")}>
             {r.originalsAckAt
               ? `Originaux reçus${r.originalsAckByName ? ` (${r.originalsAckByName})` : ""} le ${formatDate(r.originalsAckAt)}`
-              : "Originaux attendus au secrétariat"}
+              : "Originaux attendus : vérifiez que vous les avez reçus, puis accusez-en réception."}
           </p>
+          {!termine && !r.originalsAckAt && (
+            <div className="flex flex-wrap gap-1.5">
+              <BoutonDecisif size="sm" disabled={occupe} onClick={accuserOriginaux}>
+                {decision === "ORIGINAUX" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Originaux reçus
+              </BoutonDecisif>
+            </div>
+          )}
           {!termine && r.originalsAckAt && (
             <div className="flex flex-wrap gap-1.5">
               <BoutonDecisif size="sm" disabled={occupe} onClick={() => decider("APPROVE")}>

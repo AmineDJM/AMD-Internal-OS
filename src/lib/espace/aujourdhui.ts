@@ -1,5 +1,5 @@
 import { joursCivilsDepuis } from "@/lib/calendar-tz";
-import { CHEMIN_AGENCES, LIBELLE_AGENCES } from "@/lib/chemins/ad-pro";
+import { CHEMIN_AGENCES, CHEMIN_BUREAU, LIBELLE_AGENCES, LIBELLE_BUREAU } from "@/lib/chemins/ad-pro";
 import { RACCOURCIS, type CleRaccourci } from "@/lib/espace/raccourcis";
 
 /**
@@ -411,7 +411,7 @@ function echeanceDansDe(e: ElementFile, now: Date, retard: number | null): numbe
   return Math.max(0, joursCivilsDepuis(now, d));
 }
 
-/** Le lien qui ouvre le lot : l'écran de la nature, filtré quand l'écran sait l'être — « Prospection d'agences » pour qui l'ouvre. */
+/** Le lien qui ouvre le lot : l'écran de la nature, filtré quand l'écran sait l'être — le bureau ou le « Suivi des agences » pour le parcours agence. */
 function gesteDuLot(nature: NatureLot, lignes: LigneLot[], module: string): Geste {
   const def = NATURES[nature];
   if (nature === "paiement") {
@@ -426,7 +426,8 @@ function gesteDuLot(nature: NatureLot, lignes: LigneLot[], module: string): Gest
     return { libelle, href: ids.length ? `/finances/paiements-a-faire?focus=${ids.join(",")}#ord-${ids[0]}` : "/finances/paiements-a-faire" };
   }
   if (lignes.length === 1) return { libelle: def.verbe, href: lignes[0].geste.href };
-  return { libelle: `${def.verbe} — tout voir`, href: (nature === "agence" && module === LIBELLE_AGENCES ? CHEMIN_AGENCES : def.liste) ?? lignes[0].geste.href };
+  const pageAgence = nature === "agence" ? (module === LIBELLE_AGENCES ? CHEMIN_AGENCES : module === LIBELLE_BUREAU ? CHEMIN_BUREAU : null) : null;
+  return { libelle: `${def.verbe} — tout voir`, href: (pageAgence ?? def.liste) ?? lignes[0].geste.href };
 }
 
 /**
@@ -711,7 +712,7 @@ export const METIERS: Record<string, Composition> = {
   HEAD_OF_SALES: { tuiles: ["a_traiter", "directives", "en_retard", "equipe_retards"], raccourcis: ["ventes", "non_servi", "stocks"] },
   SALES_USER: { tuiles: ["stocks", "en_retard", "taches"], raccourcis: ["ventes", "stocks", "pch"] },
   LOGISTICS_MANAGER: { tuiles: ["a_traiter", "en_retard", "taches", "plus_longue_attente"], raccourcis: ["logistique", "stocks", "moyens_generaux"] },
-  DIRECTION_ASSISTANT: { tuiles: ["demandes", "en_retard", "a_traiter", "plus_longue_attente"], raccourcis: ["agences", "secretariat", "moyens_generaux", "legal", "promo"] },
+  DIRECTION_ASSISTANT: { tuiles: ["demandes", "en_retard", "a_traiter", "plus_longue_attente"], raccourcis: ["secretariat", "moyens_generaux", "legal", "promo"] },
   COORDINATOR: { tuiles: ["courses_ouvertes", "courses_30j", "courses_retard_30j"], raccourcis: ["taches", "secretariat", "drive"] },
   VIEWER: { tuiles: ["pieces", "taches", "rappels"], raccourcis: ["pieces", "documents", "drive"] },
 };

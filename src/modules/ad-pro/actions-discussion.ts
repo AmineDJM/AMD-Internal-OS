@@ -115,6 +115,7 @@ export async function addAdProComment(formData: FormData): Promise<ActionResult>
     // Un poste n'a pas d'écran à lui : sa demande, et l'écran de l'assistante qui le prospecte, se relisent.
     revalidate(poste.owner.parent, poste.owner.id);
     revalidatePath(`/agences/${id}`);
+    revalidatePath("/demandes");
     await prevenirLeFilDuPoste({ itemId: id, owner: poste.owner, auteur: user, corps: body, pieces: pieces.length });
   } else {
     const path = chemin(entite, id);

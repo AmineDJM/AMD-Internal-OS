@@ -5,7 +5,7 @@ import { refusDuRetraitValidation, validateursSollicites } from "@/lib/validatio
 import { revalidatePath } from "next/cache";
 import { FinanceCategory } from "@prisma/client";
 import type {
-  AdminRequestType, AdminRequestStatus, Priority, AdminApprovalStatus, DriverMissionStatus, Prisma,
+  AdminRequestType, AdminRequestStatus, Priority, AdminApprovalStatus, Prisma,
 } from "@prisma/client";
 import { requireUser } from "@/lib/session";
 import { userCan, hasGlobalView, hasRole, isTopManagement } from "@/lib/rbac";
@@ -32,13 +32,14 @@ import {
   refusValidateursPieceChiffree,
 } from "@/lib/secretariat/decision-approbation";
 import { attachFiles, validateAttachments } from "@/lib/attach-files";
+import { clePieceMessage, messageRecevable } from "@/lib/fil-pieces";
 import { sansBloquer } from "@/lib/journal";
 import {
   DEMANDE_CHANGEE, DENIED, OUVERTE, VALIDATION_SANS_OBJET, apresRetraitDevisPromo, archiveAdminRequestIfDone,
   isManager, nextRequestRef, participantsActifs, rafraichirLaDemande, refusDemandeClose,
 } from "@/lib/actions/internes/admin-request/demande";
 import {
-  approbationATrancher, ceQuiAChange, phraseDuStatut, retirerLApprobationNee, etatDeLaCourse, ordreDeLApprobation,
+  approbationATrancher, ceQuiAChange, phraseDuStatut, retirerLApprobationNee, ordreDeLApprobation,
   phraseAnnulationParLeDemandeur, phraseAnnulationParLeSecretariat, refusApresLaPrise, refusAutreValidateur,
   refusModificationEnCours, refusSaPropreDemande, renvoyerAuSecretariat, refusOrdreAnnulePendantLaDecision,
   retirerLesApprobationsPrecedentes,
@@ -114,7 +115,6 @@ export async function createRequest(
   await notifyRoles(["DIRECTION_ASSISTANT"], { type: "ASSIGNMENT", title: "Nouvelle demande au secrétariat", body: `${created.reference} — ${title}`, link: `/demandes/${created.id}` }).catch(sansBloquer("admin-request-actions.createRequest.notifyRoles"));
   await recordAudit({ actorId: user.id, action: "CREATE", module: "Demandes administratives", entityType: "ADMIN_REQUEST", entityId: created.id, summary: `Demande ${created.reference} — ${title}${jointes.saved > 0 ? ` (${jointes.saved} pièce(s) jointe(s))` : ""}` });
   revalidatePath("/demandes");
-  revalidatePath("/demandes/assistant");
   return { ok: true, id: created.id, ...(jointes.error ? { message: `Demande créée. ${jointes.error}` } : {}) };
 }
 
@@ -246,7 +246,6 @@ export async function assignRequest(formData: FormData): Promise<ActionResult> {
   }
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "Demandes administratives", entityType: "ADMIN_REQUEST", entityId: id, summary: "Responsable modifié" });
   revalidatePath(`/demandes/${id}`);
-  revalidatePath("/demandes/assistant");
   return { ok: true };
 }
 
@@ -391,72 +390,36 @@ export async function decideApproval(formData: FormData): Promise<ActionResult> 
   });
 }
 
-// ─────────────────────────────── Missions chauffeur ───────────────────────────────
-// LES MISSIONS CHAUFFEUR NE SE CRÉENT PLUS (Direction, 10/2026) — `createMission` est retirée. Les courses déjà
-// posées se lisent, et le chauffeur les mène à leur terme (`toggleMissionStop`, `updateMission`).
-/** Coche / décoche un point de passage d'une course (chauffeur assigné ou gestionnaire). */
-export async function toggleMissionStop(formData: FormData): Promise<ActionResult> {
-  const user = await requireUser();
-  const id = fdStr(formData, "id");
-  if (!id) return { ok: false, error: "Identifiant manquant." };
-  const stop = await prisma.driverMissionStop.findUnique({
-    where: { id },
-    select: { done: true, mission: { select: { id: true, assignedToId: true } } },
-  });
-  if (!stop) return { ok: false, error: "Point introuvable." };
-  const allowed = stop.mission.assignedToId === user.id || hasGlobalView(user.role) || userCan(user, "ADMIN_REQUESTS", "UPDATE");
-  if (!allowed) return DENIED;
-  const done = !stop.done;
-  await prisma.driverMissionStop.update({ where: { id }, data: { done, doneAt: done ? new Date() : null } });
-  revalidatePath("/demandes/driver");
-  revalidatePath("/demandes/courses");
-  return { ok: true };
-}
-
-export async function updateMission(formData: FormData): Promise<ActionResult> {
-  const user = await requireUser();
-  const id = fdStr(formData, "id");
-  const status = fdStr(formData, "status") as DriverMissionStatus | null;
-  if (!id || !status) return { ok: false, error: "Paramètres manquants." };
-  const mission = await prisma.driverMission.findUnique({ where: { id }, select: { assignedToId: true, requestId: true, title: true } });
-  if (!mission) return { ok: false, error: "Mission introuvable." };
-  const allowed = mission.assignedToId === user.id || hasGlobalView(user.role) || userCan(user, "ADMIN_REQUESTS", "UPDATE");
-  if (!allowed) return DENIED;
-
-  const data = etatDeLaCourse(status, fdStr(formData, "proofComment"));
-  await prisma.driverMission.update({ where: { id }, data });
-
-  if ((status === "DONE" || status === "PROBLEM") && mission.requestId) {
-    const req = await prisma.administrativeRequest.findUnique({ where: { id: mission.requestId }, select: { assignedToId: true, reference: true } });
-    if (req?.assignedToId && req.assignedToId !== user.id) {
-      await notifyUser({ userId: req.assignedToId, type: "GENERIC", title: `Mission ${status === "DONE" ? "terminée" : "— problème"}`, body: mission.title, link: `/demandes/${mission.requestId}` });
-    }
-  }
-  await recordAudit({ actorId: user.id, action: "UPDATE", module: "Demandes administratives", entityType: "DRIVER_MISSION", entityId: id, field: "status", newValue: status, summary: `Mission → ${status}` });
-  revalidatePath("/demandes/driver");
-  if (mission.requestId) revalidatePath(`/demandes/${mission.requestId}`);
-  return { ok: true };
-}
-
 // ─────────────────────────────── Commentaires ───────────────────────────────
 
 export async function addRequestComment(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   const requestId = fdStr(formData, "requestId");
   const body = fdStr(formData, "body");
-  if (!requestId || !body) return { ok: false, error: "Commentaire vide." };
+  // LA DISCUSSION PORTE AUSSI DES FICHIERS (Super Admin, 24/11/2026 : « messages + fichiers » sur chaque fiche) — la règle
+  // des fils Ad & Pro (`lib/fil-pieces`) : chaque fichier devient un `Document` de la demande désigné par le message.
+  const pieces = formData.getAll("files").filter((v): v is File => v instanceof File && v.size > 0);
+  if (!requestId || !messageRecevable(body, pieces.length)) return { ok: false, error: "Commentaire vide : écrivez un message ou joignez un fichier." };
   // LA CLAUSE DE LA FICHE (§118.184 — audit 360°, S12) : sans elle, n'importe quel compte commentait toute
   // demande par son identifiant, et la notification partait chez le demandeur. Hors de portée, la même
   // phrase que l'absence.
   const req = await prisma.administrativeRequest.findFirst({ where: await clauseDemandeLisible(user, requestId), select: { requesterId: true, assignedToId: true } });
   if (!req) return { ok: false, error: "Demande introuvable." };
 
-  await prisma.comment.create({ data: { entityType: "ADMIN_REQUEST", entityId: requestId, body, authorId: user.id } });
+  // Refusés AVANT d'écrire : un message publié puis refusé pour sa pièce se republierait en double au second essai.
+  const refus = await validateAttachments(pieces);
+  if (refus) return { ok: false, error: `Message non publié — ${refus}` };
+  const message = await prisma.comment.create({ data: { entityType: "ADMIN_REQUEST", entityId: requestId, body: body ?? "", authorId: user.id }, select: { id: true } });
+  let avertissement: string | undefined;
+  if (pieces.length > 0) {
+    const r = await attachFiles({ files: pieces, entityType: "ADMIN_REQUEST", entityId: requestId, uploadedById: user.id, category: "OTHER", stepKey: clePieceMessage(message.id) });
+    if (r.error) avertissement = `Message publié, mais ${r.saved > 0 ? `seulement ${r.saved} fichier${r.saved > 1 ? "s" : ""} joint${r.saved > 1 ? "s" : ""}` : "sans ses fichiers"} : ${r.error}`;
+  }
   // QUI LIT CE COMMENTAIRE (audit 360°, R09). Le demandeur parle au SECRÉTARIAT : son responsable
   // désigné, sinon chaque assistante — les demandes ouvertes par un poste naissent sans responsable,
   // et notifier le seul `assignedToId` revenait à ne prévenir personne sur le seul canal de correction
   // qui restait. Quelqu'un d'autre (l'assistante, un validateur) parle au demandeur ET au responsable.
-  const avis = { type: "GENERIC" as const, title: "Nouveau commentaire", body: body.slice(0, 80), link: `/demandes/${requestId}` };
+  const avis = { type: "GENERIC" as const, title: "Nouveau commentaire", body: (body ?? `${pieces.length} fichier${pieces.length > 1 ? "s" : ""} joint${pieces.length > 1 ? "s" : ""}`).slice(0, 80), link: `/demandes/${requestId}` };
   if (user.id === req.requesterId) {
     await prevenirLeSecretariat(req.assignedToId, avis, user.id);
   } else {
@@ -465,7 +428,7 @@ export async function addRequestComment(formData: FormData): Promise<ActionResul
     }
   }
   revalidatePath(`/demandes/${requestId}`);
-  return { ok: true };
+  return { ok: true, ...(avertissement ? { message: avertissement } : {}) };
 }
 
 // LA DEMANDE MULTIPLE N'EXISTE PLUS (Direction, 10/2026) — `createRequestBatch` est retirée : une demande par
@@ -636,7 +599,6 @@ export async function deleteOwnRequest(formData: FormData): Promise<ActionResult
     await recordAudit({ actorId: user.id, action: "DELETE", module: "Bureau du secrétariat", entityType: "ADMIN_REQUEST", entityId: id, summary: `Demande ${req.reference} supprimée par le demandeur` });
     await apresRetraitDevisPromo(req, user.id, "demande supprimée par son demandeur");
     revalidatePath("/demandes");
-    revalidatePath("/demandes/assistant");
     return { ok: true };
   }
 
@@ -695,7 +657,6 @@ export async function deleteRequests(formData: FormData): Promise<ActionResult> 
     await apresRetraitDevisPromo(t, user.id, reason);
   }
   revalidatePath("/demandes");
-  revalidatePath("/demandes/assistant");
   revalidatePath("/validations");
   revalidatePath("/finances/paiements-a-faire");
   if (refus.length > 0) return { ok: true, message: `${targets.length} demande(s) supprimée(s). Non supprimée(s) : ${refus.join(" ")}` };
@@ -722,7 +683,6 @@ export async function restoreRequest(formData: FormData): Promise<ActionResult> 
   });
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "Bureau du secrétariat", entityType: "ADMIN_REQUEST", entityId: id, summary: `Demande ${req.reference} restaurée` });
   revalidatePath("/demandes");
-  revalidatePath("/demandes/assistant");
   return { ok: true };
 }
 

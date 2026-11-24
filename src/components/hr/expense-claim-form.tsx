@@ -94,8 +94,8 @@ export function ExpenseClaimFields({
       <p className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
         <span>
-          <strong>Les originaux restent à déposer</strong> au bureau du secrétariat, qui en
-          accusera réception dans cette demande. Les RH décident ensuite.
+          <strong>Les originaux restent à remettre</strong> aux RH, par votre supérieur hiérarchique : les RH en
+          accuseront réception dans cette demande, puis décident.
         </span>
       </p>
     </>

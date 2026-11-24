@@ -1,21 +1,18 @@
-import type { EntityType } from "@prisma/client";
+import type { EntityType, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { hasRole, type SessionUser } from "@/lib/rbac";
 import { chargerFiches, cleFiche, ficheDeLaDemande, type CleFiches, type FicheReservation } from "@/lib/reservation-fiche/fiches";
 import {
-  diffEmpreintes, etatLu, lireEmpreinte, libelleEtatAssistante, statutDevisAgence, tuilesFiches, versEnvoiVue, TON_ETAT,
-  type ChampChange, type DevisAgenceVue, type EnvoiVue, type EtatDemande, type NatureFiche, type SourceFiche, type TuilesFiches,
+  diffEmpreintes, etatLu, lireEmpreinte, libelleEtatAssistante, statutDevisAgence, versEnvoiVue, TON_ETAT,
+  type ChampChange, type DevisAgenceVue, type EnvoiVue, type EtatDemande, type NatureFiche, type SourceFiche,
 } from "@/lib/reservation-fiche/etat";
 import { lireNoteDevisAgence } from "@/lib/reservation-fiche/devis-agence";
 import type { BadgeTone } from "@/lib/labels";
-import { TITRE_BC_A_ETABLIR } from "@/modules/ad-pro/partage";
-import { dossiersPromoAMonTour } from "@/lib/queries/promo-circuit";
-import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * LES FICHES DE VOYAGE, LUES POUR LES DEUX ÉCRANS (Direction, 14/10/2026) — le poste du demandeur
- * (une pastille par fiche) et l'onglet « Ad & Pro » du Bureau du secrétariat. Une lecture : la même
+ * (une pastille par fiche) et le Bureau du secrétariat (une ligne par fiche, une page par fiche). Une lecture : la même
  * règle (`reservation-fiche/etat.ts`) que les actions, pour qu'un écran n'offre jamais un geste
  * que l'action refuserait (§118.83). En lot, jamais une requête par fiche (§118.102b).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -114,11 +111,21 @@ export async function envoisDePriseEnCharge(scope: "NATIONAL" | "INTERNATIONAL",
   return envoisDesFiches({ careCellIds: cells.map((c) => c.id) });
 }
 
-// ───────────────────────────── Le Bureau du secrétariat — onglet « Ad & Pro » ─────────────────────────────
+// ───────────────────────────── Le Bureau du secrétariat — les fiches billet / hôtel ─────────────────────────────
 
-/** Qui voit l'onglet « Ad & Pro » du Bureau : l'assistante de direction (rôle principal ou secondaire), le Super Admin. */
+/** Qui TRAITE les fiches de voyage au bureau : l'assistante de direction (rôle principal ou secondaire), le Super Admin — la règle des gestes (`peutTraiter`). */
 export function voitBureauAdPro(u: Pick<SessionUser, "role"> & { secondaryRole?: SessionUser["secondaryRole"] }): boolean {
   return hasRole(u as SessionUser, "DIRECTION_ASSISTANT") || u.role === "SUPER_ADMIN";
+}
+
+/**
+ * QUELLES FICHES DE VOYAGE UNE PERSONNE LIT AU BUREAU — la clause NOMMÉE, partagée par la ligne du tableau et la page
+ * de la fiche (`/demandes/fiches/<id>`) : l'assistante et le Super Admin, toutes ; toute autre personne, celles qu'elle a
+ * envoyées (« un demandeur ordinaire ne voit que ses demandes »). Une seule écriture : la liste et la fiche ne peuvent
+ * pas se contredire.
+ */
+export function clauseFichesVisibles(user: SessionUser): Prisma.DemandeReservationWhereInput {
+  return voitBureauAdPro(user) ? {} : { demandeurId: user.id };
 }
 
 export interface PieceVue {
@@ -134,9 +141,11 @@ export interface MessageFil {
   auteur: string;
   le: string;
   body: string;
+  /** Les fichiers joints au message (`DossierMessageAttachment`). */
+  fichiers: { id: string; name: string }[];
 }
 
-/** Une ligne de la file de l'assistante — une fiche envoyée. */
+/** Une fiche envoyée, telle que le bureau la lit. */
 export interface LigneFiche {
   demandeId: string;
   source: SourceFiche;
@@ -168,35 +177,8 @@ export interface LigneFiche {
   /** Le poste Ad & Pro de la fiche (`null` : une prise en charge) et qui l'a envoyée — « ce devis couvre aussi » ne propose que les fiches du même poste et du même demandeur. */
   itemId: string | null;
   demandeurId: string;
-}
-
-export interface GroupeOperation {
-  cle: string;
-  titre: string;
-  lignes: LigneFiche[];
-}
-
-/** Une ligne « BC de poste à établir » ou « devis à retranscrire » — lue dans les files EXISTANTES. */
-export interface TravailAdPro {
-  id: string;
-  type: "BC" | "DEVIS";
-  titre: string;
-  sousTitre: string;
-  statut: string;
-  depuis: string;
-  /** ISO — depuis quand (la demande) ; `null` quand rien ne le date. Range « Prospection d'agences », la plus ancienne d'abord. */
-  le: string | null;
-  href: string;
-}
-
-export interface BureauAdProData {
-  tuiles: TuilesFiches & { bc: number; devis: number };
-  groupes: GroupeOperation[];
-  travaux: TravailAdPro[];
-  fils: Record<string, MessageFil[]>;
-  /** Le total de l'onglet : à prendre + en cours + BC + devis (les relancées sont déjà dans les deux premiers). */
-  compteur: number;
-  moi: string;
+  /** Réservée ou retirée : quand (ISO) — la ligne close du bureau se date ainsi. */
+  closeLe: string | null;
 }
 
 const depuisJ = (d: Date, maintenant: Date) => {
@@ -204,130 +186,66 @@ const depuisJ = (d: Date, maintenant: Date) => {
   return h < 1 ? "à l'instant" : h < 24 ? `${h} h` : `${Math.floor(h / 24)} j`;
 };
 
-/** Les états qu'on montre dans la file (une fiche réservée reste trente jours, pour qu'on la retrouve). */
-const RETENUE_RESERVEES_MS = 30 * 24 * 3600 * 1000;
+/** Les fiches closes restent au bureau six mois (« Voir plus de terminées » les montre au-delà de trente jours). */
+const RETENUE_CLOSES_MS = 183 * 24 * 3600 * 1000;
+/** Une limite OPÉRATIONNELLE (§118.2) : au-delà, la page le dit. */
+export const PLAFOND_FICHES_BUREAU = 400;
 
-/** Les fiches de voyage qui attendent l'assistante (à prendre, prises, devis reçu, modifiées après l'envoi) — le compteur de l'onglet. */
-export const ETATS_FICHES_A_TRAITER: EtatDemande[] = ["ENVOYEE", "PRISE", "DEVIS_RECU", "MODIFIEE_APRES_ENVOI"];
+type DemandeLueBureau = Awaited<ReturnType<typeof prisma.demandeReservation.findMany>>[number];
 
 /**
- * LES BC DE POSTE À ÉTABLIR ET LES DEVIS À OBTENIR — l'onglet « Ad & Pro » du bureau, et les « autres tâches » de l'assistante
- * sur « Prospection d'agences » (23/11/2026) : une lecture, deux écrans.
+ * LES LIGNES DE FICHES — en lot (§118.102b), la même règle que les actions (`etatLu`, `libelleEtatAssistante`). `details` :
+ * les pièces, le sujet et son fil (la page de la fiche) ; sans lui, ce que le tableau montre.
  */
-export async function travauxAdPro(user: SessionUser): Promise<TravailAdPro[]> {
+async function lignesDesDemandes(demandes: DemandeLueBureau[], details: boolean): Promise<{ lignes: LigneFiche[]; fils: Record<string, MessageFil[]> }> {
   const maintenant = new Date();
-  const toutes = user.role === "SUPER_ADMIN";
-  const [piecesBc, bcSecretariat, devisSecretariat, promo] = await Promise.all([
-    // LE BC D'UN POSTE, demandé à l'assistante par une DEMANDE DE PIÈCE (§118.204).
-    prisma.documentRequest.findMany({
-      where: { entityType: "AD_PRO_ITEM", kind: "PURCHASE_ORDER", status: { in: ["PENDING", "DECLINED"] }, ...(toutes ? {} : { askedToId: user.id }) },
-      select: { id: true, reference: true, label: true, entityId: true, createdAt: true, status: true },
-      orderBy: { createdAt: "asc" }, take: 100,
-    }),
-    // L'ANCIENNE FORME : la demande « Bon de commande à établir » au bureau du secrétariat.
-    prisma.administrativeRequest.findMany({
-      where: { linkedEntityType: "AD_PRO_ITEM", type: "OTHER", title: { startsWith: TITRE_BC_A_ETABLIR }, deletedAt: null, status: { notIn: ["DONE", "CANCELLED"] } },
-      select: { id: true, reference: true, title: true, createdAt: true, status: true },
-      orderBy: { createdAt: "asc" }, take: 100,
-    }),
-    // LES DEMANDES DE DEVIS d'un poste au secrétariat (à obtenir, puis retranscrire).
-    prisma.administrativeRequest.findMany({
-      where: { linkedEntityType: "AD_PRO_ITEM", type: "QUOTE", deletedAt: null, status: { notIn: ["DONE", "CANCELLED"] } },
-      select: { id: true, reference: true, title: true, createdAt: true, status: true },
-      orderBy: { createdAt: "asc" }, take: 100,
-    }),
-    // LE MATÉRIEL PROMOTIONNEL dont c'est son tour de retranscrire les devis (circuit 2).
-    dossiersPromoAMonTour(user).then((l) => l.filter((d) => d.tour === "GESTE" && d.etat === "QUOTE_REQUESTED")).catch(sansBloquer("reservations-fiches.travauxAdPro.dossiersPromoAMonTour", [])),
-  ]);
-  const postes = piecesBc.length
-    ? new Map((await prisma.adProItem.findMany({ where: { id: { in: piecesBc.map((p) => p.entityId) } }, select: { id: true, label: true } })).map((p) => [p.id, p.label]))
-    : new Map<string, string>();
-  return [
-    ...piecesBc.map((p) => ({
-      id: p.id, type: "BC" as const, titre: p.label, sousTitre: `${p.reference}${postes.get(p.entityId) ? ` · poste « ${postes.get(p.entityId)} »` : ""}`,
-      statut: p.status === "DECLINED" ? "à redéposer" : "à établir", depuis: depuisJ(p.createdAt, maintenant), le: p.createdAt.toISOString(), href: `/pieces/${p.id}`,
-    })),
-    ...bcSecretariat.map((r) => ({
-      id: r.id, type: "BC" as const, titre: r.title, sousTitre: r.reference, statut: "à établir", depuis: depuisJ(r.createdAt, maintenant), le: r.createdAt.toISOString(), href: `/demandes/${r.id}`,
-    })),
-    ...devisSecretariat.map((r) => ({
-      id: r.id, type: "DEVIS" as const, titre: r.title, sousTitre: r.reference, statut: "devis à obtenir", depuis: depuisJ(r.createdAt, maintenant), le: r.createdAt.toISOString(), href: `/demandes/${r.id}`,
-    })),
-    ...promo.map((d) => ({
-      id: d.id, type: "DEVIS" as const, titre: d.title, sousTitre: `${d.reference} · matériel promotionnel`, statut: "à retranscrire", depuis: "", le: null, href: `/promo-material/${d.id}`,
-    })),
-  ];
-}
-
-/** LE COMPTEUR de l'onglet « Ad & Pro » — sans charger les fiches. */
-export async function compteurBureauAdPro(user: SessionUser): Promise<number> {
-  const [fiches, travaux] = await Promise.all([
-    prisma.demandeReservation.count({ where: { etat: { in: ETATS_FICHES_A_TRAITER } } }),
-    travauxAdPro(user),
-  ]);
-  return fiches + travaux.length;
-}
-
-/** L'ONGLET « AD & PRO » DU BUREAU — les fiches envoyées groupées par opération, les tuiles, les BC et devis. */
-export async function bureauAdPro(user: SessionUser): Promise<BureauAdProData> {
-  const maintenant = new Date();
-  const demandes = await prisma.demandeReservation.findMany({
-    where: {
-      OR: [
-        { etat: { in: ["ENVOYEE", "PRISE", "DEVIS_RECU", "MODIFIEE_APRES_ENVOI", "MANQUE_SIGNALE"] } },
-        { etat: "RESERVEE", reserveeLe: { gte: new Date(maintenant.getTime() - RETENUE_RESERVEES_MS) } },
-      ],
-    },
-    orderBy: { envoyeeLe: "asc" },
-    take: 400,
-  });
   const refs = demandes.map((d) => ({ d, ref: ficheDeLaDemande(d) }));
-  const [fiches, travaux] = await Promise.all([
-    chargerFiches({
-      voyageurIds: refs.filter((x) => x.ref?.source === "VOYAGEUR").map((x) => x.ref!.id),
-      hebergementIds: refs.filter((x) => x.ref?.source === "HEBERGEMENT").map((x) => x.ref!.id),
-      careCellIds: refs.filter((x) => x.ref?.source === "CARE_CELL").map((x) => x.ref!.id),
-    }),
-    travauxAdPro(user),
-  ]);
+  const fiches = await chargerFiches({
+    voyageurIds: refs.filter((x) => x.ref?.source === "VOYAGEUR").map((x) => x.ref!.id),
+    hebergementIds: refs.filter((x) => x.ref?.source === "HEBERGEMENT").map((x) => x.ref!.id),
+    careCellIds: refs.filter((x) => x.ref?.source === "CARE_CELL").map((x) => x.ref!.id),
+  });
   const ficheDe = (x: { ref: { source: SourceFiche; id: string } | null }): FicheReservation | undefined => (x.ref ? fiches.get(cleFiche(x.ref.source, x.ref.id)) : undefined);
-
-  // LES PIÈCES DE LA FICHE : celles qui la désignent (passeport, autres documents, billet émis) et, en prise en
-  // charge, la pièce d'identité de la PERSONNE (une case DOCUMENT de sa fiche).
   const surFiche = refs.filter((x) => ficheDe(x));
-  const pieces = surFiche.length
-    ? await prisma.document.findMany({
-        where: { stepKey: { in: surFiche.map((x) => x.ref!.id) }, entityType: { in: ["AD_PRO_ITEM", "CONGRESS_NATIONAL", "CONGRESS_INTERNATIONAL"] } },
-        select: { id: true, name: true, fileKey: true, stepKey: true, category: true }, orderBy: { createdAt: "asc" },
-      })
-    : [];
-  const personnes = [...new Set(surFiche.map((x) => ficheDe(x)?.careBeneficiaryId).filter((x): x is string => Boolean(x)))];
-  const piecesPersonnes = personnes.length
-    ? await prisma.careCell.findMany({ where: { beneficiaryId: { in: personnes }, kind: "DOCUMENT", documentId: { not: null } }, select: { beneficiaryId: true, label: true, documentId: true } })
-    : [];
-  const docsPersonnes = await documentsDe(piecesPersonnes.map((p) => p.documentId!).filter(Boolean));
+
+  // LES PIÈCES DE LA FICHE (page seulement) : celles qui la désignent (passeport, autres documents, billet émis) et, en
+  // prise en charge, la pièce d'identité de la PERSONNE (une case DOCUMENT de sa fiche).
   const piecesDe = new Map<string, PieceVue[]>();
-  const pieceIdsBillet = new Set(demandes.flatMap((d) => d.pieceIds));
-  for (const p of pieces) {
-    const l = piecesDe.get(p.stepKey ?? "") ?? [];
-    l.push({
-      id: p.id, name: p.name, hasFile: Boolean(p.fileKey),
-      role: pieceIdsBillet.has(p.id) ? "Billet / confirmation" : String(p.category) === "ID_DOCUMENT" ? "Passeport / pièce d'identité" : "Document",
-    });
-    piecesDe.set(p.stepKey ?? "", l);
-  }
   const piecesPersonneDe = new Map<string, PieceVue[]>();
-  for (const p of piecesPersonnes) {
-    const doc = p.documentId ? docsPersonnes.get(p.documentId) : undefined;
-    if (!doc) continue;
-    piecesPersonneDe.set(p.beneficiaryId, [...(piecesPersonneDe.get(p.beneficiaryId) ?? []), { ...doc, role: p.label }]);
+  if (details && surFiche.length) {
+    const pieces = await prisma.document.findMany({
+      where: { stepKey: { in: surFiche.map((x) => x.ref!.id) }, entityType: { in: ["AD_PRO_ITEM", "CONGRESS_NATIONAL", "CONGRESS_INTERNATIONAL"] } },
+      select: { id: true, name: true, fileKey: true, stepKey: true, category: true }, orderBy: { createdAt: "asc" },
+    });
+    const personnes = [...new Set(surFiche.map((x) => ficheDe(x)?.careBeneficiaryId).filter((x): x is string => Boolean(x)))];
+    const piecesPersonnes = personnes.length
+      ? await prisma.careCell.findMany({ where: { beneficiaryId: { in: personnes }, kind: "DOCUMENT", documentId: { not: null } }, select: { beneficiaryId: true, label: true, documentId: true } })
+      : [];
+    const docsPersonnes = await documentsDe(piecesPersonnes.map((p) => p.documentId!).filter(Boolean));
+    const pieceIdsBillet = new Set(demandes.flatMap((d) => d.pieceIds));
+    for (const p of pieces) {
+      const l = piecesDe.get(p.stepKey ?? "") ?? [];
+      l.push({
+        id: p.id, name: p.name, hasFile: Boolean(p.fileKey),
+        role: pieceIdsBillet.has(p.id) ? "Billet / confirmation" : String(p.category) === "ID_DOCUMENT" ? "Passeport / pièce d'identité" : "Document",
+      });
+      piecesDe.set(p.stepKey ?? "", l);
+    }
+    for (const p of piecesPersonnes) {
+      const doc = p.documentId ? docsPersonnes.get(p.documentId) : undefined;
+      if (!doc) continue;
+      piecesPersonneDe.set(p.beneficiaryId, [...(piecesPersonneDe.get(p.beneficiaryId) ?? []), { ...doc, role: p.label }]);
+    }
   }
 
-  const sujetsIds = [...new Set(surFiche.map((x) => x.d.dossierId ?? ficheDe(x)?.sujetId).filter((x): x is string => Boolean(x)))];
+  const sujetsIds = details ? [...new Set(surFiche.map((x) => x.d.dossierId ?? ficheDe(x)?.sujetId).filter((x): x is string => Boolean(x)))] : [];
   const [sujets, messages, noms] = await Promise.all([
     sujetsIds.length ? prisma.dossier.findMany({ where: { id: { in: sujetsIds } }, select: { id: true, reference: true } }) : [],
     sujetsIds.length
-      ? prisma.dossierMessage.findMany({ where: { dossierId: { in: sujetsIds } }, orderBy: { createdAt: "desc" }, take: 40 * sujetsIds.length, select: { id: true, dossierId: true, body: true, createdAt: true, author: { select: { name: true } } } })
+      ? prisma.dossierMessage.findMany({
+          where: { dossierId: { in: sujetsIds } }, orderBy: { createdAt: "desc" }, take: 40 * sujetsIds.length,
+          select: { id: true, dossierId: true, body: true, createdAt: true, author: { select: { name: true } }, attachments: { select: { id: true, name: true } } },
+        })
       : [],
     nomsDe([...demandes.map((d) => d.demandeurId), ...demandes.map((d) => d.priseParId)]),
   ]);
@@ -335,7 +253,7 @@ export async function bureauAdPro(user: SessionUser): Promise<BureauAdProData> {
   const fils: Record<string, MessageFil[]> = {};
   for (const m of messages) {
     const l = (fils[m.dossierId] ??= []);
-    if (l.length < 40) l.push({ id: m.id, auteur: m.author?.name ?? "—", le: m.createdAt.toISOString(), body: m.body });
+    if (l.length < 40) l.push({ id: m.id, auteur: m.author?.name ?? "—", le: m.createdAt.toISOString(), body: m.body, fichiers: m.attachments });
   }
   for (const k of Object.keys(fils)) fils[k]!.reverse();
 
@@ -360,26 +278,56 @@ export async function bureauAdPro(user: SessionUser): Promise<BureauAdProData> {
       pieces: [...(f.careBeneficiaryId ? piecesPersonneDe.get(f.careBeneficiaryId) ?? [] : []), ...(piecesDe.get(f.id) ?? [])],
       reference: d.referenceReservation, devisRef: d.devisRef,
       itemId: f.source === "CARE_CELL" ? null : f.itemId, demandeurId: d.demandeurId,
+      closeLe: (etat === "RESERVEE" ? d.reserveeLe : etat === "RETIREE" ? d.updatedAt : null)?.toISOString() ?? null,
     });
   }
-
-  const groupes = new Map<string, GroupeOperation>();
-  for (const l of lignes) {
-    const cle = `${l.operation.type}:${l.operation.id}:${l.poste}`;
-    const g = groupes.get(cle) ?? { cle, titre: `${l.operation.ref} · ${l.poste}${l.budget != null ? ` · ${l.budget.toLocaleString("fr-FR")} DZD accordés` : ""}`, lignes: [] };
-    g.lignes.push(l);
-    groupes.set(cle, g);
-  }
-  const t = tuilesFiches(lignes.map((l) => ({ etat: l.etat, relances: l.relances })));
-  const bc = travaux.filter((x) => x.type === "BC").length;
-  const devis = travaux.filter((x) => x.type === "DEVIS").length;
-  return {
-    tuiles: { ...t, bc, devis },
-    groupes: [...groupes.values()],
-    travaux,
-    fils,
-    compteur: t.aPrendre + t.enCours + bc + devis,
-    moi: user.id,
-  };
+  return { lignes, fils };
 }
 
+/**
+ * LES FICHES DE VOYAGE DU BUREAU — toutes celles que la personne lit (`clauseFichesVisibles`) : ouvertes, et closes
+ * depuis moins de six mois. La plus ancienne envoyée d'abord.
+ */
+export async function fichesDuBureau(user: SessionUser): Promise<{ lignes: LigneFiche[]; coupe: boolean }> {
+  const maintenant = new Date();
+  const demandes = await prisma.demandeReservation.findMany({
+    where: {
+      AND: [
+        clauseFichesVisibles(user),
+        {
+          OR: [
+            { etat: { in: ["ENVOYEE", "PRISE", "DEVIS_RECU", "MODIFIEE_APRES_ENVOI", "MANQUE_SIGNALE"] } },
+            { etat: { in: ["RESERVEE", "RETIREE"] }, updatedAt: { gte: new Date(maintenant.getTime() - RETENUE_CLOSES_MS) } },
+          ],
+        },
+      ],
+    },
+    orderBy: { envoyeeLe: "asc" },
+    take: PLAFOND_FICHES_BUREAU + 1,
+  });
+  const coupe = demandes.length > PLAFOND_FICHES_BUREAU;
+  const { lignes } = await lignesDesDemandes(demandes.slice(0, PLAFOND_FICHES_BUREAU), false);
+  return { lignes, coupe };
+}
+
+/**
+ * LA PAGE D'UNE FICHE (`/demandes/fiches/<id>`) — la fiche, ses pièces, son fil, et les fiches « sœurs » qu'un même devis
+ * d'agence peut couvrir (même poste, même demandeur, encore sans devis). `null` hors de la clause : la page dit 404.
+ */
+export async function ficheDuBureau(user: SessionUser, demandeId: string): Promise<{ ligne: LigneFiche; freres: LigneFiche[]; fil: MessageFil[] } | null> {
+  const demande = await prisma.demandeReservation.findFirst({ where: { AND: [{ id: demandeId }, clauseFichesVisibles(user)] } });
+  if (!demande) return null;
+  const { lignes, fils } = await lignesDesDemandes([demande], true);
+  const ligne = lignes[0];
+  if (!ligne) return null;
+  const voisines = ligne.itemId
+    ? await prisma.demandeReservation.findMany({
+        where: { itemId: ligne.itemId, demandeurId: ligne.demandeurId, id: { not: ligne.demandeId }, etat: { in: ["ENVOYEE", "PRISE"] } },
+        orderBy: { envoyeeLe: "asc" }, take: 50,
+      })
+    : [];
+  const freres = voisines.length
+    ? (await lignesDesDemandes(voisines, false)).lignes.filter((x) => x.itemId === ligne.itemId && (x.etat === "ENVOYEE" || x.etat === "PRISE"))
+    : [];
+  return { ligne, freres, fil: ligne.sujet ? fils[ligne.sujet.id] ?? [] : [] };
+}

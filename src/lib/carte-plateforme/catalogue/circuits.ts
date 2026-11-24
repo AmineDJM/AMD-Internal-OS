@@ -143,12 +143,12 @@ export const CIRCUITS: readonly Circuit[] = [
   },
   {
     id: "note-de-frais", titre: "Note de frais", domaine: "administration",
-    resume: "Un remboursement : la pièce, les originaux au secrétariat, la décision RH.",
+    resume: "Un remboursement : la pièce, les originaux aux RH par le supérieur hiérarchique, la décision RH.",
     declencheur: "Un employé a avancé une dépense professionnelle.",
     etapes: [
       { acteur: "Employé", type: "demandeur", module: "mon-espace", action: "Ajouter une note de frais", effet: "Mois, montant, justificatif (exigés côté serveur) ; 15 min pour corriger." },
-      { acteur: "Employé", type: "demandeur", module: "secretariat", action: "Déposer les originaux", effet: "Physiquement au bureau du secrétariat." },
-      { acteur: "Assistante de direction", type: "execution", module: "secretariat", action: "Accuser réception", effet: "Tracé ; débloque le traitement RH." },
+      { acteur: "Employé", type: "demandeur", module: "rh", action: "Remettre les originaux", effet: "Aux RH, en passant par le supérieur hiérarchique." },
+      { acteur: "RH", type: "execution", module: "rh", action: "Originaux reçus", effet: "Tracé ; débloque la décision." },
       { acteur: "RH", type: "decideur", module: "rh", action: "Valider (mois demandé / suivant) / Refuser", effet: "Ou « Demander un justificatif », ou « Autoriser la modification ».", decision: true },
     ],
     aRetenir: ["Tant que les originaux ne sont pas reçus, les boutons RH sont désactivés et le serveur refuse."],

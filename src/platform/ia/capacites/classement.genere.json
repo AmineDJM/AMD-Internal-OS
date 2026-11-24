@@ -1294,24 +1294,6 @@
   "annulation": "retour",
   "appelable": true
  },
- "admin-request-actions:toggleMissionStop": {
-  "risque": "R1",
-  "familles": [
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
- "admin-request-actions:updateMission": {
-  "risque": "R2",
-  "familles": [
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
  "admin-request-actions:updateRequestStatus": {
   "risque": "R2",
   "familles": [

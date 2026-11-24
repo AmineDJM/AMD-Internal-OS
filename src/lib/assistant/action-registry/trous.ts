@@ -184,9 +184,8 @@ export function classerTrous(): void {
     "task-actions:respondTaskRequest", "task-actions:submitTaskWork", "task-actions:reopenTaskWork",
     "task-actions:addTaskComment",
   ]);
-  G("demandes administratives avancées (approbations, missions, lots, corbeille propre, validations)", [
+  G("demandes administratives avancées (approbations, lots, corbeille propre, validations)", [
     "admin-request-actions:requestApproval", "admin-request-actions:decideApproval",
-    "admin-request-actions:toggleMissionStop", "admin-request-actions:updateMission",
     "admin-request-actions:editOwnRequest",
     "admin-request-actions:deleteOwnRequest", "admin-request-actions:deleteRequests",
     "admin-request-actions:restoreRequest", "admin-request-actions:startRequestProcessing",

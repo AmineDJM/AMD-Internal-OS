@@ -4,7 +4,6 @@ import { prisma } from "@/lib/prisma";
 import { auNomDeQui, standInForUserIds } from "@/lib/hr/stand-in-resolve";
 import { clauseDemandesSecretariatVisibles } from "@/lib/queries/visibilite-listes";
 import { interditSurSaPropreDemande } from "@/lib/secretariat/decision-approbation";
-import { statutAffiche } from "@/lib/secretariat/traitement";
 
 const REQ_INCLUDE = {
   requester: { select: { name: true } },
@@ -67,25 +66,6 @@ export async function getRequestList(user: SessionUser, filters: { status?: stri
   };
 }
 
-export async function getAssistantData(user: SessionUser) {
-  const now = new Date();
-  const scope = scopeAdminRequests(user);
-  const requests = await prisma.administrativeRequest.findMany({ where: scope, include: REQ_INCLUDE, orderBy: { createdAt: "desc" }, take: 300 });
-  const terminal = ["DONE", "CANCELLED"];
-  // Une étape retirée (en attente d'un tiers, d'un document, bloquée à la main) se lit « En cours » (10/2026).
-  const open = requests.filter((r) => !terminal.includes(r.status)).map((r) => ({ ...r, status: statutAffiche(r.status, r.blockedReason) as AdminRequestStatus }));
-  const stats = {
-    nouvelles: open.filter((r) => r.status === "NEW").length,
-    enCours: open.filter((r) => r.status === "IN_PROGRESS").length,
-    urgentes: open.filter((r) => r.priority === "HIGH" || r.priority === "CRITICAL").length,
-    enRetard: open.filter((r) => r.deadline && r.deadline < now).length,
-    attenteValidation: open.filter((r) => r.status === "AWAITING_VALIDATION").length,
-    attentePaiement: open.filter((r) => r.status === "AWAITING_PAYMENT").length,
-    ouvertes: open.length,
-  };
-  return { requests, open, stats };
-}
-
 /** Corbeille : demandes supprimées (soft delete) — réservé aux gestionnaires. */
 export async function getDeletedRequests(user: SessionUser) {
   if (!(hasGlobalView(user.role) || userCan(user, "ADMIN_REQUESTS", "UPDATE"))) return [];
@@ -135,39 +115,6 @@ export async function getApprovals(user: SessionUser) {
     orderBy: { createdAt: "asc" },
   });
   return lignes.map((l) => ({ ...l, pourLeCompteDe: auNom?.nomDe(l.validatorId) ?? null }));
-}
-
-export async function getDriverMissions(user: SessionUser) {
-  const manager = hasGlobalView(user.role) || userCan(user, "ADMIN_REQUESTS", "UPDATE");
-  const where: Prisma.DriverMissionWhereInput = manager ? {} : { assignedToId: user.id };
-  return prisma.driverMission.findMany({
-    where,
-    include: {
-      request: { select: { id: true, reference: true } },
-      assignedTo: { select: { name: true } },
-      stops: { orderBy: { position: "asc" } },
-    },
-    orderBy: [{ status: "asc" }, { createdAt: "desc" }],
-    take: 200,
-  });
-}
-
-/** Pièces jointes des courses (Documents rattachés DRIVER_MISSION), groupées par mission. */
-export async function getMissionAttachments(missionIds: string[]) {
-  if (missionIds.length === 0) return new Map<string, { id: string; name: string; sizeBytes: number | null }[]>();
-  const docs = await prisma.document.findMany({
-    where: { entityType: "DRIVER_MISSION", entityId: { in: missionIds } },
-    select: { id: true, name: true, sizeBytes: true, entityId: true },
-    orderBy: { createdAt: "asc" },
-  });
-  const map = new Map<string, { id: string; name: string; sizeBytes: number | null }[]>();
-  for (const d of docs) {
-    if (!d.entityId) continue;
-    const list = map.get(d.entityId) ?? [];
-    list.push({ id: d.id, name: d.name, sizeBytes: d.sizeBytes });
-    map.set(d.entityId, list);
-  }
-  return map;
 }
 
 /**

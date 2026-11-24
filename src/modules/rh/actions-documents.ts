@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { HrRequestType, HrRequestStatus } from "@prisma/client";
 import { requireUser } from "@/lib/session";
 import { entitePermisePourFiche } from "@/lib/company";
-import { userCan, hasGlobalView, rolesWithModule } from "@/lib/rbac";
+import { userCan, rolesWithModule } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { releaseBlob } from "@/lib/drive-storage";
 import { validateUpload, deposerPieceDeModule } from "@/lib/storage";
@@ -603,10 +603,10 @@ export async function decideExpenseReport(formData: FormData): Promise<ActionRes
   const req = await prisma.hrDocumentRequest.findUnique({ where: { id }, include: { employee: { select: { userId: true, fullName: true } } } });
   if (!req || req.type !== "EXPENSE_REPORT") return { ok: false, error: "Note de frais introuvable." };
   if (!req.expenseMonth || !YM.test(req.expenseMonth)) return { ok: false, error: "Cette note de frais n'a pas de mois renseigné." };
-  // Verrou : pas de traitement tant que le bureau du secrétariat n'a pas accusé
-  // réception des documents ORIGINAUX (l'accusé est visible dans la demande).
+  // Verrou : pas de traitement tant que les RH n'ont pas accusé réception des documents ORIGINAUX (l'accusé est visible
+  // dans la demande — « Originaux reçus », 24/11/2026).
   if (!req.originalsAckAt) {
-    return { ok: false, error: "Traitement impossible : le bureau du secrétariat n'a pas encore accusé réception des originaux." };
+    return { ok: false, error: "Traitement impossible : les originaux ne sont pas encore reçus — cliquez d'abord « Originaux reçus »." };
   }
 
   const refus = refusDecisionRh(user, req);
@@ -699,25 +699,33 @@ export async function decideHrLeave(formData: FormData): Promise<ActionResult> {
 }
 
 /**
- * Accusé de réception des ORIGINAUX d'une note de frais par le BUREAU DU
- * SECRÉTARIAT (droit « Modifier » sur le module Bureau du secrétariat, ou vue globale).
+ * ACCUSÉ DE RÉCEPTION DES ORIGINAUX d'une note de frais — PAR LES RH (Super Admin, 24/11/2026).
+ *
+ * « Les notes de frais ne relèvent pas de l'assistante de direction : elles vont aux RH en passant par le supérieur
+ * hiérarchique. » L'accusé quitte donc le bureau du secrétariat : il se fait dans la file des demandes RH, par qui y
+ * décide la note (le droit « Modifier » des demandes RH, sur une demande qu'il voit — la garde de `decideExpenseReport`),
+ * et le Super Admin le garde.
  */
 export async function ackExpenseOriginals(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  if (!(hasGlobalView(user.role) || userCan(user, "ADMIN_REQUESTS", "UPDATE"))) {
-    return { ok: false, error: "Réservé au bureau du secrétariat." };
+  const superAdmin = user.role === "SUPER_ADMIN";
+  if (!superAdmin && !userCan(user, "HR_REQUESTS", "UPDATE")) {
+    return { ok: false, error: "Réservé aux RH : l'accusé de réception des originaux se fait dans la file des demandes RH." };
   }
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Demande introuvable." };
+  if (!superAdmin && !(await demandeRhVisible(user.id, id))) return { ok: false, error: "Note de frais introuvable." };
   const req = await prisma.hrDocumentRequest.findUnique({ where: { id }, include: { employee: { select: { userId: true, fullName: true } } } });
   if (!req || req.type !== "EXPENSE_REPORT") return { ok: false, error: "Note de frais introuvable." };
   if (req.originalsAckAt) return { ok: false, error: "Originaux déjà réceptionnés." };
 
-  await prisma.hrDocumentRequest.update({ where: { id }, data: { originalsAckAt: new Date(), originalsAckById: user.id } });
+  // Conditionnelle (§118.151) : deux clics simultanés n'accusent qu'une fois, et ne préviennent qu'une fois.
+  const pose = await prisma.hrDocumentRequest.updateMany({ where: { id, originalsAckAt: null }, data: { originalsAckAt: new Date(), originalsAckById: user.id } });
+  if (pose.count !== 1) return { ok: false, error: "Originaux déjà réceptionnés." };
   if (req.employee.userId) {
     await notifyUser({
       userId: req.employee.userId, type: "GENERIC", title: "Originaux réceptionnés",
-      body: `Le bureau du secrétariat a accusé réception des originaux de votre note de frais (${formatMonth(req.expenseMonth)}).`,
+      body: `Les RH ont accusé réception des originaux de votre note de frais (${formatMonth(req.expenseMonth)}).`,
       link: `/mon-dossier#demande-rh-${id}`,
     });
   }
@@ -726,8 +734,8 @@ export async function ackExpenseOriginals(formData: FormData): Promise<ActionRes
     body: `${req.employee.fullName} — ${formatMonth(req.expenseMonth)} (accusé par ${user.name}).`,
     link: `/rh/demandes?demande=${id}`,
   });
-  await recordAudit({ actorId: user.id, action: "VALIDATE", module: "Demandes administratives", summary: `Accusé de réception originaux note de frais — ${req.employee.fullName} (${req.expenseMonth ?? "?"})` });
-  revalidatePath("/demandes");
+  await recordAudit({ actorId: user.id, action: "VALIDATE", module: "RH", summary: `Accusé de réception originaux note de frais — ${req.employee.fullName} (${req.expenseMonth ?? "?"})` });
+  revalidatePath("/rh/demandes");
   revalidatePath("/mon-dossier");
   revalidatePath(`/rh/${req.employeeId}`);
   return { ok: true };

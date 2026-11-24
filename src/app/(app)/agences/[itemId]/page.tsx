@@ -10,7 +10,9 @@ export const metadata = { title: "Poste en prospection — AMD Internal OS" };
 
 /**
  * LE POSTE CONFIÉ À L'ASSISTANTE (Direction, 15/11/2026) — CE poste seul, sans le reste de la demande : son cahier des
- * charges, ses devis (dépôt, lignes), son bon de commande (composeur), et le geste suivant. La même carte que partout.
+ * charges, ses devis (dépôt, lignes), son bon de commande (composeur), l'e-mail aux agences, la discussion du poste, et le
+ * geste suivant. La même carte que partout. C'est la FICHE des lignes « Prospection d'agence » et « Bon de commande » du
+ * bureau du secrétariat (24/11/2026) : son retour mène au bureau.
  */
 export default async function PosteAgencePage(props: { params: Promise<{ itemId: string }> }) {
   const { itemId } = await props.params;
@@ -22,7 +24,7 @@ export default async function PosteAgencePage(props: { params: Promise<{ itemId:
   if (!item) notFound();
   return (
     <div className="mx-auto max-w-4xl space-y-5">
-      <BackLink href="/agences">Prospection d&apos;agences</BackLink>
+      <BackLink href="/demandes">Bureau du secrétariat</BackLink>
       <PageHeader title={item.label} description={`${poste.ref} — poste payé par une agence. Votre prochain geste est en tête de la carte ; les devis, le bon de commande et la discussion du poste, dessous.`} />
       <AdProItemsPanel
         parent={poste.owner.parent} parentId={poste.owner.id} items={[item]} amountGranted={null} decided

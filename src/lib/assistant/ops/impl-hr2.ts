@@ -465,7 +465,7 @@ export const HR2_OPS_IMPL: Record<string, OpImpl> = {
       return {
         title: `Accuser réception des originaux — note de frais de ${req.employee.fullName}`,
         fields: [{ label: "Note de frais", value: `${req.employee.fullName}${req.expenseMonth ? ` — ${req.expenseMonth}` : ""}` }],
-        warnings: ["L'accusé atteste que les originaux papier sont physiquement au bureau du secrétariat."],
+        warnings: ["L'accusé atteste que les RH ont reçu les originaux papier ; il débloque la décision."],
         args: { id: req.id },
         successMessage: `Originaux de la note de frais de ${req.employee.fullName} réceptionnés.`,
         revalidate: ["/rh"],
