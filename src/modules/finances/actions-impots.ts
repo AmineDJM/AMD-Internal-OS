@@ -15,8 +15,8 @@ import {
   origineDuMontant, refusCorrectionEcheance, refusEnvoiEcheance, refusPreparationEcheance, refusQuittanceEcheance,
   refusRetraitEcheance, validerObligation, type CompositionFiscale, type EtatEcheance, type SaisiesFiscales,
 } from "./domaine/impots";
-import { libelleLigneBudget, ventilationBudgetaire } from "./domaine/budget-impots";
-import { lignesBudgetImpots } from "./infra/budget-impots";
+import { libelleLigneBudget, repartirAuProrata, ventilationBudgetaire } from "./domaine/budget-impots";
+import { lignesBudgetImpots, lignesMasseSalarialeParDepartement } from "./infra/budget-impots";
 import { createExpenseOrder } from "./infra/expense-orders";
 import { assurerLignesDuCalendrier, CHEMIN_IMPOTS, paieDuMois } from "./infra/impots";
 
@@ -33,9 +33,10 @@ import { assurerLignesDuCalendrier, CHEMIN_IMPOTS, paieDuMois } from "./infra/im
  * montant d'un ordre ni « payé ». Le JUSTIFICATIF est obligatoire : il se range sur l'ORDRE (un `Document` de l'ordre),
  * là où tout ordre porte sa pièce — le centre l'ouvre comme les autres.
  *
- * LE BUDGET (Super Admin, 24/11/2026) : chaque ordre est imputé à sa ligne de l'enveloppe « Impôts & taxes » de la
- * société (`domaine/budget-impots.ts`) ; une G50 qui porte plusieurs natures émet UN ORDRE PAR LIGNE (IRG, TVA, autres)
- * — engagé tant qu'il n'est pas réglé, consommé au règlement, comme toute enveloppe.
+ * LE BUDGET (Super Admin, 24/11/2026, audit des dépenses) : la TVA et l'IBS s'imputent à l'enveloppe « Impôts & taxes »
+ * de la société ; l'IRG et la CNAS à la MASSE SALARIALE des départements, au prorata des retenues de leurs fiches
+ * (`domaine/budget-impots.ts`). Une imputation = un ordre : engagé tant qu'il n'est pas réglé, consommé au règlement,
+ * comme toute enveloppe.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
@@ -71,7 +72,7 @@ function lireSaisies(brut: string | null): SaisiesFiscales {
   try { v = brut ? JSON.parse(brut) : {}; } catch { v = {}; }
   const o = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
   const s: SaisiesFiscales = {};
-  for (const k of ["irg", "tva", "tvaC", "tvaD", "tap", "sal", "pat", "montant"] as const) if (typeof o[k] === "string") s[k] = (o[k] as string).slice(0, 40);
+  for (const k of ["irg", "tva", "tvaC", "tvaD", "sal", "pat", "montant"] as const) if (typeof o[k] === "string") s[k] = (o[k] as string).slice(0, 40);
   if (Array.isArray(o.autres)) {
     s.autres = o.autres.slice(0, 20).map((a) => {
       const x = (a && typeof a === "object" ? a : {}) as Record<string, unknown>;
@@ -122,23 +123,64 @@ async function envoyerLaLigne(formData: FormData, user: CurrentUser, ligne: Lign
 
   const lignesEnvoyees = d.lignes.filter((l) => !(l.cle.startsWith("autre") && l.montant === 0));
   const parts = ventilationBudgetaire(composition, lignesEnvoyees, ligne.nature, ligne.organisme);
-  const libellePart = (p: (typeof parts)[number]) => libelleLigneBudget(p.cle, p.sousNature);
   const notes = lignesEnvoyees.map((l) => `${l.label} : ${formatDzd(l.montant)} DZD — ${origineDuMontant(l)}`).join("\n");
   const libelle = `${ligne.nature} — ${ligne.periodeLibelle}`;
-  // UN ORDRE PAR LIGNE DU BUDGET, tous par l'unique écrivain ; le plus gros est le principal (pièce, quittance).
+
+  // LES IMPUTATIONS (audit des dépenses, 24/11/2026) : la TVA et l'IBS à leur ligne d'« Impôts & taxes » ; l'IRG et la
+  // CNAS à la MASSE SALARIALE des départements, au prorata des retenues que portent les fiches de leurs salariés ; une
+  // autre ligne de la G50 reste à classer au règlement.
+  const dateBudget = ligne.echeance ?? maintenant;
+  const imputations: { libelle: string; montant: number; categoryId: string | null }[] = [];
+  let fiches = paie?.base === "HORS_MOIS" ? null : paie?.fiches ?? null;
+  try {
+    const impots = parts.some((p) => p.cle === "TVA_NETTE" || p.cle === "IBS") ? await lignesBudgetImpots(ligne.companyId, dateBudget, user.id) : null;
+    for (const part of parts) {
+      if (part.cle === "TVA_NETTE" || part.cle === "IBS") {
+        imputations.push({ libelle: libelleLigneBudget(part.cle), montant: part.montant, categoryId: impots?.get(part.cle) ?? null });
+      } else if (part.cle === "MS_IRG" || part.cle === "MS_CNAS") {
+        const cleMs = part.cle;
+        if (!fiches) {
+          const mois = /^\d{4}-\d{2}$/.test(ligne.periode ?? "") ? ligne.periode : `${maintenant.getUTCFullYear()}-${String(maintenant.getUTCMonth() + 1).padStart(2, "0")}`;
+          fiches = (await paieDuMois(ligne.companyId, mois)).fiches;
+        }
+        const poidsDe = (f: (typeof fiches)[number]) => (cleMs === "MS_IRG" ? f.retIrg ?? 0 : (f.retSS9 ?? 0) + (f.partPatronale ?? 0));
+        const msParDep = await lignesMasseSalarialeParDepartement(
+          ligne.companyId, dateBudget, fiches.map((f) => f.departmentId).filter((x): x is string => Boolean(x)),
+        );
+        const parCategorie = new Map<string | null, { poids: number; enveloppe: string | null }>();
+        for (const f of fiches) {
+          const ms = f.departmentId ? msParDep.get(f.departmentId) : undefined;
+          const cat = ms?.lignes.get(cleMs) ?? null;
+          const acc = parCategorie.get(cat) ?? { poids: 0, enveloppe: ms?.enveloppe ?? null };
+          acc.poids += poidsDe(f);
+          parCategorie.set(cat, acc);
+        }
+        for (const r of repartirAuProrata(part.montant, [...parCategorie.entries()].map(([cle, v]) => ({ cle, poids: v.poids })))) {
+          const env = r.cle ? parCategorie.get(r.cle)?.enveloppe : null;
+          imputations.push({ libelle: `${libelleLigneBudget(cleMs)} · ${env ?? "à classer au règlement"}`, montant: r.montant, categoryId: r.cle });
+        }
+      } else {
+        imputations.push({ libelle: "Autres lignes — à classer au règlement", montant: part.montant, categoryId: null });
+      }
+    }
+  } catch (e) {
+    console.error("[impots] imputation budgétaire non lue", e);
+    await prisma.echeanceFiscale.updateMany({ where: { id: ligne.id, expenseOrderId: null }, data: { envoyeLe: null, envoyeParId: null } });
+    return { ok: false, error: "Le budget de cette échéance n'a pas pu être lu : rien n'est parti au centre. Réessayez dans un instant." };
+  }
+
+  // UN ORDRE PAR IMPUTATION, tous par l'unique écrivain ; le plus gros est le principal (pièce, quittance).
   const ordres: { id: string; reference: string; montant: number; cle: string }[] = [];
   try {
-    const categories = await lignesBudgetImpots(ligne.companyId, ligne.echeance ?? maintenant, user.id);
-    for (const part of [...parts].sort((a, b) => b.montant - a.montant)) {
+    for (const imp of [...imputations].sort((a, b) => b.montant - a.montant)) {
       const o = await createExpenseOrder({
-        label: parts.length > 1 ? `${libelle} · ${libellePart(part)}` : libelle,
-        amount: part.montant, category: "IMPOT", beneficiary: ligne.organisme,
+        label: imputations.length > 1 ? `${libelle} · ${imp.libelle}` : libelle,
+        amount: imp.montant, category: "IMPOT", beneficiary: ligne.organisme,
         sourceType: "TAX_PAYMENT", sourceId: ligne.id, companyId: ligne.companyId, requestedById: user.id,
-        dueDate: ligne.echeance, deadlineNature: "FIXED", requiresInvoice: false,
-        budgetCategoryId: categories.get(part.sousNature ?? part.cle) ?? categories.get(part.cle) ?? null,
-        notes: parts.length > 1 ? `${notes}\nPart imputée ici (${libellePart(part)}) : ${formatDzd(part.montant)} DZD sur ${formatDzd(d.total)} DZD.` : notes,
+        dueDate: ligne.echeance, deadlineNature: "FIXED", requiresInvoice: false, budgetCategoryId: imp.categoryId,
+        notes: imputations.length > 1 ? `${notes}\nPart imputée ici (${imp.libelle}) : ${formatDzd(imp.montant)} DZD sur ${formatDzd(d.total)} DZD.` : notes,
       });
-      ordres.push({ id: o.id, reference: o.reference, montant: part.montant, cle: libellePart(part) });
+      ordres.push({ id: o.id, reference: o.reference, montant: imp.montant, cle: imp.libelle });
     }
   } catch (e) {
     console.error("[impots] ordre non émis", e);

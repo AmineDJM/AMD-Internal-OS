@@ -35,7 +35,7 @@ export function PanneauSuivi({ ligne, societe, peutModifier, estDemandeur, onFer
   const [numero, setNumero] = React.useState("");
   const o = ligne.ordre;
   const etat = ligne.etat;
-  const budget = ventilationBudgetaire(ligne.composition, ligne.decomposition.map((c) => ({ cle: c.cle ?? "", montant: c.montant, label: c.label })), ligne.nature, ligne.organisme);
+  const budget = ventilationBudgetaire(ligne.composition, ligne.decomposition.map((c) => ({ cle: c.cle ?? "", montant: c.montant })), ligne.nature, ligne.organisme);
   const geste = (fn: (fd: FormData) => Promise<{ ok: boolean; error?: string; message?: string }>, champs: Record<string, string | File> = {}) => run(async () => {
     const fd = new FormData();
     fd.set("id", ligne.id);
@@ -114,8 +114,8 @@ export function PanneauSuivi({ ligne, societe, peutModifier, estDemandeur, onFer
         </ul>
         {budget.length > 0 && (
           <p className="text-xs text-muted-foreground">
-            Budget « Impôts &amp; taxes » : {budget.map((b) => `${libelleLigneBudget(b.cle, b.sousNature)} ${formatDzd(b.montant)} DZD`).join(" · ")}
-            {budget.length > 1 ? " — un ordre par ligne." : ""}
+            Budget : {budget.map((b) => `${libelleLigneBudget(b.cle)} ${formatDzd(b.montant)} DZD`).join(" · ")}
+            {budget.length > 1 ? " — un ordre par imputation." : ""}
           </p>
         )}
       </section>

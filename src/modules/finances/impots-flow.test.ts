@@ -16,7 +16,7 @@ import {
 import { decidePayment } from "./actions-centre";
 import { assurerLignesDuCalendrier, chargerImpotsCotisations, rappelerEcheancesFiscales } from "./infra/impots";
 import { periodeCourante } from "./domaine/impots";
-import { CODE_ENVELOPPE_IMPOTS, LIGNES_BUDGET_IMPOTS, SOUS_NATURES_AUTRES_TAXES } from "./partage";
+import { CODE_ENVELOPPE_IMPOTS, LIGNES_BUDGET_IMPOTS, LIGNES_MASSE_SALARIALE } from "./partage";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -44,7 +44,7 @@ const session = async (id: string, role: string): Promise<SessionUser> =>
 suite("Impôts & cotisations — du calendrier à la quittance", () => {
   const u: Record<string, string> = {};
   let fbm: SessionUser, sa: SessionUser, viewer: SessionUser;
-  let socA = "", socB = "";
+  let socA = "", socB = "", envPole = "";
   const maintenant = new Date();
   const periode = periodeCourante("MENSUELLE", maintenant)!;
 
@@ -61,11 +61,19 @@ suite("Impôts & cotisations — du calendrier à la quittance", () => {
     // LE CLOISONNEMENT : la personne des Finances n'a que la société A.
     await prisma.userCompanyAccess.create({ data: { userId: u.fbm!, companyId: socA, canEdit: true } });
     // Les fiches de la société A : retenues FIXES inscrites par les RH (une sans IRG).
+    // L'ORGANIGRAMME ET LES MASSES SALARIALES : le pôle « Commercial » a son enveloppe (campagne budgétaire), son
+    // sous-département en hérite ; le département « Sans budget » n'en a pas — sa part reste à classer.
+    const d1 = await prisma.department.create({ data: { name: `${TAG}Commercial`, code: `${TAG}COM`, companyId: socA } });
+    const d1a = await prisma.department.create({ data: { name: `${TAG}Commercial Est`, code: `${TAG}COME`, companyId: socA, parentId: d1.id } });
+    const d3 = await prisma.department.create({ data: { name: `${TAG}Sans budget`, code: `${TAG}SB`, companyId: socA } });
+    envPole = (await prisma.budgetEnvelope.create({ data: { name: `${TAG}Commercial`, companyId: socA, periodStart: new Date("2000-01-01"), periodEnd: new Date("2100-12-31"), totalAmount: 0 } })).id;
+    const campagne = await prisma.budgetCampaign.create({ data: { year: 2026, title: `${TAG}campagne`, opensAt: new Date(), submitDeadline: new Date(), validationDeadline: new Date() } });
+    await prisma.budgetProposal.create({ data: { campaignId: campagne.id, departmentId: d1.id, poleLabel: "Commercial", envelopeId: envPole } });
     await prisma.employee.createMany({
       data: [
-        { fullName: `${TAG}Salarié 1`, companyId: socA, retIrg: 17460, retSS9: 11520, retSS35: 44800 },
-        { fullName: `${TAG}Salarié 2`, companyId: socA, retIrg: 38900, retSS9: 19260, retSS35: 74900 },
-        { fullName: `${TAG}Salarié 3`, companyId: socA, retIrg: null, retSS9: 5580, retSS35: 21700 },
+        { fullName: `${TAG}Salarié 1`, companyId: socA, departmentId: d1a.id, retIrg: 17460, retSS9: 11520, retSS35: 44800 },
+        { fullName: `${TAG}Salarié 2`, companyId: socA, departmentId: d3.id, retIrg: 38900, retSS9: 19260, retSS35: 74900 },
+        { fullName: `${TAG}Salarié 3`, companyId: socA, departmentId: d1.id, retIrg: null, retSS9: 5580, retSS35: 21700 },
         { fullName: `${TAG}Ancien`, companyId: socA, isActive: false, retIrg: 99999 },
       ],
     });
@@ -97,6 +105,9 @@ suite("Impôts & cotisations — du calendrier à la quittance", () => {
     await prisma.obligationFiscale.deleteMany({ where: { companyId: { in: societes } } }).catch(() => {});
     await prisma.budgetEnvelope.deleteMany({ where: { companyId: { in: societes } } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { fullName: { startsWith: TAG } } }).catch(() => {});
+    await prisma.budgetCampaign.deleteMany({ where: { title: { startsWith: TAG } } }).catch(() => {});
+    await prisma.budgetEnvelope.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
+    await prisma.department.deleteMany({ where: { code: { startsWith: TAG } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { entityType: "TAX_PAYMENT", entityId: { in: lignes.map((l) => l.id) } } }).catch(() => {});
     await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } });
     await prisma.company.deleteMany({ where: { id: { in: societes } } }).catch(() => {});
@@ -106,7 +117,7 @@ suite("Impôts & cotisations — du calendrier à la quittance", () => {
 
   it("le CALENDRIER fait naître les lignes de la période — et se refuse hors des droits ou de la société", async () => {
     const calendrier = JSON.stringify([
-      { companyId: socA, organisme: "Recette des impôts", nature: "G50 — TVA, IRG salaires, TAP", composition: "G50", periodicite: "MENSUELLE", jour: "20", rappel: true, confirme: true },
+      { companyId: socA, organisme: "Recette des impôts", nature: "G50 — TVA et IRG salaires", composition: "G50", periodicite: "MENSUELLE", jour: "20", rappel: true, confirme: true },
       { companyId: socA, organisme: "CNAS", nature: "Cotisations sociales", composition: "CNAS", periodicite: "MENSUELLE", jour: "30", rappel: true, confirme: false },
     ]);
     ACTEUR = viewer;
@@ -119,7 +130,7 @@ suite("Impôts & cotisations — du calendrier à la quittance", () => {
     expect(r.ok, r.error).toBe(true);
     const lignes = await prisma.echeanceFiscale.findMany({ where: { companyId: socA }, orderBy: { nature: "asc" } });
     expect(lignes.map((l) => [l.nature, l.periode, l.periodeLibelle])).toEqual([
-      ["Cotisations sociales", periode.cle, periode.libelle], ["G50 — TVA, IRG salaires, TAP", periode.cle, periode.libelle],
+      ["Cotisations sociales", periode.cle, periode.libelle], ["G50 — TVA et IRG salaires", periode.cle, periode.libelle],
     ]);
     expect(lignes.find((l) => l.composition === "G50")!.echeance!.getUTCDate()).toBe(20);
     // Rejouer ne crée rien (clé obligation × période).
@@ -138,8 +149,8 @@ suite("Impôts & cotisations — du calendrier à la quittance", () => {
 
   it("sans justificatif, l'envoi est REFUSÉ et aucun ordre ne naît ; le brouillon garde les saisies", async () => {
     ACTEUR = fbm;
-    const g50 = await ligneDe("G50 — TVA, IRG salaires, TAP");
-    const saisies = JSON.stringify({ irg: "56 000", tvaC: "3 412 000", tvaD: "2 251 500", tap: "127 400" });
+    const g50 = await ligneDe("G50 — TVA et IRG salaires");
+    const saisies = JSON.stringify({ irg: "56 000", tvaC: "3 412 000", tvaD: "2 251 500" });
     expect((await enregistrerBrouillonImpot(fd({ id: g50.id, saisies }))).ok).toBe(true);
     expect((await prisma.echeanceFiscale.findUniqueOrThrow({ where: { id: g50.id } })).saisies).toMatchObject({ irg: "56 000" });
     const r = await envoyerImpotAuCentre(fd({ id: g50.id, saisies }));
@@ -149,13 +160,14 @@ suite("Impôts & cotisations — du calendrier à la quittance", () => {
 
   it("ENVOYER crée les ordres par createExpenseOrder — un par ligne du budget, organisme bénéficiaire, pièce sur chaque ordre, écart tracé", async () => {
     ACTEUR = fbm;
-    const g50 = await ligneDe("G50 — TVA, IRG salaires, TAP");
-    const saisies = JSON.stringify({ irg: "56 000", tvaC: "3 412 000", tvaD: "2 251 500", tap: "127 400" });
+    const g50 = await ligneDe("G50 — TVA et IRG salaires");
+    const saisies = JSON.stringify({ irg: "56 000", tvaC: "3 412 000", tvaD: "2 251 500" });
     const r = await envoyerImpotAuCentre(fd({ id: g50.id, saisies, justificatif: pdf("G50-signee.pdf") }));
     expect(r.ok, r.error).toBe(true);
     const ligne = await prisma.echeanceFiscale.findUniqueOrThrow({ where: { id: g50.id } });
-    expect(Number(ligne.montant)).toBe(56000 + 1160500 + 127400);
+    expect(Number(ligne.montant)).toBe(56000 + 1160500);
     const ordres = await prisma.expenseOrder.findMany({ where: { id: { in: ligne.ordresIds } } });
+    // TVA → Impôts & taxes ; IRG → masse salariale du pôle Commercial (sa part) et « à classer » (le département sans budget).
     expect(ordres).toHaveLength(3);
     for (const o of ordres) {
       expect(o).toMatchObject({
@@ -167,18 +179,22 @@ suite("Impôts & cotisations — du calendrier à la quittance", () => {
       // La pièce sur CHAQUE ordre (le centre l'ouvre depuis l'ordre qu'il décide).
       expect(await prisma.document.count({ where: { entityType: "EXPENSE_ORDER", entityId: o.id, name: "G50-signee.pdf" } })).toBe(1);
     }
-    // LE BUDGET : l'enveloppe « Impôts & taxes » de la société, ouverte d'office (montants à 0), et une ligne par nature.
+    // LE BUDGET : « Impôts & taxes » ne porte que TVA_NETTE et IBS (montants à 0) ; la masse salariale du pôle reçoit MS_IRG
+    // et MS_CNAS, à côté de ses autres lignes.
     const enveloppe = await prisma.budgetEnvelope.findFirstOrThrow({ where: { companyId: socA, module: CODE_ENVELOPPE_IMPOTS }, include: { categories: true } });
     expect(Number(enveloppe.totalAmount)).toBe(0);
-    expect(enveloppe.categories.filter((c) => !c.parentId).map((c) => c.cle).sort()).toEqual(Object.values(LIGNES_BUDGET_IMPOTS).sort());
-    const autres = enveloppe.categories.find((c) => c.cle === "AUTRES_TAXES")!;
-    expect(enveloppe.categories.filter((c) => c.parentId === autres.id).map((c) => c.cle).sort()).toEqual(Object.values(SOUS_NATURES_AUTRES_TAXES).sort());
-    const cleDe = new Map(enveloppe.categories.map((c) => [c.id, c.cle]));
-    expect(ordres.map((o) => [cleDe.get(o.budgetCategoryId!), Number(o.amount)]).sort()).toEqual([
-      ["AUTRES_TAXES", 127400], ["IRG_SALAIRES", 56000], ["TVA_NETTE", 1160500],
-    ]);
+    expect(enveloppe.categories.map((c) => c.cle).sort()).toEqual(Object.values(LIGNES_BUDGET_IMPOTS).sort());
+    const pole = await prisma.budgetCategoryLine.findMany({ where: { envelopeId: envPole } });
+    expect(pole.map((c) => c.cle).sort()).toEqual(Object.values(LIGNES_MASSE_SALARIALE).sort());
+    const cleDe = new Map([...enveloppe.categories, ...pole].map((c) => [c.id, c.cle]));
+    // L'IRG envoyé (56 000) se partage au prorata des retenues des fiches : 17 460 (pôle Commercial) / 38 900 (sans budget).
+    const partPole = Math.round((56000 * 17460 / 56360) * 100) / 100;
+    const partAClasser = Math.round((56000 - partPole) * 100) / 100;
+    expect(ordres.map((o) => [o.budgetCategoryId ? cleDe.get(o.budgetCategoryId) : null, Number(o.amount)]).sort()).toEqual([
+      ["MS_IRG", partPole], ["TVA_NETTE", 1160500], [null, partAClasser],
+    ].sort());
     // Le principal (pièce, quittance) est la plus grosse part.
-    expect(ligne.expenseOrderId).toBe(ordres.find((o) => cleDe.get(o.budgetCategoryId!) === "TVA_NETTE")!.id);
+    expect(ligne.expenseOrderId).toBe(ordres.find((o) => cleDe.get(o.budgetCategoryId ?? "") === "TVA_NETTE")!.id);
     const ecart = await prisma.auditLog.findFirst({ where: { entityType: "TAX_PAYMENT", entityId: g50.id, field: "IRG retenu sur les salaires" } });
     expect(ecart).toMatchObject({ oldValue: String(17460 + 38900), newValue: "56000", actorId: fbm.id });
     // Partie : la ligne ne se renvoie pas, ne se brouillonne plus.
@@ -187,7 +203,7 @@ suite("Impôts & cotisations — du calendrier à la quittance", () => {
 
   it("RETIRER tant que non décidé : l'ordre est annulé, la ligne revient « À préparer » ; le renvoi garde la pièce", async () => {
     ACTEUR = fbm;
-    const g50 = await ligneDe("G50 — TVA, IRG salaires, TAP");
+    const g50 = await ligneDe("G50 — TVA et IRG salaires");
     const ancien = g50.expenseOrderId!;
     expect((await retirerImpotDuCentre(fd({ id: g50.id }))).ok).toBe(true);
     expect((await prisma.expenseOrder.findMany({ where: { id: { in: g50.ordresIds } } })).map((o) => o.status)).toEqual(["CANCELLED", "CANCELLED", "CANCELLED"]);
@@ -195,7 +211,7 @@ suite("Impôts & cotisations — du calendrier à la quittance", () => {
     const apres = await prisma.echeanceFiscale.findUniqueOrThrow({ where: { id: g50.id } });
     expect(apres.expenseOrderId).toBeNull();
     // Renvoi SANS nouveau fichier : la pièce suit le nouvel ordre (une pièce, jamais deux copies).
-    const r = await envoyerImpotAuCentre(fd({ id: g50.id, saisies: JSON.stringify({ tvaC: "0", tvaD: "0", tap: "0" }) }));
+    const r = await envoyerImpotAuCentre(fd({ id: g50.id, saisies: JSON.stringify({ tvaC: "0", tvaD: "0" }) }));
     expect(r.ok, r.error).toBe(true);
     const renvoye = await prisma.echeanceFiscale.findUniqueOrThrow({ where: { id: g50.id } });
     expect(renvoye.expenseOrderId).not.toBe(ancien);
@@ -204,7 +220,7 @@ suite("Impôts & cotisations — du calendrier à la quittance", () => {
   });
 
   it("REFUS du centre : l'état et le motif se lisent ; « Corriger et renvoyer » ramène la ligne avec le motif", async () => {
-    const g50 = await ligneDe("G50 — TVA, IRG salaires, TAP");
+    const g50 = await ligneDe("G50 — TVA et IRG salaires");
     ACTEUR = sa;
     const d = await decidePayment(fd({ id: g50.expenseOrderId!, decision: "REFUSE", body: "Joindre la G50 signée et cachetée." }));
     expect(d.ok, d.error).toBe(true);
@@ -220,16 +236,23 @@ suite("Impôts & cotisations — du calendrier à la quittance", () => {
 
   it("AUTORISÉ puis PAYÉ (écrit par la banque) : la quittance se joint, sur l'ordre", async () => {
     ACTEUR = fbm;
-    const g50 = await ligneDe("G50 — TVA, IRG salaires, TAP");
-    expect((await envoyerImpotAuCentre(fd({ id: g50.id, saisies: JSON.stringify({ tvaC: "0", tvaD: "0", tap: "0" }), justificatif: pdf("G50-cachetee.pdf") }))).ok).toBe(true);
-    const ordreId = (await prisma.echeanceFiscale.findUniqueOrThrow({ where: { id: g50.id } })).expenseOrderId!;
+    const g50 = await ligneDe("G50 — TVA et IRG salaires");
+    expect((await envoyerImpotAuCentre(fd({ id: g50.id, saisies: JSON.stringify({ tvaC: "0", tvaD: "0" }), justificatif: pdf("G50-cachetee.pdf") }))).ok).toBe(true);
+    const envoye = await prisma.echeanceFiscale.findUniqueOrThrow({ where: { id: g50.id } });
+    const ordreId = envoye.expenseOrderId!;
     expect((await joindreQuittanceImpot(fd({ id: g50.id, quittance: pdf("Q.pdf") }))).error).toMatch(/une fois la ligne payée/);
+    // Chaque imputation est un ordre : le centre les autorise toutes ; tant qu'une attend, la ligne est « au centre ».
     ACTEUR = sa;
-    expect((await decidePayment(fd({ id: ordreId, decision: "APPROVE" }))).ok).toBe(true);
+    const [premier, ...autres] = envoye.ordresIds;
+    expect((await decidePayment(fd({ id: premier!, decision: "APPROVE" }))).ok).toBe(true);
+    ACTEUR = fbm;
+    expect((await chargerImpotsCotisations(fbm.id)).lignes.find((l) => l.id === g50.id)!.etat).toBe(autres.length ? "AU_CENTRE" : "AUTORISE");
+    ACTEUR = sa;
+    for (const id of autres) expect((await decidePayment(fd({ id, decision: "APPROVE" }))).ok).toBe(true);
     ACTEUR = fbm;
     expect((await chargerImpotsCotisations(fbm.id)).lignes.find((l) => l.id === g50.id)!.etat).toBe("AUTORISE");
     // Le règlement appartient à Banque & paiements (`settleExpenseOrder`) ; le banc pose son résultat.
-    await prisma.expenseOrder.update({ where: { id: ordreId }, data: { status: "PAID", paidDate: new Date() } });
+    await prisma.expenseOrder.updateMany({ where: { id: { in: envoye.ordresIds } }, data: { status: "PAID", paidDate: new Date() } });
     const q = await joindreQuittanceImpot(fd({ id: g50.id, quittance: pdf("Quittance.pdf"), numero: "Q-2026-11-0412" }));
     expect(q.ok, q.error).toBe(true);
     const ligne = await prisma.echeanceFiscale.findUniqueOrThrow({ where: { id: g50.id } });
@@ -249,7 +272,7 @@ suite("Impôts & cotisations — du calendrier à la quittance", () => {
 
   it("PAIEMENT PONCTUEL : justificatif obligatoire, puis l'ordre naît comme les autres", async () => {
     ACTEUR = fbm;
-    const champs = { organisme: "Recette des impôts", companyId: socA, nature: "Taxe foncière — entrepôt", periode: "année 2026", montant: "184 000" };
+    const champs = { organisme: "Recette des impôts", companyId: socA, nature: "Acompte IBS — régularisation", periode: "exercice 2026", montant: "184 000" };
     expect((await envoyerPaiementPonctuel(fd(champs))).error).toMatch(/justificatif est obligatoire/);
     expect((await envoyerPaiementPonctuel(fd({ ...champs, companyId: socB, justificatif: pdf("avis.pdf") }))).error).toMatch(/périmètre/);
     ACTEUR = viewer;
@@ -258,12 +281,12 @@ suite("Impôts & cotisations — du calendrier à la quittance", () => {
     const r = await envoyerPaiementPonctuel(fd({ ...champs, justificatif: pdf("Avis-imposition-2026.pdf") }));
     expect(r.ok, r.error).toBe(true);
     const ligne = await prisma.echeanceFiscale.findUniqueOrThrow({ where: { id: r.id! } });
-    expect(ligne).toMatchObject({ obligationId: null, composition: "MONTANT", periodeLibelle: "année 2026" });
+    expect(ligne).toMatchObject({ obligationId: null, composition: "MONTANT", periodeLibelle: "exercice 2026" });
     const ordre = await prisma.expenseOrder.findUniqueOrThrow({ where: { id: ligne.expenseOrderId! } });
     expect(ordre).toMatchObject({ sourceType: "TAX_PAYMENT", beneficiary: "Recette des impôts", companyId: socA });
     expect(Number(ordre.amount)).toBe(184000);
-    // Une taxe ponctuelle va aux « autres impôts et taxes » du budget, à SA sous-nature (taxe foncière).
-    expect((await prisma.budgetCategoryLine.findUniqueOrThrow({ where: { id: ordre.budgetCategoryId! } })).cle).toBe("TAXE_FONCIERE");
+    // Un acompte d'IBS va à la ligne IBS d'« Impôts & taxes ».
+    expect((await prisma.budgetCategoryLine.findUniqueOrThrow({ where: { id: ordre.budgetCategoryId! } })).cle).toBe("IBS");
   });
 
   it("le RAPPEL J-7 part une fois, aux gestionnaires de la société de la ligne", async () => {

@@ -6,8 +6,8 @@ import {
   etatDesOrdres,
 } from "./impots";
 import {
-  CATEGORIES_BUDGET_IMPOTS, CODE_ENVELOPPE_IMPOTS, ligneBudgetDuMontant, LIGNES_BUDGET_IMPOTS, SOUS_NATURES_AUTRES_TAXES,
-  sousNatureDe, ventilationBudgetaire,
+  CATEGORIES_BUDGET_IMPOTS, CODE_ENVELOPPE_IMPOTS, ligneBudgetDuMontant, LIGNES_BUDGET_IMPOTS, LIGNES_MASSE_SALARIALE,
+  repartirAuProrata, ventilationBudgetaire,
 } from "./budget-impots";
 
 /**
@@ -32,12 +32,12 @@ describe("le préremplissage IRG / CNAS — la somme des retenues des fiches, ri
 
   it("G50 : l'IRG proposé est repris tel quel, et une correction est MARQUÉE (l'écart est tracé)", () => {
     const p = { irg: 1214600, sal: null, pat: null, tva: null, fiches: 86 };
-    const tel = decomposer("G50", { tvaC: "3 412 000", tvaD: "2 251 500", tap: "127400" }, p);
+    const tel = decomposer("G50", { tvaC: "3 412 000", tvaD: "2 251 500" }, p);
     expect(tel.lignes[0]).toMatchObject({ cle: "irg", montant: 1214600, propose: 1214600, modifie: false });
-    expect(tel.total).toBe(1214600 + 1160500 + 127400);
+    expect(tel.total).toBe(1214600 + 1160500);
     expect(tel.dePaie).toBe(1214600);
-    expect(tel.deDeclaration).toBe(1160500 + 127400);
-    const corrige = decomposer("G50", { irg: "1 198 400", tvaC: "0", tvaD: "0", tap: "0" }, p);
+    expect(tel.deDeclaration).toBe(1160500);
+    const corrige = decomposer("G50", { irg: "1 198 400", tvaC: "0", tvaD: "0" }, p);
     expect(corrige.lignes[0]).toMatchObject({ montant: 1198400, propose: 1214600, modifie: true });
     expect(origineDuMontant(corrige.lignes[0]!)).toBe("Proposé par la paie, corrigé (proposé 1 214 600)");
   });
@@ -51,12 +51,12 @@ describe("le préremplissage IRG / CNAS — la somme des retenues des fiches, ri
 
 describe("la TVA et les autres lignes — recopiées, jamais calculées", () => {
   it("TVA à payer = collectée − déductible ; un résultat négatif n'ajoute rien et le dit", () => {
-    const d = decomposer("G50", { irg: "0", tvaC: "100", tvaD: "250", tap: "0" }, AUCUNE_PROPOSITION);
+    const d = decomposer("G50", { irg: "0", tvaC: "100", tvaD: "250" }, AUCUNE_PROPOSITION);
     expect(d.tvaNegative).toBe(-150);
     expect(d.lignes.find((l) => l.cle === "tva")!.montant).toBe(0);
   });
 
-  it("les deux montants de TVA sont exigés ; le TAP est FACULTATIF (vide = 0, jamais réclamé)", () => {
+  it("les deux montants de TVA sont exigés, et suffisent avec l'IRG", () => {
     const d = decomposer("G50", { irg: "10", tvaC: "100" }, AUCUNE_PROPOSITION);
     expect(d.manque).toEqual(["TVA collectée et déductible"]);
     expect(decomposer("G50", { irg: "10", tvaC: "100", tvaD: "40" }, AUCUNE_PROPOSITION).total).toBe(70);
@@ -64,21 +64,21 @@ describe("la TVA et les autres lignes — recopiées, jamais calculées", () => 
 
   it("TVA PROPOSÉE par les factures (lot « tva ») : reprise comme l'IRG, corrigible, l'écart marqué ; sans source, saisie", () => {
     const p = { irg: 0, sal: null, pat: null, tva: 1160500, fiches: 1 };
-    const tel = decomposer("G50", { tap: "0" }, p);
+    const tel = decomposer("G50", {}, p);
     expect(tel.lignes.find((l) => l.cle === "tva")).toMatchObject({ source: "FACTURES", montant: 1160500, propose: 1160500, modifie: false, manque: false });
     expect(tel.deFactures).toBe(1160500);
     expect(tel.manque).toEqual([]);
-    const corrige = decomposer("G50", { tap: "0", tva: "1 150 000" }, p);
+    const corrige = decomposer("G50", { tva: "1 150 000" }, p);
     expect(corrige.lignes.find((l) => l.cle === "tva")).toMatchObject({ montant: 1150000, modifie: true });
     expect(origineDuMontant(corrige.lignes.find((l) => l.cle === "tva")!)).toBe("Proposé par les factures, corrigé (proposé 1 160 500)");
     // Un crédit de TVA n'ajoute rien, et se dit.
-    expect(decomposer("G50", { tap: "0" }, { ...p, tva: -50 }).tvaNegative).toBe(-50);
+    expect(decomposer("G50", {}, { ...p, tva: -50 }).tvaNegative).toBe(-50);
     // Sans source (aujourd'hui), la TVA reste à recopier de la G50.
-    expect(decomposer("G50", { tap: "0" }, { ...p, tva: null }).manque).toEqual(["TVA collectée et déductible"]);
+    expect(decomposer("G50", {}, { ...p, tva: null }).manque).toEqual(["TVA collectée et déductible"]);
   });
 
   it("une autre ligne de la déclaration s'ajoute ; un montant sans libellé est signalé", () => {
-    const d = decomposer("G50", { irg: "0", tvaC: "0", tvaD: "0", tap: "0", autres: [{ libelle: "Droit de timbre", montant: "2 500" }, { libelle: "", montant: "10" }] }, AUCUNE_PROPOSITION);
+    const d = decomposer("G50", { irg: "0", tvaC: "0", tvaD: "0", autres: [{ libelle: "Droit de timbre", montant: "2 500" }, { libelle: "", montant: "10" }] }, AUCUNE_PROPOSITION);
     expect(d.total).toBe(2510);
     expect(d.autreSansLibelle).toBe(true);
   });
@@ -94,7 +94,7 @@ describe("la TVA et les autres lignes — recopiées, jamais calculées", () => 
 describe("l'envoi — le justificatif est obligatoire", () => {
   const base = { periodeLibelle: "novembre 2026", organisme: "Recette des impôts" };
   it("sans justificatif, rien ne part — et le refus nomme la pièce attendue", () => {
-    const d = decomposer("G50", { irg: "10", tvaC: "0", tvaD: "0", tap: "0" }, AUCUNE_PROPOSITION);
+    const d = decomposer("G50", { irg: "10", tvaC: "0", tvaD: "0" }, AUCUNE_PROPOSITION);
     expect(refusEnvoiEcheance({ ...base, composition: "G50", decomposition: d, justificatif: false }))
       .toBe("Le justificatif est obligatoire : joignez la déclaration G50 de novembre 2026, signée.");
     const c = decomposer("CNAS", { sal: "1", pat: "1" }, AUCUNE_PROPOSITION);
@@ -183,38 +183,36 @@ describe("le calendrier — des périodes et des jours limites que personne n'a 
   });
 });
 
-describe("le budget « Impôts & taxes » — des clés stables, une ventilation qui tombe juste", () => {
-  it("G50 : IRG, TVA et autres lignes vont chacune à SA ligne ; la somme des parts égale le total", () => {
-    const d = decomposer("G50", { irg: "100", tvaC: "500", tvaD: "200", tap: "10", autres: [{ libelle: "Timbre", montant: "5" }] }, AUCUNE_PROPOSITION);
-    const parts = ventilationBudgetaire("G50", d.lignes, "G50 — TVA, IRG salaires, TAP", "Recette des impôts");
-    expect(parts).toEqual([
-      { cle: "TVA_NETTE", sousNature: null, montant: 300 }, { cle: "IRG_SALAIRES", sousNature: null, montant: 100 },
-      { cle: "AUTRES_TAXES", sousNature: null, montant: 10 }, { cle: "AUTRES_TAXES", sousNature: "TIMBRE_ENREGISTREMENT", montant: 5 },
-    ]);
+describe("le budget — TVA et IBS aux « Impôts & taxes », IRG et CNAS à la masse salariale", () => {
+  it("G50 : la TVA → TVA_NETTE, l'IRG → MS_IRG, une autre ligne → à classer ; la somme des parts égale le total", () => {
+    const d = decomposer("G50", { irg: "100", tvaC: "500", tvaD: "200", autres: [{ libelle: "Droit de timbre", montant: "5" }] }, AUCUNE_PROPOSITION);
+    const parts = ventilationBudgetaire("G50", d.lignes, "G50 — TVA et IRG salaires", "Recette des impôts");
+    expect(parts).toEqual([{ cle: "TVA_NETTE", montant: 300 }, { cle: "MS_IRG", montant: 100 }, { cle: null, montant: 5 }]);
     expect(parts.reduce((t, p) => t + p.montant, 0)).toBe(d.total);
   });
 
-  it("CNAS → CNAS ; acompte et solde d'IBS → IBS ; une taxe ponctuelle → autres taxes ; montants nuls écartés", () => {
-    expect(ventilationBudgetaire("CNAS", [{ cle: "sal", montant: 9 }, { cle: "pat", montant: 26 }], "Cotisations", "CNAS")).toEqual([{ cle: "CNAS", sousNature: null, montant: 35 }]);
-    expect(ventilationBudgetaire("MONTANT", [{ cle: "montant", montant: 1 }], "Acompte IBS", "Recette des impôts")).toEqual([{ cle: "IBS", sousNature: null, montant: 1 }]);
+  it("CNAS → MS_CNAS ; acompte et solde d'IBS → IBS ; montants nuls écartés ; rien d'autre n'est désigné", () => {
+    expect(ventilationBudgetaire("CNAS", [{ cle: "sal", montant: 9 }, { cle: "pat", montant: 26 }], "Cotisations", "CNAS")).toEqual([{ cle: "MS_CNAS", montant: 35 }]);
+    expect(ventilationBudgetaire("MONTANT", [{ cle: "montant", montant: 1 }], "Acompte IBS", "Recette des impôts")).toEqual([{ cle: "IBS", montant: 1 }]);
     expect(ventilationBudgetaire("MONTANT", [{ cle: "montant", montant: 1 }], "Solde IBS (liquidation annuelle)", "Recette des impôts")[0]!.cle).toBe("IBS");
-    // La CASNOS des gérants n'est PAS la CNAS : une sous-nature des autres taxes.
-    expect(ligneBudgetDuMontant("Cotisation du gérant", "CASNOS")).toBe("AUTRES_TAXES");
-    expect(ventilationBudgetaire("MONTANT", [{ cle: "montant", montant: 96 }], "Cotisation du gérant", "CASNOS")).toEqual([{ cle: "AUTRES_TAXES", sousNature: "CASNOS", montant: 96 }]);
-    expect(ventilationBudgetaire("MONTANT", [{ cle: "montant", montant: 9 }], "Taxe foncière — entrepôt", "Recette des impôts")[0]).toMatchObject({ cle: "AUTRES_TAXES", sousNature: "TAXE_FONCIERE" });
-    expect(sousNatureDe("Majoration de retard G50")).toBe("PENALITES");
-    expect(sousNatureDe("TFP et taxe d'apprentissage")).toBe("TFP_APPRENTISSAGE");
-    expect(sousNatureDe("Retenues à la source")).toBe("RETENUES_SOURCE");
-    expect(sousNatureDe("Vignettes automobiles")).toBe("VIGNETTES");
-    expect(sousNatureDe("TAP")).toBeNull();
+    expect(ligneBudgetDuMontant("Régularisation diverse", "Recette des impôts")).toBeNull();
     expect(ventilationBudgetaire("G50", [{ cle: "irg", montant: 0 }, { cle: "tva", montant: 0 }], "G50", "Recette")).toEqual([]);
+  });
+
+  it("le prorata des départements tombe juste au centime ; sans poids, tout est à classer", () => {
+    const r = repartirAuProrata(56000, [{ cle: "A", poids: 17460 }, { cle: "B", poids: 38900 }, { cle: "C", poids: 0 }]);
+    expect(r.map((x) => x.cle)).toEqual(["A", "B"]);
+    expect(Math.round(r.reduce((t, x) => t + x.montant, 0) * 100)).toBe(5600000);
+    expect(r[0]!.montant).toBe(Math.round(56000 * 17460 / 56360 * 100) / 100);
+    expect(repartirAuProrata(100, [{ cle: "A", poids: 1 }, { cle: "B", poids: 1 }, { cle: "C", poids: 1 }]).map((x) => x.montant).reduce((a, b) => a + b, 0)).toBeCloseTo(100, 6);
+    expect(repartirAuProrata(10, [{ cle: "A", poids: 0 }])).toEqual([{ cle: null, montant: 10 }]);
   });
 
   it("les clés exposées aux autres lots ne bougent pas", () => {
     expect(CODE_ENVELOPPE_IMPOTS).toBe("IMPOTS_TAXES");
-    expect(Object.values(LIGNES_BUDGET_IMPOTS)).toEqual(["TVA_NETTE", "IBS", "IRG_SALAIRES", "CNAS", "AUTRES_TAXES"]);
-    expect(CATEGORIES_BUDGET_IMPOTS.map((c) => c.cle)).toEqual(["TVA_NETTE", "IBS", "IRG_SALAIRES", "CNAS", "AUTRES_TAXES"]);
-    expect(Object.values(SOUS_NATURES_AUTRES_TAXES)).toEqual(["CASNOS", "TFP_APPRENTISSAGE", "RETENUES_SOURCE", "TAXE_FONCIERE", "VIGNETTES", "TIMBRE_ENREGISTREMENT", "PENALITES"]);
+    expect(Object.values(LIGNES_BUDGET_IMPOTS)).toEqual(["TVA_NETTE", "IBS"]);
+    expect(CATEGORIES_BUDGET_IMPOTS.map((c) => c.cle)).toEqual(["TVA_NETTE", "IBS"]);
+    expect(Object.values(LIGNES_MASSE_SALARIALE)).toEqual(["MS_IRG", "MS_CNAS"]);
   });
 
   it("l'état d'une ligne à plusieurs ordres : un refus l'emporte, payée quand tous le sont", () => {

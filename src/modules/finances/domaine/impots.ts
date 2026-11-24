@@ -3,12 +3,12 @@
  * IMPÔTS & COTISATIONS — LES RÈGLES (maquette validée par le Super Admin, 24/11/2026).
  *
  * Les Finances demandent au centre de paiement le paiement des obligations fiscales et sociales de chaque société :
- * la G50 du mois (IRG salaires, TVA, TAP, autres lignes), la CNAS, un acompte d'IBS, un paiement ponctuel.
+ * la G50 du mois (TVA, IRG salaires, autres lignes), la CNAS, un acompte d'IBS, un paiement ponctuel.
  *
  * LA PLATEFORME N'APPLIQUE NI TAUX NI ASSIETTE. Elle ADDITIONNE ce qui est inscrit — l'IRG et la CNAS = la somme des
  * retenues que les RH ont portées sur les fiches salariés ; la TVA du mois = collectée − déductible des FACTURES (décision
  * du Super Admin du 24/11/2026 : la source arrive avec le lot « tva », `prerempliTva` ; d'ici là, recopiées de la G50) —
- * et elle RECOPIE le reste (TAP, acomptes, autres lignes). Un montant
+ * et elle RECOPIE le reste (acomptes, autres lignes). Un montant
  * proposé par la paie reste modifiable : l'écart avec l'envoyé est gardé, jamais effacé.
  *
  * L'état d'une ligne ne se saisit pas : il se LIT sur l'ordre de dépense qui la paie (`etatDeLEcheance`), seul écrit
@@ -22,11 +22,11 @@ import type { BadgeTone } from "@/lib/labels";
 
 // ── Le calendrier ────────────────────────────────────────────────────────────────────────────
 
-/** Ce que la préparation décompose : la G50 (IRG + TVA + TAP + autres lignes), la CNAS (deux parts), un montant unique. */
+/** Ce que la préparation décompose : la G50 (TVA + IRG + autres lignes), la CNAS (deux parts), un montant unique. */
 export type CompositionFiscale = "G50" | "CNAS" | "MONTANT";
 export const COMPOSITIONS_FISCALES: readonly CompositionFiscale[] = ["G50", "CNAS", "MONTANT"];
 export const LIBELLE_COMPOSITION: Record<CompositionFiscale, string> = {
-  G50: "G50 (IRG, TVA, TAP)",
+  G50: "G50 (TVA, IRG)",
   CNAS: "CNAS (parts salariale et patronale)",
   MONTANT: "Montant unique",
 };
@@ -175,7 +175,6 @@ export interface SaisiesFiscales {
   tva?: string;
   tvaC?: string;
   tvaD?: string;
-  tap?: string;
   autres?: { libelle: string; montant: string }[];
   sal?: string;
   pat?: string;
@@ -228,7 +227,7 @@ export function propositionsDesFiches(fiches: readonly RetenuesFiche[]): Proposi
 export type SourceMontant = "PAIE" | "FACTURES" | "DECLARATION" | "JUSTIFICATIF";
 
 export interface LigneDecomposee {
-  cle: "irg" | "tva" | "tap" | "sal" | "pat" | "montant" | `autre${number}`;
+  cle: "irg" | "tva" | "sal" | "pat" | "montant" | `autre${number}`;
   label: string;
   source: SourceMontant;
   montant: number;
@@ -247,7 +246,7 @@ export interface Decomposition {
   /** La part proposée par les factures (la TVA, quand une source la fournit). */
   deFactures: number;
   deDeclaration: number;
-  /** Ce qui reste à saisir, en mots (« TVA collectée et déductible », « TAP »). */
+  /** Ce qui reste à saisir, en mots (« TVA collectée et déductible »). */
   manque: string[];
   /** TVA collectée − déductible négative : rien n'est ajouté au total (crédit de TVA — à vérifier sur la déclaration). */
   tvaNegative: number | null;
@@ -305,9 +304,6 @@ export function decomposer(composition: CompositionFiscale, s: SaisiesFiscales, 
         source: "DECLARATION", montant: tva !== null ? Math.max(0, tva) : 0, propose: null, manque: tva === null, modifie: false,
       });
     }
-    // LE TAP EST FACULTATIF (sa suppression par la loi de finances 2024 est à confirmer) : vide = 0, jamais réclamé.
-    const tap = saisi("tap");
-    lignes.push({ cle: "tap", label: "TAP", source: "DECLARATION", montant: tap ?? 0, propose: null, manque: false, modifie: false });
     (s.autres ?? []).forEach((a, i) => {
       const m = lireMontantFiscal(a.montant);
       if (m !== null && m !== 0 && !a.libelle.trim()) autreSansLibelle = true;

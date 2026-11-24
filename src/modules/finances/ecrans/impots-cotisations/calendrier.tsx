@@ -38,20 +38,15 @@ interface LigneCal {
 }
 
 /**
- * LES OBLIGATIONS USUELLES (Super Admin et audit des dépenses, 24/11/2026) — pré-inscrites d'un geste, réglables, NON
- * confirmées tant que le cabinet ne les a pas validées : l'IBS (acomptes selon l'avis, et le SOLDE — liquidation annuelle —
- * proposé au 30 avril de l'année suivante), puis les sous-natures des autres taxes. Les pénalités, elles, se paient en
- * ponctuel : elles n'ont pas d'échéance à prévoir.
+ * LES OBLIGATIONS USUELLES (Super Admin, 24/11/2026) — pré-inscrites d'un geste, réglables, NON confirmées tant que le
+ * cabinet ne les a pas validées : la G50 mensuelle (TVA, IRG), la CNAS, l'IBS (acomptes selon l'avis, et le SOLDE —
+ * liquidation annuelle — proposé au 30 avril de l'année suivante). Les jours limites sont à confirmer par le cabinet.
  */
-const OBLIGATIONS_USUELLES: readonly { organisme: string; nature: string; periodicite: PeriodiciteFiscale; jour: string; mois: string }[] = [
-  { organisme: "Recette des impôts", nature: "Acompte IBS", periodicite: "SELON_AVIS", jour: "", mois: "" },
-  { organisme: "Recette des impôts", nature: "Solde IBS (liquidation annuelle)", periodicite: "ANNUELLE", jour: "30", mois: "4" },
-  { organisme: "CASNOS", nature: "CASNOS — cotisation des gérants non salariés", periodicite: "ANNUELLE", jour: "", mois: "" },
-  { organisme: "Recette des impôts", nature: "TFP et taxe d'apprentissage", periodicite: "ANNUELLE", jour: "", mois: "" },
-  { organisme: "Recette des impôts", nature: "Retenues à la source", periodicite: "MENSUELLE", jour: "", mois: "" },
-  { organisme: "Recette des impôts", nature: "Taxe foncière", periodicite: "ANNUELLE", jour: "", mois: "" },
-  { organisme: "Recette des impôts", nature: "Vignettes automobiles", periodicite: "ANNUELLE", jour: "", mois: "" },
-  { organisme: "Recette des impôts", nature: "Droits de timbre et d'enregistrement", periodicite: "SELON_AVIS", jour: "", mois: "" },
+const OBLIGATIONS_USUELLES: readonly { organisme: string; nature: string; composition: CompositionFiscale; periodicite: PeriodiciteFiscale; jour: string; mois: string }[] = [
+  { organisme: "Recette des impôts", nature: "G50 — TVA et IRG salaires", composition: "G50", periodicite: "MENSUELLE", jour: "", mois: "" },
+  { organisme: "CNAS", nature: "Cotisations sociales", composition: "CNAS", periodicite: "MENSUELLE", jour: "", mois: "" },
+  { organisme: "Recette des impôts", nature: "Acompte IBS", composition: "MONTANT", periodicite: "SELON_AVIS", jour: "", mois: "" },
+  { organisme: "Recette des impôts", nature: "Solde IBS (liquidation annuelle)", composition: "MONTANT", periodicite: "ANNUELLE", jour: "30", mois: "4" },
 ];
 
 const depuis = (o: ObligationVue): LigneCal => ({
@@ -85,13 +80,15 @@ export function PanneauCalendrier({ calendrier, societes, societeCourante, peutM
     }]);
   };
   const societeIbs = societeCourante ?? societes[0]?.id ?? "";
-  const usuellesAbsentes = OBLIGATIONS_USUELLES.filter((m) => !lignes.some((l) => l.companyId === societeIbs && l.nature.trim().toLowerCase() === m.nature.toLowerCase()));
+  const dejaLa = (ls: readonly LigneCal[], m: (typeof OBLIGATIONS_USUELLES)[number]) => ls.some((l) => l.companyId === societeIbs
+    && (l.nature.trim().toLowerCase() === m.nature.toLowerCase() || (m.composition !== "MONTANT" && l.composition === m.composition)));
+  const usuellesAbsentes = OBLIGATIONS_USUELLES.filter((m) => !dejaLa(lignes, m));
   const ajouterUsuelles = () => {
     setLignes((ls) => [...ls, ...OBLIGATIONS_USUELLES
-      .filter((m) => !ls.some((l) => l.companyId === societeIbs && l.nature.trim().toLowerCase() === m.nature.toLowerCase()))
+      .filter((m) => !dejaLa(ls, m))
       .map((m) => {
         nouvelle.current += 1;
-        return { cle: `n${nouvelle.current}`, companyId: societeIbs, composition: "MONTANT" as const, rappel: true, confirme: false, confirmeTexte: null, proposee: true, ...m };
+        return { cle: `n${nouvelle.current}`, companyId: societeIbs, rappel: true, confirme: false, confirmeTexte: null, proposee: true, ...m };
       })]);
   };
   const retirer = (l: LigneCal) => {
@@ -179,7 +176,7 @@ export function PanneauCalendrier({ calendrier, societes, societeCourante, peutM
             <button type="button" onClick={ajouter} className="h-11 rounded-lg border border-dashed border-border bg-card px-3.5 text-sm font-semibold text-primary">+ Ajouter une échéance</button>
             {usuellesAbsentes.length > 0 && societeIbs && (
               <button type="button" onClick={ajouterUsuelles} className="h-11 rounded-lg border border-dashed border-border bg-card px-3.5 text-sm font-semibold text-primary">
-                + Obligations usuelles (IBS, CASNOS, TFP…)
+                + Obligations usuelles (G50, CNAS, IBS)
               </button>
             )}
           </span>

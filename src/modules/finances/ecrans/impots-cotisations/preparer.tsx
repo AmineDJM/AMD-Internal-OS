@@ -18,7 +18,7 @@ import { champ, EnTetePanneau, Note, type Annoncer, type Ligne } from "./commun"
 /**
  * LE PANNEAU « PRÉPARER » — la décomposition du montant, ligne par ligne (maquette validée, 24/11/2026). L'IRG et la
  * CNAS sont PROPOSÉS par les fiches salariés et restent modifiables (l'écart se voit, et part au journal à l'envoi) ;
- * la TVA, le TAP et les autres lignes se recopient de la déclaration. Le justificatif est obligatoire.
+ * la TVA (collectée sur les ventes − déductible sur les achats) et les autres lignes se recopient de la déclaration. Le justificatif est obligatoire.
  */
 
 const BADGE: Record<string, string> = {
@@ -117,8 +117,8 @@ export function PanneauPreparer({
             {l.cle === "tva" && l.source === "DECLARATION" ? (
               <>
                 <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                  <ChampMontant id={`tvac-${ligne.id}`} label="TVA collectée (ligne de la G50)" valeur={saisies.tvaC ?? ""} placeholder="à recopier" onChange={(v) => pose("tvaC", v)} disabled={!peutModifier} />
-                  <ChampMontant id={`tvad-${ligne.id}`} label="TVA déductible (ligne de la G50)" valeur={saisies.tvaD ?? ""} placeholder="à recopier" onChange={(v) => pose("tvaD", v)} disabled={!peutModifier} />
+                  <ChampMontant id={`tvac-${ligne.id}`} label="TVA collectée sur les ventes (ligne de la G50)" valeur={saisies.tvaC ?? ""} placeholder="à recopier" onChange={(v) => pose("tvaC", v)} disabled={!peutModifier} />
+                  <ChampMontant id={`tvad-${ligne.id}`} label="TVA déductible sur les achats (ligne de la G50)" valeur={saisies.tvaD ?? ""} placeholder="à recopier" onChange={(v) => pose("tvaD", v)} disabled={!peutModifier} />
                 </div>
                 <ResultatTva c={saisies.tvaC} d={saisies.tvaD} />
               </>
@@ -144,7 +144,7 @@ export function PanneauPreparer({
                     id={`in-${ligne.id}-${l.cle}`} disabled={!peutModifier}
                     label={l.source === "FACTURES" ? "TVA à payer (modifiable)"
                       : l.source === "PAIE" ? `${l.cle === "irg" ? "IRG à reverser" : l.cle === "sal" ? "Part salariale à reverser" : "Part patronale"}${l.propose !== null ? " (modifiable)" : ""}`
-                      : l.cle === "tap" ? "Montant de TAP sur la G50 (facultatif)" : "Montant porté sur le justificatif"}
+                      : "Montant porté sur le justificatif"}
                     valeur={saisies[l.cle as "irg" | "tva"] ?? (l.propose !== null ? formatDzd(l.propose) : "")}
                     onChange={(v) => pose(l.cle as keyof SaisiesFiscales, v)}
                   />
@@ -186,7 +186,7 @@ export function PanneauPreparer({
           <p className="mt-0.5 text-xs text-foreground/80">{parts.length ? parts.join(" + ") : "rien de saisi pour l'instant"}</p>
           {d.manque.length > 0 && <p className="mt-0.5 text-xs font-semibold text-warning">Encore à saisir : {d.manque.join(", ")}</p>}
           {budget.length > 0 && (
-            <p className="mt-0.5 text-xs text-muted-foreground">Budget « Impôts &amp; taxes » : {budget.map((b) => `${libelleLigneBudget(b.cle, b.sousNature)} ${formatDzd(b.montant)}`).join(" · ")}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">Budget : {budget.map((b) => `${libelleLigneBudget(b.cle)} ${formatDzd(b.montant)}`).join(" · ")}</p>
           )}
         </div>
         <p className="text-2xl font-bold">{formatDzd(d.total)} DZD</p>
@@ -243,13 +243,12 @@ function ResultatTva({ c, d }: { c?: string; d?: string }) {
 
 function ExplicationLigne({ ligne, l, fiches }: { ligne: Ligne; l: LigneDecomposee; fiches: number }) {
   const t = l.source === "FACTURES"
-    ? "TVA collectée − TVA déductible des factures du mois. Vérifiez-la avec la G50 : corrigée ici, l'écart est tracé."
+    ? "TVA collectée sur les ventes − TVA déductible sur les achats, tirée des factures du mois. Vérifiez-la avec la G50 : corrigée ici, l'écart est tracé."
     : l.cle === "irg"
     ? `Somme des retenues IRG inscrites sur les ${fiches} fiches salariés par les RH. La paie ne calcule pas l'IRG du mois ; retenu sur les salaires, il ne part aujourd'hui par aucun ordre de paiement.`
     : l.cle === "sal" ? `Somme des retenues « SS 9 % » des ${fiches} fiches. Le virement de paie ne paie que les nets : cette part n'est versée nulle part aujourd'hui.`
       : l.cle === "pat" ? "Somme, fiche par fiche, de la retenue « SS 35 % » moins la retenue « SS 9 % » inscrites par les RH. À confirmer par les Finances."
-        : l.cle === "tva" ? "La plateforme n'enregistre ni la TVA collectée ni la TVA déductible : elle ne peut pas la calculer. Recopiez les deux montants de la G50."
-          : l.cle === "tap" ? "Facultative : sa suppression par la loi de finances 2024 est à confirmer. Recopiez-la si la déclaration la porte, sinon laissez vide."
+        : l.cle === "tva" ? "TVA nette = collectée sur les ventes − déductible sur les achats. Tant que les factures ne portent pas leur TVA, recopiez les deux montants de la G50."
             : l.cle === "montant" ? `La plateforme ne calcule pas ce montant : recopiez celui du ${justificatifAttendu(ligne.composition, ligne.periodeLibelle, ligne.organisme)}.`
               : "Ligne ajoutée par vous (droit de timbre, IRG sur autres revenus…) : libellé et montant tels que sur la déclaration.";
   return <p className="text-sm leading-relaxed text-muted-foreground">{l.propose === null && l.source === "PAIE" ? "Aucune fiche ne porte cette retenue : recopiez le montant de la déclaration." : t}{(l.source === "PAIE" || l.source === "FACTURES") && l.propose !== null ? ` (${origineDuMontant(l).toLowerCase()})` : ""}</p>;

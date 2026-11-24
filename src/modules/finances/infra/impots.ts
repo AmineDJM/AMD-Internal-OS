@@ -35,6 +35,8 @@ export async function societesDesImpots(userId: string): Promise<CompanyLite[]> 
 
 export interface FicheRetenue {
   nom: string;
+  /** Le département de la fiche : l'IRG et la CNAS payés se répartissent entre les masses salariales des départements. */
+  departmentId: string | null;
   poste: string | null;
   retIrg: number | null;
   retSS9: number | null;
@@ -74,7 +76,7 @@ export async function paieDuMois(companyId: string, periode: string | null): Pro
   const tva = await prerempliTva(companyId, periode).catch(() => null);
   const year = Number(m[1]);
   const month = Number(m[2]);
-  const SELECT = { fullName: true, position: true, retIrg: true, retSS9: true, retSS35: true } as const;
+  const SELECT = { fullName: true, position: true, departmentId: true, retIrg: true, retSS9: true, retSS35: true } as const;
   let base: PaieDuMois["base"] = "PAIE_DU_MOIS";
   let employes = await prisma.employee.findMany({
     where: { companyId, payrolls: { some: { year, month } } }, select: SELECT, orderBy: { fullName: "asc" },
@@ -85,7 +87,7 @@ export async function paieDuMois(companyId: string, periode: string | null): Pro
   }
   const fiches = employes.map((e) => {
     const r = { retIrg: dec(e.retIrg), retSS9: dec(e.retSS9), retSS35: dec(e.retSS35) };
-    return { nom: e.fullName, poste: e.position, ...r, partPatronale: partPatronaleDeLaFiche(r) };
+    return { nom: e.fullName, poste: e.position, departmentId: e.departmentId, ...r, partPatronale: partPatronaleDeLaFiche(r) };
   });
   return { propositions: { ...propositionsDesFiches(fiches), tva }, fiches, base };
 }

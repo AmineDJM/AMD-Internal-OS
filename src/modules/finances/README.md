@@ -23,13 +23,14 @@ Ancien emplacement : `src/lib/{finance,finances,payments}/`, `src/lib/expense-or
   société (`ObligationFiscale`) fait naître les lignes de la période (`EcheanceFiscale`, tâche `finances.impots-cotisations`, rappel J-7) ;
   l'IRG et la CNAS sont PROPOSÉS par la somme des retenues des fiches salariés (`Employee.retIrg`, `retSS9`, `retSS35`), la TVA
   par les factures du mois (`infra/impots.ts › prerempliTva`, la place du lot « tva » : `null` aujourd'hui → saisie depuis la G50),
-  modifiables, l'écart tracé ; le TAP et le reste recopiés de la déclaration (`domaine/impots`, ni taux ni assiette) ; l'envoi émet l'ordre par `createExpenseOrder`
+  modifiables, l'écart tracé ; le reste recopié de la déclaration (`domaine/impots`, ni taux ni assiette) ; l'envoi émet l'ordre par `createExpenseOrder`
   (source `TAX_PAYMENT`, bénéficiaire l'organisme), justificatif obligatoire déposé SUR L'ORDRE ; l'état se lit sur l'ordre ;
   la quittance se range sur l'ordre une fois payé. Écran : `ecrans/impots-cotisations/`.
-  **Le budget** (24/11/2026) : chaque ordre est imputé à l'enveloppe « Impôts & taxes » de la société (code `IMPOTS_TAXES`,
-  `BudgetEnvelope.module`), ouverte d'office à 0 (`infra/budget-impots.ts`) ; lignes à clé stable `TVA_NETTE`, `IBS`,
-  `IRG_SALAIRES`, `CNAS`, `AUTRES_TAXES` (`domaine/budget-impots.ts`, exportées par `partage.ts`). Une G50 émet un ordre
-  par ligne du budget (`ordresIds`), le principal portant pièce et quittance.
+  **Le budget** (24/11/2026, audit des dépenses) : la TVA nette et l'IBS s'imputent à l'enveloppe « Impôts & taxes » de la
+  société (code `IMPOTS_TAXES`, `BudgetEnvelope.module`, lignes `TVA_NETTE`, `IBS`), ouverte d'office à 0 ; l'IRG et la CNAS
+  à la MASSE SALARIALE des départements (lignes `MS_IRG`, `MS_CNAS` créées dans l'enveloppe du pôle, `BudgetProposal`),
+  au prorata des retenues de leurs fiches (`infra/budget-impots.ts`, `domaine/budget-impots.ts`, clés exportées par
+  `partage.ts`). Une imputation = un ordre (`ordresIds`), le principal portant pièce et quittance.
 - **La paie VERSÉE** (décision du 28/10/2026 : les RH décident les salaires, les Finances les versent) :
   `infra/paie-centre` (`solderVirementPaie` au règlement, `instantDuCentreDePaie`, la masse salariale actualisée),
   `domaine/virement-paie` (mois de la paie, état d'un salaire et du virement), `domaine/payroll-cost` (coût

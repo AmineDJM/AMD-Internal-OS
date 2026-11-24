@@ -26,9 +26,9 @@ import { PanneauPonctuel } from "./ponctuel";
 type Vue = { type: "ligne"; id: string | null } | { type: "calendrier" } | { type: "ponctuel" };
 
 const ENCART = [
-  { badge: "Proposé par la paie", classe: "bg-primary/10 text-primary", titre: "IRG et CNAS", texte: " : la plateforme additionne les retenues fixes inscrites par les RH sur chaque fiche salarié (IRG, sécurité sociale 9 %, sécurité sociale 35 %). Elle ne les recalcule pas. Le virement de paie ne paie que les nets : ces retenues ne partent aujourd'hui par aucun ordre." },
-  { badge: "Proposé par les factures", classe: "bg-primary/10 text-primary", titre: "TVA du mois", texte: " : collectée − déductible, tirée des factures du mois dès qu'elles portent leur TVA ; d'ici là, recopiée de la G50. Modifiable, l'écart est tracé." },
-  { badge: "À saisir depuis la déclaration", classe: "bg-warning/10 text-warning", titre: "TAP, acompte IBS, autres lignes", texte: " : les Finances recopient les lignes de la G50 ou du bordereau, qu'elles joignent obligatoirement." },
+  { badge: "Proposé par la paie", classe: "bg-primary/10 text-primary", titre: "IRG et CNAS", texte: " : la plateforme additionne les retenues fixes inscrites par les RH sur chaque fiche salarié (IRG, sécurité sociale 9 %, sécurité sociale 35 %). Elle ne les recalcule pas. Le virement de paie ne paie que les nets : ces retenues partent d'ici, imputées à la masse salariale des départements." },
+  { badge: "Proposé par les factures", classe: "bg-primary/10 text-primary", titre: "TVA du mois", texte: " : collectée sur les ventes − déductible sur les achats, tirée des factures du mois dès qu'elles portent leur TVA ; d'ici là, recopiée de la G50. Modifiable, l'écart est tracé." },
+  { badge: "À saisir depuis la déclaration", classe: "bg-warning/10 text-warning", titre: "Acomptes et solde d'IBS, autres lignes", texte: " : les Finances recopient les montants de la G50 ou du bordereau, qu'elles joignent obligatoirement." },
   { badge: "Aucun calcul fiscal", classe: "bg-secondary text-foreground", titre: "Ni taux ni assiette", texte: " : la plateforme additionne ce qui est inscrit (fiches, factures) et ne contient pas de calendrier fiscal — les jours limites sont ceux que vous paramétrez (menu ⋯ › Calendrier des échéances)." },
   { badge: "Modifiable et tracé", classe: "bg-success/10 text-success", titre: "Tout montant proposé se corrige avant l'envoi", texte: ". Le montant proposé, le montant envoyé, l'auteur et la date restent dans l'historique, visibles du centre de paiement." },
 ];
