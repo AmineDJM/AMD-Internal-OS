@@ -82,7 +82,7 @@ export type AiFeature =
   /**
    * LE COMPTE RENDU D'UNE VISITE LU PAR L'IA (Visite médicale, Super Admin 11/2026) : possible cas de pharmacovigilance
    * (aucun / possible / probable, raison, citation exacte) et priorité du rapport pour le superviseur. Elle PRÉVIENT le
-   * délégué et le superviseur, elle ne crée jamais un cas (`visite-pv-ia.ts`). Bascule à elle, COUPÉE par défaut.
+   * délégué et le superviseur, elle ne crée jamais un cas (`visite-pv-ia.ts`). Bascule à elle, ALLUMÉE par défaut (Super Admin, 24/11/2026).
    */
   | "visite_pv_detection";
 
@@ -122,7 +122,7 @@ const DEFAULTS: AiSettingsView = {
   ocrVisionEnabled: false,
   // COUPÉE PAR DÉFAUT, comme sa colonne (migration `20270246500000_pharmacovigilance_visite`) : chaque compte rendu lu est
   // un appel au fournisseur ; l'allumer est une décision de la Direction, sur l'écran.
-  visitePvDetectionEnabled: false,
+  visitePvDetectionEnabled: true,
 };
 
 /** Quelle bascule gouverne quelle fonction. */

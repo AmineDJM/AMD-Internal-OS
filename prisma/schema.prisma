@@ -9912,7 +9912,7 @@ model AiSetting {
   ocrVisionEnabled       Boolean  @default(false)
   /// L'IA lit le compte rendu d'une visite : possible cas de pharmacovigilance, priorité pour le superviseur. COUPÉE par
   /// défaut — chaque compte rendu lu est un appel au fournisseur ; elle prévient, elle ne signale jamais à la place d'un humain.
-  visitePvDetectionEnabled Boolean @default(false)
+  visitePvDetectionEnabled Boolean @default(true)
   /// Son plafond de dépense, en dollars, par mois civil (somme des appels journalisés au rôle « ocr »).
   ocrVisionPlafondUsd    Decimal  @default(20) @db.Decimal(10, 2)
   updatedAt              DateTime @updatedAt

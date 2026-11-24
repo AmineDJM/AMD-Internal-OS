@@ -639,7 +639,7 @@ export const ORG7D_OPS_IMPL: Record<string, OpImpl> = {
         // COUPÉ comme sa colonne (décision 0019) : sans ligne, aucune page ne part au modèle de vision.
         ocrVisionEnabled: s?.ocrVisionEnabled ?? false,
         // COUPÉE comme sa colonne : sans ligne, aucun compte rendu ne part au modèle.
-        visitePvDetectionEnabled: s?.visitePvDetectionEnabled ?? false,
+        visitePvDetectionEnabled: s?.visitePvDetectionEnabled ?? true,
       };
       if (cur[key as keyof typeof cur] === on) return { error: `« ${label} » est déjà ${on ? "activé" : "coupé"}.` };
       const next = { ...cur, [key]: on };
