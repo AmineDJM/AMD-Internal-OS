@@ -10911,6 +10911,15 @@
   "annulation": "compensation",
   "appelable": true
  },
+ "relecture-visite-actions:relireRapportVisite": {
+  "risque": "R2",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
  "reminder-actions:arreterRappelAssistant": {
   "risque": "R1",
   "familles": [
@@ -12599,6 +12608,15 @@
  },
  "ventes-pch-actions:reglerFournisseurVentesPch": {
   "risque": "R4",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "visite-medicale-actions:prevenirSuperviseurPanelVide": {
+  "risque": "R2",
   "familles": [
    "ECRITURES"
   ],
