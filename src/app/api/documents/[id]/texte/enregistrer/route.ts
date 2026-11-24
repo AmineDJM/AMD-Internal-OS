@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserPourEcrire } from "@/lib/session";
 import { canAccessEntity } from "@/lib/entity-access";
 import { prisma } from "@/lib/prisma";
-import { readFileByKey, saveFile } from "@/lib/storage";
+import { readFileByKey } from "@/lib/storage";
+import { enregistrerVersionDocument } from "@/lib/document-versions";
 import { recordAudit } from "@/lib/audit";
 import { estUnTexteEditable, texteAEnregistrer } from "@/lib/texte-fichier";
 import { TAILLE_MAX_TEXTE_OCTETS } from "@/lib/formats/apercu";
 import { sansBloquer } from "@/lib/journal";
-import { inscrireDocumentExistant } from "@/modules/bibliotheque/api-inscription";
 
 export const dynamic = "force-dynamic";
 const SANS_CACHE = { "Cache-Control": "no-store" };
@@ -35,23 +35,20 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   const verifie = texteAEnregistrer(corps.texte, tailleActuelle > TAILLE_MAX_TEXTE_OCTETS);
   if (!verifie.ok) return NextResponse.json({ error: verifie.error }, { status: 400, headers: SANS_CACHE });
 
-  // COMPARER ET ÉCHANGER : la version ne passe à la suivante que si elle est encore celle que la personne a lue.
-  const prise = await prisma.document.updateMany({
-    where: { id: doc.id, version: typeof corps.version === "number" ? corps.version : -1 },
-    data: { version: { increment: 1 }, sizeBytes: verifie.octets.length },
-  });
-  if (prise.count === 0) {
-    return NextResponse.json({ error: "Quelqu'un a modifié ce fichier depuis que vous l'avez ouvert : rouvrez-le pour voir sa dernière version.", conflit: true }, { status: 409, headers: SANS_CACHE });
-  }
+  // COMPARER ET ÉCHANGER, sous verrou : la version ne passe à la suivante que si elle est encore celle que la personne a
+  // lue. Le texte s'écrit sous une NOUVELLE clé : la version d'avant reste lisible (« Versions » de la fiche).
+  let r: Awaited<ReturnType<typeof enregistrerVersionDocument>>;
   try {
-    await saveFile(doc.fileKey, verifie.octets);
+    r = await enregistrerVersionDocument(doc.id, verifie.octets, user.id, { versionLue: typeof corps.version === "number" ? corps.version : -1 });
   } catch (e) {
-    await prisma.document.updateMany({ where: { id: doc.id }, data: { version: { decrement: 1 }, sizeBytes: doc.sizeBytes } });
     console.error("[texte] enregistrement impossible", e);
     return NextResponse.json({ error: "L'enregistrement a échoué : rien n'a été modifié." }, { status: 500, headers: SANS_CACHE });
   }
+  if (!r.ok && r.raison === "introuvable") return NextResponse.json({ error: "Introuvable" }, { status: 404, headers: SANS_CACHE });
+  if (!r.ok) {
+    return NextResponse.json({ error: "Quelqu'un a modifié ce fichier depuis que vous l'avez ouvert : rouvrez-le pour voir sa dernière version.", conflit: true }, { status: 409, headers: SANS_CACHE });
+  }
   await recordAudit({ actorId: user.id, action: "UPLOAD", module: "Documents", entityType: doc.entityType, entityId: doc.entityId, summary: `Texte modifié — ${doc.name}` });
-  // La nouvelle version entre à la bibliothèque (J1) ; l'ancienne ne ressort plus par ce document. Ne lève jamais.
-  await inscrireDocumentExistant(doc.id, user.id);
-  return NextResponse.json({ ok: true, version: doc.version + 1 }, { headers: SANS_CACHE });
+  // La nouvelle version est entrée à la bibliothèque (J1) avec son écriture (`enregistrerVersionDocument`).
+  return NextResponse.json({ ok: true, version: r.version }, { headers: SANS_CACHE });
 }

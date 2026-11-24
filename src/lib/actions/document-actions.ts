@@ -3,9 +3,13 @@
 import { revalidatePath } from "next/cache";
 import type { Confidentiality, DocumentCategory, EntityType } from "@prisma/client";
 import { requireUser } from "@/lib/session";
+import { enLecture } from "@/lib/vue-lecture";
 import { canAccessEntity, ENTITY_MODULE } from "@/lib/entity-access";
-import { deleteFileByKey } from "@/lib/storage";
 import { persistUploadedDocument } from "@/lib/documents";
+import { supprimerReversible } from "@/lib/suppression/coeur";
+import { peutOuvrirDocument } from "@/lib/entity-access/ouverture-pieces";
+import { listerVersionsDocument } from "@/lib/document-versions";
+import type { LigneVersionDocument } from "@/lib/document-versions-partage";
 import { ENTITY_TYPE_LABELS } from "@/lib/labels";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
@@ -82,6 +86,14 @@ export async function renameDocument(id: string, name: string, path?: string): P
   return { ok: true };
 }
 
+/**
+ * SUPPRIMER UN DOCUMENT — vers la CORBEILLE, jamais pour de bon (audit du Drive, 24/11, points A5 et F8).
+ *
+ * Le déposant (ou qui gère l'objet) effaçait la ligne ET le fichier, sans retour possible — y compris la facture
+ * d'un paiement déjà approuvé. La suppression passe désormais par le cœur réversible (type `DOCUMENT`) : la ligne
+ * part à la corbeille, le fichier et ses versions restent au stockage jusqu'à la destruction réelle. Le refus
+ * (pièce d'une demande de paiement, pièce d'une étape terminée) est jugé par le registre, pour l'écran ET Adam.
+ */
 export async function deleteDocument(id: string, path?: string): Promise<ActionResult> {
   const user = await requireUser();
   const doc = await prisma.document.findUnique({ where: { id } });
@@ -97,20 +109,24 @@ export async function deleteDocument(id: string, path?: string): Promise<ActionR
     return { ok: false, error: "Suppression non autorisée." };
   }
 
-  // Sa copie de « Mes documents importés » part à la corbeille avec elle (F2) — lue avant que le fichier soit libéré.
+  // Sa copie de « Mes documents importés » part à la corbeille avec elle (F2) — lue avant la mise à la corbeille.
   await retirerCopiesDrive(doc);
-  await prisma.document.delete({ where: { id } });
-  if (doc.fileKey) await deleteFileByKey(doc.fileKey);
-
-  await recordAudit({
-    actorId: user.id,
-    action: "DELETE",
-    module: ENTITY_TYPE_LABELS[doc.entityType] ?? ENTITY_MODULE[doc.entityType],
-    entityType: doc.entityType,
-    entityId: doc.entityId,
-    summary: `Document « ${doc.name} » supprimé`,
-  });
+  const r = await supprimerReversible("DOCUMENT", id, user.id, `Document « ${doc.name} » mis à la corbeille (${ENTITY_TYPE_LABELS[doc.entityType] ?? ENTITY_MODULE[doc.entityType]}) — restaurable depuis la corbeille`);
+  if (!r.ok) return { ok: false, error: r.error };
 
   if (path) revalidatePath(path);
   return { ok: true };
+}
+
+/**
+ * LES VERSIONS D'UN DOCUMENT — lues à l'ouverture du petit « Versions » de sa fiche. Mêmes droits que l'ouvrir :
+ * qui lit le document lit son historique (chaque ligne se télécharge par `/api/documents/<id>?version=N`).
+ */
+export async function listerVersionsDuDocument(id: string): Promise<{ ok: true; versions: LigneVersionDocument[] } | { ok: false; error: string }> {
+  // Une lecture : sous une vue ouverte, ce sont les droits de la personne visualisée (`enLecture`).
+  const user = await enLecture(requireUser);
+  const doc = await prisma.document.findUnique({ where: { id }, select: { id: true, entityType: true, entityId: true, stepKey: true } });
+  if (!doc) return { ok: false, error: "Document introuvable." };
+  if (!(await peutOuvrirDocument(user, doc))) return { ok: false, error: "Vous ne pouvez pas ouvrir ce document : demandez l'accès à son dossier." };
+  return { ok: true, versions: await listerVersionsDocument(id) };
 }

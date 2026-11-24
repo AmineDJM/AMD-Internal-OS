@@ -160,7 +160,7 @@ export function SpaceSettingsButton({ space, users, canDelete }: { space: SpaceD
               {canDelete && (
                 <Button type="button" variant="outline" size="sm" disabled={saving}
                   onClick={async () => {
-                    if (!(await confirmer(`Supprimer définitivement « ${space.name} » et TOUT son contenu ? Action irréversible.`))) return;
+                    if (!(await confirmer(`Mettre « ${space.name} » et TOUT son contenu à la corbeille ? La catégorie se restaure depuis la corbeille (Administration).`))) return;
                     run(() => { const fd = new FormData(); fd.set("id", space.id); return deleteDriveSpace(fd); }, () => router.push("/drive"));
                   }}
                   className="text-destructive hover:bg-destructive/10">

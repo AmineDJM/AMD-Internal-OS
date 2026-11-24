@@ -173,7 +173,8 @@ export async function finaliserDepotDirect(
       select: { id: true },
     });
     blobId = blob.id;
-    const res = await enregistrerFichierDrive(user, cible, { blobId, size: total, mimeType: s.mimeType || "application/octet-stream", name: s.fileName });
+    // L'objet reste au bucket si l'inscription échoue (reprise) : le blob ne se rend pas, il s'efface plus bas.
+    const res = await enregistrerFichierDrive(user, cible, { blobId, size: total, mimeType: s.mimeType || "application/octet-stream", name: s.fileName }, { rendreSiEchec: false });
     await prisma.directUpload.update({ where: { id }, data: { status: "COMPLETED", resultId: res.id, error: null } });
     addPhysicalUsage(total);
     return { ok: true, id: res.id, ...(res.version ? { version: res.version } : {}) };

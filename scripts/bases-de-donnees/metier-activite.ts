@@ -403,6 +403,7 @@ export const BASES_ACTIVITE: BaseDef[] = [
       StoredFile: "Fichier stocké",
       DirectUpload: "Dépôt de fichier en cours",
       Document: "Document",
+      DocumentVersion: "Version d'un document",
       EntityMention: "Mention d'un sujet dans un document",
       Piece: "Pièce (fichier classé, une fois pour toutes)",
       PieceLien: "Rattachement d'une pièce à un sujet",

@@ -4580,6 +4580,15 @@
   "annulation": "compensation",
   "appelable": true
  },
+ "document-actions:listerVersionsDuDocument": {
+  "risque": "R0",
+  "familles": [
+   "DRIVE"
+  ],
+  "simulable": "oui",
+  "annulation": "aucune",
+  "appelable": true
+ },
  "document-actions:renameDocument": {
   "risque": "R1",
   "familles": [

@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { deleteFileByKey } from "@/lib/storage";
 import { releaseBlob } from "@/lib/drive-storage";
+import { libererVersionsDocuments } from "@/lib/document-versions";
 import {
   DELETE_REGISTRY,
   apercuSuppression,
@@ -239,10 +240,16 @@ export async function destroyDeletedRecord(formData: FormData): Promise<DeleteRe
 
   // Fichiers des pièces jointes snapshotées (s'il n'a pas été restauré).
   if (!rec.restoredAt) {
-    const docs = (rec.documents as { fileKey?: string | null }[] | null) ?? [];
+    const docs = (rec.documents as { id?: string; fileKey?: string | null }[] | null) ?? [];
     for (const d of docs) {
       if (d.fileKey) await deleteFileByKey(d.fileKey).catch(sansBloquer("admin-delete-actions.destroyDeletedRecord.deleteFileByKey"));
     }
+    // UN DOCUMENT mis à la corbeille (`DOCUMENT`) : son fichier, puis — pour lui comme pour les pièces d'un élément
+    // détruit — les clés de ses VERSIONS (`DocumentVersion`), gardées jusqu'ici pour qu'il reste restaurable.
+    const fichierDuDocument = rec.kind === "DOCUMENT" ? (rec.payload as { fileKey?: string | null } | null)?.fileKey : null;
+    if (fichierDuDocument) await deleteFileByKey(fichierDuDocument).catch(sansBloquer("admin-delete-actions.destroyDeletedRecord.deleteFileByKey"));
+    const docIds = [...(rec.kind === "DOCUMENT" ? [rec.sourceId] : []), ...docs.map((d) => d.id).filter((x): x is string => typeof x === "string")];
+    await libererVersionsDocuments(docIds).catch(sansBloquer("admin-delete-actions.destroyDeletedRecord.libererVersionsDocuments"));
     // Cas particulier : audio d'un rapport terrain (blob chiffré du Drive).
     const audioBlobId = (rec.payload as { audioBlobId?: string | null } | null)?.audioBlobId;
     if (rec.kind === "FIELD_REPORT" && audioBlobId) await releaseBlob(audioBlobId).catch(sansBloquer("admin-delete-actions.destroyDeletedRecord.releaseBlob"));
@@ -255,10 +262,10 @@ export async function destroyDeletedRecord(formData: FormData): Promise<DeleteRe
         if (l.modele === "FieldReportAttachment" && l.donnees.blobId) await releaseBlob(l.donnees.blobId).catch(sansBloquer("admin-delete-actions.destroyDeletedRecord.releaseBlob"));
       }
     }
-    // UN ÉLÉMENT DU DRIVE : ses versions tenaient leurs octets jusqu'ici — la suppression depuis la corbeille du
+    // UN ÉLÉMENT (ou une CATÉGORIE) DU DRIVE : ses versions tenaient leurs octets jusqu'ici — la suppression depuis la corbeille du
     // Drive ne les rendait pas, pour qu'il reste restaurable. La destruction réelle rend chaque référence (un
     // contenu partagé par une copie ailleurs reste, `releaseBlob` compte ses détenteurs).
-    if (rec.kind === "DRIVE_NODE") {
+    if (rec.kind === "DRIVE_NODE" || rec.kind === "DRIVE_SPACE") {
       const lot = rec.lot as { lignes?: { modele: string; donnees: { blobId?: string | null } }[] } | null;
       for (const l of lot?.lignes ?? []) {
         if (l.modele === "FileVersion" && l.donnees.blobId) await releaseBlob(l.donnees.blobId).catch(sansBloquer("admin-delete-actions.destroyDeletedRecord.releaseBlob"));

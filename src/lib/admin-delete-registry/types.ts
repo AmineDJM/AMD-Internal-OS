@@ -45,7 +45,9 @@ export type DeletableKind =
   | "AD_PRO_ITEM"
   | "PCH_TENDER"
   | "PCH_TENDER_LINE"
-  | "DRIVE_NODE";
+  | "DRIVE_NODE"
+  | "DOCUMENT"
+  | "DRIVE_SPACE";
 
 export interface KindSpec {
   label: string; // libellé du type (« dossier réglementaire »)

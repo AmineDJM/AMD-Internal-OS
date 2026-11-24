@@ -41,7 +41,8 @@ export function PermanentDeleteButton({ kind, id, name }: { kind: "drive" | "doc
   // L'icône n'a pas de place où parler : un refus part en avis flottant.
   const { busy, run: executer } = useAction({ signalerErreurs: true });
   const run = async () => {
-    const fd = new FormData(); fd.set("id", id);
+    // Le NOM renvoyé est la confirmation explicite que le serveur exige (un rejeu, un clic égaré ne détruisent rien).
+    const fd = new FormData(); fd.set("id", id); fd.set("confirmation", name);
     await executer(async () => {
       const r = kind === "drive" ? await permanentlyDeleteDriveNode(fd) : await permanentlyDeleteDocument(fd);
       return r.ok ? r : { ok: false, error: r.error ?? "La suppression définitive n'a pas abouti." };

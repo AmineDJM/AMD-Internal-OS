@@ -205,6 +205,14 @@ export function readDocReadToken(token: string | null | undefined): DocReadToken
 
 export type CibleEnregistrement = "drive" | "document";
 
+/**
+ * LA DURÉE DU JETON D'ENREGISTREMENT : 30 jours (audit du Drive, 24/11, point A3). À 24 h, un onglet d'édition resté
+ * ouvert plus d'une journée voyait son rappel FINAL refusé — et ses modifications perdues sans que personne le sache.
+ * Ce jeton seul n'ouvre rien : le rappel exige en plus le corps SIGNÉ par le Document Server, et le droit d'enregistrer
+ * est relu en base à chaque rappel (`peutEnregistrerOnlyoffice`).
+ */
+export const DUREE_JETON_ENREGISTREMENT_S = 30 * 24 * 3600;
+
 /** Jeton d'ENREGISTREMENT : émis en mode édition seulement, posé dans `callbackUrl` et nulle part ailleurs. */
 export interface SaveToken {
   cible: CibleEnregistrement;
@@ -212,7 +220,7 @@ export interface SaveToken {
   userId: string;
   kind: "enregistrement";
 }
-export function makeSaveToken(cible: CibleEnregistrement, id: string, userId: string, expiresInSec = 24 * 3600): string {
+export function makeSaveToken(cible: CibleEnregistrement, id: string, userId: string, expiresInSec = DUREE_JETON_ENREGISTREMENT_S): string {
   return signJwt({ cible, id, userId, kind: "enregistrement" }, expiresInSec);
 }
 export function readSaveToken(token: string | null | undefined): SaveToken | null {
@@ -231,7 +239,8 @@ export function readSaveToken(token: string | null | undefined): SaveToken | nul
 
 export type RappelOnlyoffice =
   | { action: "ignorer" }
-  | { action: "enregistrer"; jeton: SaveToken; url: string }
+  /** `forcage` : statut 6 (enregistrement forcé) — la session d'édition continue, sa clé ne change pas. */
+  | { action: "enregistrer"; jeton: SaveToken; url: string; forcage: boolean }
   | { action: "refuser"; raison: string };
 
 /**
@@ -281,5 +290,5 @@ export function lireRappelOnlyoffice(e: {
   }
   if (hote !== hoteAttendu) return { action: "refuser", raison: `adresse hors du Document Server (${hote})` };
 
-  return { action: "enregistrer", jeton, url: charge.url };
+  return { action: "enregistrer", jeton, url: charge.url, forcage: status === 6 };
 }

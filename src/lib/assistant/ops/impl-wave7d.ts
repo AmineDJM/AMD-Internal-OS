@@ -778,7 +778,8 @@ export const ORG7D_OPS_IMPL: Record<string, OpImpl> = {
           "IRRÉVERSIBLE : aucune corbeille — l'arborescence et les versions sont détruites, puis les blobs orphelins ramassés (espace réellement libéré).",
         ],
         confirmText: node.name,
-        args: { id: node.id },
+        // La confirmation explicite que l'action exige : le nom exact, retapé par la personne sur la carte.
+        args: { id: node.id, confirmation: node.name },
         successMessage: `« ${node.name} » définitivement supprimé du Drive.`,
       };
     },
@@ -812,7 +813,7 @@ export const ORG7D_OPS_IMPL: Record<string, OpImpl> = {
         ]),
         warnings: ["IRRÉVERSIBLE : la référence de stockage part ; le contenu binaire est détruit si plus personne ne le référence."],
         confirmText: doc.name,
-        args: { id: doc.id },
+        args: { id: doc.id, confirmation: doc.name },
         successMessage: `Document « ${doc.name} » définitivement supprimé.`,
       };
     },

@@ -297,6 +297,11 @@ export const LIBELLE_DU_MODELE: Readonly<Record<string, [string, string]>> = {
   CareCell: ["case de prise en charge", "cases de prise en charge"],
   CareQuote: ["devis de prise en charge", "devis de prise en charge"],
   CareQuoteCell: ["ligne de devis", "lignes de devis"],
+  CareChiffrage: ["chiffrage de prise en charge", "chiffrages de prise en charge"],
+  CarePrixHistorique: ["historique de prix", "historiques de prix"],
+  CarePecBc: ["bon de commande de prise en charge", "bons de commande de prise en charge"],
+  CarePecBcLigne: ["ligne de bon de commande", "lignes de bon de commande"],
+  AdProExecutionPoste: ["exécution de poste", "exécutions de poste"],
   // Les postes « par personne » d'une prise en charge de groupe (Direction, 10/2026) : ils partent avec la demande.
   CareGroupPoste: ["poste de groupe", "postes de groupe"],
   AdProStockLine: ["article du stock demandé", "articles du stock demandés"],

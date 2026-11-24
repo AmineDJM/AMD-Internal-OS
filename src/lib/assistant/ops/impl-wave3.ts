@@ -188,10 +188,10 @@ export const DRIVE3_OPS_IMPL: Record<string, OpImpl> = {
       return {
         title: `SUPPRIMER la catégorie Drive « ${space.name} »`,
         fields: [{ label: "Catégorie", value: space.name }],
-        warnings: ["Suppression de la catégorie (onglet et réglages d'accès) — l'action refuse si des fichiers y sont encore rangés."],
+        warnings: ["La catégorie ET tout son contenu partent à la corbeille du Super Admin — restaurables ensemble, jusqu'à destruction réelle."],
         confirmText: space.name,
         args: { id: space.id },
-        successMessage: `Catégorie « ${space.name} » supprimée.`,
+        successMessage: `Catégorie « ${space.name} » mise à la corbeille.`,
         revalidate: ["/drive"],
       };
     },
@@ -301,10 +301,10 @@ export const DRIVE3_OPS_IMPL: Record<string, OpImpl> = {
       return {
         title: `SUPPRIMER la pièce « ${doc.name} »`,
         fields: [{ label: "Pièce", value: `${doc.name} (${doc.entityType})` }],
-        warnings: ["Suppression DÉFINITIVE du fichier joint à l'entité — aucun retour possible."],
+        warnings: ["La pièce part à la corbeille (restaurable par le Super Admin) ; elle est refusée si elle justifie un paiement ou une étape terminée."],
         confirmText: doc.name,
         args: { id: doc.id },
-        successMessage: `Pièce « ${doc.name} » supprimée.`,
+        successMessage: `Pièce « ${doc.name} » mise à la corbeille.`,
         revalidate: [],
       };
     },

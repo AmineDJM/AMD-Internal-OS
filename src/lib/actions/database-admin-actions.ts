@@ -6,7 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { purgeOrphanBlobs, releaseBlob } from "@/lib/drive-storage";
 import { deleteFileByKey } from "@/lib/storage";
-import type { ActionResult } from "@/lib/actions/types";
+import { libererVersionsDocuments } from "@/lib/document-versions";
+import { fdStr, type ActionResult } from "@/lib/actions/types";
 
 /**
  * Onglet « Bases de données » (Super Admin) : suppression DÉFINITIVE de fichiers / documents /
@@ -32,6 +33,37 @@ async function sousArbre(rootId: string): Promise<string[]> {
   return ids;
 }
 
+/**
+ * LA CONFIRMATION EXPLICITE d'une destruction sans corbeille (audit du Drive, 24/11, point A5) : le formulaire
+ * renvoie le NOM exact de ce qui part (`confirmation`). Un clic égaré, un rejeu, un appel d'outil mal résolu ne
+ * détruisent plus rien : sans le nom, le geste est refusé en le disant.
+ */
+function refusConfirmation(confirmation: string | null, nom: string): ActionResult | null {
+  if (confirmation === nom) return null;
+  return { ok: false, error: `Destruction non confirmée : renvoyez le nom exact « ${nom} » pour confirmer. Pour un retrait réversible, utilisez la corbeille.` };
+}
+
+/** Le nom de la demande de paiement dont une pièce désigne ce contenu, ou `null`. */
+async function paiementQuiDesigne(where: { documentIds?: string[]; blobIds?: string[] }): Promise<string | null> {
+  if (where.documentIds?.length) {
+    const p = await prisma.paymentPiece.findFirst({ where: { documentId: { in: where.documentIds } }, select: { request: { select: { reference: true } } } });
+    if (p) return p.request.reference;
+  }
+  if (where.blobIds?.length) {
+    // Un fichier du Drive est désigné par un paiement quand son contenu est celui d'une pièce de paiement (copie
+    // « Mes documents importés », même blob dédupliqué).
+    const r = await prisma.$queryRaw<{ reference: string }[]>`
+      SELECT pr."reference" FROM "PaymentPiece" pp
+      JOIN "PaymentRequest" pr ON pr."id" = pp."requestId"
+      JOIN "Document" d ON d."id" = pp."documentId"
+      JOIN "StoredFile" s ON s."key" = d."fileKey"
+      WHERE s."blobId" = ANY(${where.blobIds}::text[])
+      LIMIT 1`;
+    if (r[0]) return r[0].reference;
+  }
+  return null;
+}
+
 /** Ramasse-miettes : détruit les blobs physiques non référencés → libère l'espace disque. */
 export async function purgeOrphanStorage(): Promise<ActionResult & { count?: number; bytes?: number }> {
   const user = await requireUser();
@@ -53,16 +85,22 @@ export async function permanentlyDeleteDriveNode(formData: FormData): Promise<Ac
   if (!id) return { ok: false, error: "Identifiant manquant." };
   const node = await prisma.driveNode.findUnique({ where: { id }, select: { name: true, type: true } });
   if (!node) return { ok: false, error: "Élément introuvable (déjà supprimé ?)." };
+  const nonConfirme = refusConfirmation(fdStr(formData, "confirmation"), node.name);
+  if (nonConfirme) return nonConfirme;
   // On rend les références de CE sous-arbre, et elles seules (audit du 04/10, constat 2). Lancer
   // ici la purge globale effaçait, à chaque suppression, tout blob qu'elle ne savait pas
   // rattacher — c'est-à-dire les pièces de onze autres tables. La purge reste un geste à part.
   const versions = await prisma.fileVersion.findMany({ where: { nodeId: { in: await sousArbre(id) } }, select: { blobId: true, size: true } });
+  const paiement = await paiementQuiDesigne({ blobIds: [...new Set(versions.map((v) => v.blobId))] });
+  if (paiement) {
+    return { ok: false, error: `Destruction refusée : « ${node.name} » contient la pièce de la demande de paiement ${paiement}, qui la justifie. Mettez l'élément à la corbeille du Drive si vous voulez seulement le retirer.` };
+  }
   await prisma.driveNode.delete({ where: { id } }); // cascade : enfants + versions
   const avant = await prisma.fileBlob.count({ where: { id: { in: versions.map((v) => v.blobId) } } });
   for (const v of versions) await releaseBlob(v.blobId);
   const apres = await prisma.fileBlob.count({ where: { id: { in: versions.map((v) => v.blobId) } } });
   const freed = { count: avant - apres };
-  await recordAudit({ actorId: user.id, action: "DELETE", module: "Administration", summary: `Suppression définitive Drive (${node.type === "FOLDER" ? "dossier" : "fichier"}) « ${node.name} » — ${freed.count} blob·s libérés` });
+  await recordAudit({ actorId: user.id, action: "DELETE", module: "Administration", summary: `Suppression définitive Drive (${node.type === "FOLDER" ? "dossier" : "fichier"}) « ${node.name} » — nom confirmé, ${versions.length} version(s), ${freed.count} blob·s libérés` });
   revalidatePath("/admin/bases");
   return { ok: true, count: freed.count };
 }
@@ -78,9 +116,14 @@ export async function permanentlyDeleteDocument(formData: FormData): Promise<Act
   if (!id) return { ok: false, error: "Identifiant manquant." };
   const doc = await prisma.document.findUnique({ where: { id }, select: { name: true, fileKey: true } });
   if (!doc) return { ok: false, error: "Document introuvable (déjà supprimé ?)." };
-  if (doc.fileKey) await deleteFileByKey(doc.fileKey); // relâche le blob (ramassé si plus référencé)
+  const nonConfirme = refusConfirmation(fdStr(formData, "confirmation"), doc.name);
+  if (nonConfirme) return nonConfirme;
+  const paiement = await paiementQuiDesigne({ documentIds: [id] });
+  if (paiement) return { ok: false, error: `Destruction refusée : « ${doc.name} » est une pièce de la demande de paiement ${paiement}, qui la justifie.` };
   await prisma.document.delete({ where: { id } });
-  await recordAudit({ actorId: user.id, action: "DELETE", module: "Administration", summary: `Suppression définitive document « ${doc.name} »` });
+  if (doc.fileKey) await deleteFileByKey(doc.fileKey); // relâche le blob (ramassé si plus référencé)
+  await libererVersionsDocuments([id]); // et les anciennes versions (`DocumentVersion`), qui n'ont plus de document
+  await recordAudit({ actorId: user.id, action: "DELETE", module: "Administration", summary: `Suppression définitive document « ${doc.name} » (nom confirmé)` });
   revalidatePath("/admin/bases");
   return { ok: true };
 }

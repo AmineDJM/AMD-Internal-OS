@@ -69,8 +69,10 @@ export async function sessionEditeur(user: SessionUser & { name?: string }, cibl
     if (!derniere) return { ok: false, reason: "not-found" };
     nom = node.name;
     peutModifier = acces === "EDIT";
-    // `key` change à chaque version → le Document Server n'ouvre jamais une copie périmée.
-    key = `${cible.id}_${derniere.version}`;
+    // `key` change à chaque version → le Document Server n'ouvre jamais une copie périmée ; SAUF les versions nées d'un
+    // enregistrement forcé (statut 6) : la session continue, et qui ouvre le fichier la rejoint (voir `cleEditionDrive`).
+    const versionDeBase = await prisma.fileVersion.findFirst({ where: { nodeId: cible.id, forcesave: false }, orderBy: { version: "desc" }, select: { version: true } });
+    key = cleEditionDrive(cible.id, derniere.version, versionDeBase?.version ?? null);
     urlFichier = `${base}/api/onlyoffice/file?token=${makeFileReadToken(cible.id, user.id, undefined, derniere.version)}`;
     const nodeId = cible.id;
     rappel = () => `${base}/api/onlyoffice/callback?id=${nodeId}&token=${makeSaveToken("drive", nodeId, user.id)}`;
@@ -86,8 +88,12 @@ export async function sessionEditeur(user: SessionUser & { name?: string }, cibl
     if (!doc.fileKey) return { ok: false, reason: "not-found" };
     nom = doc.name;
     peutModifier = await canAccessEntity(user, doc.entityType, doc.entityId, "UPLOAD");
-    // Version ET taille : un fichier remplacé sans passer par l'éditeur ne doit pas rouvrir l'ancienne copie.
-    key = `doc_${doc.id}_${doc.version}_${doc.sizeBytes ?? 0}`;
+    // Version ET taille : un fichier remplacé sans passer par l'éditeur ne doit pas rouvrir l'ancienne copie. Les
+    // enregistrements forcés (statut 6) ne changent pas la clé : voir `cleEditionDocument`.
+    const versions = await prisma.documentVersion.findMany({
+      where: { documentId: doc.id }, orderBy: { version: "desc" }, take: 200, select: { version: true, size: true, forcesave: true, fileKey: true },
+    });
+    key = cleEditionDocument(doc, versions);
     urlFichier = `${base}/api/onlyoffice/file?token=${makeDocReadToken(doc.id, user.id, undefined, doc.version)}`;
     const docId = doc.id;
     rappel = () => `${base}/api/onlyoffice/callback?docId=${docId}&token=${makeSaveToken("document", docId, user.id)}`;
@@ -128,6 +134,42 @@ export async function sessionEditeur(user: SessionUser & { name?: string }, cibl
     name: nom,
     mode,
   };
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * LA CLÉ D'ÉDITION RESTE LA MÊME PENDANT UNE SESSION (audit du Drive, 24/11, point A3).
+ *
+ * Le Document Server réunit dans UNE session tous ceux qui ouvrent la même clé. La clé suivait la dernière version ;
+ * or un enregistrement FORCÉ (statut 6, le bouton « Enregistrer » pendant l'édition) crée une version sans fermer la
+ * session. Qui ouvrait le fichier ensuite recevait une clé neuve : une seconde session sur le même fichier, et au
+ * rappel final l'une écrasait l'autre — des modifications noyées.
+ *
+ * LA RÈGLE : la clé suit la dernière version qui n'est PAS un enregistrement forcé. Le statut 2 (document fermé,
+ * enregistré) crée une version ordinaire : la clé change, la session suivante repart du contenu enregistré. Un dépôt
+ * d'une nouvelle version hors de l'éditeur est une version ordinaire : la clé change aussi.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ */
+export function cleEditionDrive(nodeId: string, derniereVersion: number, derniereVersionOrdinaire: number | null): string {
+  return `${nodeId}_${derniereVersionOrdinaire ?? derniereVersion}`;
+}
+
+/**
+ * Même règle pour un document (hors Drive) : si le contenu d'aujourd'hui vient d'un enregistrement forcé, la clé est
+ * celle de la dernière version ordinaire qui le précède — sa version et sa taille, exactement la clé qu'avait la
+ * session à son ouverture. Sinon, la clé d'avant (version et taille du document).
+ */
+export function cleEditionDocument(
+  doc: { id: string; version: number; sizeBytes: number | null; fileKey: string | null },
+  versions: readonly { version: number; size: number | null; forcesave: boolean; fileKey: string }[],
+): string {
+  const tri = [...versions].sort((a, b) => b.version - a.version);
+  const courante = tri.find((v) => v.fileKey === doc.fileKey);
+  if (courante?.forcesave) {
+    const base = tri.find((v) => v.version < courante.version && !v.forcesave);
+    if (base) return `doc_${doc.id}_${base.version}_${base.size ?? 0}`;
+  }
+  return `doc_${doc.id}_${doc.version}_${doc.sizeBytes ?? 0}`;
 }
 
 /**
