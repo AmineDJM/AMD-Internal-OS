@@ -20,7 +20,7 @@
 | Lancement complet | `scripts/recette/lancer.sh` (build propre `rm -rf .next && next build`, `next start` sur le premier port libre ≥ 3200, base dédiée, graine, parcours, rapport) |
 | Seulement les lots fusionnés | `scripts/recette/lancer.sh --prets` |
 | Seulement les parcours en attente de fusion | `scripts/recette/lancer.sh --attente` |
-| Contre un serveur déjà démarré | `scripts/recette/lancer.sh --url http://localhost:3217` (+ `RECETTE_LENT=1` si c'est `next dev`) |
+| Contre un serveur déjà démarré | `RECETTE_BASE=<sa base> scripts/recette/lancer.sh --url http://localhost:3217` (la graine doit écrire dans la base que ce serveur lit ; + `RECETTE_LENT=1` si c'est `next dev`) |
 | Un parcours | `scripts/recette/lancer.sh --sans-build -- 01-centre-paiement` |
 | Base | `amd_recette` (locale, créée et migrée par le script ; `RECETTE_BASE` pour une autre). **Jamais la production** : la graine refuse toute base non locale. |
 | Serveur | sorties interdites (`ADAM_SORTIE_INTERDITE=1` : ni courriel, ni push), tâches de fond éteintes (`TACHES_DE_FOND=worker` sans worker), clés IA factices sauf si `ANTHROPIC_API_KEY` est fournie (parcours `@ia-reelle`) |
@@ -415,6 +415,9 @@ conforme mais localisateur différent), **lot pas encore là** (`@attend-fusion`
    `ANTHROPIC_API_KEY` au lancement pour le jouer — appel facturé).
 6. **Signature d'un BC** (P05) : contrôle renforcé (mot de passe + code de l'application à 6 chiffres) — geste **manuel**
    pendant la recette (`@manuel:signature-bc`), ou compte de test équipé d'un code TOTP connu.
-7. **Machine de recette** : `next dev` du dépôt dépasse 5 Go de tas à la compilation de la première page applicative ;
-   sur une machine partagée saturée, il a été tué deux fois (voir rapport du lot). Le contrôle final doit se jouer avec
-   `lancer.sh` (build de production, ~3,5 Go pendant le build puis ~1 Go au service) sur une machine libre.
+7. **Machine de recette** : pendant l'écriture (24/11, 9 agents sur 4 CPU), `next dev` a compilé `/login` puis a été tué
+   par le noyau (OOM du groupe mémoire, 6,1 Go) en compilant la première page applicative ; Turbopack refuse le projet
+   (`globals.css`, paquets externes). Le banc a donc été validé **à blanc** : graine + décor de chaque parcours contre la
+   base `amd_wt_recette` (deux défauts de décor trouvés et corrigés), rapporteur et captures produits, chaque test
+   échouant proprement à la première navigation. Le contrôle final se joue avec `lancer.sh` (build de production) sur une
+   machine libre ; prévoir d'ajuster des sélecteurs au premier passage.

@@ -6,7 +6,8 @@
 #   scripts/recette/lancer.sh --prets         # seulement les parcours des lots déjà fusionnés
 #   scripts/recette/lancer.sh --attente       # seulement les parcours marqués @attend-fusion:<lot>
 #   scripts/recette/lancer.sh --sans-build    # réutilise le .next existant (déjà construit)
-#   scripts/recette/lancer.sh --url http://localhost:3217   # contre un serveur déjà démarré (next dev compris)
+#   RECETTE_BASE=<base du serveur> scripts/recette/lancer.sh --url http://localhost:3217   # serveur déjà démarré
+#     (la graine écrit dans la base que ce serveur lit ; RECETTE_LENT=1 si c'est `next dev`)
 #   scripts/recette/lancer.sh -- --grep "Centre de paiement"  # options passées telles quelles à Playwright
 #
 # Variables : RECETTE_BASE (amd_recette), RECETTE_PG (postgresql://amd:amd@localhost:5432),
