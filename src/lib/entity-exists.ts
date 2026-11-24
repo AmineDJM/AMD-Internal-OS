@@ -30,6 +30,7 @@ type Lookup = (ids: string[]) => Promise<{ id: string }[]>;
 const ids = (rows: Promise<{ id: string }[]>) => rows;
 const TABLE: Partial<Record<EntityType, Lookup>> = {
   PAYMENT_REQUEST: (i) => ids(prisma.paymentRequest.findMany({ where: { id: { in: i } }, select: { id: true } })),
+  FIXED_CHARGE: (i) => ids(prisma.echeanceChargeFixe.findMany({ where: { id: { in: i } }, select: { id: true } })),
   ADMIN_REQUEST: (i) => ids(prisma.administrativeRequest.findMany({ where: { id: { in: i }, deletedAt: null }, select: { id: true } })),
   INVOICE: (i) => ids(prisma.legalDocument.findMany({ where: { id: { in: i } }, select: { id: true } })),
   LEGAL_DOCUMENT: (i) => ids(prisma.legalDocument.findMany({ where: { id: { in: i } }, select: { id: true } })),

@@ -67,7 +67,7 @@ export async function chargerDossiersDesLignes(
   const ids = ordres.map((o) => o.id);
   const beneficiaires = [...new Set(ordres.map((o) => o.beneficiary?.trim()).filter((b): b is string => Boolean(b)))];
 
-  const [dossiers, docsOrdres, contacts] = await Promise.all([
+  const [dossiers, docsOrdres, contacts, charges] = await Promise.all([
     prisma.paymentRequest.findMany({
       where: { expenseOrderId: { in: ids } },
       orderBy: { createdAt: "asc" },
@@ -85,7 +85,10 @@ export async function chargerDossiersDesLignes(
       where: { isActive: true, rib: { not: null }, OR: beneficiaires.map((b) => ({ name: { equals: b, mode: "insensitive" as const } })) },
       select: { name: true, rib: true },
     }),
+    // Une échéance de charge fixe porte le RIB du bénéficiaire saisi avec la charge (Informations de la société).
+    prisma.echeanceChargeFixe.findMany({ where: { expenseOrderId: { in: ids } }, select: { expenseOrderId: true, charge: { select: { rib: true } } } }),
   ]);
+  const ribDeLaCharge = new Map(charges.filter((c) => c.charge.rib).map((c) => [c.expenseOrderId as string, c.charge.rib as string]));
   // Le premier dossier de chaque ordre : celui qu'il a ouvert en naissant.
   const dossierDe = new Map<string, (typeof dossiers)[number]>();
   for (const d of dossiers) if (d.expenseOrderId && !dossierDe.has(d.expenseOrderId)) dossierDe.set(d.expenseOrderId, d);
@@ -135,7 +138,7 @@ export async function chargerDossiersDesLignes(
       })),
       question: lecture?.etat ?? null,
       relances: d ? phraseRelances(sesEvents.filter((e) => (e.kind === "NUDGE" || e.kind === "URGENT") && e.actorId === d.requesterId).map((e) => e.at)) : null,
-      rib: ribs.length === 1 ? ribs[0] : null,
+      rib: ribDeLaCharge.get(o.id) ?? (ribs.length === 1 ? ribs[0] : null),
     });
   }
   return out;

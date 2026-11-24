@@ -392,7 +392,8 @@ export const NAVIGATION: NavItem[] = [
     // colonne prérempli, retirable d'un clic. Lui donner un onglet recréerait, sous un autre
     // nom, l'écran séparé qu'on vient de fermer.
     children: [
-      { module: "LEGAL", label: "Coordonnées des entités", href: "/legal/identites", icon: "IdCard", group: "Pôles", pole: "ADMINISTRATION" },
+      // « Informations de la société » (ex-« Coordonnées des entités », 24/11/2026) : identité, et locaux & charges fixes.
+      { module: "LEGAL", label: "Informations de la société", href: "/legal/identites", icon: "IdCard", group: "Pôles", pole: "ADMINISTRATION" },
     ],
   },
   // COURRIERS — le carnet entrant/sortant de l'assistante de direction.

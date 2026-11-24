@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/shared/empty-state";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { moisParDefaut, titreMois, totauxDuMois } from "@/lib/general-means/ecran";
-import { assurerNaturesMoyensGeneraux } from "@/lib/general-means/natures-store";
+import { assurerNaturesMoyensGeneraux, societeDuDepartement } from "@/lib/general-means/natures-store";
 import { ParNatureMois } from "./par-nature-mois";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { CashPanel } from "./cash-panel";
@@ -161,8 +161,10 @@ export default async function MoyensGenerauxPage(props: { searchParams: Promise<
   // montants ni consommation — classer une dépense ne suppose pas d'accéder au module Budget.
   // LES NATURES PAR DÉFAUT SONT GARANTIES d'abord (Direction, 10/2026) : l'enveloppe des moyens généraux et ses
   // catégories existent, sans quoi l'IA n'aurait nulle part où ranger. Une panne ici n'empêche pas d'afficher la page.
-  if (view.canSpend) await assurerNaturesMoyensGeneraux().catch((err) => console.error("[moyens-generaux] natures", err));
-  const budgetTargets = view.canSpend ? await generalMeansBudgetTargets() : [];
+  // PAR SOCIÉTÉ (24/11/2026) : la ligne « Moyens généraux » du budget de l'Administration de la société du service.
+  const societe = view.canSpend ? await societeDuDepartement(view.department.id) : null;
+  if (view.canSpend) await assurerNaturesMoyensGeneraux(societe).catch((err) => console.error("[moyens-generaux] natures", err));
+  const budgetTargets = view.canSpend ? await generalMeansBudgetTargets(societe) : [];
 
   // MOIS EN COURS, DÉPENSES PAR NATURE : lus sur la liste affichée (les 200 plus récentes — largement assez pour deux mois).
   const maintenant = new Date();

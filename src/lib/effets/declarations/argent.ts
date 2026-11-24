@@ -77,6 +77,12 @@ export const DECLARATIONS_ARGENT: Readonly<Record<string, DeclarationAnnulation>
   "finance-actions:createQuickIncome": ARGENT,
   // La question des Finances au demandeur (Banque & paiements, 24/11/2026) : des événements du fil, une pièce, des
   // notifications — le journal des effets les retire ; aucune écriture d'argent.
+  // Les charges fixes des locaux (24/11/2026) : la saisie se défait par le journal (le budget se relit) ; la demande de
+  // paiement émet un ordre (compensation : l'ordre passe à ANNULÉ) ; la libération de la réserve se défait par le journal.
+  "charges-fixes-actions:demanderPaiementChargeFixe": ARGENT,
+  "charges-fixes-actions:enregistrerChargeFixe": RETOUR,
+  "charges-fixes-actions:libererReserveImprevus": RETOUR,
+  "charges-fixes-actions:retirerChargeFixe": RETOUR,
   "finances-questions:marquerReponseLue": RETOUR,
   "finances-questions:poserQuestionAuDemandeur": RETOUR,
   "finances-questions:relancerQuestionDemandeur": RETOUR,

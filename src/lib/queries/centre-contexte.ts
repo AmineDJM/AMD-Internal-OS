@@ -5,7 +5,7 @@ import { sansBloquer } from "@/lib/journal";
 import {
   budgetAvantApres, contexteDecisionDesOrdres,
   type ApportContexte, type BriquesContexte, type BudgetDecision, type ContexteDecision, type EtapeChaine,
-  type JalonLu, type OrdrePourBrique, type PieceDecision, chargerTresorerie, ENTITE_SANS,
+  type JalonLu, type OrdrePourBrique, type PieceDecision, chargerTresorerie, ENTITE_SANS, apportsChargesFixes,
 } from "@/modules/finances/api";
 import { lirePorteDg, piecesDesPostes } from "@/modules/ad-pro/api";
 import { parentDuPoste } from "@/lib/chemins/ad-pro";
@@ -313,6 +313,8 @@ export const BRIQUES_DU_CENTRE: BriquesContexte = {
     { nom: "bons de commande", lire: apportsBonsDeCommande },
     { nom: "secrétariat", lire: apportsSecretariat },
     { nom: "Regulatory", lire: apportsRegulatory },
+    // Les charges fixes des locaux (24/11/2026) : l'estimation face à la facture — alerte au-delà de +10 %.
+    { nom: "charges fixes", lire: apportsChargesFixes },
   ],
   doublons: marquesDesOrdres,
   budget: budgetDesOrdres,

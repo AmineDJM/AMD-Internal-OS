@@ -832,7 +832,7 @@ export function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => 
             {emetteur
               ? "Propres à cette pièce : un champ vidé n'est pas imprimé."
               : defautsSociete
-                ? "Celles de la société émettrice (Legal › Coordonnées des entités, ou sa marque). Les modifier ici ne vaut que pour cette pièce."
+                ? "Celles de la société émettrice (Legal › Informations de la société, ou sa marque). Les modifier ici ne vaut que pour cette pièce."
                 : "Celles de la société émettrice s'affichent avec l'aperçu — renseignez le tiers et une ligne."}
           </p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

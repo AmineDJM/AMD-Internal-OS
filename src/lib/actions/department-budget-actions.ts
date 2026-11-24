@@ -21,6 +21,7 @@ import { lireFactureDeDepense, exigerLectureDeDepense, ajouterAuCatalogueDepuisD
 import type { LectureFactureDepense } from "@/lib/general-means/lecture-facture";
 import { consignerConfirmation, type ConfirmationPrete } from "@/lib/pieces-lues/service";
 import { allowedGeneralMeansCategoryIds, keepAllowedCategory } from "@/lib/general-means/budget-targets";
+import { societeDuDepartement } from "@/lib/general-means/natures-store";
 import { continuousCash, fundExcluding, fundHandle, canSpendFromFund } from "@/lib/general-means/continuous-cash";
 import { openRemittances } from "@/lib/queries/general-means";
 import { resolveSource, sourceOf, sourceChange } from "@/lib/general-means/payment-source";
@@ -413,7 +414,9 @@ export async function addDepartmentExpense(formData: FormData): Promise<ActionRe
   // Même règle qu'à la caisse : quand le détail du ticket est fourni, ce sont les ARTICLES qui
   // font le montant. Un total saisi à côté du détail finit par ne plus lui correspondre.
   const rawLines = formData.get("lines");
-  const read = await readReceipt(rawLines, fdStr(formData, "label"));
+  // Les natures se rangent dans le budget de l'Administration de la SOCIÉTÉ du département (24/11/2026).
+  const societe = await societeDuDepartement(departmentId);
+  const read = await readReceipt(rawLines, fdStr(formData, "label"), societe);
   if ("error" in read && rawLines) return { ok: false, error: read.error };
   const ticket = "error" in read ? null : read;
 
@@ -451,7 +454,7 @@ export async function addDepartmentExpense(formData: FormData): Promise<ActionRe
 
   // CLASSEMENT BUDGÉTAIRE — l'acheteur range sa dépense sans jamais ouvrir le module Budget.
   // La valeur est revérifiée contre les enveloppes réellement ouvertes aux moyens généraux.
-  const budgetCategoryId = keepAllowedCategory(fdStr(formData, "budgetCategoryId"), await allowedGeneralMeansCategoryIds());
+  const budgetCategoryId = keepAllowedCategory(fdStr(formData, "budgetCategoryId"), await allowedGeneralMeansCategoryIds(societe));
 
   // PAYÉ SUR LA CAISSE, OU AUTREMENT — la même dépense, le même budget consommé, un seul
   // formulaire. Le moyen de paiement était jusqu'ici un SECOND BOUTON, et l'on saisissait
@@ -471,7 +474,7 @@ export async function addDepartmentExpense(formData: FormData): Promise<ActionRe
   // LA NATURE DE CHAQUE ARTICLE (Direction, 10/2026) : la nouvelle catégorie proposée par l'IA se crée ici, et un
   // article resté sans catégorie est rangé — sauf si le ticket entier a reçu la sienne.
   const lignes = ticket
-    ? await finaliserNatures(ticket.lines, { userId: user.id, objet: fdStr(formData, "label"), classer: !budgetCategoryId })
+    ? await finaliserNatures(ticket.lines, { userId: user.id, objet: fdStr(formData, "label"), classer: !budgetCategoryId, companyId: societe })
     : [];
 
   // LA SECONDE PORTE DE LA CAISSE EST ATOMIQUE AUSSI (audit données 2026-10-27) : le contrôle ci-dessus lit le
@@ -609,7 +612,8 @@ export async function updateDepartmentExpense(formData: FormData): Promise<Actio
   if (kind === "HR") return { ok: false, error: "La masse salariale se lit sur la paie : elle ne se saisit pas à la main." };
 
   const rawLines = formData.get("lines");
-  const read = await readReceipt(rawLines, fdStr(formData, "label"));
+  const societe = await societeDuDepartement(before.departmentId);
+  const read = await readReceipt(rawLines, fdStr(formData, "label"), societe);
   if ("error" in read && rawLines) return { ok: false, error: read.error };
   const ticket = "error" in read ? null : read;
 
@@ -651,11 +655,11 @@ export async function updateDepartmentExpense(formData: FormData): Promise<Actio
   // Le classement budgétaire se corrige comme le reste : une dépense mal rangée doit pouvoir
   // changer de case sans qu'on la supprime et la ressaisisse. Champ absent = classement inchangé.
   const rawCategory = formData.has("budgetCategoryId")
-    ? keepAllowedCategory(fdStr(formData, "budgetCategoryId"), await allowedGeneralMeansCategoryIds())
+    ? keepAllowedCategory(fdStr(formData, "budgetCategoryId"), await allowedGeneralMeansCategoryIds(societe))
     : before.budgetCategoryId;
   // Une correction suit la même règle qu'une saisie : nouvelle catégorie créée, article sans catégorie rangé.
   const lignes = ticket
-    ? await finaliserNatures(ticket.lines, { userId: user.id, objet: label, classer: !rawCategory })
+    ? await finaliserNatures(ticket.lines, { userId: user.id, objet: label, classer: !rawCategory, companyId: societe })
     : [];
 
   // LE CONTRÔLE DU FOND SE REFAIT SOUS VERROU (audit 27/10, reste de DONNEES-06) : celui du dessus lit le fond hors

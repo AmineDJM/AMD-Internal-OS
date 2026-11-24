@@ -101,6 +101,8 @@ suite("K10c — circuits : exécuter, annuler (cascade comprise), rétablir", ()
     await prisma.congressNational.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => undefined);
     await prisma.budgetEnvelope.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => undefined);
     await prisma.department.deleteMany({ where: { code: { startsWith: TAG } } }).catch(() => undefined);
+    await prisma.departmentBudgetExpense.deleteMany({ where: { department: { company: { name: { startsWith: TAG } } } } }).catch(() => undefined);
+    await prisma.budgetEnvelope.deleteMany({ where: { company: { name: { startsWith: TAG } } } }).catch(() => undefined);
     await prisma.regulatoryProduct.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => undefined);
     await prisma.notification.deleteMany({ where: { userId: { in: ids } } }).catch(() => undefined);
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => undefined);
@@ -248,8 +250,10 @@ suite("K10c — circuits : exécuter, annuler (cascade comprise), rétablir", ()
 
   it("classement des dépenses non classées : chaque dépense retrouve « non classée », les natures créées partent si rien ne s'y rattache", async () => {
     // Les natures d'office existent déjà en production (créées au premier passage) : le classement ne fait que ranger.
-    await assurerNaturesMoyensGeneraux();
-    const dep = await prisma.department.create({ data: { name: `${TAG} Moyens`, code: `${TAG}MG` } });
+    // Les natures vivent PAR SOCIÉTÉ dans le budget de l'Administration (24/11/2026) : le département a sa société.
+    const socMg = await prisma.company.create({ data: { name: `${TAG} Société MG` } });
+    await assurerNaturesMoyensGeneraux(socMg.id);
+    const dep = await prisma.department.create({ data: { name: `${TAG} Moyens`, code: `${TAG}MG`, companyId: socMg.id } });
     const d1 = await prisma.departmentBudgetExpense.create({ data: { departmentId: dep.id, year: 2026, label: "Carburant véhicule de service", amount: 5000 } });
     const d2 = await prisma.departmentBudgetExpense.create({ data: { departmentId: dep.id, year: 2026, label: "Ramettes de papier et fournitures de bureau", amount: 3000 } });
     const r = nonVide(await classerDepensesNonClassees(fd({ departmentId: dep.id })));

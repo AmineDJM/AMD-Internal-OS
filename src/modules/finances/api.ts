@@ -66,3 +66,14 @@ export { fileAInstruire, instruitLesDemandes, myPaymentRequests } from "./infra/
 export {
   peutSupprimerUneDemandePaiement, refusSuppressionDemandePaiement,
 } from "./infra/requetes/demande-paiement-suppression";
+
+// ── Les charges fixes des locaux et le budget de l'Administration (Super Admin, 24/11/2026) ──────────────────────────
+// La section « Locaux & charges fixes » d'Informations de la société, les échéances d'« Aujourd'hui » des Finances, le
+// rappel J-15 (tâche planifiée), la brique du centre de paiement (écart de la facture), la prévision de trésorerie à
+// 12 mois et le pré-remplissage `AUTO_CHARGES_FIXES` de la campagne budgétaire.
+export { enveloppeAdministration, ligneMoyensGeneraux, recalculerBudgetAdministration } from "./infra/budget-administration";
+export { rappelerEcheancesChargesFixes } from "./infra/charges-fixes";
+export {
+  apportsChargesFixes, chargerChargesFixes, type EcheanceAFaire, echeancesChargesFixesAFaire, prefillChargesFixesSociete,
+  previsionTresorerieChargesFixes,
+} from "./infra/requetes/charges-fixes";

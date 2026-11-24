@@ -451,6 +451,8 @@ enum EntityType {
   /// UN RELEVÉ DU STOCK PCH CENTRAL reçu par mail — l'identifiant est la DATE du mail (AAAA-MM-JJ) : le mail
   /// ou le PDF de la PCH s'y joint. Aucune table : les quantités sont des `StockSnapshot` (scope PCH / ANNEX).
   STOCK_PCH_RELEVE
+  /// UNE ÉCHÉANCE DE CHARGE FIXE des locaux (loyer, électricité…), source des ordres qui la paient (24/11/2026).
+  FIXED_CHARGE
 }
 
 enum DocumentCategory {
@@ -1935,6 +1937,8 @@ model Company {
   Training                    Training[]
   productRanges               ProductRange[]
   legalIdentity               CompanyLegalIdentity?
+  /// Les charges fixes des locaux (« Informations de la société › Locaux & charges fixes », 24/11/2026).
+  chargesFixes                ChargeFixeSociete[]
   letterheads                 OfficeLetterhead[]
   documentProfile             CompanyDocumentProfile?
   documentSequences           DocumentSequence[]
@@ -1996,6 +2000,80 @@ model CompanyLegalIdentity {
   updatedById String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+/// UNE CHARGE FIXE DES LOCAUX D'UNE SOCIÉTÉ (Super Admin, 24/11/2026 — « Informations de la société › Locaux & charges
+/// fixes ») : par site, une nature (clé stable : LOYER, ELECTRICITE…), un bénéficiaire et son RIB, le bail du registre
+/// Legal s'il existe, un montant FIXE ou « selon facture » (alors une estimation), une périodicité, un jour d'échéance.
+/// Ses échéances de l'année font la ligne de sa nature au budget de l'Administration ; les Finances en demandent le
+/// paiement chaque mois (`EcheanceChargeFixe`, source `FIXED_CHARGE` de l'ordre).
+model ChargeFixeSociete {
+  id              String               @id @default(cuid())
+  companyId       String
+  company         Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// Le site ou local (« Siège — Alger », « Entrepôt Blida »).
+  site            String
+  /// La nature, clé stable (`NATURES_CHARGE_FIXE`, module finances) : elle relie la charge à sa ligne budgétaire.
+  nature          String
+  /// Précision libre (« Électricité — compteur 2 »).
+  libelle         String?
+  beneficiaire    String
+  rib             String?
+  /// Le bail (ou contrat) du registre Legal, quand il existe.
+  legalDocumentId String?
+  legalDocument   LegalDocument?       @relation(fields: [legalDocumentId], references: [id], onDelete: SetNull)
+  /// `FIXE` (le montant fait foi) ou `SELON_FACTURE` (le montant est une estimation, la facture fait foi).
+  modeMontant     String               @default("FIXE")
+  montant         Decimal              @db.Decimal(14, 2)
+  /// `MENSUELLE`, `TRIMESTRIELLE`, `ANNUELLE`.
+  periodicite     String               @default("MENSUELLE")
+  /// Le jour du mois où l'échéance tombe (1-31, ramené au dernier jour d'un mois plus court).
+  jourEcheance    Int                  @default(1)
+  /// Le mois de la première échéance (trimestrielle, annuelle) — à défaut, le mois du début.
+  moisEcheance    Int?
+  dateDebut       DateTime
+  /// Nulle : sans fin (le bail se renouvelle). Passée : plus aucune échéance.
+  dateFin         DateTime?
+  /// Échéance FIXE de l'ordre (le loyer ne se reporte pas sans motif).
+  echeanceFixe    Boolean              @default(false)
+  active          Boolean              @default(true)
+  notes           String?
+  createdById     String?
+  updatedById     String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  echeances       EcheanceChargeFixe[]
+
+  @@index([companyId])
+  @@index([nature])
+}
+
+/// UNE ÉCHÉANCE DE CHARGE FIXE DEMANDÉE AU PAIEMENT (ou rappelée) — la SOURCE de l'ordre (`FIXED_CHARGE`). Son état ne se
+/// saisit pas : il se lit sur l'ordre (au centre, autorisé, payé, refusé, annulé).
+model EcheanceChargeFixe {
+  id             String            @id @default(cuid())
+  chargeId       String
+  charge         ChargeFixeSociete @relation(fields: [chargeId], references: [id], onDelete: Cascade)
+  companyId      String
+  /// Le mois de l'échéance (« 2027-03 ») — une charge n'a qu'une échéance par mois.
+  periode        String
+  dateEcheance   DateTime
+  /// Ce que la charge prévoyait (montant fixe, ou estimation « selon facture »).
+  montantPrevu   Decimal           @db.Decimal(14, 2)
+  /// Le montant de la facture, demandé au paiement.
+  montantFacture Decimal?          @db.Decimal(14, 2)
+  /// L'ordre en cours (ou le dernier) — un ordre refusé ou annulé laisse redemander.
+  expenseOrderId String?
+  demandeParId   String?
+  demandeLe      DateTime?
+  /// Le rappel J-15 aux Finances, envoyé une fois.
+  rappelEnvoyeLe DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@unique([chargeId, periode])
+  @@index([companyId])
+  @@index([expenseOrderId])
 }
 
 /// UNE GAMME — le regroupement de produits d'une entité (« Cardiologie », « Hôpital », …).
@@ -14472,6 +14550,8 @@ model LegalDocument {
   amendsId                 String?
   amends                   LegalDocument?        @relation("ContractAmendments", fields: [amendsId], references: [id], onDelete: SetNull)
   amendments               LegalDocument[]       @relation("ContractAmendments")
+  /// Les charges fixes qui citent ce document (le bail d'un loyer).
+  chargesFixes             ChargeFixeSociete[]
   /// Impact FINANCIER d'un avenant (± DZD). Le montant initial du contrat n'est JAMAIS
   /// écrasé : la valeur courante = initial + somme des deltas des avenants effectifs.
   amountDelta              Decimal?              @db.Decimal(14, 2)

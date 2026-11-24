@@ -11,6 +11,7 @@ import { lignesInformationMedicale } from "@/lib/queries/action-center-info-med"
 import { lignesQuestionsDesFinances } from "@/lib/queries/action-center-questions-finances";
 import { ORDRES_AUTORISES_NON_REGLES } from "@/modules/finances/api";
 import { lignesJustificatifsAJoindre } from "@/lib/queries/action-center-justificatifs";
+import { lignesChargesFixesAPayer } from "@/lib/queries/action-center-charges-fixes";
 import { getPendingValidations } from "@/lib/queries/validations";
 import { dossiersPromoAMonTour } from "@/lib/queries/promo-circuit";
 import { clauseDemandesSecretariatVisibles } from "@/lib/queries/visibilite-listes";
@@ -801,6 +802,8 @@ export async function getActionCenter(user: SessionUser) {
   items.push(...(await lignesQuestionsDesFinances(user).catch(sansBloquer("action-center.lignesQuestionsDesFinances", []))));
   // 6c bis. « Joindre le justificatif » — mes ordres qui n'entrent pas au centre faute de pièce (24/11/2026).
   items.push(...(await lignesJustificatifsAJoindre(user).catch(sansBloquer("action-center.lignesJustificatifsAJoindre", []))));
+  // 6c ter. Les CHARGES FIXES à payer (Finances, 24/11/2026) — quinze jours avant l'échéance : `action-center-charges-fixes.ts`.
+  items.push(...(await lignesChargesFixesAPayer(user).catch(sansBloquer("action-center.lignesChargesFixesAPayer", []))));
 
   // 6d. Matériel promotionnel — étape en attente de l'acteur courant.
   //

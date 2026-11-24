@@ -35,7 +35,7 @@ async function evenement(scope: PerimetreLivret, id: string) {
 }
 
 /**
- * LES COORDONNÉES DE LA SOCIÉTÉ QUI INVITE — sa carte Legal (« Coordonnées des entités »), et par-dessus ce que sa marque
+ * LES COORDONNÉES DE LA SOCIÉTÉ QUI INVITE — sa carte Legal (« Informations de la société »), et par-dessus ce que sa marque
  * choisit d'imprimer (téléphone, e-mail, site). Rien d'écrit dans le code : une demande sans société, ou une société sans
  * e-mail, n'en imprime pas — jamais celles d'une autre (Direction, 10/2026).
  */

@@ -24,6 +24,7 @@ import { fdStr, fdNum, fdCase, type ActionResult } from "@/lib/actions/types";
 import { refusAnnulationRallonge } from "@/lib/annulations/regles";
 import { readReceipt, saveReceiptLines, finaliserNatures } from "@/lib/general-means/expense-lines";
 import { allowedGeneralMeansCategoryIds, keepAllowedCategory } from "@/lib/general-means/budget-targets";
+import { societeDuDepartement } from "@/lib/general-means/natures-store";
 import { sansBloquer } from "@/lib/journal";
 import { annulable } from "@/lib/effets/ecran";
 
@@ -310,7 +311,9 @@ export async function spendFromPettyCash(formData: FormData): Promise<ActionResu
   // le budget qui deviendrait faux. À défaut de lignes — ancien formulaire, saisie rapide —
   // on retombe sur le couple libellé + montant.
   const rawLines = formData.get("lines");
-  const read = await readReceipt(rawLines, fdStr(formData, "label"));
+  // Les natures se rangent dans le budget de l'Administration de la SOCIÉTÉ du département (24/11/2026).
+  const societe = await societeDuDepartement(cash.departmentId);
+  const read = await readReceipt(rawLines, fdStr(formData, "label"), societe);
   if ("error" in read && rawLines) return { ok: false, error: read.error };
   const ticket = "error" in read ? null : read;
 
@@ -340,10 +343,10 @@ export async function spendFromPettyCash(formData: FormData): Promise<ActionResu
   const year = normalizeYear(fdStr(formData, "year"));
   // Un achat payé en liquide se classe dans le budget comme les autres : c'est la même dépense,
   // seul le moyen de paiement diffère. La case est revérifiée côté serveur.
-  const budgetCategoryId = keepAllowedCategory(fdStr(formData, "budgetCategoryId"), await allowedGeneralMeansCategoryIds());
+  const budgetCategoryId = keepAllowedCategory(fdStr(formData, "budgetCategoryId"), await allowedGeneralMeansCategoryIds(societe));
   // La nature de chaque article se règle AVANT le verrou : l'appel à l'IA ne doit pas tenir la caisse fermée.
   const lignes = ticket
-    ? await finaliserNatures(ticket.lines, { userId: user.id, objet: fdStr(formData, "label"), classer: !budgetCategoryId })
+    ? await finaliserNatures(ticket.lines, { userId: user.id, objet: fdStr(formData, "label"), classer: !budgetCategoryId, companyId: societe })
     : [];
 
   // ── LA DÉPENSE EST ATOMIQUE (audit Assistante de direction, 10/2026) ──────────────────────

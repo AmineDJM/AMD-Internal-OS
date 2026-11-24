@@ -36,6 +36,8 @@ export const COPIE_AU_DRIVE: Record<EntityType, "copie" | "miroir-propre" | "jam
   MEDICAL_INFO_DECLARATION: "jamais", DOCTOR: "jamais", VISIT: "jamais",
   // Pharmacovigilance et qualité (une réclamation peut décrire un patient)
   PHARMACOVIGILANCE_CASE: "jamais", RECLAMATION: "jamais",
+  // Une échéance de charge fixe : sa facture vit sur l'ordre de paiement.
+  FIXED_CHARGE: "jamais",
   // Voyageurs : ordres de mission, prises en charge, billets et hôtels du secrétariat, missions chauffeur
   MISSION_ASSIGNMENT: "jamais", CONGRESS_INTERNATIONAL: "jamais", CONGRESS_NATIONAL: "jamais", AD_PRO_ITEM: "jamais",
   ADMIN_REQUEST: "jamais", DRIVER_MISSION: "jamais",

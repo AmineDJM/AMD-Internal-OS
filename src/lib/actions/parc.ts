@@ -74,6 +74,8 @@ export const ACTIONS_DES_MODULES: Readonly<Record<string, string | readonly stri
   "moyens-generaux-registre-actions": "src/modules/salles/actions.ts",
   "recettes-actions": "src/modules/recettes/actions.ts",
   "coffre-actions": "src/modules/coffre/actions.ts",
+  // Les charges fixes des locaux et le budget de l'Administration (24/11/2026).
+  "charges-fixes-actions": "src/modules/finances/actions-charges-fixes.ts",
   "congress-beneficiary-actions": "src/modules/ad-pro/actions-congres-beneficiaires.ts",
   "congress-request-actions": "src/modules/ad-pro/actions-congres.ts",
   "consommation-actions": "src/modules/consommation/actions.ts",

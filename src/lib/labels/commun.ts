@@ -151,6 +151,7 @@ export const ENTITY_TYPE_LABELS: Record<string, string> = {
   INVOICE: "Facture",
   PHARMACOVIGILANCE_CASE: "Cas de pharmacovigilance",
   STOCK_PCH_RELEVE: "Relevé du stock PCH",
+  FIXED_CHARGE: "Charge fixe",
 };
 
 /**

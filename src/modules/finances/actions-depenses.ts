@@ -11,6 +11,7 @@ import {
   checkDeferral, budgetGate, dossierHrefByOrder, compteDeLEcriture, verserLaRemise, solderLeDossierCompagnon,
   solderVirementPaie, STATUTS_SOLDES_PAR_UN_REGLEMENT, lireSaisieReglement, noteDeReference, justificatifsDesOrdres, REFUS_REGLEMENT_SANS_JUSTIFICATIF,
 } from "@/modules/finances/api";
+import { refusSurReserve } from "./domaine/charges-fixes";
 import { pickAutoCategory } from "@/lib/budget/auto-category";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
@@ -184,6 +185,11 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
   });
   if (!gate.ok) return { ok: false, error: gate.reason ?? "Classez cette dépense dans son budget avant de la régler." };
   budgetCategoryId = gate.categoryId;
+  // LA RÉSERVE POUR IMPRÉVUS (24/11/2026) : y imputer un paiement, c'est la consommer — le DG ou le Super Admin seulement.
+  if (budgetCategoryId) {
+    const refusReserve = refusSurReserve({ cle: (await prisma.budgetCategoryLine.findUnique({ where: { id: budgetCategoryId }, select: { cle: true } }))?.cle, geste: "IMPUTER", user });
+    if (refusReserve) return { ok: false, error: refusReserve };
+  }
 
   // LA QUITTANCE DU BV SE RANGE MAINTENANT — sur l'étape « Paiement du BV » du dossier, avant l'écriture :
   // un stockage qui échoue arrête le règlement au lieu de laisser un BV « payé » sans sa pièce.
