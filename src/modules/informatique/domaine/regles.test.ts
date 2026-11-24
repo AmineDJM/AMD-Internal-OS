@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { bornesDuMois, dateDeLImputation, libelleMois, lireMois, moisDe, moisDeLAnneeJusqua, moisPrecedent } from "./mois";
 import {
-  detailAStocker, gesteImputation, lireDetail, lireTaux, montantDzd, repartirParSociete, societeDeLaPersonne, versMicroUsd,
+  consommationIaDuMois, detailAStocker, gesteImputation, lireDetail, lireTaux, montantDzd, repartirParSociete, societeDeLaPersonne, versMicroUsd,
   type AppelAgrege, type RattachementPersonne,
 } from "./imputation";
 import { CLE_LIGNE_ABONNEMENTS, CLE_LIGNE_IA, CLE_LIGNE_MATERIEL, choisirEnveloppe, lignesManquantes, rapprocher } from "./budget";
@@ -93,6 +93,27 @@ describe("l'imputation est idempotente par (société, mois)", () => {
     expect(gesteImputation(deja, { ...calcul, microUsd: 2_000_000, montantDzd: 270 })).toBe("METTRE_A_JOUR");
     expect(gesteImputation(deja, { ...calcul, taux: 140, montantDzd: 140 })).toBe("METTRE_A_JOUR");
     expect(gesteImputation(deja, { microUsd: 0, taux: 135, montantDzd: 0, appels: 0 })).toBe("METTRE_A_JOUR");
+  });
+});
+
+describe("une seule consommation : la facture payée solde le coût mesuré (audit des dépenses, point 10)", () => {
+  it("mesuré 100, facturé 110 → consommé total 110", () => {
+    expect(consommationIaDuMois(100, 110)).toEqual({ ligneMesuree: 0, total: 110, ecart: 10, solde: true });
+  });
+  it("mesuré 100, facturé 95 → consommé total 95", () => {
+    expect(consommationIaDuMois(100, 95)).toEqual({ ligneMesuree: 0, total: 95, ecart: -5, solde: true });
+  });
+  it("sans facture payée, le mesuré consomme seul", () => {
+    for (const f of [null, undefined, 0]) expect(consommationIaDuMois(100, f)).toEqual({ ligneMesuree: 100, total: 100, ecart: null, solde: false });
+  });
+  it("la ligne mesurée + la facture = le total, jamais deux consommations", () => {
+    for (const [m, f] of [[100, 110], [100, 95], [100, 0], [0, 40]] as const) {
+      const r = consommationIaDuMois(m, f);
+      expect(r.ligneMesuree + (r.solde ? r.total : 0)).toBe(r.total);
+    }
+  });
+  it("le détail garde la régularisation", () => {
+    expect(lireDetail({ mesureDzd: 100, factureDzd: 110 })).toMatchObject({ mesureDzd: 100, factureDzd: 110 });
   });
 });
 

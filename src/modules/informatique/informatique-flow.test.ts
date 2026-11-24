@@ -166,6 +166,32 @@ suite("département Informatique — budget, coût de l'IA, registres, droits", 
     expect(await prisma.imputationCoutIa.count({ where: { companyId: { in: [ids.a, ids.b] }, mois: MOIS } })).toBe(2);
   });
 
+  it("la facture du fournisseur payée sur la ligne IA SOLDE le mesuré : une seule consommation", async () => {
+    const impA = await prisma.imputationCoutIa.findUniqueOrThrow({ where: { companyId_mois: { companyId: ids.a, mois: MOIS } } });
+    // La facture réglée par le circuit normal, classée sur la ligne « Intelligence artificielle » : 380 DZD (mesuré : 350).
+    const tx = await prisma.financeTransaction.create({ data: {
+      companyId: ids.a, date: DANS_LE_MOIS(25), direction: "OUT", amount: 380, status: "SETTLED", budgetCategoryId: impA.categoryId,
+      reference: `${TAG}FIN-1`, label: `${TAG}facture fournisseur IA`, category: "FOURNISSEUR",
+    } as never });
+    try {
+      const r = await imputerCoutIaDuMois({ mois: MOIS, taux: 140, acteurId: ids.admin, societes: [ids.a] });
+      expect(r.societes.map((s) => [s.geste, s.montantDzd])).toEqual([["METTRE_A_JOUR", 0]]);
+      const apres = await prisma.imputationCoutIa.findUniqueOrThrow({ where: { companyId_mois: { companyId: ids.a, mois: MOIS } } });
+      expect(apres.expenseLineId).toBe(impA.expenseLineId);
+      expect(Number((await prisma.budgetExpenseLine.findUniqueOrThrow({ where: { id: apres.expenseLineId! } })).amount)).toBe(0);
+      expect(apres.detail).toMatchObject({ mesureDzd: 350, factureDzd: 380 });
+      const vue = await vueCoutIa(ids.chef, DANS_LE_MOIS(28));
+      expect(vue.societes[0].mois.find((m) => m.mois === MOIS)?.consomme).toBe(380);
+      // Rejouée : rien ne bouge.
+      expect((await imputerCoutIaDuMois({ mois: MOIS, taux: 140, acteurId: ids.admin, societes: [ids.a] })).societes[0].geste).toBe("INCHANGEE");
+    } finally {
+      await prisma.financeTransaction.delete({ where: { id: tx.id } });
+    }
+    // La facture retirée : le mesuré consomme de nouveau.
+    const r = await imputerCoutIaDuMois({ mois: MOIS, taux: 140, acteurId: ids.admin, societes: [ids.a] });
+    expect(r.societes.map((s) => [s.geste, s.montantDzd])).toEqual([["METTRE_A_JOUR", 350]]);
+  });
+
   it("le geste d'imputation : taux exigé, mois à venir refusé, sociétés de la personne seulement", async () => {
     ACTEUR = await acteur(ids.chef, "SALES_USER");
     const fd = (mois: string, taux: string) => { const f = new FormData(); f.set("mois", mois); f.set("taux", taux); return f; };

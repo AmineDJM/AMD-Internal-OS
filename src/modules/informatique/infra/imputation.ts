@@ -3,7 +3,7 @@ import { recordAudit } from "@/lib/audit";
 import { sansBloquer } from "@/lib/journal";
 import { bornesDuMois, dateDeLImputation, libelleMois } from "../domaine/mois";
 import {
-  detailAStocker, enUsd, gesteImputation, montantDzd, repartirParSociete, versMicroUsd,
+  consommationIaDuMois, detailAStocker, enUsd, gesteImputation, lireDetail, montantDzd, repartirParSociete, versMicroUsd,
   type AppelAgrege, type GesteImputation, type RattachementPersonne, type Repartition,
 } from "../domaine/imputation";
 import { CLE_LIGNE_IA } from "../domaine/budget";
@@ -86,32 +86,49 @@ export async function imputerCoutIaDuMois(p: { mois: string; taux: number; acteu
     .map((d) => ({ companyId: d.companyId, microUsd: 0, appels: 0, sansTarif: 0, parFonction: [], parDepartement: [] }));
   const parts = [...rep.parSociete.filter((s) => permise(s.companyId)), ...vides];
   const date = dateDeLImputation(p.mois);
+  const { debut, fin } = bornesDuMois(p.mois);
   const societes: ImputationSociete[] = [];
   for (const part of parts) {
-    const montant = montantDzd(part.microUsd, p.taux);
+    const mesure = montantDzd(part.microUsd, p.taux);
     await assurerDepartementInformatique(part.companyId);
     const env = await enveloppeInformatique(part.companyId, date, p.acteurId);
     const categorieIa = env.lignes[CLE_LIGNE_IA];
     const reference = `Consommation IA — ${libelleMois(p.mois)}`;
-    const notes = `Coût de l'IA imputé depuis le journal des appels : ${part.appels} appel(s), ${enUsd(part.microUsd).toFixed(2)} $ au taux de ${p.taux} DZD${part.sansTarif ? ` (${part.sansTarif} appel(s) sans tarif, non comptés)` : ""}.`;
+    let montant = mesure;
     // Sous verrou de base par (société, mois) : un clic et la tâche de fond en même temps ne doublent rien.
     const geste = await prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`imputation-ia:${part.companyId}:${p.mois}`}))`;
       const existante = await tx.imputationCoutIa.findUnique({ where: { companyId_mois: { companyId: part.companyId, mois: p.mois } } });
       const ligne = existante?.expenseLineId ? await tx.budgetExpenseLine.findUnique({ where: { id: existante.expenseLineId }, select: { id: true } }) : null;
-      const g = gesteImputation(
+      // UNE SEULE CONSOMMATION (audit des dépenses, point 10) : la facture du fournisseur payée ce mois-là sur la ligne IA
+      // (circuit normal) solde la consommation mesurée — la ligne mesurée tombe à zéro, la facture fait foi.
+      const categorieLue = ligne ? existante!.categoryId : categorieIa;
+      const paye = await tx.financeTransaction.aggregate({
+        where: { direction: "OUT", status: "SETTLED", budgetCategoryId: categorieLue, date: { gte: debut, lt: fin } },
+        _sum: { amount: true },
+      });
+      const facture = Number(paye._sum.amount ?? 0);
+      const regle = consommationIaDuMois(mesure, facture);
+      montant = regle.ligneMesuree;
+      const notes = `Coût de l'IA imputé depuis le journal des appels : ${part.appels} appel(s), ${enUsd(part.microUsd).toFixed(2)} $ au taux de ${p.taux} DZD${part.sansTarif ? ` (${part.sansTarif} appel(s) sans tarif, non comptés)` : ""}`
+        + (regle.solde ? ` — soldé par la facture payée (${regle.total} DZD, écart ${regle.ecart} DZD sur le mesuré ${mesure} DZD).` : ".");
+      const g0 = gesteImputation(
         existante ? { microUsd: versMicroUsd(existante.coutUsd.toString()), taux: Number(existante.tauxUsdDzd), montantDzd: Number(existante.montantDzd), ligneExiste: !!ligne } : null,
         { microUsd: part.microUsd, taux: p.taux, montantDzd: montant, appels: part.appels },
       );
+      // Une facture payée depuis (ou corrigée) change la régularisation sans changer la ligne quand elle est déjà soldée à zéro.
+      const factureAvant = existante ? lireDetail(existante.detail).factureDzd ?? 0 : 0;
+      const factureMaintenant = regle.solde ? regle.total : 0;
+      const g = g0 === "INCHANGEE" && factureAvant !== factureMaintenant ? "METTRE_A_JOUR" : g0;
       if (g === "RIEN" || g === "INCHANGEE") return g;
       // La ligne de dépense : la même, mise à jour ; recréée seulement si on l'a retirée à la main entre-temps.
-      const categoryId = ligne ? existante!.categoryId : categorieIa;
+      const categoryId = categorieLue;
       const ligneId = ligne
         ? (await tx.budgetExpenseLine.update({ where: { id: ligne.id }, data: { amount: montant, notes, reference }, select: { id: true } })).id
         : (await tx.budgetExpenseLine.create({ data: { categoryId, reference, amount: montant, date, notes, createdById: p.acteurId }, select: { id: true } })).id;
       const donnees = {
         categoryId, expenseLineId: ligneId, coutUsd: enUsd(part.microUsd).toFixed(6), tauxUsdDzd: p.taux, montantDzd: montant,
-        appels: part.appels, sansTarif: part.sansTarif, detail: detailAStocker(part) as object, calculeLe: new Date(), calculeParId: p.acteurId,
+        appels: part.appels, sansTarif: part.sansTarif, detail: { ...detailAStocker(part), mesureDzd: mesure, factureDzd: regle.solde ? regle.total : 0 } as object, calculeLe: new Date(), calculeParId: p.acteurId,
       };
       if (existante) await tx.imputationCoutIa.update({ where: { id: existante.id }, data: donnees });
       else await tx.imputationCoutIa.create({ data: { companyId: part.companyId, mois: p.mois, ...donnees } });

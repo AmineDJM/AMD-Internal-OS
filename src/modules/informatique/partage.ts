@@ -7,7 +7,7 @@ export {
   choisirEnveloppe, lignesManquantes, nomEnveloppeInformatique, rapprocher, type MoisRapproche,
 } from "./domaine/budget";
 export {
-  SANS_DEPARTEMENT, detailAStocker, enUsd, gesteImputation, libelleFonctionIa, lireDetail, lireTaux, montantDzd, repartirParSociete,
+  SANS_DEPARTEMENT, consommationIaDuMois, detailAStocker, enUsd, gesteImputation, libelleFonctionIa, lireDetail, lireTaux, montantDzd, repartirParSociete,
   societeDeLaPersonne, versMicroUsd,
   type AppelAgrege, type DetailImputation, type GesteImputation, type LigneDetail, type PartSociete, type RattachementPersonne, type Repartition,
 } from "./domaine/imputation";

@@ -167,10 +167,36 @@ export function gesteImputation(
   return meme && existante.ligneExiste ? "INCHANGEE" : "METTRE_A_JOUR";
 }
 
-/** Ce que l'imputation garde de son détail (JSON) : qui consomme, par fonction et par département. */
+/**
+ * UNE SEULE CONSOMMATION PAR MOIS (audit des dépenses, point 10 : le coût de l'IA consommé deux fois dans l'enveloppe
+ * Informatique). Le coût MESURÉ consomme la ligne « Intelligence artificielle » ; quand la FACTURE du fournisseur est payée
+ * (circuit normal, réglée sur cette ligne), elle SOLDE la consommation mesurée au lieu de consommer une seconde fois : la
+ * ligne mesurée tombe à zéro et la facture fait foi — l'écart mesuré ↔ facturé est régularisé, dans un sens comme dans
+ * l'autre (mesuré 100, facturé 110 → 110 ; mesuré 100, facturé 95 → 95). Sans facture payée, le mesuré consomme seul.
+ */
+export function consommationIaDuMois(mesureDzd: number, factureDzd: number | null | undefined): {
+  /** Le montant de la ligne de dépense mesurée (ce que l'imputation écrit). */
+  ligneMesuree: number;
+  /** La consommation totale du mois sur la ligne IA (ligne mesurée + facture payée). */
+  total: number;
+  /** Facturé − mesuré, quand la facture est là ; `null` sinon. */
+  ecart: number | null;
+  solde: boolean;
+} {
+  const arrondi = (n: number) => Math.round(n * 100) / 100;
+  const facture = factureDzd && factureDzd > 0 ? arrondi(factureDzd) : 0;
+  if (facture === 0) return { ligneMesuree: arrondi(mesureDzd), total: arrondi(mesureDzd), ecart: null, solde: false };
+  return { ligneMesuree: 0, total: facture, ecart: arrondi(facture - mesureDzd), solde: true };
+}
+
+/** Ce que l'imputation garde de son détail (JSON) : qui consomme, par fonction et par département ; la régularisation. */
 export interface DetailImputation {
   parFonction: { cle: string; libelle: string; coutUsd: number; appels: number }[];
   parDepartement: { cle: string; libelle: string; coutUsd: number; appels: number }[];
+  /** Le coût mesuré du mois, en DZD (avant régularisation). */
+  mesureDzd?: number;
+  /** La facture du fournisseur payée sur la ligne IA ce mois-là (0 : aucune) — elle solde le mesuré. */
+  factureDzd?: number;
 }
 
 export function detailAStocker(part: PartSociete): DetailImputation {
@@ -186,5 +212,11 @@ export function lireDetail(v: unknown): DetailImputation {
     return [{ cle: String(o.cle ?? ""), libelle: String(o.libelle ?? ""), coutUsd: Number(o.coutUsd) || 0, appels: Number(o.appels) || 0 }];
   });
   const o = v && typeof v === "object" ? (v as Record<string, unknown>) : {};
-  return { parFonction: lignes(o.parFonction), parDepartement: lignes(o.parDepartement) };
+  const nombre = (x: unknown) => (typeof x === "number" && Number.isFinite(x) ? { valeur: x } : null);
+  const mesure = nombre(o.mesureDzd);
+  const facture = nombre(o.factureDzd);
+  return {
+    parFonction: lignes(o.parFonction), parDepartement: lignes(o.parDepartement),
+    ...(mesure ? { mesureDzd: mesure.valeur } : {}), ...(facture ? { factureDzd: facture.valeur } : {}),
+  };
 }

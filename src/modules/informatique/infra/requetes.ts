@@ -165,7 +165,8 @@ export async function vueCoutIa(userId: string, maintenant: Date = new Date()): 
       const env = envs.find((e) => e.companyId === s.id) ?? null;
       const budgetIa = Number(env?.categories.find((c) => c.cle === CLE_LIGNE_IA)?.allocated ?? 0);
       const siennes = imputations.filter((i) => i.companyId === s.id);
-      const parMois = new Map(siennes.map((i) => [i.mois, Number(i.montantDzd)]));
+      // Une seule consommation par mois : la ligne mesurée, ou la facture payée qui l'a soldée (`consommationIaDuMois`).
+      const parMois = new Map(siennes.map((i) => [i.mois, Math.round((Number(i.montantDzd) + (lireDetail(i.detail).factureDzd ?? 0)) * 100) / 100]));
       const derniere = siennes.at(-1) ?? null;
       const lignes = rapprocher(moisAnnee, parMois, budgetIa);
       return {
