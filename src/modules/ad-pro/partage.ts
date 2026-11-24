@@ -54,6 +54,7 @@ export { beneficiaryName, careProgress, defaultCells, financeReadiness, OPINION_
 export { ecrireRepartition } from "./domaine/repartition-ecriture";
 export { lireRepartition } from "./domaine/repartition";
 export { estDemandeAdProSupprimable, REFUS_SUPPRESSION_AD_PRO } from "./domaine/suppression";
+export { estNatureSuppressionDefinitive, NATURES_SUPPRESSION_DEFINITIVE, type NatureSuppressionDefinitive, referenceConfirmee, referenceDeLaDemande, REFUS_REFERENCE, REFUS_SOUS_VUE_EXACTE, REFUS_SUPPRESSION_DEFINITIVE, refusSuppressionDefinitive } from "./domaine/suppression-definitive";
 export { AD_PRO_ENTITY_TYPE, AD_PRO_KINDS, AD_PRO_STATE, type AdProKind, type AdProRequest, adProState, type AdProState, countByState, creatableKinds, dejaPorteParSaFiche, kindSpec, type KindSpec, TYPES_ENTITE_AD_PRO } from "./domaine/unified";
 export { estDirectionMarketingPoste, estDirectionOperations, libelleTemps, opsFranchiALaSoumission, peutTenir, tempsEnAttente } from "./domaine/validation-poste";
 export { changementsVoyageur, type EtapeTrajet, ligneVoyageur, lireEtapes, lireVoyageur, manquesPourReserver, nomComplet, porteDesVoyageurs, type SaisieVoyageur, TRAJET_LIBELLE, TRANSPORT_LIBELLE, type VoyageurLu } from "./domaine/voyageurs";

@@ -8,10 +8,11 @@ import { onlyofficeConfigured } from "@/lib/onlyoffice";
 import { PageHeader } from "@/components/shared/page-header";
 import { VisaCentreBanniere } from "@/modules/ad-pro/ecrans/visa-centre-banniere";
 import { SupprimerDemandeAdPro } from "@/modules/ad-pro/ecrans/supprimer-demande";
+import { SupprimerDefinitivementDemandeAdPro } from "@/modules/ad-pro/ecrans/supprimer-definitivement";
 import { peutSupprimerUneDemandeAdPro, adProEditValues, loadAdProItems, adProBudgetOptions, contexteMaterielStock, contextePostes, requireModuleOuAgences } from "@/modules/ad-pro/api";
 import { BackLink } from "@/components/shared/back-link";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { AD_PRO_DOC_CATEGORIES, categoriesDuDepotDeLaDemande, canAttachToAdPro, attachHint, canEditAdProRequest, isAdProDecided, barreDesEtapes } from "@/modules/ad-pro/partage";
+import { AD_PRO_DOC_CATEGORIES, categoriesDuDepotDeLaDemande, canAttachToAdPro, attachHint, canEditAdProRequest, isAdProDecided, barreDesEtapes, refusSuppressionDefinitive } from "@/modules/ad-pro/partage";
 import type { DocItem } from "@/components/documents/document-list";
 import { AD_PRO_OTHER_STATUS, ROLE_LABELS } from "@/lib/labels";
 import { OtherDecisionPanel } from "./decision-panel";
@@ -154,6 +155,7 @@ export default async function AdProOtherDetailPage(props: { params: Promise<{ id
         <MenuDossier>
           {editValues && <AdProEditButton kind="AD_PRO_OTHER" id={req.id} decided={demandeDecidee} values={editValues} />}
           <SupprimerDemandeAdPro kind="AD_PRO_OTHER" id={req.id} name={`${req.reference} — ${req.title}`} enabled={peutSupprimer} />
+          <SupprimerDefinitivementDemandeAdPro kind="AD_PRO_OTHER" id={req.id} enabled={!refusSuppressionDefinitive(user)} />
         </MenuDossier>
       </PageHeader>
 

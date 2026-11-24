@@ -44,6 +44,9 @@ const DETTE_HERITEE: Record<string, string[]> = {
     // LE PARCOURS AGENCE (15/11/2026) — mêmes cibles que les autres gestes de poste : les bons de commande (cible
     // `@/modules/bons-de-commande/api`), les notifications et les pièces (socle à terme), et la SIGNATURE EN LIGNE, transverse
     // (Direction Marketing ici, Finances dans `bc-signature-actions`) : cible = un module `signature` quand il naîtra.
+    // LA SUPPRESSION DÉFINITIVE (Super Admin, 24/11/2026) — une seule porte serveur, celle du cœur de suppression
+    // (`lib/suppression/definitif-serveur`), transverse à tous les métiers comme la corbeille : cible = un module `suppression`.
+    "src/modules/ad-pro/actions-suppression-definitive.ts → src/lib/suppression/definitif-serveur",
     "src/modules/ad-pro/actions-postes-agence.ts → src/lib/bons-de-commande/aiguillage",
     "src/modules/ad-pro/actions-postes-agence.ts → src/lib/bons-de-commande/etat",
     "src/modules/ad-pro/actions-postes-agence.ts → src/lib/device",

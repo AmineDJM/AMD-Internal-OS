@@ -10,6 +10,7 @@ import { getWorkflowForEntity } from "@/lib/queries/workflow";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { SupprimerDemandeAdPro } from "@/modules/ad-pro/ecrans/supprimer-demande";
+import { SupprimerDefinitivementDemandeAdPro } from "@/modules/ad-pro/ecrans/supprimer-definitivement";
 import { type DocItem } from "@/components/documents/document-list";
 import { CONGRESS_REQUEST_STATUS, ROLE_LABELS } from "@/lib/labels";
 import { CongressDetailView, AccompagnantsDeLaPriseEnCharge } from "../../congress-international/congress-detail-view";
@@ -34,7 +35,7 @@ import { InvolvementConversations } from "@/modules/ad-pro/ecrans/involvement-co
 import { CarePanel } from "@/modules/ad-pro/ecrans/prise-en-charge/care-panel";
 import { careDirectoryOptions, carePromoOptions } from "@/modules/ad-pro/actions-prise-en-charge-logistique";
 import { BoutonLivret } from "@/modules/ad-pro/ecrans/prise-en-charge/bouton-livret";
-import { peutMarquerRealisee, peutTeleverserBillet, resumeDesFiches, canEditAdProRequest, isAdProDecided, AD_PRO_DOC_CATEGORIES, categoriesDuDepotDeLaDemande, canAttachToAdPro, siegeAuCentreAdPro, barreDesEtapes } from "@/modules/ad-pro/partage";
+import { peutMarquerRealisee, peutTeleverserBillet, resumeDesFiches, canEditAdProRequest, isAdProDecided, AD_PRO_DOC_CATEGORIES, categoriesDuDepotDeLaDemande, canAttachToAdPro, siegeAuCentreAdPro, barreDesEtapes, refusSuppressionDefinitive } from "@/modules/ad-pro/partage";
 import { AdProTransferButton } from "@/modules/ad-pro/ecrans/transfer-button";
 import { AdProEditButton } from "@/modules/ad-pro/ecrans/edit-request-button";
 import { BackLink } from "@/components/shared/back-link";
@@ -181,6 +182,7 @@ export default async function CongressNatDetailPage(props: { params: Promise<{ i
           {hasGlobalView(user) && <AdProTransferButton from="CONGRESS_NATIONAL" sourceId={detail.id} title={detail.name} />}
           {workflow?.peutRetirer && <WithdrawForm entityType="CONGRESS_NATIONAL" entityId={detail.id} dansUnMenu />}
           <SupprimerDemandeAdPro kind="CONGRESS_NATIONAL" id={detail.id} name={detail.name} enabled={await peutSupprimerUneDemandeAdPro(user, "CONGRESS_NATIONAL", detail.id)} />
+          <SupprimerDefinitivementDemandeAdPro kind="CONGRESS_NATIONAL" id={detail.id} enabled={!refusSuppressionDefinitive(user)} />
         </MenuDossier>
       </PageHeader>
       <BlocHistorique user={user} type="CONGRESS_NATIONAL" id={detail.id} />

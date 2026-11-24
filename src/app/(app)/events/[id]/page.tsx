@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Video } from "lucide-react";
 import { userCan, hasGlobalView, hasRole } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
-import { porteeModificationEvenement, canEditAdProRequest, isAdProDecided, breakdown, AD_PRO_DOC_CATEGORIES, categoriesDuDepotDeLaDemande, canAttachToAdPro, attachHint, barreDesEtapes } from "@/modules/ad-pro/partage";
+import { porteeModificationEvenement, canEditAdProRequest, isAdProDecided, breakdown, AD_PRO_DOC_CATEGORIES, categoriesDuDepotDeLaDemande, canAttachToAdPro, attachHint, barreDesEtapes, refusSuppressionDefinitive } from "@/modules/ad-pro/partage";
 import { prisma } from "@/lib/prisma";
 import { getEventDetail, peutSupprimerUneDemandeAdPro, adProEditValues, loadAdProItems, adProBudgetOptions, contexteMaterielStock, contextePostes, getAdProCreateData, requireModuleOuAgences } from "@/modules/ad-pro/api";
 import { PageHeader } from "@/components/shared/page-header";
@@ -21,6 +21,7 @@ import { getWorkflowForEntity } from "@/lib/queries/workflow";
 import { WithdrawForm, HistoriqueDuCircuit } from "@/components/workflow/workflow-panel";
 import { MissionAssignmentsCard } from "@/components/missions/mission-assignments-card";
 import { SupprimerDemandeAdPro } from "@/modules/ad-pro/ecrans/supprimer-demande";
+import { SupprimerDefinitivementDemandeAdPro } from "@/modules/ad-pro/ecrans/supprimer-definitivement";
 import { BackLink } from "@/components/shared/back-link";
 import { AdProEditButton } from "@/modules/ad-pro/ecrans/edit-request-button";
 import { AdProItemsPanel } from "@/modules/ad-pro/ecrans/items-panel";
@@ -217,6 +218,7 @@ export default async function EventDetailPage(props: { params: Promise<{ id: str
             {peutImpliquer && <ThirdPartyInvolveButton type="EVENT" id={e.id} people={responsibles} />}
             {peutRetirer && <WithdrawForm entityType="EVENT" entityId={e.id} dansUnMenu />}
             <SupprimerDemandeAdPro kind="EVENT" id={e.id} name={e.name} enabled={peutSupprimer} />
+            <SupprimerDefinitivementDemandeAdPro kind="EVENT" id={e.id} enabled={!refusSuppressionDefinitive(user)} />
           </MenuDossier>
         )}
       </PageHeader>

@@ -23,7 +23,7 @@ import { libellesPromusDeLArticle } from "@/lib/promo-material/achats";
 import { toNumber, formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/page-header";
 import { AdProEditButton } from "@/modules/ad-pro/ecrans/edit-request-button";
-import { canEditAdProRequest, isAdProDecided, PROMO_MATERIAL_DOC_CATEGORIES, categoriesDuDepotDeLaDemande, natureDeLaCategorie, ETAPE_DEMANDE_DEVIS, canAttachToAdPro, attachHint, siegeAuCentreAdPro } from "@/modules/ad-pro/partage";
+import { canEditAdProRequest, isAdProDecided, PROMO_MATERIAL_DOC_CATEGORIES, categoriesDuDepotDeLaDemande, natureDeLaCategorie, ETAPE_DEMANDE_DEVIS, canAttachToAdPro, attachHint, siegeAuCentreAdPro, refusSuppressionDefinitive } from "@/modules/ad-pro/partage";
 import { adProEditValues, accesPiecesLiees, contextePiecesLiees, peutSupprimerUneDemandeAdPro } from "@/modules/ad-pro/api";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +38,7 @@ import { AdProDiscussionCard } from "@/modules/ad-pro/ecrans/discussion-card";
 import { MedecinsConcernesSection } from "@/modules/ad-pro/ecrans/medecins-concernes";
 import { Sections } from "@/components/shared/section-repliable";
 import { SupprimerDemandeAdPro } from "@/modules/ad-pro/ecrans/supprimer-demande";
+import { SupprimerDefinitivementDemandeAdPro } from "@/modules/ad-pro/ecrans/supprimer-definitivement";
 import { onlyofficeConfigured } from "@/lib/onlyoffice";
 import { PROMO_MATERIAL_STATUS } from "@/lib/labels";
 import {
@@ -421,6 +422,7 @@ export default async function PromoMaterialDetailPage(props: { params: Promise<{
           daterLeReglement={peutDaterLeReglement({ financesModifier: userCan(user, "FINANCES", "UPDATE") })} />
       )}
       <SupprimerDemandeAdPro kind="PROMO_MATERIAL" id={pm.id} name={pm.title} enabled={peutSupprimer} />
+      <SupprimerDefinitivementDemandeAdPro kind="PROMO_MATERIAL" id={pm.id} enabled={!refusSuppressionDefinitive(user)} />
     </MenuDossier>
   ) : null;
 
