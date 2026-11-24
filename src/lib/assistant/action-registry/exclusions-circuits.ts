@@ -459,6 +459,18 @@ export function classerExclusionsCircuits(): void {
     + "version). Adam est en pause de développement : aucun geste neuf ne lui est ouvert. Un formulaire devant la demande.", [
     "hr-document-actions:preparerAttestationDeTravail", "hr-document-actions:genererAttestationDeTravail",
   ]);
+  X("LA FIN DE CONTRAT D'UN SALARIÉ ET LE COMPTE CRÉÉ AVEC SA FICHE (Super Admin, 24/11/2026 — lot rhdepart) : ouvrir la "
+    + "fin de contrat (RH → supérieur hiérarchique → DG, par le moteur commun des validations), la corriger après un renvoi, "
+    + "l'annuler ; tenir la liste de sortie (cocher, ajouter, retirer une ligne, transférer les dossiers au N+1), le solde de "
+    + "tout compte (montants de paie, réservés à qui voit les salaires) et le certificat de travail (relu puis émis au dossier "
+    + "RH) ; créer le compte d'une fiche par invitation et en renouveler le lien. Des gestes RH qui engagent la société sur "
+    + "la sortie d'une personne, faits devant sa fiche. Adam est en pause de développement : aucun geste neuf ne lui est ouvert.", [
+    "depart-salarie-actions:creerCompteSalarie", "depart-salarie-actions:renouvelerInvitation",
+    "depart-salarie-actions:ouvrirFinDeContrat", "depart-salarie-actions:corrigerFinDeContrat", "depart-salarie-actions:annulerFinDeContrat",
+    "depart-salarie-actions:cocherLigneDeSortie", "depart-salarie-actions:ecrireLigneDeSortie", "depart-salarie-actions:retirerLigneDeSortie",
+    "depart-salarie-actions:transfererLigneDeSortie", "depart-salarie-actions:enregistrerSoldeDeToutCompte",
+    "depart-salarie-actions:enregistrerCertificatDeTravail", "depart-salarie-actions:genererCertificatDeTravail",
+  ]);
   X("RÉGLER LE SEUIL DES BONS DE COMMANDE HORS AD & PRO (Direction, 10/2026) — depuis le centre de validations, par ses "
     + "sièges (DG, Super Admin) ; le centre Ad & Pro garde le sien. Le changement réaiguille les BC en vol de ce centre. "
     + "Adam est en pause : aucun geste neuf. Un formulaire sur l'écran du centre. — SUSPENDRE LA SÉPARATION DES TÂCHES DU CENTRE DE PAIEMENT (ARGENT-06) : lever un garde-fou, interdit à un agent (§118.6), geste journalisé du Super Admin.", [

@@ -570,6 +570,26 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/rh/actions-documents.ts → src/lib/queries/visibilite-listes",
     "src/modules/rh/infra/depart.ts → src/lib/admin/garde-comptes",
     "src/modules/rh/infra/requetes/hr.ts → src/lib/queries/visibilite-listes",
+    // LA FIN DE CONTRAT ET LE COMPTE CRÉÉ AVEC LA FICHE (lot rhdepart, 24/11/2026) : le circuit passe par le MOTEUR COMMUN
+    // des validations (`lib/validation`, `lib/validations/decision`) au lieu d'un circuit de plus ; le compte naît par
+    // l'INVITATION commune (`lib/user-invites`) et suit la fiche (`lib/org/source-unique`) ; le N+1 se lit dans la ligne
+    // hiérarchique (`lib/departments`) ; le certificat réutilise le papier, le coffre de fichiers, le PDF et le registre
+    // de l'attestation ; les gardes des actions sont celles des autres actions RH (société de la fiche, salaires).
+    "src/modules/rh/actions-depart.ts → src/lib/company",
+    "src/modules/rh/actions-depart.ts → src/lib/hr/confidentialite",
+    "src/modules/rh/infra/compte-salarie.ts → src/lib/org/source-unique",
+    "src/modules/rh/infra/compte-salarie.ts → src/lib/user-invites",
+    "src/modules/rh/infra/depart-certificat.ts → src/lib/drive-storage",
+    "src/modules/rh/infra/depart-certificat.ts → src/lib/notify",
+    "src/modules/rh/infra/depart-certificat.ts → src/lib/payslip/to-pdf",
+    "src/modules/rh/infra/depart-certificat.ts → src/lib/references/registre-serveur",
+    "src/modules/rh/infra/depart-circuit.ts → src/lib/departments",
+    "src/modules/rh/infra/depart-circuit.ts → src/lib/notify",
+    "src/modules/rh/infra/depart-circuit.ts → src/lib/validation",
+    "src/modules/rh/infra/depart-circuit.ts → src/lib/validations/decision",
+    "src/modules/rh/infra/depart-cloture.ts → src/lib/notify",
+    "src/modules/rh/infra/depart-sortie.ts → src/lib/departments",
+    "src/modules/rh/infra/depart-sortie.ts → src/lib/notify",
   ],
   "assistant-ia": [
     // LE MOTEUR DES TRAVAUX (J2, décision 0016) — façade `lib/missions/` généralisée : l'Assistant IA y joue sa persona, ses

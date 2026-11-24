@@ -10,7 +10,7 @@ import { recordAudit, recordFieldChanges } from "@/lib/audit";
 import {
   refusDecisionSurSoi, createLeaveRequest, attachLeaveFiles, leaveDecider, revalidateLeaveViews, canDecideLeave,
   applyLeaveDecision, stageNotifyRoles, LEAVE_STAGE_LABELS, type LeaveStage, remonterConge, trancherSousEscalade,
-  compteSuitLaFiche, chargerSalairesPartis, decisionRattachement,
+  compteSuitLaFiche, chargerSalairesPartis, decisionRattachement, creerCompteDuSalarie,
 } from "@/modules/rh/api";
 import { createExpenseOrder } from "@/modules/finances/api";
 import { askClaude, aiConfigured, cleModeleRequise } from "@/lib/ai";
@@ -102,9 +102,13 @@ export async function createEmployee(
     actorId: user.id,
     data: { fullName, department: created.department ?? null },
   });
+  // LE COMPTE NAÎT AVEC LA FICHE (Super Admin, 24/11/2026) : par invitation, sans mot de passe — sauf si la fiche
+  // vient d'être reliée à un compte existant. Jamais bloquant : la fiche est acquise, la carte « Compte » dira le reste.
+  const compte = created.userId ? null : await creerCompteDuSalarie(user, created.id, { role: fdStr(formData, "accountRole") })
+    .catch(sansBloquer("hr-actions.createEmployee.creerCompteDuSalarie", null));
   revalidatePath("/rh");
   revalidatePath("/rh/departements");
-  return { ok: true, id: created.id };
+  return { ok: true, id: created.id, ...(compte?.ok && compte.phrase ? { message: compte.phrase } : {}) };
 }
 
 /**

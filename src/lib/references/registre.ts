@@ -5,7 +5,7 @@ export const KIND_REGISTRE = "REGISTRE_DG";
 /** Au-delà, une saisie est une faute de frappe, pas un numéro. */
 export const NUMERO_MAX = 99_999;
 
-export const TYPES_REFERENCE = ["BON_DE_COMMANDE", "ORDRE_MISSION", "DEMANDE_DEVIS", "DEVIS", "FACTURE", "AVOIR", "ATTESTATION_TRAVAIL"] as const;
+export const TYPES_REFERENCE = ["BON_DE_COMMANDE", "ORDRE_MISSION", "DEMANDE_DEVIS", "DEVIS", "FACTURE", "AVOIR", "ATTESTATION_TRAVAIL", "CERTIFICAT_TRAVAIL"] as const;
 export type TypeReference = (typeof TYPES_REFERENCE)[number];
 
 export const LIBELLE_TYPE_REFERENCE: Record<TypeReference, string> = {
@@ -16,6 +16,8 @@ export const LIBELLE_TYPE_REFERENCE: Record<TypeReference, string> = {
   FACTURE: "facture",
   AVOIR: "avoir",
   ATTESTATION_TRAVAIL: "attestation de travail",
+  // Le certificat de travail d'un salarié qui part (lot rhdepart).
+  CERTIFICAT_TRAVAIL: "certificat de travail",
 };
 
 const libelleType = (t: string): string => (LIBELLE_TYPE_REFERENCE as Record<string, string>)[t] ?? "document";

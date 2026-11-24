@@ -19,6 +19,7 @@ import {
   type ChainStep, type RecruitmentContract, type RecruitmentStage,
 } from "@/lib/recruitment/request-flow";
 import { relierCommeLaLigne } from "@/modules/referentiels/api";
+import { creerCompteDuSalarie } from "@/modules/rh/api";
 import { sansBloquer } from "@/lib/journal";
 import {
   AUCUN_VALIDATEUR, DEJA_CHANGE, EtatChange, MOTIF_REFUS, buildChain, etapesDeLaChaine, prevenirLeSuivi,
@@ -655,12 +656,14 @@ export async function onboardRecruitment(formData: FormData): Promise<ActionResu
     summary: `${req.reference} — fiche employé créée pour ${hired.fullName} (${CONTRACT_LABEL[contract]}, ${req.position})${managerFiche ? " — N+1 désigné par la direction générale" : ""}`,
   });
   await prevenirLeSuivi(id, { title: "Recrue intégrée", body: `${req.reference} — ${hired.fullName} : fiche employé créée.` }, [user.id]);
+  // LE COMPTE NAÎT AVEC LA FICHE (Super Admin, 24/11/2026) — par invitation, depuis l'e-mail de la candidature.
+  const compte = await creerCompteDuSalarie(user, employee.id).catch(sansBloquer("recruitment-actions.integrer.creerCompteDuSalarie", null));
   revalidatePath("/recrutement");
   revalidatePath(`/recrutement/${id}`);
   revalidatePath("/rh");
   return {
     ok: true, id: employee.id,
-    message: "Fiche employé créée. Complétez-la (salaire réel, état civil, compte applicatif) depuis les RH.",
+    message: `Fiche employé créée. Complétez-la (salaire réel, état civil) depuis les RH.${compte?.ok && compte.phrase ? ` ${compte.phrase}` : ""}`,
   };
 }
 

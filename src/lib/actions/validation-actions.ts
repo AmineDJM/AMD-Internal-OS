@@ -17,6 +17,7 @@ import { getAppSettings } from "@/lib/settings";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser } from "@/lib/notify";
 import { createValidationFromRules, createDirectValidation, notifyValidator, joindrePiecesValidation, reprendreEtapesRenvoyees, verifierPiecesValidation } from "@/lib/validation";
+import { OBJET_DEPART_SALARIE, suiteDecisionDepart } from "@/modules/rh/api";
 import { issueDeLaDecision, motifExige, MOTIF_EXIGE, repriseApresCorrection, resoumissionSurPlace, cheminsDeLObjetLie, unSeulSuffit, type DecisionEtape } from "@/lib/validations/decision";
 import { lireCircuit } from "@/lib/validations/lecture-circuit";
 import { refusDuRetraitValidation, retraitEfface, validateursSollicites } from "@/lib/validations/retrait";
@@ -563,6 +564,8 @@ export async function decideValidation(formData: FormData): Promise<ActionResult
     for (const chemin of cheminsDeLObjetLie(req)) revalidatePath(chemin);
     // UN BV DE DOSSIER TRANCHÉ : son étape « Demande du BV » suit, le niveau de process aussi, le budget le lit.
     if (finalized) await apresDecisionBv(req, newStatus, user.id).catch(sansBloquer("validation-actions.decideValidation.apresDecisionBv"));
+    // UNE FIN DE CONTRAT TRANCHÉE (lot rhdepart) : la fiche suit — liste de sortie, solde et certificat à l'accord final.
+    if (finalized && req.objectType === OBJET_DEPART_SALARIE) await suiteDecisionDepart(req.id, newStatus, user.id).catch(sansBloquer("validation-actions.decideValidation.suiteDecisionDepart"));
 
     // UN BON DE COMMANDE VALIDÉ PASSE À LA SIGNATURE DES FINANCES (§118.149) — elles en sont
     // prévenues, sans quoi la file « à signer » se remplirait en silence. Relu, jamais supposé :

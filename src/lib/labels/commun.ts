@@ -299,6 +299,8 @@ export const VALIDATION_OBJECT_TYPE: Record<string, string> = {
   // Le BV d'un dossier réglementaire (`OBJET_BV_REGULATORY`, `regulatory/bv-validation.ts`).
   REGULATORY_BV_25: "Autorisation du BV 25 % (dossier réglementaire)",
   REGULATORY_BV_75: "Autorisation du BV 75 % (dossier réglementaire)",
+  // La fin de contrat d'un salarié (`OBJET_DEPART_SALARIE`, `modules/rh/domaine/depart/regles.ts`).
+  DEPART_SALARIE: "Fin de contrat d'un salarié",
 };
 
 /** Le libellé de la nature d'une demande de validation — `null` quand elle n'en a pas (rien à afficher). */

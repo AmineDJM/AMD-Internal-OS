@@ -11,9 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { CustomFieldsCard } from "@/components/shared/custom-fields-card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { CONTRACT_TYPE, LEAVE_TYPE, LEAVE_STATUS, PAYROLL_STATUS } from "@/lib/labels";
+import { CONTRACT_TYPE, LEAVE_TYPE, LEAVE_STATUS, PAYROLL_STATUS, ROLE_LABELS } from "@/lib/labels";
 import { formatCurrency, formatDate, formatDateTime, toNumber } from "@/lib/utils";
-import { getEmployeeHrDossier, referenceOrdreMissionSuggeree } from "@/modules/rh/api";
+import { etatCompteSalarie, getDepartDeLaFiche, getEmployeeHrDossier, referenceOrdreMissionSuggeree } from "@/modules/rh/api";
 import { getMyCompanies, companyOptions, entitePermisePourFiche } from "@/lib/company";
 import { getDepartmentOptions, getDepartmentPath, getManagerOf } from "@/lib/departments";
 import { aiConfigured, cleModeleRequise } from "@/lib/ai";
@@ -24,6 +24,8 @@ import { seesWholeGroup } from "@/lib/company-access";
 import { CompanyAccessCard, type CompanyAccessRow } from "./company-access-card";
 import { BackLink } from "@/components/shared/back-link";
 import { lireSensiblesPour } from "@/modules/coffre/api-lecture";
+import { CompteSalarieCard } from "./compte-salarie-card";
+import { DepartSalarie, type DepartVue } from "./depart-salarie";
 
 const d10 = (x: Date | null | undefined) => (x ? x.toISOString().slice(0, 10) : "");
 
@@ -131,6 +133,23 @@ export default async function EmployeeDetailPage(props: { params: Promise<{ id: 
       ])
     : [[], null];
   const targetSeesGroup = targetUser ? seesWholeGroup({ role: String(targetUser.role), secondaryRole: targetUser.secondaryRole ? String(targetUser.secondaryRole) : null }) : false;
+  // LA FIN DE CONTRAT ET LE COMPTE (lot rhdepart) : le solde de tout compte ne part qu'à qui voit les salaires.
+  const [depart, compte] = await Promise.all([
+    getDepartDeLaFiche(employee.id, { avecSolde: salairesVisibles }),
+    canUpdate ? etatCompteSalarie(employee.id) : Promise.resolve(null),
+  ]);
+  const departVue: DepartVue | null = depart ? {
+    ...depart,
+    ouvertLe: formatDate(depart.ouvertLe),
+    compteFermeLe: depart.compteFermeLe ? formatDate(depart.compteFermeLe) : null,
+    validation: depart.validation ? {
+      id: depart.validation.id, reference: depart.validation.reference,
+      etapes: depart.validation.etapes.map((e) => ({ ...e, decideeLe: e.decideeLe ? formatDateTime(e.decideeLe) : null })),
+    } : null,
+    taches: depart.taches.map((t) => ({ id: t.id, categorie: t.categorie, libelle: t.libelle, detail: t.detail, source: t.source, faitLe: t.faitLe ? formatDate(t.faitLe) : null, faitPar: t.faitPar })),
+    soldeModifieLe: depart.soldeModifieLe ? formatDateTime(depart.soldeModifieLe) : null,
+    certificatEmisLe: depart.certificatEmisLe ? formatDate(depart.certificatEmisLe) : null,
+  } : null;
   const grantByCompany = new Map((targetUser?.companyAccess ?? []).map((g) => [g.companyId, g.canEdit]));
   const accessRows: CompanyAccessRow[] = allCompanies.map((c) => ({
     companyId: c.id,
@@ -175,6 +194,14 @@ export default async function EmployeeDetailPage(props: { params: Promise<{ id: 
         <CompanyAccessCard userId={employee.userId} rows={accessRows} seesWholeGroup={targetSeesGroup} />
       )}
 
+      {canUpdate && (
+        <CompteSalarieCard
+          employeeId={employee.id} email={employee.email}
+          roleLabel={compte ? ROLE_LABELS[compte.role] ?? compte.role : null}
+          etat={compte ? { ...compte, invitation: compte.invitation ? { ...compte.invitation, expire: formatDateTime(compte.invitation.expire) } : null } : null}
+        />
+      )}
+
       {/* Rattachement dans la structure + responsable hiérarchique EFFECTIF (N+1 résolu). */}
       <Card>
         <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Building2 className="h-4 w-4" /> Rattachement &amp; hiérarchie</CardTitle></CardHeader>
@@ -212,6 +239,12 @@ export default async function EmployeeDetailPage(props: { params: Promise<{ id: 
           </div>
         </CardContent>
       </Card>
+
+      {/* LA FIN DE CONTRAT (lot rhdepart) : circuit RH → N+1 → DG, puis la sortie — liste, solde, certificat. */}
+      <DepartSalarie
+        employeeId={employee.id} actif={employee.isActive} depart={departVue} peutAgir={canUpdate} voitSolde={salairesVisibles}
+        dateParDefaut={d10(employee.contractEnd)}
+      />
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">

@@ -6685,6 +6685,8 @@ model Employee {
   advances      SalaryAdvance[]
   documents     EmployeeDocument[]
   hrRequests    HrDocumentRequest[]
+  /// SES FINS DE CONTRAT (lot rhdepart) — une en cours au plus ; les refusées et annulées restent, c'est l'histoire.
+  departs       DepartSalarie[]
   /// La candidature dont cette fiche est issue, quand elle vient d'un recrutement.
   recruitedAs   RecruitmentCandidate? @relation("RecruitmentHire")
 
@@ -19747,4 +19749,69 @@ model IqviaLigne {
   moisValeur    Float        @default(0)
 
   @@index([importId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LA FIN DE CONTRAT D'UN SALARIÉ (lot rhdepart, Super Admin 24/11/2026) — « tout automatique ».
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// UNE FIN DE CONTRAT, OUVERTE PAR LES RH DEPUIS LA FICHE. Elle se valide par le moteur commun des validations
+/// (`ValidationRequest`, nature `DEPART_SALARIE`) : RH → supérieur hiérarchique → DG. À l'accord final, la liste de
+/// sortie, le solde de tout compte et le certificat de travail naissent préremplis — et restent modifiables.
+/// `statut` : EN_VALIDATION | A_CORRIGER | REFUSE | VALIDE | ANNULE (texte, comme les autres circuits récents).
+model DepartSalarie {
+  id                  String               @id @default(cuid())
+  employeeId          String
+  employee            Employee             @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  /// FIN_CDD | DEMISSION | LICENCIEMENT | RUPTURE | RETRAITE | FIN_ESSAI | AUTRE
+  motif               String
+  /// Le dernier jour travaillé ; le compte applicatif se ferme le lendemain (heure d'Alger).
+  dateFin             DateTime
+  preavisJours        Int?
+  note                String?
+  statut              String               @default("EN_VALIDATION")
+  validationRequestId String?              @unique
+  ouvertParId         String
+  valideLe            DateTime?
+  /// Posé par la fermeture automatique (le lendemain de `dateFin`) : la fiche et le compte ont suivi.
+  compteFermeLe       DateTime?
+  /// LE SOLDE DE TOUT COMPTE — des lignes `{ id, libelle, detail, montant, sens }` saisies et ajustées par les RH.
+  /// Aucun calcul de paie ici : la paie se calcule ailleurs, la plateforme ne fait que préremplir ce qu'elle sait.
+  solde               Json?
+  soldeModifieLe      DateTime?
+  soldeModifieParId   String?
+  /// LE CERTIFICAT DE TRAVAIL — ses champs et son texte, modifiables jusqu'à l'émission (et après : nouvelle version).
+  certificat          Json?
+  certificatEmisLe    DateTime?
+  certificatReference String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  taches              DepartSalarieTache[]
+
+  @@index([employeeId])
+  @@index([statut, dateFin])
+}
+
+/// UNE LIGNE DE LA LISTE DE SORTIE — à récupérer (véhicule, matériel promotionnel, informatique, badge), à faire
+/// (transferts, retrait des accès, documents). Préremplie depuis les données réelles (`source` = son origine, unique
+/// par départ : le préremplissage rejoué ne double rien) ; les RH en ajoutent, en retirent, la cochent (qui, quand).
+model DepartSalarieTache {
+  id        String        @id @default(cuid())
+  departId  String
+  depart    DepartSalarie @relation(fields: [departId], references: [id], onDelete: Cascade)
+  /// VEHICULE | MATERIEL | MATERIEL_PROMO | INFORMATIQUE | BADGE_CLES | ACCES | TRANSFERT | DOCUMENTS | COMPTE | AUTRE
+  categorie String
+  libelle   String
+  detail    String?
+  quantite  Decimal?      @db.Decimal(12, 3)
+  /// `MoyenGeneral:<id>`, `PromoStockItem:<id>`, `AUTO:COMPTE`… — nul pour une ligne ajoutée à la main.
+  source    String?
+  ordre     Int           @default(0)
+  faitLe    DateTime?
+  faitParId String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@unique([departId, source])
+  @@index([departId])
 }

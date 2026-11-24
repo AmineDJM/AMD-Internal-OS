@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getRhData } from "@/modules/rh/api";
 import { ModuleTabs } from "@/components/shared/module-tabs";
 import { visibleTabs } from "@/lib/nav-tabs";
-import { CONTRACT_TYPE, EMPLOYES_TABS } from "@/lib/labels";
+import { CONTRACT_TYPE, EMPLOYES_TABS, ROLE_LABELS } from "@/lib/labels";
 import { EmptyState } from "@/components/shared/empty-state";
 import { CreateRecordButton, type FieldDef } from "@/components/shared/create-record-button";
 import { optionsFromMap } from "@/components/shared/form-fields";
@@ -88,6 +88,10 @@ export default async function RhTeamPage() {
     { type: "text", name: "address", label: "Adresse", full: true },
     { type: "select", name: "managerId", label: "Manager (N+1)", options: data.employees.map((e) => ({ value: e.id, label: e.fullName })), placeholder: "—" },
     { type: "select", name: "userId", label: "Compte applicatif lié", options: linkableUsers.map((u) => ({ value: u.id, label: `${u.name} (${u.email})` })), placeholder: "Aucun" },
+    // SANS COMPTE LIÉ, LE COMPTE NAÎT AVEC LA FICHE (par invitation, depuis l'e-mail) : son rôle, si l'on administre les comptes.
+    ...(userCan(user, "ADMIN", "CREATE")
+      ? [{ type: "select" as const, name: "accountRole", label: "Rôle du compte créé", options: optionsFromMap(ROLE_LABELS).filter((o) => o.value !== "SUPER_ADMIN"), placeholder: "Lecteur" }]
+      : []),
   ];
 
   const { total, active, expiring } = data.stats;
@@ -114,7 +118,7 @@ export default async function RhTeamPage() {
         {canCreate && (
           <div className="flex flex-wrap items-center gap-2">
             <CreateRecordButton label="Nouvel employé" title="Ajouter un employé" redirectBase="/rh"
-              description="Dossier complet : contrat, état civil, solde de congés et compte applicatif." action={createEmployee} fields={employeeFields}
+              description="Dossier complet : contrat, état civil, solde de congés. Sans compte lié, le compte applicatif se crée par invitation à son e-mail." action={createEmployee} fields={employeeFields}
               analyze={{
                 action: analyzeEmployeeContract,
                 buttonLabel: "Analyser le contrat",
