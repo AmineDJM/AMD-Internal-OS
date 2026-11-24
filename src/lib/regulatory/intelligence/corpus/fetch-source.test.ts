@@ -95,6 +95,38 @@ describe("htmlToText — garder le texte, jeter le site", () => {
   it("ne laisse pas de balise résiduelle", () => {
     expect(htmlToText(`<div class="x"><span data-a="<b>">Texte</span></div>`)).toBe("Texte");
   });
+
+  // Audit sécurité (XSS stockée) : une page de régulateur piégée ne doit laisser AUCUNE construction
+  // qu'un analyseur HTML lirait comme une balise — ni écrite telle quelle, ni encodée en entités.
+  const TAG_ACTIF = /<[a-zA-Z!/?]/;
+  it("une balise encodée en entités n'en redevient pas une (décodage AVANT retrait)", () => {
+    const t = htmlToText(`<p>Article 3. &lt;img src=x onerror=alert(document.cookie)&gt; Les études de stabilité.</p>`);
+    expect(t).not.toMatch(TAG_ACTIF);
+    expect(t).toContain("Les études de stabilité");
+    expect(htmlToText(`&lt;script&gt;alert(1)&lt;/script&gt;Texte`)).toBe("Texte");
+    expect(htmlToText(`&#60;svg onload=alert(1)&#62;x &#x3C;iframe src=javascript:alert(1)&#x3E;y`)).not.toMatch(TAG_ACTIF);
+  });
+
+  it("balises réelles, malformées ou non fermées : aucune ne survit", () => {
+    for (const piege of [
+      `<script>alert(1)</script>Texte`,
+      `<img src=x onerror=alert(1)>Texte`,
+      `Texte <img src=x onerror=alert(1)`,
+      `Texte &lt;img src=x onerror=alert(1)`,
+      `<!-- <script>x</script> -->Texte`,
+      `<a href="javascript:alert(1)" title='a>b'>Texte</a>`,
+      `<scr<script>ipt>alert(1)</script>Texte`,
+    ]) {
+      const t = htmlToText(piege);
+      expect(t, piege).not.toMatch(TAG_ACTIF);
+      expect(t, piege).toContain("Texte");
+    }
+  });
+
+  it("décode en une seule passe : « &amp;lt; » reste le texte « &lt; »", () => {
+    expect(htmlToText("<p>&amp;lt;b&amp;gt;</p>")).toBe("&lt;b&gt;");
+    expect(htmlToText("<p>D&eacute;lai &laquo; 5 &deg;C &raquo;</p>")).toBe("Délai « 5 °C »");
+  });
 });
 
 describe("extractDocumentLinks — aide à la lecture, pas inventaire", () => {

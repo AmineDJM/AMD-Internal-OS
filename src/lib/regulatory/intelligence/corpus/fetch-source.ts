@@ -74,28 +74,64 @@ export function extOf(url: string, contentType: string): string {
   return m ? m[1] : "html";
 }
 
+// Entités nommées courantes des pages francophones ; les autres passent par leur forme numérique.
+const ENTITES: Record<string, string> = {
+  nbsp: " ", amp: "&", lt: "<", gt: ">", quot: "\"", apos: "'",
+  eacute: "é", egrave: "è", ecirc: "ê", euml: "ë", agrave: "à", acirc: "â", ccedil: "ç", icirc: "î", iuml: "ï",
+  ocirc: "ô", ugrave: "ù", ucirc: "û", uuml: "ü", oelig: "œ", Eacute: "É", Egrave: "È", Agrave: "À", Ccedil: "Ç",
+  laquo: "«", raquo: "»", lsquo: "‘", rsquo: "’", ldquo: "“", rdquo: "”", hellip: "…", ndash: "–", mdash: "—",
+  deg: "°", euro: "€", middot: "·", times: "×", plusmn: "±", le: "≤", ge: "≥", micro: "µ",
+};
+
+/** Décode les entités en UNE passe : « &amp;lt; » donne le texte « &lt; », jamais « < ». */
+function decoderEntites(s: string): string {
+  return s.replace(/&(#\d{1,7}|#x[0-9a-f]{1,6}|[a-z]{2,8});/gi, (brut, corps: string) => {
+    if (corps[0] === "#") {
+      const n = corps[1] === "x" || corps[1] === "X" ? parseInt(corps.slice(2), 16) : Number(corps.slice(1));
+      return n > 0 && n <= 0x10ffff && !(n >= 0xd800 && n <= 0xdfff) ? String.fromCodePoint(n) : " ";
+    }
+    return ENTITES[corps] ?? brut;
+  });
+}
+
+/** Blocs dont le CONTENU n'est pas du texte de la page (code, styles, menus). */
+const BLOCS_A_JETER = /<(script|style|noscript|template|iframe|svg|nav|header|footer)\b[\s\S]*?<\/\1\s*>/gi;
+// Balise en tenant compte des attributs entre guillemets : un attribut peut contenir un « > »
+// (data-*, JSON inline). Sans cela, la fin de l'attribut se retrouverait dans le texte du corpus.
+const BALISE = /<[a-zA-Z!/?][^>"']*(?:(?:"[^"]*"|'[^']*')[^>"']*)*>/g;
+// Filet : toute construction qu'un navigateur lirait comme une balise (« < » suivi d'une lettre,
+// « / », « ! » ou « ? »). « a < b » reste du texte.
+const BALISE_SIMPLE = /<[a-zA-Z!/?][^>]*>/g;
+
+/** `html` : HTML d'origine, lu finement ; sinon texte décodé, où l'apostrophe est du français. */
+function retirerBalises(s: string, html: boolean): string {
+  const t = s
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(BLOCS_A_JETER, " ")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|li|h[1-6]|tr)\s*>/gi, "\n");
+  return (html ? t.replace(BALISE, " ") : t).replace(BALISE_SIMPLE, " ");
+}
+
 /**
- * Réduit une page HTML à son texte lisible. On retire d'abord scripts, styles, navigation et
- * pieds de page : sans cela, le corpus se remplirait de menus et le RAG remonterait des liens.
+ * Réduit une page HTML à son TEXTE BRUT. On retire d'abord scripts, styles, navigation et pieds
+ * de page : sans cela, le corpus se remplirait de menus et le RAG remonterait des liens.
+ *
+ * Sécurité (audit XSS, corpus réglementaire) : l'ancien ordre retirait les balises PUIS décodait
+ * `&lt;`/`&gt;` — une page portant `&lt;img src=x onerror=…&gt;` ressortait en vraie balise dans le
+ * texte stocké. Désormais les entités sont décodées AVANT le retrait final des balises : ce qui
+ * était encodé passe lui aussi par le retrait, et tout « < » encore suivi d'une lettre, de « / »,
+ * « ! » ou « ? » perd son chevron. Le texte stocké ne contient donc aucune construction qu'un
+ * analyseur HTML lirait comme une balise. (Le premier retrait, sur le HTML d'origine, garde la
+ * lecture fine des attributs entre guillemets ; le texte décodé, plein d'apostrophes, ne s'y prête pas.)
  * Fonction PURE — testée.
  */
 export function htmlToText(html: string): string {
-  return html
-    .replace(/<script\b[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
-    .replace(/<nav\b[\s\S]*?<\/nav>/gi, " ")
-    .replace(/<header\b[\s\S]*?<\/header>/gi, " ")
-    .replace(/<footer\b[\s\S]*?<\/footer>/gi, " ")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/(p|div|li|h[1-6]|tr)>/gi, "\n")
-    // Balises en tenant compte des attributs entre guillemets : un attribut peut contenir un
-    // « > » (data-*, JSON inline). Sans cela, la fin de l'attribut se retrouverait dans le texte
-    // du corpus, et le RAG citerait du balisage.
-    .replace(/<[a-zA-Z!/?][^>"']*(?:(?:"[^"]*"|'[^']*')[^>"']*)*>/g, " ")
-    .replace(/<[^>]+>/g, " ") // filet : balise malformée
-    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
-    .replace(/&#(\d+);/g, (_, d: string) => String.fromCharCode(Number(d)))
-    .replace(/[ \t]+/g, " ")
+  const decode = decoderEntites(retirerBalises(html ?? "", true));
+  return retirerBalises(decode, false)
+    .replace(/<(?=[a-zA-Z!/?])/g, "")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
+    .replace(/[ \t\u00a0]+/g, " ")
     // Chaque ligne est nettoyée de son indentation HTML : sans cela, le découpage en sections
     // verrait des titres décalés et ne les reconnaîtrait pas.
     .split("\n").map((l) => l.trim()).join("\n")

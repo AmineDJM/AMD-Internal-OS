@@ -2,6 +2,8 @@
  * Découpage d'un texte réglementaire en SECTIONS (article/annexe/chapitre) — unité de RAG +
  * citation. Déterministe, pur. À défaut d'en-têtes reconnus, découpe par blocs de paragraphes.
  */
+import { sansControles } from "./extrait";
+
 export interface ImportedSection {
   path: string;
   heading: string | null;
@@ -15,7 +17,9 @@ export interface ImportedSection {
 const HEADING_RE = /^\s*((?:(?:article|art\.?)\s+\d+[a-z]?|chapitre\s+[\wéè]+|annexe\s+[\wéè]+|titre\s+[\wéè]+|section\s+\d+|\d+(?:\.\d+){1,4})\b|(?:المادة|الماده)\s*[\d٠-٩]+(?:\s*مكرر)?|(?:الباب|الفصل|القسم)\s+[؀-ۿ\d٠-٩]+)[.:)\s-]*(.*)$/i;
 
 export function splitIntoSections(raw: string, maxSections = 800): ImportedSection[] {
-  const text = (raw ?? "").replace(/\r\n/g, "\n").trim();
+  // Texte brut stocké : sans caractères de contrôle — deux d'entre eux marquent les termes
+  // surlignés dans les extraits du RAG (`extrait.ts`) et ne doivent pas venir de la source.
+  const text = sansControles(raw ?? "").replace(/\r\n/g, "\n").trim();
   if (!text) return [];
   const lines = text.split("\n");
 

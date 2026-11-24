@@ -81,7 +81,7 @@ function systemPrompt(spec: AgentSpec): string {
 function userPrompt(spec: AgentSpec, docs: AgentDoc[], citations: Citation[]): string {
   const sourcesBlock =
     citations.length > 0
-      ? citations.map((c, i) => `[S${i + 1}] ${c.authority} · ${c.code} v${c.version} · ${c.path}${c.heading ? ` — ${c.heading}` : ""}\n${c.snippet.replace(/<\/?[^>]+>/g, "")}`).join("\n\n")
+      ? citations.map((c, i) => `[S${i + 1}] ${c.authority} · ${c.code} v${c.version} · ${c.path}${c.heading ? ` — ${c.heading}` : ""}\n${c.snippet}`).join("\n\n")
       : "(aucune source de corpus actif disponible pour ce périmètre)";
 
   const docsBlock = docs
