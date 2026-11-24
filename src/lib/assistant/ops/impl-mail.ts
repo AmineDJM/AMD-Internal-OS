@@ -7,23 +7,28 @@ import { moveMailEntries } from "@/lib/actions/mail-folder-actions";
 import type { OpImpl, OpProposalDraft } from "./types";
 import { opStr } from "./types";
 import { runFd, isoDate } from "./helpers";
+import type { CurrentUser } from "@/lib/session";
+import type { Prisma } from "@prisma/client";
+import { companyScopedWhere } from "@/lib/company";
 
 /**
  * OPS COURRIERS — le registre des plis (créer, corriger, classer, déclarer un fichier Drive
  * en courrier), par les ACTIONS CANONIQUES de `mail-register-actions` / `mail-folder-actions`
- * (cloisonnement par entité et anti-doublon Drive inclus). La correction FUSIONNE : les
- * champs non cités sont relus et rejoués — corriger un titre ne coûte jamais un expéditeur.
+ * (cloisonnement par entité et anti-doublon Drive inclus). La correction FUSIONNE : seuls les
+ * champs CITÉS partent à l'action, le noyau garde le reste (`updateMailEntryFor`) — corriger un
+ * titre ne coûte jamais un expéditeur, un porteur ni une date. La résolution ne cherche que dans
+ * les plis que la personne VOIT : une ambiguïté listée ne doit pas réciter le registre du voisin.
  */
 
 interface EntryHit { id: string; title: string; reference: string | null; direction: string }
 
 const dirLabel = (d: string): string => (d === "INCOMING" ? "Entrant" : "Sortant");
 
-async function resolveMailEntry(raw: string): Promise<EntryHit | { error: string }> {
+async function resolveMailEntry(raw: string, user: CurrentUser): Promise<EntryHit | { error: string }> {
   const q = raw.trim();
   if (!q) return { error: "Précisez le n° de chrono ou le titre du courrier (champ « reference »)." };
   const rows = await prisma.mailEntry.findMany({
-    where: { OR: [{ reference: { equals: q, mode: "insensitive" } }, { title: { contains: q, mode: "insensitive" } }] },
+    where: await companyScopedWhere<Prisma.MailEntryWhereInput>(user.id, { OR: [{ reference: { equals: q, mode: "insensitive" } }, { title: { contains: q, mode: "insensitive" } }] }),
     select: { id: true, title: true, reference: true, direction: true },
     orderBy: { createdAt: "desc" },
     take: 6,
@@ -127,8 +132,8 @@ async function resolveLinkTarget(kindRaw: string, raw: string): Promise<{ entity
 
 export const MAIL_OPS_IMPL: Record<string, OpImpl> = {
   set_date: {
-    async propose(input): Promise<OpProposalDraft | { error: string }> {
-      const entry = await resolveMailEntry(opStr(input, "reference") || opStr(input, "label"));
+    async propose(input, user): Promise<OpProposalDraft | { error: string }> {
+      const entry = await resolveMailEntry(opStr(input, "reference") || opStr(input, "label"), user);
       if ("error" in entry) return entry;
       const fieldRaw = opStr(input, "kind");
       const ack = /accus/i.test(fieldRaw);
@@ -156,16 +161,22 @@ export const MAIL_OPS_IMPL: Record<string, OpImpl> = {
   },
 
   delete_entry: {
-    async propose(input): Promise<OpProposalDraft | { error: string }> {
-      const entry = await resolveMailEntry(opStr(input, "reference") || opStr(input, "label"));
+    async propose(input, user): Promise<OpProposalDraft | { error: string }> {
+      const entry = await resolveMailEntry(opStr(input, "reference") || opStr(input, "label"), user);
       if ("error" in entry) return entry;
       return {
         title: `SUPPRIMER le courrier ${entry.reference ?? ""} — ${entry.title}`,
         fields: [{ label: "Courrier", value: `${entry.reference ?? "s/n"} — ${entry.title}` }],
-        warnings: ["Suppression définitive du registre (pièces référencées comprises) — les fichiers Drive référencés restent."],
+        // LE MÊME GESTE QUE LA FICHE (`deleteOwnRecord`) — la corbeille, pas la destruction. Ce qui
+        // revient et ce qui ne revient pas est dit tel quel : les pièces nominatives sont des lignes
+        // filles du pli, supprimées avec lui, et la restauration ne les recrée pas.
+        warnings: [
+          "Le courrier part à la CORBEILLE : l'administrateur peut le restaurer, avec ses pièces jointes et ses commentaires.",
+          "Ses pièces nominatives (« qui a reçu quoi ») ne reviennent pas à la restauration. Les fichiers du Drive qu'il référence restent dans le Drive.",
+        ],
         confirmText: entry.reference ?? entry.title,
         args: { id: entry.id },
-        successMessage: `Courrier ${entry.reference ?? ""} supprimé du registre.`,
+        successMessage: `Courrier ${entry.reference ?? ""} mis à la corbeille — restaurable par l'administrateur.`,
         revalidate: ["/courriers"],
       };
     },
@@ -173,8 +184,8 @@ export const MAIL_OPS_IMPL: Record<string, OpImpl> = {
   },
 
   link_record: {
-    async propose(input): Promise<OpProposalDraft | { error: string }> {
-      const entry = await resolveMailEntry(opStr(input, "reference"));
+    async propose(input, user): Promise<OpProposalDraft | { error: string }> {
+      const entry = await resolveMailEntry(opStr(input, "reference"), user);
       if ("error" in entry) return entry;
       const cible = await resolveLinkTarget(opStr(input, "kind"), opStr(input, "target"));
       if ("error" in cible) return cible;
@@ -194,8 +205,8 @@ export const MAIL_OPS_IMPL: Record<string, OpImpl> = {
   },
 
   unlink_record: {
-    async propose(input): Promise<OpProposalDraft | { error: string }> {
-      const entry = await resolveMailEntry(opStr(input, "reference"));
+    async propose(input, user): Promise<OpProposalDraft | { error: string }> {
+      const entry = await resolveMailEntry(opStr(input, "reference"), user);
       if ("error" in entry) return entry;
       // Le registre range chaque paire dans l'ordre du flux : le courrier peut être de l'un OU
       // l'autre côté. On regarde les deux, et l'on n'affiche que l'AUTRE bout.
@@ -274,49 +285,47 @@ export const MAIL_OPS_IMPL: Record<string, OpImpl> = {
   },
 
   edit_entry: {
-    async propose(input): Promise<OpProposalDraft | { error: string }> {
-      const entry = await resolveMailEntry(opStr(input, "reference") || opStr(input, "label"));
+    async propose(input, user): Promise<OpProposalDraft | { error: string }> {
+      const entry = await resolveMailEntry(opStr(input, "reference") || opStr(input, "label"), user);
       if ("error" in entry) return entry;
       const current = await prisma.mailEntry.findUnique({
         where: { id: entry.id },
-        select: { title: true, reference: true, direction: true, sender: true, recipient: true, carrier: true, notes: true },
+        select: { title: true, reference: true, direction: true },
       });
       if (!current) return { error: "Courrier introuvable." };
-      // FUSION : l'action remplace ce qu'elle reçoit — on rejoue l'existant partout ailleurs.
-      const title = opStr(input, "newLabel") || current.title;
-      const direction = directionOf(opStr(input, "direction")) ?? current.direction;
-      const sender = opStr(input, "sender") || current.sender || "";
-      const recipient = opStr(input, "recipient") || current.recipient || "";
-      const reference = opStr(input, "newReference") || current.reference || "";
-      const notes = opStr(input, "notes") || current.notes || "";
+      // FUSION : seuls les champs CITÉS partent à l'action ; le noyau garde tout le reste — les
+      // dates, le porteur, l'expéditeur qu'on ne cite pas. Rejouer l'existant ne suffisait pas : les
+      // champs que la carte ne relisait pas (dates, porteur) étaient effacés à chaque correction.
+      const args: Record<string, string> = { id: entry.id };
       const changes: string[] = [];
-      if (title !== current.title) changes.push(`objet → ${title}`);
-      if (direction !== current.direction) changes.push(`sens → ${dirLabel(direction)}`);
-      if (opStr(input, "sender")) changes.push(`expéditeur → ${sender}`);
-      if (opStr(input, "recipient")) changes.push(`destinataire → ${recipient}`);
-      if (opStr(input, "newReference")) changes.push(`chrono → ${reference}`);
-      if (opStr(input, "notes")) changes.push("notes");
+      const titre = opStr(input, "newLabel");
+      if (titre && titre !== current.title) { args.title = titre; changes.push(`objet → ${titre}`); }
+      const direction = directionOf(opStr(input, "direction"));
+      if (direction && direction !== current.direction) { args.direction = direction; changes.push(`sens → ${dirLabel(direction)}`); }
+      if (opStr(input, "sender")) { args.sender = opStr(input, "sender"); changes.push(`expéditeur → ${args.sender}`); }
+      if (opStr(input, "recipient")) { args.recipient = opStr(input, "recipient"); changes.push(`destinataire → ${args.recipient}`); }
+      if (opStr(input, "newReference")) { args.reference = opStr(input, "newReference"); changes.push(`chrono → ${args.reference}`); }
+      if (opStr(input, "notes")) { args.notes = opStr(input, "notes"); changes.push("notes"); }
       if (changes.length === 0) return { error: "Rien à corriger : donnez newLabel, direction, sender, recipient, newReference ou notes." };
+      const title = args.title ?? current.title;
       return {
         title: `Corriger le courrier « ${current.title} »`,
         fields: [
           { label: "Courrier", value: `${current.reference ? `${current.reference} — ` : ""}${current.title}` },
           { label: "Corrections", value: changes.join(" · ") },
         ],
-        args: { id: entry.id, title, direction, sender, recipient, reference, notes },
+        args,
         successMessage: `Courrier « ${title} » corrigé (${changes.join(", ")}).`,
         link: `/courriers/${entry.id}`,
         revalidate: MAIL_REVALIDATE,
       };
     },
     async execute(args) {
+      // Seuls les champs cités sont posés : un champ absent du formulaire est INCHANGÉ (`readFields`).
       const fd = new FormData();
-      fd.set("title", args.title ?? "");
-      fd.set("direction", args.direction ?? "INCOMING");
-      if (args.sender) fd.set("sender", args.sender);
-      if (args.recipient) fd.set("recipient", args.recipient);
-      if (args.reference) fd.set("reference", args.reference);
-      if (args.notes) fd.set("notes", args.notes);
+      for (const k of ["title", "direction", "sender", "recipient", "reference", "notes"] as const) {
+        if (args[k]) fd.set(k, args[k]!);
+      }
       const r = await editMailEntry(args.id ?? "", undefined, fd);
       if (!r.ok) return { ok: false, error: r.error ?? "La correction du courrier a été refusée." };
       return { ok: true, revalidate: MAIL_REVALIDATE };
@@ -324,13 +333,13 @@ export const MAIL_OPS_IMPL: Record<string, OpImpl> = {
   },
 
   move_entries: {
-    async propose(input): Promise<OpProposalDraft | { error: string }> {
+    async propose(input, user): Promise<OpProposalDraft | { error: string }> {
       const raw = opStr(input, "reference") || opStr(input, "label");
       const targets = raw.split(/[;,]/).map((s) => s.trim()).filter(Boolean);
       if (targets.length === 0) return { error: "Donnez le ou les courriers à classer (champ « reference », séparés par des virgules)." };
       const entries: EntryHit[] = [];
       for (const t of targets) {
-        const e = await resolveMailEntry(t);
+        const e = await resolveMailEntry(t, user);
         if ("error" in e) return e;
         entries.push(e);
       }
@@ -338,8 +347,9 @@ export const MAIL_OPS_IMPL: Record<string, OpImpl> = {
       let folderId = "";
       let folderLabel = "Non classés";
       if (folderName && !/^non class/i.test(folderName)) {
+        // Les dossiers que la personne VOIT — ceux de la liste (`companyScopedWhere`), pas ceux du voisin.
         const folders = await prisma.mailEntryFolder.findMany({
-          where: { name: { contains: folderName, mode: "insensitive" } },
+          where: await companyScopedWhere<Prisma.MailEntryFolderWhereInput>(user.id, { name: { contains: folderName, mode: "insensitive" } }),
           select: { id: true, name: true },
           take: 4,
         });

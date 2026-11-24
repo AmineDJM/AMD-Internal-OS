@@ -136,7 +136,7 @@ export const OPS_REUNIONS_COURRIERS: OpMeta[] = [
     uiLabel: "Supprimer un courrier du registre",
     aliases: ["supprime le courrier", "efface le pli du registre"],
     risk: "CRITICAL",
-    summary: "Supprime DÉFINITIVEMENT un courrier du registre (pièces référencées comprises) — les fichiers Drive référencés restent.",
+    summary: "Met un courrier à la CORBEILLE — le même geste que la fiche : restaurable par l'administrateur avec ses pièces jointes (pas ses pièces nominatives) ; les fichiers Drive référencés restent.",
     gate: (u) => userCan(u, "MAIL_REGISTER", "DELETE") || userCan(u, "MAIL_REGISTER", "UPDATE"),
     covers: ["mail-register-actions:deleteMailEntry"],
   },

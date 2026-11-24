@@ -6,9 +6,7 @@ import type { EntityType, MailDirection } from "@prisma/client";
 import { requireUser } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
-import { recordAudit } from "@/lib/audit";
-import { canAccessEntity } from "@/lib/entity-access";
-import { deleteFileByKey } from "@/lib/storage";
+import { deleteOwnRecord } from "@/lib/actions/admin-delete-actions";
 import { createMailEntryFor, updateMailEntryFor, setMailDateFor, type MailFields } from "@/lib/mail-register/write";
 import { resolveParties } from "@/lib/queries/company-contacts";
 import { fdStr, fdDate, type ActionResult } from "@/lib/actions/types";
@@ -44,53 +42,77 @@ function fdDateTime(formData: FormData, key: string): Date | null {
  * Le sélecteur pose un champ caché par contact retenu (un seul de chaque côté : un pli part d'un
  * endroit et arrive à un autre). Les colonnes texte `sender` / `recipient` restent la valeur
  * AFFICHÉE — recherche, exports et journal les lisent telles quelles — et c'est le serveur qui
- * les tient à jour à partir du contact choisi. Jamais l'inverse : les relire du formulaire
- * rouvrirait la porte du texte libre.
+ * les tient à jour à partir du contact choisi.
+ *
+ * TROIS CAS, ET UN SEUL EFFACE (audit Courrier, 24/11) :
+ *  - un contact est posté → il devient l'expéditeur, son nom la valeur affichée ;
+ *  - le sélecteur signale un VIDAGE VOLONTAIRE (`<champ>__vide`, posé quand on retire le contact)
+ *    → le contact ET le nom affiché s'effacent ;
+ *  - rien n'est posté → INCHANGÉ. Un sélecteur vide ne poste rien : c'est l'état ordinaire d'un pli
+ *    enregistré en texte libre, et le lire comme un effacement vidait l'expéditeur de tout pli
+ *    corrigé depuis sa fiche.
+ * Le formulaire ne rend AUCUN champ texte : le nom libre (`sender` / `recipient`) n'arrive que
+ * d'Adam, qui nomme sans choisir (comme l'API et la déclaration depuis le Drive). Il n'est lu que
+ * si aucun contact n'est posté, et détache alors l'ancien contact, qui ne correspond plus au nom.
  */
 async function readParties(userId: string, formData: FormData) {
+  // Les noms de champs sont écrits EN TOUTES LETTRES (pas de clé calculée) : le contrat d'action
+  // (`actions:contrat`) les lit dans la source pour décrire ce que l'action attend.
   const un = (key: string) => formData.getAll(key).map(String).filter(Boolean).slice(0, 1);
-  const expediteur = await resolveParties(userId, un("senderContactId"));
-  const destinataire = await resolveParties(userId, un("recipientContactId"));
-  if (!expediteur.ok) return { ok: false as const, error: expediteur.error };
-  if (!destinataire.ok) return { ok: false as const, error: destinataire.error };
-  return {
-    ok: true as const,
-    // `undefined` quand le champ n'était pas proposé : on ne détache alors personne.
-    data: {
-      ...(formData.has("senderContactId")
-        ? { senderContactId: expediteur.ids[0] ?? null, sender: expediteur.text || null }
-        : {}),
-      ...(formData.has("recipientContactId")
-        ? { recipientContactId: destinataire.ids[0] ?? null, recipient: destinataire.text || null }
-        : {}),
-    } satisfies Partial<MailFields>,
-  };
+  const data: Partial<MailFields> = {};
+  if (formData.has("senderContactId")) {
+    const r = await resolveParties(userId, un("senderContactId"));
+    if (!r.ok) return { ok: false as const, error: r.error };
+    data.senderContactId = r.ids[0] ?? null;
+    data.sender = r.text || null;
+  } else if (formData.get("senderContactId__vide")) {
+    data.senderContactId = null;
+    data.sender = null;
+  } else if (formData.has("sender")) {
+    data.senderContactId = null;
+    data.sender = fdStr(formData, "sender");
+  }
+  if (formData.has("recipientContactId")) {
+    const r = await resolveParties(userId, un("recipientContactId"));
+    if (!r.ok) return { ok: false as const, error: r.error };
+    data.recipientContactId = r.ids[0] ?? null;
+    data.recipient = r.text || null;
+  } else if (formData.get("recipientContactId__vide")) {
+    data.recipientContactId = null;
+    data.recipient = null;
+  } else if (formData.has("recipient")) {
+    data.recipientContactId = null;
+    data.recipient = fdStr(formData, "recipient");
+  }
+  return { ok: true as const, data };
 }
 
-function readFields(formData: FormData): MailFields {
-  return {
-    title: fdStr(formData, "title") ?? "",
-    reference: fdStr(formData, "reference"),
-    direction: parseDirection(fdStr(formData, "direction")),
-    // `sender` / `recipient` NE SE LISENT PLUS DU FORMULAIRE : ils sont déduits du contact
-    // d'annuaire choisi (voir `readParties`), et fusionnés par l'appelant.
-    sentAt: fdDateTime(formData, "sentAt"),
-    receivedAt: fdDate(formData, "receivedAt"),
-    acknowledgedAt: fdDate(formData, "acknowledgedAt"),
-    carrier: fdStr(formData, "carrier"),
-    notes: fdStr(formData, "notes"),
-    // Le champ n'est présent que si le formulaire propose des entités. `undefined` laisse le
-    // noyau retomber sur l'entité par défaut du créateur — l'ancien comportement.
-    ...(formData.has("companyId") ? { companyId: fdStr(formData, "companyId") } : {}),
-    partnerId: fdStr(formData, "partnerId"),
-    // Même précaution que pour l'entité : les deux menus ne sont rendus que s'il y a quelque chose
-    // à choisir. Les lire inconditionnellement effacerait le rattachement d'un pli à chaque
-    // enregistrement fait depuis un formulaire qui ne les propose pas.
-    ...(formData.has("departmentId") ? { departmentId: fdStr(formData, "departmentId") } : {}),
-    ...(formData.has("concernedUserId") ? { concernedUserId: fdStr(formData, "concernedUserId") } : {}),
-    // Le dossier de classement, même précaution : présent seulement si le formulaire l'a proposé.
-    ...(formData.has("folderId") ? { folderId: fdStr(formData, "folderId") } : {}),
-  };
+/**
+ * LE FORMULAIRE, CHAMP PAR CHAMP PRÉSENT — un champ que le formulaire ne porte pas reste `undefined`,
+ * donc INCHANGÉ au noyau (`updateMailEntryFor` fusionne). L'écran poste tous ses champs ; Adam ne
+ * poste que ce qu'il corrige ; un menu non rendu (aucun partenaire, aucun dossier) n'efface rien.
+ */
+function readFields(formData: FormData): Partial<MailFields> {
+  const f: Partial<MailFields> = {};
+  if (formData.has("title")) f.title = fdStr(formData, "title") ?? "";
+  if (formData.has("reference")) f.reference = fdStr(formData, "reference");
+  if (formData.has("direction")) f.direction = parseDirection(fdStr(formData, "direction"));
+  // `sender` / `recipient` se lisent par `readParties` (contact d'annuaire, ou nom donné par Adam).
+  if (formData.has("sentAt")) f.sentAt = fdDateTime(formData, "sentAt");
+  if (formData.has("receivedAt")) f.receivedAt = fdDate(formData, "receivedAt");
+  if (formData.has("acknowledgedAt")) f.acknowledgedAt = fdDate(formData, "acknowledgedAt");
+  if (formData.has("carrier")) f.carrier = fdStr(formData, "carrier");
+  if (formData.has("notes")) f.notes = fdStr(formData, "notes");
+  // L'ENTITÉ absente laisse le noyau retomber sur l'entité actuelle, ou celle du créateur.
+  if (formData.has("companyId")) f.companyId = fdStr(formData, "companyId");
+  // Les menus ne sont rendus que s'il y a quelque chose à choisir : les lire inconditionnellement
+  // effacerait le rattachement d'un pli à chaque enregistrement fait depuis un formulaire qui ne
+  // les propose pas.
+  if (formData.has("partnerId")) f.partnerId = fdStr(formData, "partnerId");
+  if (formData.has("departmentId")) f.departmentId = fdStr(formData, "departmentId");
+  if (formData.has("concernedUserId")) f.concernedUserId = fdStr(formData, "concernedUserId");
+  if (formData.has("folderId")) f.folderId = fdStr(formData, "folderId");
+  return f;
 }
 
 export async function createMailEntry(
@@ -115,6 +137,7 @@ export async function createMailEntry(
     const parties = await readParties(user.id, formData);
     if (!parties.ok) return { ok: false, error: parties.error };
     const r = await createMailEntryFor(user, {
+      title: "",
       ...parties.data,
       ...readFields(formData),
       driveNodeId,
@@ -173,36 +196,25 @@ export async function setMailDate(input: {
   });
 }
 
+/**
+ * RETIRER UN COURRIER DU REGISTRE — la MÊME suppression que la fiche : réversible, par la corbeille.
+ *
+ * Cette porte détruisait : la ligne, ses pièces jointes ET leurs fichiers, sans transaction, alors
+ * que le bouton de la fiche mettait le même pli à la corbeille (`deleteOwnRecord`). Adam — qui
+ * passe par ici — supprimait donc pour toujours ce que l'écran rangeait. Il n'y a plus qu'un geste,
+ * avec un seul jeu de droits : le droit `DELETE` du registre ou la paternité du pli, et dans les
+ * deux cas un pli que l'on voit encore (entité, module non bloqué).
+ */
 export async function deleteMailEntry(formData: FormData): Promise<ActionResult> {
-  const user = await requireUser();
-  if (!userCan(user, "MAIL_REGISTER", "DELETE")) return { ok: false, error: "Non autorisé." };
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Courrier introuvable." };
-  if (!(await canAccessEntity(user, "MAIL_ENTRY", id, "DELETE"))) {
-    return { ok: false, error: "Ce courrier n'est pas dans votre périmètre." };
-  }
-  const entry = await prisma.mailEntry.findUnique({ where: { id }, select: { title: true } });
-  if (!entry) return { ok: false, error: "Courrier introuvable." };
-
-  // Les pièces jointes rattachées ne seraient plus atteignables par aucun écran : on les
-  // détache avec le courrier, et on DIT combien il y en avait. Le fichier lui-même n'est pas
-  // perdu — tout téléversement est répliqué dans le Drive de celui qui l'a importé — mais le
-  // journal doit garder trace de ce qui a disparu de la fiche.
-  const attached = await prisma.document.findMany({
-    where: { entityType: "MAIL_ENTRY", entityId: id }, select: { id: true, fileKey: true },
-  });
-  await prisma.document.deleteMany({ where: { entityType: "MAIL_ENTRY", entityId: id } });
-  // Les octets se libèrent avec la fiche, sans quoi le stockage garderait à vie des pièces que
-  // plus aucun écran ne montre.
-  for (const d of attached) if (d.fileKey) await deleteFileByKey(d.fileKey);
-  await prisma.mailEntry.delete({ where: { id } });
-  await recordAudit({
-    actorId: user.id, action: "DELETE", module: "Courriers",
-    entityType: "MAIL_ENTRY", entityId: id,
-    summary: `Courrier « ${entry.title} » supprimé${attached.length > 0 ? ` — ${attached.length} pièce(s) jointe(s)` : ""}`,
-  });
+  const fd = new FormData();
+  fd.set("kind", "MAIL_ENTRY");
+  fd.set("id", id);
+  const r = await deleteOwnRecord(fd);
+  if (!r.ok) return { ok: false, error: r.error ?? "La suppression a été refusée." };
   revalidatePath("/courriers");
-  return { ok: true };
+  return { ok: true, message: "Courrier mis à la corbeille — l'administrateur peut le restaurer." };
 }
 
 /**
@@ -231,23 +243,28 @@ export async function attachDriveNodeToMail(input: {
       return { ok: false, error: "Vous n'avez pas accès à ce fichier du Drive." };
     }
 
-    // Déjà au carnet : on ne crée pas un deuxième pli pour le même fichier — c'est exactement le
-    // doublon que la référence sans copie sert à éviter.
-    const already = await prisma.mailEntry.findFirst({ where: { driveNodeId: node.id }, select: { id: true } });
-    if (already) return { ok: false, error: "Ce fichier figure déjà au carnet de courriers.", id: already.id };
-
     const direction: MailDirection = input.direction === "INCOMING" ? "INCOMING" : "OUTGOING";
-    const created = await createMailEntryFor(user, {
-      title: (input.title ?? "").trim() || node.name,
-      direction,
-      sender: input.sender?.trim() || null,
-      recipient: input.recipient?.trim() || null,
-      reference: input.reference?.trim() || null,
-      driveNodeId: node.id,
-      // Un pli qui arrive est déjà arrivé ; un pli qui part n'est pas encore parti — les dates de
-      // trajet se posent ensuite depuis la ligne du carnet, comme pour toute saisie.
-      receivedAt: direction === "INCOMING" ? new Date() : null,
-    });
+    // DÉJÀ AU CARNET : on ne crée pas un deuxième pli pour le même fichier — c'est exactement le
+    // doublon que la référence sans copie sert à éviter. Aucune contrainte d'unicité ne le garantit
+    // (`driveNodeId` est aussi celui d'un pli saisi à la main) : deux déclarations simultanées
+    // passaient toutes deux le contrôle. Un VERROU par fichier, tenu le temps du contrôle et de la
+    // création, les sérialise — la seconde voit la première.
+    const created = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('courrier-drive'), hashtext(${node.id}))`;
+      const already = await prisma.mailEntry.findFirst({ where: { driveNodeId: node.id }, select: { id: true } });
+      if (already) return { ok: false, error: "Ce fichier figure déjà au carnet de courriers.", id: already.id } satisfies ActionResult;
+      return createMailEntryFor(user, {
+        title: (input.title ?? "").trim() || node.name,
+        direction,
+        sender: input.sender?.trim() || null,
+        recipient: input.recipient?.trim() || null,
+        reference: input.reference?.trim() || null,
+        driveNodeId: node.id,
+        // Un pli qui arrive est déjà arrivé ; un pli qui part n'est pas encore parti — les dates de
+        // trajet se posent ensuite depuis la ligne du carnet, comme pour toute saisie.
+        receivedAt: direction === "INCOMING" ? new Date() : null,
+      });
+    }, { timeout: 20_000 });
     if (created.ok) revalidatePath("/courriers");
     return created;
   });

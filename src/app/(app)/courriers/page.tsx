@@ -4,7 +4,7 @@ import { listPartyOptions } from "@/lib/queries/company-contacts";
 import { hiddenByScopeMessage } from "@/lib/company-visibility";
 import { userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
-import { getCompanyScope, companyIdForNew } from "@/lib/company";
+import { getCompanyScope, companyIdForNew, companyScopedWhere } from "@/lib/company";
 import { clauseCourriersVisibles } from "@/lib/queries/visibilite-listes";
 import { PageHeader } from "@/components/shared/page-header";
 import { KpiCard } from "@/components/shared/kpi-card";
@@ -113,11 +113,20 @@ export default async function CourriersPage(props: { searchParams?: Promise<{ do
   // Les dossiers de classement et le nombre de plis rangés dans chacun — en deux requêtes, pas
   // une par dossier. L'armoire du registre : on classe cinq cents plis, on ne les filtre pas un
   // par un.
+  // LE MÊME CLOISONNEMENT QUE LES PLIS (audit Courrier, 24/11) : les dossiers d'une société qu'on
+  // ne voit pas n'apparaissaient pas moins dans la barre, avec le nombre de plis qu'ils rangent —
+  // le nom des dossiers d'Alpha et le volume de son courrier, lus depuis Beta. Les compteurs ne
+  // comptent que les plis de la portée : un dossier qui annonce 12 et en montre 7 ment.
   const [folderRows, folderCounts] = await Promise.all([
     prisma.mailEntryFolder.findMany({
+      where: await companyScopedWhere(user.id, {}),
       select: { id: true, name: true, parentId: true, companyId: true, company: { select: { name: true, shortName: true } } },
     }),
-    prisma.mailEntry.groupBy({ by: ["folderId"], where: { folderId: { not: null } }, _count: { _all: true } }),
+    prisma.mailEntry.groupBy({
+      by: ["folderId"],
+      where: { AND: [await clauseCourriersVisibles(user.id), { folderId: { not: null } }] },
+      _count: { _all: true },
+    }),
   ]);
   const countByFolder = new Map(folderCounts.map((c) => [c.folderId as string, c._count._all]));
   const folders: MailFolderRow[] = folderRows.map((f) => ({

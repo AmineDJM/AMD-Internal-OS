@@ -134,6 +134,8 @@ export type FieldDef =
       hint?: string; full?: boolean;
       /** Ce que la lecture d'une pièce propose — un contact à confirmer, ou à créer avec ce qui a été lu. */
       propose?: PartiesProposees;
+      /** Poster `<name>__vide` quand on retire la partie retenue — pour les corrections qui FUSIONNENT. */
+      signalerVidage?: boolean;
     };
 
 /**
@@ -628,7 +630,7 @@ export function RecordForm({
                     <PartyPicker
                       name={field.name} options={field.options} defaultValue={field.defaultValue}
                       arity={field.arity} canCreate={field.canCreate} placeholder={field.placeholder}
-                      propose={field.propose}
+                      propose={field.propose} signalerVidage={field.signalerVidage}
                     />
                   </div>
                   {field.hint && <p className="text-xs text-muted-foreground">{field.hint}</p>}

@@ -2,7 +2,7 @@ import type { EntityType, MailDirection } from "@prisma/client";
 import type { Module, SessionUser } from "@/lib/rbac";
 import type { Scope } from "@/lib/api/scopes";
 import type { ActionResult } from "@/lib/actions/types";
-import { createMailEntryFor, updateMailEntryFor, setMailDateFor } from "@/lib/mail-register/write";
+import { createMailEntryFor, updateMailEntryFor, setMailDateFor, type MailFields } from "@/lib/mail-register/write";
 import { linkProductToDossierFor, unlinkProductFromDossierFor, type CatalogKind } from "@/lib/products/link";
 
 /**
@@ -61,6 +61,35 @@ const s = (v: unknown): string | null => {
   return t ? t : null;
 };
 
+/**
+ * UNE CORRECTION PAR L'API NE PARLE QUE DE CE QU'ELLE ENVOIE (audit Courrier, 24/11).
+ *
+ * `validateParams` ne rend que les paramètres PRÉSENTS dans l'appel ; on n'en transmet pas d'autres au
+ * noyau, qui garde donc tout le reste (`updateMailEntryFor` fusionne). L'ancienne écriture passait
+ * chaque champ — `null` pour un absent, `OUTGOING` pour un sens non précisé : corriger le chrono d'un
+ * pli entrant effaçait ses dates, son porteur, ses parties, et le retournait en pli sortant.
+ *
+ * Fonction PURE — testée.
+ */
+export function correctionDepuisApi(i: Record<string, unknown>): Partial<MailFields> {
+  const out: Partial<MailFields> = {};
+  const present = (k: string) => Object.prototype.hasOwnProperty.call(i, k);
+  if (present("title")) out.title = i.title == null ? "" : String(i.title);
+  // Un sens vide ne veut rien dire : la colonne est obligatoire, on n'y touche pas.
+  if (present("direction") && s(i.direction)) out.direction = s(i.direction) as MailDirection;
+  for (const k of ["reference", "sender", "recipient", "carrier", "notes", "departmentId", "concernedUserId"] as const) {
+    if (present(k)) out[k] = s(i[k]);
+  }
+  for (const k of ["sentAt", "receivedAt", "acknowledgedAt"] as const) {
+    const v = i[k];
+    if (present(k)) out[k] = v instanceof Date ? v : null;
+  }
+  // Le nom libre d'une partie remplace le contact d'annuaire : il ne lui correspondrait plus.
+  if (present("sender")) out.senderContactId = null;
+  if (present("recipient")) out.recipientContactId = null;
+  return out;
+}
+
 export const OPERATIONS: readonly OperationDef[] = [
   {
     name: "mail.create",
@@ -102,15 +131,17 @@ export const OPERATIONS: readonly OperationDef[] = [
     name: "mail.update",
     label: "Corriger un courrier",
     description:
-      "Met à jour un courrier existant. Chaque champ touché part au journal avec son ancienne et sa "
+      "Met à jour un courrier existant. SEULS LES PARAMÈTRES ENVOYÉS sont modifiés — un paramètre "
+      + "absent garde sa valeur ; une valeur vide efface le champ (sauf l'objet, obligatoire, et le "
+      + "sens, qui ne s'efface pas). Chaque champ touché part au journal avec son ancienne et sa "
       + "nouvelle valeur : sur un registre qu'on oppose, une correction non tracée ne vaut rien.",
     module: "MAIL_REGISTER",
     scope: "erp.write",
     entityType: "MAIL_ENTRY",
     params: [
       { name: "id", type: "string", required: true, description: "Identifiant du courrier." },
-      { name: "title", type: "string", required: true, description: "Objet du courrier." },
-      { name: "direction", type: "enum", values: ["INCOMING", "OUTGOING"], description: "Sens du pli." },
+      { name: "title", type: "string", description: "Objet du courrier (absent = inchangé)." },
+      { name: "direction", type: "enum", values: ["INCOMING", "OUTGOING"], description: "Sens du pli (absent = inchangé)." },
       { name: "reference", type: "string", description: "N° de chrono." },
       { name: "sender", type: "string", description: "Expéditeur." },
       { name: "recipient", type: "string", description: "Destinataire." },
@@ -122,19 +153,7 @@ export const OPERATIONS: readonly OperationDef[] = [
       { name: "departmentId", type: "string", description: "Direction (département) concernée — valeur vide pour la retirer." },
       { name: "concernedUserId", type: "string", description: "Personne concernée — valeur vide pour la retirer." },
     ],
-    run: (user, i) => updateMailEntryFor(user, String(i.id), {
-      title: String(i.title ?? ""),
-      direction: (s(i.direction) as MailDirection | null) ?? "OUTGOING",
-      reference: s(i.reference), sender: s(i.sender), recipient: s(i.recipient),
-      sentAt: i.sentAt instanceof Date ? i.sentAt : null,
-      receivedAt: i.receivedAt instanceof Date ? i.receivedAt : null,
-      acknowledgedAt: i.acknowledgedAt instanceof Date ? i.acknowledgedAt : null,
-      carrier: s(i.carrier), notes: s(i.notes),
-      // Absents de l'appel = on n'en parle pas, donc on ne les efface pas. C'est la même règle
-      // qu'à l'écran : une mise à jour partielle ne doit pas débrancher un pli de sa direction.
-      ...("departmentId" in i ? { departmentId: s(i.departmentId) } : {}),
-      ...("concernedUserId" in i ? { concernedUserId: s(i.concernedUserId) } : {}),
-    }),
+    run: (user, i) => updateMailEntryFor(user, String(i.id), correctionDepuisApi(i)),
   },
   {
     name: "mail.set_date",
@@ -229,6 +248,13 @@ export function validateParams(def: OperationDef, raw: unknown): ValidationResul
 
   const values: Record<string, unknown> = {};
   for (const p of def.params) {
+    // UN PARAMÈTRE ABSENT N'EST PAS UN PARAMÈTRE VIDE. Absent, il ne figure pas dans le résultat —
+    // une correction partielle n'en parle donc pas ; présent et vide, il vaut `null` — un effacement
+    // demandé. Les confondre faisait de toute correction partielle un effacement général.
+    if (!Object.prototype.hasOwnProperty.call(input, p.name) || input[p.name] === undefined) {
+      if (p.required) return { ok: false, error: `Le paramètre « ${p.name} » est obligatoire.` };
+      continue;
+    }
     const v = input[p.name];
     const empty = v == null || v === "";
     if (empty) {
