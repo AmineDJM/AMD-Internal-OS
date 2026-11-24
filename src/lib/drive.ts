@@ -18,8 +18,14 @@ export async function resolveDriveAccess(user: SessionUser, nodeId: string): Pro
 
   const withSpace = await prisma.driveNode.findUnique({
     where: { id: nodeId },
-    select: { space: { select: { accessRoles: true, accessUserIds: true, managerRoles: true, managerUserIds: true } } },
+    select: { isTrashed: true, ownerId: true, space: { select: { accessRoles: true, accessUserIds: true, managerRoles: true, managerUserIds: true } } },
   });
+  // À LA CORBEILLE, le nœud n'existe plus que pour son propriétaire et les gestionnaires de sa catégorie (audit Drive
+  // du 24/11, F11) : la portée ALL, un partage ou un message ouvraient encore — par l'adresse directe, l'aperçu ou
+  // l'éditeur — un fichier que son propriétaire croyait retiré.
+  if (withSpace?.isTrashed) {
+    return withSpace.ownerId === user.id || (withSpace.space && canManageDriveSpace(user, withSpace.space)) ? "EDIT" : "NONE";
+  }
   if (withSpace?.space) {
     if (canManageDriveSpace(user, withSpace.space)) return "EDIT";
     if (canViewDriveSpace(user, withSpace.space)) best = "VIEW";
@@ -49,12 +55,11 @@ export async function resolveDriveAccess(user: SessionUser, nodeId: string): Pro
 /**
  * LU DANS UNE CONVERSATION DONT ON EST MEMBRE — le fichier (ou un dossier parent) y a été joint.
  *
- * L'envoi accorde un partage nominatif aux membres PRÉSENTS (`grantDriveRefAccess`) ; quiconque
- * entrait ensuite — ajouté à un groupe, canal rejoint, retour après départ — voyait la pièce dans
- * le fil et recevait un refus en l'ouvrant (Direction, 27/10). Le droit se lit donc aussi ici, au
- * moment de l'ouverture : membre actif d'une conversation où un message non retiré joint ce nœud.
- * Quitter la conversation, ou retirer le message, referme cette porte. La référence elle-même a été
- * validée contre les droits de l'expéditeur à l'envoi (`parseDriveRefs`) : c'est son geste de partage.
+ * C'est le SEUL droit que crée la messagerie : aucun partage nominatif n'est posé à l'envoi (audit Drive du 24/11,
+ * F3 — les `DriveShare` posés jusque-là survivaient au retrait du message et au départ du fil). Le droit se lit ici,
+ * à chaque ouverture : membre actif d'une conversation où un message non retiré joint ce nœud. Quitter la
+ * conversation, ou retirer le message, le referme. Joindre un nœud exige de pouvoir le MODIFIER (`parseDriveRefs`) :
+ * le geste de partage est celui d'un propriétaire ou d'un éditeur, jamais d'un simple lecteur.
  */
 async function partageParMessagerie(userId: string, nodeIds: string[]): Promise<boolean> {
   const piece = await prisma.messageAttachment.findFirst({
@@ -90,6 +95,31 @@ export async function canCreateInSpace(user: SessionUser, spaceId: string): Prom
     select: { accessRoles: true, accessUserIds: true, managerRoles: true, managerUserIds: true },
   });
   return s ? canManageDriveSpace(user, s) : false;
+}
+
+/**
+ * LE PROPRIÉTAIRE D'UN DOSSIER CRÉÉ SOUS `parentId` (audit Drive du 24/11, F5) : dans un Drive personnel, celui du
+ * parent. Un éditeur invité qui créait un sous-dossier chez autrui en devenait propriétaire, y rangeait les fichiers
+ * du propriétaire, puis sortait la branche chez lui. Dans une catégorie, l'arbre est commun : le créateur le reste.
+ */
+export async function proprietaireDuNouveauDossier(parentId: string | null, userId: string): Promise<string> {
+  if (!parentId) return userId;
+  const p = await prisma.driveNode.findUnique({ where: { id: parentId }, select: { ownerId: true, spaceId: true } });
+  return p && !p.spaceId && p.ownerId ? p.ownerId : userId;
+}
+
+/**
+ * SORTIR UN NŒUD DE L'ARBORESCENCE DE SON PROPRIÉTAIRE est réservé au propriétaire (F5). Un éditeur range dans l'arbre
+ * du propriétaire (destination à lui), il ne l'en sort pas : ni vers sa propre racine, ni chez un tiers, ni dans une
+ * catégorie. Rend la phrase du refus, ou null.
+ */
+export async function refusSortieArborescence(user: SessionUser, nodeId: string, targetId: string | null): Promise<string | null> {
+  if (user.role === "SUPER_ADMIN") return null;
+  const n = await prisma.driveNode.findUnique({ where: { id: nodeId }, select: { ownerId: true, spaceId: true } });
+  if (!n || n.spaceId || !n.ownerId || n.ownerId === user.id) return null;
+  const t = targetId ? await prisma.driveNode.findUnique({ where: { id: targetId }, select: { ownerId: true, spaceId: true } }) : null;
+  if (t && !t.spaceId && t.ownerId === n.ownerId) return null;
+  return "Seul le propriétaire de cet élément peut le sortir de son Drive : rangez-le dans un de ses dossiers, ou demandez-lui de le déplacer.";
 }
 
 /** Breadcrumb from root to the given node (inclusive). */

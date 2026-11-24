@@ -212,6 +212,21 @@ export async function getDriveListing(
       const node = s.node as RawNode | null;
       if (node && !node.isTrashed && node.spaceId == null) map.set(node.id, node);
     }
+    // Les pièces jointes à un fil dont on est membre : la messagerie ne pose plus de partage (F3), mais ce qu'on a
+    // reçu se retrouve ici comme avant — tant que le message vit et qu'on reste dans le fil.
+    const jointes = await prisma.messageAttachment.findMany({
+      where: {
+        driveNodeId: { not: null },
+        message: { deletedAt: null, senderId: { not: user.id }, conversation: { members: { some: { userId: user.id, leftAt: null } } } },
+      },
+      select: { driveNode: { include: nodeInclude(user.id) } },
+      orderBy: { createdAt: "desc" },
+      take: 500,
+    });
+    for (const j of jointes) {
+      const node = j.driveNode as RawNode | null;
+      if (node && !node.isTrashed && node.spaceId == null) map.set(node.id, node);
+    }
   }
   const merged = [...map.values()].sort((a, b) => (a.type === b.type ? a.name.localeCompare(b.name) : a.type === "FOLDER" ? -1 : 1));
   // À la racine il n'y a pas d'héritage : chaque nœud est éditable selon sa propre propriété/partage.

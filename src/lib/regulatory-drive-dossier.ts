@@ -214,6 +214,8 @@ export async function rangerDocumentsDansDrive(
     const docs = await prisma.document.findMany({
       where: {
         entityType: "REGULATORY_PRODUCT", entityId: productId,
+        // Une pièce non interne ne se range pas dans la catégorie (audit Drive du 24/11, F2) : elle y serait lue par tous.
+        confidentiality: "INTERNAL",
         ...(opts.documentIds ? { id: { in: [...opts.documentIds] } } : {}),
       },
       select: { id: true, name: true, category: true, stepKey: true, folder: true, fileKey: true, mimeType: true, uploadedById: true },

@@ -9,7 +9,7 @@ import { emettreMessageRecu } from "@/lib/events/messaging-events";
 import { notifyUser } from "@/lib/notify";
 import { resolveDriveAccess } from "@/lib/drive";
 import {
-  MAX_ATTACHMENTS, recipientsToGrant, DOSSIER_MESSAGERIE, nomDossierConversation, nomLotMessagerie, piecesDuLot,
+  MAX_ATTACHMENTS, DOSSIER_MESSAGERIE, nomDossierConversation, nomLotMessagerie, piecesDuLot,
 } from "@/lib/messaging-attachments";
 import { creerArborescenceDrive } from "@/lib/drive/arborescence";
 import {
@@ -107,21 +107,25 @@ interface ParsedDriveRef {
  * s'accorder — et accorder à toute une conversation — la lecture d'un fichier qu'il n'a jamais vu,
  * en devinant un identifiant.
  *
+ * JOINDRE, C'EST PARTAGER — et partager est le geste d'un propriétaire ou d'un éditeur (audit Drive du 24/11, F3).
+ * Un simple lecteur rouvrait le fichier à toute une conversation ; il reçoit désormais un refus qui le nomme.
+ *
  * Le nom, la taille et le type viennent de la BASE, jamais du formulaire : un nom soufflé par le
  * client afficherait « Note de service.pdf » sur un fichier tout autre.
  */
-async function parseDriveRefs(user: SessionUser, raw: string | null): Promise<ParsedDriveRef[]> {
-  if (!raw) return [];
+async function parseDriveRefs(user: SessionUser, raw: string | null): Promise<{ refs: ParsedDriveRef[]; refuses: string[] }> {
+  const vide = { refs: [], refuses: [] };
+  if (!raw) return vide;
   let ids: string[];
   try {
     const arr = JSON.parse(raw);
-    if (!Array.isArray(arr)) return [];
+    if (!Array.isArray(arr)) return vide;
     ids = [...new Set(arr.map((x) => (typeof x === "string" ? x : String(x?.id ?? ""))).filter(Boolean))]
       .slice(0, MAX_ATTACHMENTS);
   } catch {
-    return [];
+    return vide;
   }
-  if (ids.length === 0) return [];
+  if (ids.length === 0) return vide;
 
   const nodes = await prisma.driveNode.findMany({
     where: { id: { in: ids }, isTrashed: false },
@@ -129,11 +133,14 @@ async function parseDriveRefs(user: SessionUser, raw: string | null): Promise<Pa
   });
 
   const out: ParsedDriveRef[] = [];
+  const refuses: string[] = [];
   for (const n of nodes) {
-    if ((await resolveDriveAccess(user, n.id)) === "NONE") continue; // partager ce qu'on ne voit pas : non
+    const acces = await resolveDriveAccess(user, n.id);
+    if (acces === "NONE") continue; // ce qu'on ne voit pas n'a pas de nom à citer
+    if (acces !== "EDIT") { refuses.push(n.name); continue; }
     out.push(refDuNoeud(n));
   }
-  return out;
+  return { refs: out, refuses };
 }
 
 /**
@@ -189,68 +196,6 @@ async function parseDriveLots(user: SessionUser, rawIds: readonly string[], plac
     }
   }
   return out;
-}
-
-/**
- * ACCORDER LA LECTURE aux destinataires d'un partage Drive.
- *
- * `skipDuplicates` n'est pas un détail de performance : la contrainte d'unicité protège un droit
- * EXISTANT. Réécrire la ligne poserait un `VIEW` par-dessus un `EDIT` — on retirerait l'édition à
- * quelqu'un en lui envoyant un message.
- *
- * Le partage porte sur le nœud désigné ; l'héritage du Drive fait le reste pour un dossier, dont
- * tout le contenu devient lisible — c'est exactement ce qu'on veut en envoyant une liasse.
- */
-async function grantDriveRefAccess(refs: readonly ParsedDriveRef[], memberIds: readonly string[], senderId: string): Promise<void> {
-  for (const ref of refs) {
-    const existing = await prisma.driveShare.findMany({ where: { nodeId: ref.nodeId }, select: { userId: true } });
-    const targets = recipientsToGrant(memberIds, {
-      senderId,
-      ownerId: ref.ownerId,
-      alreadyShared: existing.map((s) => s.userId),
-    });
-    if (targets.length === 0) continue;
-    await prisma.driveShare.createMany({
-      data: targets.map((userId) => ({ nodeId: ref.nodeId, userId, access: "VIEW" as const })),
-      skipDuplicates: true,
-    });
-  }
-}
-
-/**
- * LES PIÈCES DU DRIVE DÉJÀ JOINTES AU FIL, ouvertes à qui y ENTRE (ajouté à un groupe, canal rejoint,
- * retour après départ). L'envoi n'accorde la lecture qu'aux membres présents : sans ce rattrapage, le
- * nouveau venu voyait les pièces et ne pouvait rien en ouvrir (Direction, 27/10). Même règle que
- * `grantDriveRefAccess` (jamais un `VIEW` par-dessus un droit existant, ni à l'expéditeur, ni au
- * propriétaire) ; `resolveDriveAccess` lit aussi ce droit à l'ouverture — ce partage-ci range en plus
- * les pièces dans « son » Drive et ouvre la porte du module.
- */
-async function accorderPiecesDuFil(conversationId: string, userIds: readonly string[]): Promise<void> {
-  if (userIds.length === 0) return;
-  const pieces = await prisma.messageAttachment.findMany({
-    where: { driveNodeId: { not: null }, message: { conversationId, deletedAt: null }, driveNode: { isTrashed: false } },
-    select: { driveNodeId: true, message: { select: { senderId: true } }, driveNode: { select: { ownerId: true } } },
-    orderBy: { createdAt: "desc" },
-    take: 2000,
-  });
-  if (pieces.length === 0) return;
-  const nodeIds = [...new Set(pieces.map((p) => p.driveNodeId!))];
-  const existants = await prisma.driveShare.findMany({
-    where: { nodeId: { in: nodeIds }, userId: { in: [...userIds] } },
-    select: { nodeId: true, userId: true },
-  });
-  const deja = new Set(existants.map((e) => `${e.nodeId}:${e.userId}`));
-  const lignes = new Map<string, { nodeId: string; userId: string; access: "VIEW" }>();
-  for (const p of pieces) {
-    const nodeId = p.driveNodeId!;
-    const cibles = recipientsToGrant(userIds, {
-      senderId: p.message.senderId ?? "",
-      ownerId: p.driveNode?.ownerId ?? null,
-      alreadyShared: userIds.filter((u) => deja.has(`${nodeId}:${u}`)),
-    });
-    for (const userId of cibles) lignes.set(`${nodeId}:${userId}`, { nodeId, userId, access: "VIEW" });
-  }
-  if (lignes.size > 0) await prisma.driveShare.createMany({ data: [...lignes.values()], skipDuplicates: true });
 }
 
 /** Référence à un objet de l'OS partagé dans un message (validée contre EntityType). */
@@ -424,7 +369,10 @@ export async function sendMessage(
 
   const body = (formData.get("body") ? String(formData.get("body")) : "").trim().slice(0, 8000);
   const attachments = parseAttachments(fdStr(formData, "attachments"));
-  const refsChoisies = await parseDriveRefs(user, fdStr(formData, "driveRefs"));
+  const { refs: refsChoisies, refuses } = await parseDriveRefs(user, fdStr(formData, "driveRefs"));
+  if (refuses.length > 0) {
+    return { ok: false, error: `Vous ne pouvez que consulter « ${refuses.join(" », « ")} » : seul son propriétaire ou un éditeur peut le joindre à un message. Demandez-lui de l'envoyer, ou retirez la pièce.` };
+  }
   // Les lots déposés (gros fichiers, dossiers) — déjà dans le Drive de l'expéditeur, joints par référence.
   const refsDesLots = await parseDriveLots(
     user,
@@ -470,9 +418,8 @@ export async function sendMessage(
     include: messageInclude(user.id),
   });
 
-  // L'ACCÈS SUIT LE PARTAGE, et il le suit APRÈS la création du message : si l'écriture du
-  // message échoue, on n'aura ouvert l'accès à rien.
-  if (driveRefs.length > 0) await grantDriveRefAccess(driveRefs, [...memberIds], user.id);
+  // L'ACCÈS SUIT LE MESSAGE, sans partage nominatif : `resolveDriveAccess` le lit tant que le message vit et que
+  // le destinataire est membre du fil (`partageParMessagerie`, F3).
   // Les pièces téléversées (le blob vient de `/api/messaging/upload`) entrent à la bibliothèque (J1), sous la clé de
   // la pièce jointe : la recherche les rend aux membres de la conversation. Une référence au Drive y est déjà.
   if (attachments.length > 0) {
@@ -747,7 +694,6 @@ export async function addMembers(formData: FormData): Promise<ActionResult> {
     }
   }
   if (added.length) {
-    await accorderPiecesDuFil(conversationId, added);
     const names = await prisma.user.findMany({ where: { id: { in: added } }, select: { name: true } });
     await systemMessage(conversationId, `${user.name} a ajouté ${names.map((n) => n.name).join(", ")}.`);
   }
@@ -826,7 +772,6 @@ export async function joinChannel(formData: FormData): Promise<ActionResult> {
   if (existing && !existing.leftAt) return { ok: true, id: conversationId };
   if (existing) await prisma.conversationMember.update({ where: { id: existing.id }, data: { leftAt: null, role: "MEMBER" } });
   else await prisma.conversationMember.create({ data: { conversationId, userId: user.id, role: "MEMBER" } });
-  await accorderPiecesDuFil(conversationId, [user.id]);
   await systemMessage(conversationId, `${user.name} a rejoint le canal.`);
   revalidatePath("/messages");
   return { ok: true, id: conversationId };

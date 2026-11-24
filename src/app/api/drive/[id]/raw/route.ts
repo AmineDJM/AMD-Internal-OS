@@ -19,7 +19,8 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
   const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return new NextResponse(null, { status: 401 });
-  if (!canViewDrive(await resolveDriveAccess(user, params.id))) return new NextResponse(null, { status: 403 });
+  // 404 et non 403 : un nœud à la corbeille (F11) ou fermé n'a pas à dire qu'il existe.
+  if (!canViewDrive(await resolveDriveAccess(user, params.id))) return new NextResponse(null, { status: 404 });
 
   const node = await prisma.driveNode.findUnique({
     where: { id: params.id },

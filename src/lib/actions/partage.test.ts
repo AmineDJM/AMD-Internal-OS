@@ -12,6 +12,7 @@ import { getAccess, type SessionUser } from "@/lib/rbac";
 import { partagerParMessagerie, listerDestinatairesPartage } from "./partage-actions";
 import { AD_PRO_ENTITY_TYPE } from "@/modules/ad-pro/partage";
 import { ENTITY_MODULE } from "@/lib/entity-access";
+import { resolveDriveAccess } from "@/lib/drive";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
@@ -206,13 +207,11 @@ suite("Partage par messagerie", () => {
     });
     expect(piece).not.toBeNull();
 
-    // LA LECTURE — c'est `sendMessage` qui l'accorde ; on vérifie qu'on ne l'a pas court-circuité
-    // en écrivant le message nous-mêmes (§118.5 : un seul écrivain).
-    const droit = await prisma.driveShare.findFirst({
-      where: { nodeId: nodePartageId, userId: tiersId },
-      select: { access: true },
-    });
-    expect(droit).not.toBeNull();
+    // LA LECTURE — dérivée du message (`partageParMessagerie`), sans partage nominatif (audit Drive du 24/11, F3) :
+    // elle tombe avec le message ou le départ du fil.
+    const droit = await prisma.driveShare.findFirst({ where: { nodeId: nodePartageId, userId: tiersId }, select: { access: true } });
+    expect(droit).toBeNull();
+    expect(await resolveDriveAccess(await acteur(tiersId, "SALES_USER"), nodePartageId)).toBe("VIEW");
   });
 
   it("l'annuaire des destinataires ne contient jamais soi-même", async () => {

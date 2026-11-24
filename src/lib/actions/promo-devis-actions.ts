@@ -484,7 +484,7 @@ export async function enregistrerDevisPromo(formData: FormData): Promise<ActionR
   }
   if (scanDepose) {
     const s = scanDepose;
-    void mirrorDocumentsToDrive({ ownerId: user.id, entityType: "PROMO_MATERIAL", entityId: pm.id, files: [{ name: s.nom, data: s.contenu, mime: s.mime }] })
+    void mirrorDocumentsToDrive({ ownerId: user.id, entityType: "PROMO_MATERIAL", entityId: pm.id, confidentiality: "INTERNAL", files: [{ name: s.nom, data: s.contenu, mime: s.mime }] })
       .catch((e) => console.error("[devis promo] miroir Drive échoué (non bloquant)", e));
   }
   await audit(user, pm.id, `Devis ${existant ? "corrigé" : "retranscrit"} — ${parties.text}${donnees.reference ? ` n° ${donnees.reference}` : ""} (${lignes.length} ligne${lignes.length > 1 ? "s" : ""})${confirmation ? ` — ${confirmation.resumeAudit}` : ""}`);

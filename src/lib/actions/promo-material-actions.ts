@@ -169,7 +169,7 @@ async function retirerPieces(userId: string, pmId: string, pieces: PieceDeposee[
 /** La marche écrite : la copie Drive des pièces part maintenant, en arrière-plan. */
 function copierPiecesAuDrive(userId: string, pmId: string, pieces: PieceDeposee[]): void {
   if (pieces.length === 0) return;
-  void mirrorDocumentsToDrive({ ownerId: userId, entityType: "PROMO_MATERIAL", entityId: pmId, files: pieces.map((p) => ({ name: p.nom, data: p.contenu, mime: p.mime })) })
+  void mirrorDocumentsToDrive({ ownerId: userId, entityType: "PROMO_MATERIAL", entityId: pmId, confidentiality: "INTERNAL", files: pieces.map((p) => ({ name: p.nom, data: p.contenu, mime: p.mime })) })
     .catch((e) => console.error("[promo] miroir Drive échoué (non bloquant)", e));
 }
 

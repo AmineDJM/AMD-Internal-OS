@@ -9,6 +9,7 @@ import { persistUploadedDocument } from "@/lib/documents";
 import { ENTITY_TYPE_LABELS } from "@/lib/labels";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
+import { retirerCopiesDrive } from "@/lib/drive/document-mirror";
 
 export interface ActionResult {
   ok: boolean;
@@ -96,6 +97,8 @@ export async function deleteDocument(id: string, path?: string): Promise<ActionR
     return { ok: false, error: "Suppression non autorisée." };
   }
 
+  // Sa copie de « Mes documents importés » part à la corbeille avec elle (F2) — lue avant que le fichier soit libéré.
+  await retirerCopiesDrive(doc);
   await prisma.document.delete({ where: { id } });
   if (doc.fileKey) await deleteFileByKey(doc.fileKey);
 

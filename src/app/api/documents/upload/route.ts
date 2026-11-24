@@ -54,7 +54,8 @@ export async function POST(req: NextRequest) {
   // la catégorie « Regulatory » (Direction, 06/10 — repli : l'ancien miroir), les autres modules sous
   // « Mes documents importés / <module> / <objet> ». On garde le binaire pour ça.
   const isRegulatory = entityType === "REGULATORY_PRODUCT";
-  const mirrorHere = isRegulatory || shouldMirrorToDrive(entityType);
+  // Jamais une pièce non interne ni un objet des personnes (RH, médical, pharmacovigilance, voyageurs) : F2.
+  const mirrorHere = (isRegulatory && confidentiality === "INTERNAL") || shouldMirrorToDrive(entityType, confidentiality);
   const toMirror: { name: string; data: Buffer; mime?: string }[] = [];
   let created = 0;
   // LES IDENTIFIANTS CRÉÉS voyagent avec la réponse : l'écran qui vient de déposer peut demander
@@ -104,7 +105,7 @@ export async function POST(req: NextRequest) {
     const mirror = isRegulatory
       // Regulatory : rangé dans le dossier du produit de la catégorie « Regulatory », d'après les fiches créées.
       ? mirrorRegulatoryUpload({ productId: entityId, ownerId: user.id, files: toMirror, documentIds: ids })
-      : mirrorDocumentsToDrive({ ownerId: user.id, entityType, entityId, files: toMirror });
+      : mirrorDocumentsToDrive({ ownerId: user.id, entityType, entityId, confidentiality, files: toMirror });
     void mirror.catch((e) => console.error("[documents upload] miroir Drive en arrière-plan a échoué", e));
   }
 

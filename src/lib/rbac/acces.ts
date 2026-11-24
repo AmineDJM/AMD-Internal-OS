@@ -605,7 +605,7 @@ export const getAccess = perRequest(
     // assuré par canViewDriveSpace / resolveDriveAccess / driveVisibilityWhere dans les requêtes.
     if (!modules.has("DRIVE")) {
       const roles = [role, secondaryRole].filter(Boolean) as string[];
-      const [space, share] = await Promise.all([
+      const [space, share, piece] = await Promise.all([
         prisma.driveSpace
           .findFirst({
             where: {
@@ -620,8 +620,14 @@ export const getAccess = perRequest(
           })
           .catch(sansBloquer("rbac.driveSpace", null)),
         prisma.driveShare.findFirst({ where: { userId }, select: { id: true } }).catch(sansBloquer("rbac.driveShare", null)),
+        // Une pièce du Drive jointe à un fil dont on est membre : la messagerie ne pose plus de partage nominatif (F3),
+        // le droit se lit dans `resolveDriveAccess` — et la porte du module doit s'ouvrir pour qu'il serve.
+        prisma.messageAttachment.findFirst({
+          where: { driveNodeId: { not: null }, message: { deletedAt: null, conversation: { members: { some: { userId, leftAt: null } } } } },
+          select: { id: true },
+        }).catch(sansBloquer("rbac.pieceDeMessagerie", null)),
       ]);
-      if (space || share) grantImplicit("DRIVE", ["VIEW"], null);
+      if (space || share || piece) grantImplicit("DRIVE", ["VIEW"], null);
     }
 
     // ── LE PIPELINE (dossiers VERROUILLÉS) ──────────────────────────────────────

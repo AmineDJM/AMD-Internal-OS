@@ -33,8 +33,10 @@ suite("OnlyOffice /file — un type actif déclaré au dépôt ne s'exécute pas
     const u = await prisma.user.create({ data: { name: `${TAG}u`, email: `${TAG}u@t.dz`, passwordHash: "x", role: "VIEWER" } });
     userId = u.id;
     await saveFile(cle, Buffer.from("<script>alert(document.cookie)</script>"));
+    // Une tâche À LUI : la route relit le droit du porteur du jeton (audit Drive du 24/11, F4).
+    const tache = await prisma.task.create({ data: { title: `${TAG}tâche`, createdById: u.id } as never, select: { id: true } });
     docId = (await prisma.document.create({
-      data: { name: "rapport.docx", entityType: "TASK", entityId: TAG, fileKey: cle, sizeBytes: 40, mimeType: "text/html", uploadedById: u.id },
+      data: { name: "rapport.docx", entityType: "TASK", entityId: tache.id, fileKey: cle, sizeBytes: 40, mimeType: "text/html", uploadedById: u.id },
     })).id;
   }, 60_000);
 
@@ -43,6 +45,7 @@ suite("OnlyOffice /file — un type actif déclaré au dépôt ne s'exécute pas
     await retirerDocumentsEtContenu({ where: { id: docId } }).catch(() => undefined);
     await prisma.storedFile.deleteMany({ where: { key: cle } }).catch(() => undefined);
     await prisma.fileBlob.deleteMany({ where: { id: { in: stored.map((s) => s.blobId) } } }).catch(() => undefined);
+    await prisma.task.deleteMany({ where: { title: `${TAG}tâche` } }).catch(() => undefined);
     await retirerComptesEtSemis({ where: { id: userId } }).catch(() => undefined);
   }, 60_000);
 

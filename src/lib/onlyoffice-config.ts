@@ -42,7 +42,7 @@ export async function buildEditorSetup(
   });
   // LIRE n'est pas ENREGISTRER (`lib/onlyoffice.ts`) : `document.url` part au navigateur, il ne porte qu'un
   // jeton de lecture ; le jeton d'enregistrement ne vit que dans `callbackUrl` (on est en édition ici).
-  const readToken = makeFileReadToken(nodeId, user.id);
+  const readToken = makeFileReadToken(nodeId, user.id, undefined, last?.version);
   const saveToken = makeSaveToken("drive", nodeId, user.id);
   // `key` change à chaque version → invalide le cache du Document Server après sauvegarde.
   const key = `${nodeId}_${last?.version ?? 1}`;

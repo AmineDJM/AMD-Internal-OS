@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { createHmac } from "crypto";
 import {
   onlyofficeConfigured, onlyofficeDocType, onlyofficeEditable, fileExt,
   signJwt, verifyJwt, makeFileReadToken, readFileReadToken, makeDocReadToken, readDocReadToken,
@@ -71,11 +72,11 @@ describe("OnlyOffice — JWT HS256", () => {
     expect(readDocReadToken(makeSaveToken("document", "doc-7", "user-3"))).toBeNull();
     expect(readSaveToken(makeSaveToken("drive", "node-1", "user-9"))).toEqual({ cible: "drive", id: "node-1", userId: "user-9", kind: "enregistrement" });
   });
-  it("transition : les jetons uniques d'avant la séparation restent lus par les deux routes (24 h au plus)", () => {
+  it("transition : les jetons uniques d'avant la séparation n'ouvrent plus que le rappel — jamais la lecture (F4)", () => {
     const ancienDrive = signJwt({ nodeId: "node-1", userId: "user-9", kind: "edit" });
     const ancienDoc = signJwt({ docId: "doc-7", userId: "user-3", kind: "docedit" });
-    expect(readFileReadToken(ancienDrive)?.nodeId).toBe("node-1");
-    expect(readDocReadToken(ancienDoc)?.docId).toBe("doc-7");
+    expect(readFileReadToken(ancienDrive)).toBeNull();
+    expect(readDocReadToken(ancienDoc)).toBeNull();
     expect(readSaveToken(ancienDrive)).toEqual({ cible: "drive", id: "node-1", userId: "user-9", kind: "enregistrement" });
     expect(readSaveToken(ancienDoc)).toEqual({ cible: "document", id: "doc-7", userId: "user-3", kind: "enregistrement" });
   });
@@ -132,5 +133,26 @@ describe("OnlyOffice — le rappel d'enregistrement n'est cru que signé, chez l
     for (const status of [1, 4]) {
       expect(lireRappelOnlyoffice({ ...base, jeton: jeton(), corps: { token: signe({ status }) } }).action).toBe("ignorer");
     }
+  });
+  it("lecture : une heure au plus, même si l'émetteur demandait davantage ; version figée dans le jeton (F4)", () => {
+    const t = makeFileReadToken("node-1", "user-9", 24 * 3600, 3);
+    const corps = JSON.parse(Buffer.from(t.split(".")[1], "base64").toString("utf8")) as { iat: number; exp: number };
+    expect(corps.exp - corps.iat).toBeLessThanOrEqual(3600);
+    expect(readFileReadToken(t)).toEqual({ nodeId: "node-1", userId: "user-9", kind: "lecture", version: 3 });
+    expect(readDocReadToken(makeDocReadToken("doc-7", "user-3", undefined, 2))?.version).toBe(2);
+  });
+  it("lecture : un jeton émis il y a plus d'une heure est refusé, quelle que soit son échéance annoncée (F4)", () => {
+    const vieux = Math.floor(Date.now() / 1000) - 2 * 3600;
+    const forge = (payload: Record<string, unknown>) => {
+      // Un jeton d'avant le changement : 24 h d'échéance, émis il y a deux heures.
+      const t = signJwt(payload, 24 * 3600);
+      const [h, , ] = t.split(".");
+      const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+      const corps = b64({ ...payload, iat: vieux, exp: vieux + 24 * 3600 });
+      const sig = createHmac("sha256", "test-secret-123").update(`${h}.${corps}`).digest("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+      return `${h}.${corps}.${sig}`;
+    };
+    expect(readFileReadToken(forge({ nodeId: "node-1", userId: "user-9", kind: "lecture" }))).toBeNull();
+    expect(readDocReadToken(forge({ docId: "doc-7", userId: "user-3", kind: "doclecture" }))).toBeNull();
   });
 });
