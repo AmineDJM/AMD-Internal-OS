@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowRight, Bell, BellRing, Bot, Check, Clock, ExternalLink, Loader2, Repeat, X } from "lucide-react";
+import { Bell, BellRing, Bot, Check, Clock, ExternalLink, Loader2, Repeat, X } from "lucide-react";
 import { arreterRappelAssistant, cancelReminder, completeReminder, snoozeReminder } from "@/lib/actions/reminder-actions";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { useRetours } from "@/components/ui/retour";
@@ -13,8 +13,8 @@ import { classerRappels, ONGLETS_RAPPELS, ongletInitial, type OngletRappels, typ
 /**
  * « MES RAPPELS » (recette du 23/11/2026) — tous les rappels de la personne : les siens, ceux que
  * l'assistant a posés pour elle, et les échéances et relances que la plateforme lui envoie. Quatre
- * onglets (`lib/rappels/vue.ts`). Dans l'encart de « Mon espace », chaque onglet montre les premiers
- * (`limite`) et un lien mène à la page complète `/mon-espace/rappels`, qui montre tout.
+ * onglets (`lib/rappels/vue.ts`), sur la page complète `/mon-espace/rappels`. L'encart d'« Aujourd'hui »
+ * a sa propre liste, sans onglets (`mon-espace/rappels-du-jour.tsx`), avec les mêmes actions.
  */
 
 const fmt = (iso: string) =>
@@ -28,7 +28,7 @@ function demainNeufHeures(): string {
   return d.toISOString();
 }
 
-export function MyReminders({ rappels, limite, maintenant }: { rappels: RappelVue[]; limite?: number; maintenant: string }) {
+export function MyReminders({ rappels, maintenant }: { rappels: RappelVue[]; maintenant: string }) {
   const { rafraichir } = useRafraichir();
   const retours = useRetours();
   const [busyKey, setBusyKey] = React.useState<string | null>(null);
@@ -51,8 +51,7 @@ export function MyReminders({ rappels, limite, maintenant }: { rappels: RappelVu
     }
   }
 
-  const liste = classes[onglet];
-  const visibles = limite ? liste.slice(0, limite) : liste;
+  const visibles = classes[onglet];
   const def = ONGLETS_RAPPELS.find((o) => o.cle === onglet)!;
 
   return (
@@ -136,11 +135,6 @@ export function MyReminders({ rappels, limite, maintenant }: { rappels: RappelVu
         </ul>
       )}
 
-      {limite && (liste.length > visibles.length || rappels.length > 0) && (
-        <Link href="/mon-espace/rappels" className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
-          {liste.length > visibles.length ? `Voir les ${liste.length} — tous mes rappels` : "Tous mes rappels"} <ArrowRight className="h-3 w-3" aria-hidden />
-        </Link>
-      )}
     </div>
   );
 }

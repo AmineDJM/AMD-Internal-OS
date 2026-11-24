@@ -9,8 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { chargerAujourdhui } from "@/lib/queries/aujourdhui-espace";
-import { jourDeReferenceDeLaSemaine } from "@/lib/espace/aujourdhui";
-import { aujourdhuiAlger } from "@/modules/rh/partage";
+import { grouperAFaire } from "@/lib/espace/a-faire";
 import { relanceTaskRequest } from "@/lib/actions/task-actions";
 
 /**
@@ -20,8 +19,8 @@ import { relanceTaskRequest } from "@/lib/actions/task-actions";
  * Joué par le vrai point d'entrée de la page (`chargerAujourdhui`) sur la base locale, avec des acteurs
  * SANS vue globale (prémisse vérifiée) :
  *   · le responsable Finances voit l'ordre de dépense dans son lot « paiements à régler », avec son montant
- *     et son retard ; le délégué médical ne le voit nulle part (ni lot, ni ligne, ni raccourci « Paiements ») ;
- *   · le délégué voit sa tâche en retard dans SA file, et le geste qu'il a fait aujourd'hui dans « Ma semaine » ;
+ *     et son retard ; le délégué médical ne le voit nulle part (ni lot, ni ligne) ;
+ *   · le délégué voit sa tâche en retard dans SA file — et dans le groupe « En retard » de l'écran ;
  *   · son N+1 voit l'encart « Mon équipe » : le délégué en retard, et la relance de la tâche qu'il lui a
  *     demandée — que l'action existante (`relanceTaskRequest`) accepte ; un tiers ne voit ni l'encart ni la relance.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -40,7 +39,7 @@ async function actorFor(id: string): Promise<CurrentUser> {
 }
 const ilYA = (jours: number) => new Date(Date.now() - jours * 86_400_000);
 
-suite("« Aujourd'hui » — la file, la semaine et l'équipe, selon les droits", () => {
+suite("« Aujourd'hui » — la file et l'équipe, selon les droits", () => {
   const u: Record<string, string> = {};
   const emp: Record<string, string> = {};
   let ordreId = "";
@@ -84,11 +83,6 @@ suite("« Aujourd'hui » — la file, la semaine et l'équipe, selon les droits"
     tacheId = (await prisma.task.create({
       data: { title: `${TAG} rapport`, assignedToId: u.del, createdById: u.mgr, status: "TODO", requestedAt: ilYA(8), dueDate: ilYA(3), createdAt: ilYA(8) },
     })).id;
-    // Un geste fait par le délégué DANS la semaine que « Ma semaine » raconte : aujourd'hui un jour ouvré ;
-    // un vendredi ou un samedi (heure d'Alger), la semaine racontée est celle qui vient de finir, donc le jeudi.
-    const jourOuvre = jourDeReferenceDeLaSemaine(aujourdhuiAlger(new Date()));
-    const faitLe = jourOuvre === aujourdhuiAlger(new Date()) ? new Date() : new Date(`${jourOuvre}T10:00:00.000Z`);
-    await prisma.task.create({ data: { title: `${TAG} fait`, assignedToId: u.del, createdById: u.del, status: "DONE", completedAt: faitLe } });
   }, 180_000);
   afterAll(nettoyer, 180_000);
 
@@ -98,31 +92,31 @@ suite("« Aujourd'hui » — la file, la semaine et l'équipe, selon les droits"
 
   it("le responsable Finances voit l'ordre dans son lot de paiements, montant et retard compris", async () => {
     const a = await actorFor(u.fin);
-    const j = await chargerAujourdhui(a, { nom: a.name, employeeId: emp.fin });
+    const j = await chargerAujourdhui(a);
     const lot = j.lots.find((l) => l.nature === "paiement");
     expect(lot, "un lot « paiements à régler »").toBeTruthy();
     const ligne = lot!.lignes.find((l) => l.key === `pay-${ordreId}`);
     expect(ligne).toMatchObject({ montant: 123456, retard: 10 });
     expect(lot!.geste.href).toContain(ordreId);
-    expect(j.tuiles.map((t) => t.k)).toContain("Paiements en attente");
-    expect(j.raccourcis.map((r) => r.href)).toContain("/finances/paiements-a-faire");
+    // À l'écran : la ligne « En retard » du lot de paiements, son geste « Régler » vers l'ordre mis en évidence.
+    const enRetard = grouperAFaire(j.lots).groupes[0].lignes.find((l) => l.geste.href.includes(ordreId));
+    expect(enRetard?.geste.libelle).toBe("Régler");
   });
 
-  it("le délégué ne voit ni le lot de paiements, ni l'ordre, ni le raccourci — mais sa tâche et son geste du jour", async () => {
+  it("le délégué ne voit ni le lot de paiements ni l'ordre — mais sa tâche en retard", async () => {
     const a = await actorFor(u.del);
-    const j = await chargerAujourdhui(a, { nom: a.name, employeeId: emp.del, tachesOuvertes: 1, tachesRetard: 1 });
+    const j = await chargerAujourdhui(a);
     expect(j.lots.some((l) => l.nature === "paiement")).toBe(false);
     expect(JSON.stringify(j.lots)).not.toContain(ordreId);
-    expect(j.raccourcis.map((r) => r.href)).not.toContain("/finances/paiements-a-faire");
     const taches = j.lots.find((l) => l.nature === "tache");
     expect(taches?.lignes.find((l) => l.key === `task-${tacheId}`)?.retard).toBe(3);
-    expect(j.semaine.fait).toBeGreaterThanOrEqual(1);
+    expect(grouperAFaire(j.lots).groupes[0].lignes.some((l) => l.titre.includes(`${TAG} rapport`)), "sa tâche, en retard").toBe(true);
     expect(j.equipe, "un délégué sans équipe n'a pas d'encart").toBeNull();
   });
 
   it("le N+1 voit son délégué en retard et la relance ; l'action existante l'accepte", async () => {
     const a = await actorFor(u.mgr);
-    const j = await chargerAujourdhui(a, { nom: a.name, employeeId: emp.mgr });
+    const j = await chargerAujourdhui(a);
     expect(j.equipe?.directs).toBe(1);
     const m = j.equipe!.membres.find((x) => x.employeeId === emp.del);
     expect(m).toMatchObject({ enRetard: 1, relanceTacheId: tacheId });
@@ -131,13 +125,13 @@ suite("« Aujourd'hui » — la file, la semaine et l'équipe, selon les droits"
     fd.set("id", tacheId);
     expect((await relanceTaskRequest(fd)).ok).toBe(true);
     // Relancée à l'instant : le délai de courtoisie retire le bouton.
-    const apres = await chargerAujourdhui(a, { nom: a.name, employeeId: emp.mgr });
+    const apres = await chargerAujourdhui(a);
     expect(apres.equipe!.membres.find((x) => x.employeeId === emp.del)?.relanceTacheId).toBeNull();
   });
 
   it("un tiers sans lien hiérarchique n'a ni l'encart ni la tâche des autres", async () => {
     const a = await actorFor(u.tiers);
-    const j = await chargerAujourdhui(a, { nom: a.name, employeeId: emp.tiers });
+    const j = await chargerAujourdhui(a);
     expect(j.equipe).toBeNull();
     expect(JSON.stringify(j.lots)).not.toContain(tacheId);
   });

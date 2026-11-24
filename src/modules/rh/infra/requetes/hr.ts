@@ -12,96 +12,25 @@ import { basisLabel } from "@/modules/finances/partage";
 import { employeeCosts, workforceMass, massByCompany, massProvenance, massIsIncomplete } from "../../domaine/workforce-mass";
 import { sansBloquer } from "@/lib/journal";
 
-/** Personalised workspace data for the signed-in user ("Mon espace"). */
-export async function getMyWorkspace(userId: string) {
-  const [employee, myTasks, delegated, shared, myLeaves, myAdvances, activity] = await Promise.all([
-    prisma.employee.findUnique({
-      where: { userId },
-      select: { id: true, leaveBalanceDays: true, contractType: true, contractEnd: true, position: true, department: true },
-    }),
-    prisma.task.findMany({
-      where: {
-        assignedToId: userId,
-        OR: [
-          { status: { in: ["TODO", "IN_PROGRESS"] } },
-          // Une demande validée reste à portée un mois : le travail est TOUJOURS modifiable, et
-          // une pièce retrouvée le lendemain doit pouvoir rejoindre son dossier. Sans cela, elle
-          // repartirait par message et le dossier resterait faux.
-          { status: "DONE", requestedAt: { not: null }, completedAt: { gte: new Date(Date.now() - 30 * 86_400_000) } },
-        ],
-      },
-      orderBy: [{ dueDate: "asc" }, { priority: "desc" }],
-      take: 50,
-    }),
-    // Ce que J'AI demandé à quelqu'un, ou délégué. Les statuts REQUESTED / DECLINED / DONE en
-    // font partie : sans eux, une demande qu'on vient d'envoyer n'apparaissait NULLE PART chez
-    // son auteur — on ne savait ni qu'elle attendait, ni qu'elle avait été refusée.
-    prisma.task.findMany({
-      where: {
-        createdById: userId, assignedToId: { not: userId },
-        status: { in: ["REQUESTED", "TODO", "IN_PROGRESS", "DECLINED", "DONE"] },
-      },
-      include: { assignedTo: { select: { name: true } } },
-      orderBy: [{ status: "asc" }, { dueDate: "asc" }],
-      take: 40,
-    }),
-    // Tâches PARTAGÉES avec moi : je participe ou j'ai un accès en lecture, sans en être le
-    // responsable ni le créateur (ceux-là remontent déjà plus haut).
-    prisma.task.findMany({
-      where: {
-        // REQUESTED en fait partie : une tâche assignée à quelqu'un d'AUTRE naît désormais en
-        // attente de sa réponse. Sans ce statut, les participants et les lecteurs recevaient la
-        // notification puis ne trouvaient la tâche nulle part — jusqu'à ce qu'elle soit acceptée.
-        status: { in: ["REQUESTED", "TODO", "IN_PROGRESS"] },
-        assignedToId: { not: userId },
-        createdById: { not: userId },
-        OR: [{ participantIds: { has: userId } }, { readerIds: { has: userId } }],
-      },
-      include: { assignedTo: { select: { name: true } } },
-      orderBy: [{ dueDate: "asc" }],
-      take: 30,
-    }),
-    prisma.leaveRequest.findMany({
-      where: { employee: { userId } },
-      orderBy: { startDate: "desc" },
-      take: 12,
-    }),
-    prisma.salaryAdvance.findMany({
-      where: { employee: { userId } },
-      orderBy: { createdAt: "desc" },
-      take: 10,
-    }),
-    prisma.activityLog.findMany({
-      where: { userId, type: "PAGE_VIEW" },
-      orderBy: { createdAt: "desc" },
-      take: 8,
-    }),
-  ]);
+/**
+ * CE QUE L'ESPACE PERSONNEL MONTRE DE LA FICHE (écran « Aujourd'hui » simplifié, 24/11/2026) — les deux lectures
+ * de l'ancien `getMyWorkspace` que les écrans affichent encore ; ses tâches, délégations et activités ne
+ * nourrissaient plus rien (la file vient du centre d'actions, les tâches de leur onglet).
+ */
 
-  const now = Date.now();
-  // « Ouvertes » = ce qui reste à faire. Les demandes validées, gardées à portée pour rester
-  // modifiables, ne sont plus du travail en attente et ne doivent pas gonfler le compteur.
-  const openMyTasks = myTasks.filter((t) => t.status !== "DONE");
-  const overdue = openMyTasks.filter((t) => t.dueDate && t.dueDate.getTime() < now).length;
-  const pendingLeaves = myLeaves.filter((l) => l.status === "PENDING").length;
-  const pendingAdvances = myAdvances.filter((a) => a.status === "PENDING").length;
+/** Mes avances sur salaire, les plus récentes d'abord — affichées dans Mon dossier RH. */
+export async function getMyAdvances(userId: string) {
+  return prisma.salaryAdvance.findMany({
+    where: { employee: { userId } },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+  });
+}
 
-  return {
-    employee,
-    myTasks,
-    delegated,
-    shared,
-    myLeaves,
-    myAdvances,
-    activity,
-    stats: {
-      openTasks: openMyTasks.length,
-      overdue,
-      pendingLeaves,
-      pendingAdvances,
-      leaveBalance: employee ? toNumber(employee.leaveBalanceDays) : null,
-    },
-  };
+/** Mon solde de congé en jours (`null` sans fiche employé) — rappelé à côté de « Demander un congé ». */
+export async function getMyLeaveBalance(userId: string): Promise<number | null> {
+  const e = await prisma.employee.findUnique({ where: { userId }, select: { leaveBalanceDays: true } });
+  return e ? toNumber(e.leaveBalanceDays) : null;
 }
 
 /** Back-office HR data for the /rh page. */

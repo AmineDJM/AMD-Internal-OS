@@ -2,270 +2,168 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowRight, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { chapeauxDe, montantDzd, URGENCES, type LigneLot, type Lot, type NiveauUrgence } from "@/lib/espace/aujourdhui";
-import { affinerFile, compterUrgences, type TriFile } from "@/lib/espace/file-affinee";
+import { Sheet } from "@/components/ui/sheet";
+import { LeaveApprovals, type PendingLeave } from "@/components/hr/leave-approvals";
+import { CHEMIN_MES_MISSIONS } from "@/lib/chemins/espace";
+import { libelleDeplier, type AFaire, type GroupeAFaire, type LigneAFaire, type Panneau } from "@/lib/espace/a-faire";
 
 /**
- * « À FAIRE MAINTENANT » — la file groupée par lot (Direction, 14/10/2026).
+ * « À FAIRE » — la file d'Aujourd'hui (maquette validée par le Super Admin, 24/11/2026).
  *
- * Un lot = une ligne de titre concrète, un geste principal, et ses sous-lignes à déplier (rangées par
- * famille quand la donnée en porte une). Chaque geste MÈNE à l'écran où il se fait — celui qui porte
- * sa garde, ses pièces, sa confirmation : la file ne décide rien à la place de cet écran. Le composant
- * ne lit que des données déjà filtrées par les droits de la personne, et un module pur.
+ * Trois groupes (« En retard », « Aujourd'hui », « Plus tard », ce dernier replié), une ligne = un titre,
+ * un sous-titre d'une ligne et UN bouton. Seul « En retard » est en rouge ; un seul bouton plein, celui de
+ * la première ligne. Chaque geste MÈNE à l'écran où il se fait (sa garde, ses pièces, sa confirmation) — sauf
+ * le congé, qui se décide ICI, dans un panneau qui porte le composant de décision des congés (`LeaveApprovals` :
+ * approuver, refuser, note, discussion — la même action `decideLeave`). Le regroupement est une règle pure
+ * (`espace/a-faire.ts`) ; ce composant ne lit que des données déjà filtrées par les droits de la personne.
  */
 
-const TON_PILE: Record<Lot["ton"], string> = {
-  late: "bg-destructive/10 text-destructive",
-  warn: "bg-warning/10 text-warning",
-  "": "bg-secondary text-foreground",
-};
+/** L'ancre des notifications « Congé à signer » (`LIEN_CONGES_A_SIGNER`) : elle ouvre le panneau des congés. */
+const ANCRE_CONGES = "conges-a-signer";
 
-function Pourquoi({ lot }: { lot: Lot }) {
-  if (lot.enRetard > 0) {
-    return (
-      <span className="inline-flex shrink-0 items-center rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-semibold text-destructive">
-        {lot.enRetard > 1 ? `${lot.enRetard} en retard · ` : "En retard · "}{lot.retardMax} j
-      </span>
-    );
+const bouton = "inline-flex h-10 shrink-0 items-center justify-center rounded-[var(--radius)] px-4 text-sm font-semibold transition-colors focus-ring";
+const plein = "bg-primary text-primary-foreground hover:bg-primary/90";
+const contour = "border border-border bg-card text-foreground hover:bg-secondary";
+
+function Geste({ ligne, ouvrir }: { ligne: LigneAFaire; ouvrir: ((p: Panneau) => void) | null }) {
+  const cls = cn(bouton, ligne.enAvant ? plein : contour);
+  if (ligne.panneau && ouvrir) {
+    return <button type="button" className={cls} onClick={() => ouvrir(ligne.panneau)}>{ligne.geste.libelle}</button>;
   }
-  if ((lot.attenteMax ?? 0) >= 30) {
-    return <span className="inline-flex shrink-0 items-center rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-semibold text-warning">Attend depuis {lot.attenteMax} j</span>;
-  }
-  if (lot.attenteMax === 0) {
-    return <span className="inline-flex shrink-0 items-center rounded-full bg-accent px-2 py-0.5 text-[11px] font-semibold text-accent-foreground">Aujourd&apos;hui</span>;
-  }
-  return null;
+  return <Link href={ligne.geste.href} className={cls}>{ligne.geste.libelle}</Link>;
 }
 
-function Ligne({ l, enAvant }: { l: LigneLot; enAvant: boolean }) {
+function Ligne({ ligne, ouvrir, ancre }: { ligne: LigneAFaire; ouvrir: ((p: Panneau) => void) | null; ancre: boolean }) {
+  const [deplie, setDeplie] = React.useState(false);
+  const idDetail = `detail-${ligne.key}`;
+  const plusieurs = ligne.sousLignes.length > 0;
   return (
-    <li className="flex flex-col gap-1.5 border-t border-border py-2 first:border-t-0 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-      <div className="min-w-0 space-y-0.5">
-        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-          {l.ref && <span className="font-mono text-xs text-muted-foreground">{l.ref}</span>}
-          <span className="min-w-0 break-words text-sm">{l.libelle}</span>
-        </div>
-        {l.detail && <p className="break-words text-xs text-muted-foreground">{l.detail}</p>}
-      </div>
-      <div className="flex shrink-0 flex-wrap items-center gap-2">
-        {l.montant !== null && l.montant > 0 && <span className="whitespace-nowrap text-sm font-semibold tabular-nums">{montantDzd(l.montant)}</span>}
-        {l.retard !== null ? (
-          <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-semibold text-destructive">{l.retard} j de retard</span>
-        ) : l.attente !== null && l.attente >= 30 ? (
-          <span className="rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-semibold text-warning">{l.attente} j</span>
-        ) : l.attente ? (
-          <span className="text-xs tabular-nums text-muted-foreground">{l.attente} j</span>
-        ) : null}
-        <Link
-          href={l.geste.href}
-          className={cn(
-            "inline-flex h-9 items-center rounded-[var(--radius)] px-3 text-xs font-medium transition-colors focus-ring sm:h-8",
-            enAvant ? "bg-primary text-primary-foreground hover:bg-primary/90" : "border border-border bg-card hover:bg-secondary",
+    <li id={ancre ? ANCRE_CONGES : undefined} className="scroll-mt-20 border-t border-border px-4 py-3.5 sm:px-5">
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:gap-4">
+        <div className="min-w-0 flex-1">
+          <p className="break-words text-[15px] font-semibold leading-snug">{ligne.titre}</p>
+          {ligne.sousTitre && <p className="mt-0.5 truncate text-[13px] text-muted-foreground" title={ligne.sousTitre}>{ligne.sousTitre}</p>}
+          {plusieurs && (
+            <button
+              type="button" onClick={() => setDeplie((d) => !d)} aria-expanded={deplie} aria-controls={idDetail}
+              className="mt-1 inline-flex min-h-8 items-center text-[13px] font-medium text-primary hover:underline focus-ring"
+            >
+              {deplie ? "Masquer le détail" : `Voir les ${ligne.n}`}
+            </button>
           )}
-        >
-          {l.geste.libelle}
-        </Link>
+          {!plusieurs && ligne.suite && (
+            <Link href={ligne.suite.href} className="mt-1 inline-flex min-h-8 items-center text-[13px] font-medium text-primary hover:underline">{ligne.suite.libelle}</Link>
+          )}
+        </div>
+        <Geste ligne={ligne} ouvrir={ouvrir} />
       </div>
+      {plusieurs && deplie && (
+        <ul id={idDetail} className="mt-2 border-l-2 border-border pl-3">
+          {ligne.sousLignes.map((s) => (
+            <li key={s.key} className="flex flex-col gap-1.5 py-2 sm:flex-row sm:items-center sm:gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="break-words text-sm">{s.titre}</p>
+                {s.sousTitre && <p className="truncate text-xs text-muted-foreground" title={s.sousTitre}>{s.sousTitre}</p>}
+              </div>
+              <Link href={s.geste.href} className={cn(bouton, contour, "h-10 px-3 text-xs sm:h-9")}>{s.geste.libelle}</Link>
+            </li>
+          ))}
+          {ligne.suite && (
+            <li className="py-2">
+              <Link href={ligne.suite.href} className="text-[13px] font-medium text-primary hover:underline">{ligne.suite.libelle}</Link>
+            </li>
+          )}
+        </ul>
+      )}
     </li>
   );
 }
 
-function LotCarte({ lot, ouvert, basculer }: { lot: Lot; ouvert: boolean; basculer: () => void }) {
-  const plusieurs = lot.n > 1;
-  const idLignes = `lot-${lot.id}-lignes`;
-  const familles = lot.familles.length > 1 ? lot.familles : [];
+function Groupe({ g, ouvrir, ancre }: { g: GroupeAFaire; ouvrir: ((p: Panneau) => void) | null; ancre: string | null }) {
+  const [deplie, setDeplie] = React.useState(!g.replie);
+  if (g.lignes.length === 0) return null;
+  const retard = g.cle === "retard";
   return (
-    <article className="border-t border-border first:border-t-0">
-      <div className="grid grid-cols-[40px_minmax(0,1fr)] gap-x-3 gap-y-1 px-4 py-3 sm:grid-cols-[44px_minmax(0,1fr)_auto]">
-        <div className={cn("row-span-2 grid h-10 w-10 place-items-center self-start rounded-xl text-base font-bold tabular-nums sm:h-11 sm:w-11", TON_PILE[lot.ton])} aria-hidden>
-          {lot.n || "…"}
-        </div>
-        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          <h3 className="min-w-0 break-words text-[15px] font-semibold leading-snug">{lot.titre}</h3>
-          <Pourquoi lot={lot} />
-          <span className="rounded-md border border-border px-1.5 text-[11px] font-medium text-muted-foreground">{lot.chapeau}</span>
-        </div>
-        <p className="col-start-2 break-words text-xs text-muted-foreground">
-          {lot.sousTitre}
-          {plusieurs && lot.attenteMax ? <> · le plus ancien : <b className="font-semibold text-foreground">{lot.attenteMax} j</b></> : null}
-        </p>
-        <div className="col-span-2 flex flex-wrap items-center gap-2 pt-1 sm:col-span-1 sm:col-start-3 sm:row-span-2 sm:row-start-1 sm:justify-end sm:pt-0">
-          {lot.montant > 0 && <span className="whitespace-nowrap text-sm font-bold tabular-nums">{montantDzd(lot.montant)}</span>}
-          <Link
-            href={lot.geste.href}
-            className="inline-flex h-9 items-center gap-1 rounded-[var(--radius)] bg-primary px-3 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-ring sm:h-8"
-          >
-            {lot.geste.libelle} <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-          </Link>
-          {plusieurs && (
-            <button
-              type="button"
-              onClick={basculer}
-              aria-expanded={ouvert}
-              aria-controls={idLignes}
-              className="inline-flex h-9 items-center gap-1 rounded-[var(--radius)] px-2 text-xs font-medium text-muted-foreground hover:bg-secondary hover:text-foreground focus-ring sm:h-8"
-            >
-              {ouvert ? <>Replier <ChevronUp className="h-3.5 w-3.5" aria-hidden /></> : <>Tout voir ({lot.n}) <ChevronDown className="h-3.5 w-3.5" aria-hidden /></>}
-            </button>
-          )}
-        </div>
-      </div>
-      {plusieurs && ouvert && (
-        <div id={idLignes} className="px-4 pb-3 sm:pl-[72px]">
-          {familles.length > 0 ? (
-            familles.map((f) => {
-              const lignes = lot.lignes.filter((l) => (l.famille ?? "Autres") === f.famille);
-              return (
-                <div key={f.famille} className="border-t border-dashed border-border pt-2 first:border-t-0 first:pt-0">
-                  <p className="flex flex-wrap gap-x-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-                    <span>{f.famille} · {f.n}</span>
-                    {f.montant > 0 && <span className="tabular-nums">{montantDzd(f.montant)}</span>}
-                    {f.enRetard > 0 && <span className="text-destructive">{f.enRetard} en retard</span>}
-                  </p>
-                  <ul>{lignes.map((l) => <Ligne key={l.key} l={l} enAvant={l.retard !== null} />)}</ul>
-                </div>
-              );
-            })
-          ) : (
-            <ul>{lot.lignes.map((l) => <Ligne key={l.key} l={l} enAvant={l.retard !== null} />)}</ul>
-          )}
-          {lot.suite && (
-            <Link href={lot.suite.href} className="mt-1 inline-flex items-center gap-1 text-xs text-primary hover:underline">
-              {lot.suite.libelle} <ArrowRight className="h-3 w-3" aria-hidden />
-            </Link>
-          )}
+    <>
+      <h3 className={cn(
+        "border-t border-border px-4 py-2 text-xs font-semibold uppercase tracking-wide sm:px-5",
+        retard ? "bg-destructive/10 text-destructive" : "bg-secondary/60 text-muted-foreground",
+      )}>
+        {g.libelle}{g.n > 0 ? ` · ${g.n}` : ""}
+      </h3>
+      {deplie ? (
+        <ul>{g.lignes.map((l) => <Ligne key={l.key} ligne={l} ouvrir={ouvrir} ancre={l.key === ancre} />)}</ul>
+      ) : (
+        <div className="border-t border-border px-4 py-3 sm:px-5">
+          <button type="button" onClick={() => setDeplie(true)} className="inline-flex min-h-10 items-center text-sm font-semibold text-primary hover:underline focus-ring">
+            {libelleDeplier(g.n)}
+          </button>
         </div>
       )}
-    </article>
+    </>
   );
 }
 
-const TON_URGENCE: Record<NiveauUrgence, string> = {
-  retard: "border-destructive bg-destructive/10 text-destructive",
-  urgent: "border-warning bg-warning/10 text-warning",
-  normal: "border-primary bg-primary/10 text-primary",
-};
+export function FileAFaire({ aFaire, conges, maintenant, currentUserId }: {
+  aFaire: AFaire;
+  /** Les congés à signer, tels que le centre les a lus — le panneau de décision les reprend. */
+  conges: PendingLeave[];
+  maintenant: string;
+  currentUserId: string;
+}) {
+  const [panneau, setPanneau] = React.useState<Panneau>(null);
+  const congeOuvert = panneau?.type === "conge" ? conges.find((c) => c.id === panneau.id) ?? null : null;
+  const visibles = panneau?.type === "conges" ? conges : congeOuvert ? [congeOuvert] : [];
+  const lignes = aFaire.groupes.flatMap((g) => g.lignes);
+  // L'ancre `#conges-a-signer` se pose sur la première ligne de congé (une ancre qu'aucun élément ne porte ferait arriver en haut de page).
+  const ancre = lignes.find((l) => l.panneau)?.key ?? null;
 
-/**
- * LA BARRE DE LA FILE (recette du 23/11/2026 — « un filtre par urgence ou par date, le plus récent ») :
- * l'ordre (urgence / plus récent d'abord), le niveau d'urgence avec ses compteurs, et le domaine quand il y
- * en a plusieurs. Chaque visite repart de « Plus urgent », sans filtre : ce qui presse se voit d'abord.
- */
-export function FileAFaire({ lots }: { lots: Lot[] }) {
-  const chapeaux = React.useMemo(() => chapeauxDe(lots), [lots]);
-  const compteurs = React.useMemo(() => compterUrgences(lots), [lots]);
-  const [chapeau, setChapeau] = React.useState<string | null>(null);
-  const [tri, setTri] = React.useState<TriFile>("urgence");
-  const [urgence, setUrgence] = React.useState<NiveauUrgence | null>(null);
+  // Une notification « Congé à signer » arrive avec `#conges-a-signer` : le panneau des congés s'ouvre de lui-même.
+  React.useEffect(() => {
+    const lire = () => { if (window.location.hash === `#${ANCRE_CONGES}` && conges.length > 0) setPanneau({ type: "conges" }); };
+    lire();
+    window.addEventListener("hashchange", lire);
+    return () => window.removeEventListener("hashchange", lire);
+  }, [conges.length]);
+  // Décidé (le serveur a rafraîchi la liste) : le panneau d'un congé qui n'attend plus se referme.
+  React.useEffect(() => {
+    if ((panneau?.type === "conge" && !congeOuvert) || (panneau?.type === "conges" && conges.length === 0)) setPanneau(null);
+  }, [panneau, congeOuvert, conges.length]);
 
-  const visibles = React.useMemo(() => affinerFile(lots, { urgence, chapeau, tri }), [lots, urgence, chapeau, tri]);
-  // Le lot en tête s'ouvre de lui-même : c'est par lui qu'on commence — et de même après un changement de filtre.
-  const [ouverts, setOuverts] = React.useState<Record<string, boolean>>({});
-  const premier = visibles[0]?.id ?? null;
-  const estOuvert = (id: string) => ouverts[id] ?? id === premier;
-  const total = lots.reduce((s, l) => s + l.n, 0);
-  const filtre = urgence !== null || chapeau !== null;
+  const fermer = React.useCallback(() => setPanneau(null), []);
+  const ouvrir = conges.length > 0 ? setPanneau : null;
 
   return (
-    <section aria-labelledby="file-titre" className="min-w-0 rounded-xl border border-border bg-card shadow-sm">
-      <div className="space-y-2.5 border-b border-border px-4 py-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 id="file-titre" className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            À faire maintenant {total > 0 && <span className="tabular-nums">({total})</span>}
-          </h2>
-          {total > 0 && (
-            <div className="inline-flex rounded-lg border border-border bg-secondary/40 p-0.5" role="group" aria-label="Ordre de la file">
-              {([["urgence", "Plus urgent"], ["recent", "Plus récent"]] as const).map(([cle, libelle]) => (
-                <button
-                  key={cle}
-                  type="button"
-                  aria-pressed={tri === cle}
-                  onClick={() => setTri(cle)}
-                  className={cn(
-                    "inline-flex h-8 items-center rounded-md px-3 text-xs font-medium focus-ring",
-                    tri === cle ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {libelle}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-        {total > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrer par urgence">
-              <button
-                type="button"
-                aria-pressed={urgence === null}
-                onClick={() => setUrgence(null)}
-                className={cn(
-                  "inline-flex h-8 items-center gap-1 rounded-full border px-3 text-xs font-medium focus-ring",
-                  urgence === null ? "border-primary bg-primary/10 text-primary" : "border-border bg-card hover:bg-secondary",
-                )}
-              >
-                Tout <span className="tabular-nums text-muted-foreground">{total}</span>
-              </button>
-              {URGENCES.map((u) => (
-                <button
-                  key={u.cle}
-                  type="button"
-                  aria-pressed={urgence === u.cle}
-                  disabled={compteurs[u.cle] === 0 && urgence !== u.cle}
-                  onClick={() => setUrgence(urgence === u.cle ? null : u.cle)}
-                  className={cn(
-                    "inline-flex h-8 items-center gap-1 rounded-full border px-3 text-xs font-medium focus-ring disabled:opacity-40",
-                    urgence === u.cle ? TON_URGENCE[u.cle] : "border-border bg-card hover:bg-secondary",
-                  )}
-                >
-                  {u.cle !== "normal" && <span aria-hidden className={cn("h-1.5 w-1.5 rounded-full", u.cle === "retard" ? "bg-destructive" : "bg-warning")} />}
-                  {u.libelle} <span className="tabular-nums text-muted-foreground">{compteurs[u.cle]}</span>
-                </button>
-              ))}
-            </div>
-            {chapeaux.length > 1 && (
-              <select
-                value={chapeau ?? ""}
-                onChange={(e) => setChapeau(e.target.value || null)}
-                aria-label="Filtrer par domaine"
-                className="h-8 min-w-0 max-w-full rounded-full border border-border bg-card px-3 text-xs font-medium sm:ml-auto"
-              >
-                <option value="">Tous les domaines</option>
-                {chapeaux.map((c) => <option key={c.chapeau} value={c.chapeau}>{c.chapeau} ({c.n})</option>)}
-              </select>
-            )}
-          </div>
-        )}
+    <section aria-labelledby="a-faire-titre" className="min-w-0 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+      <div className="flex flex-wrap items-baseline justify-between gap-2 px-4 pb-3 pt-4 sm:px-5">
+        <h2 id="a-faire-titre" className="text-[17px] font-semibold">
+          À faire{aFaire.total > 0 && <span className="font-medium text-muted-foreground"> · {aFaire.total}</span>}
+        </h2>
+        {lignes.length > 0 && <span className="text-[13px] text-muted-foreground">Le plus urgent en premier</span>}
       </div>
-      {visibles.length === 0 ? (
-        <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-          {filtre ? (
-            <>
-              <p className="font-semibold text-foreground">Rien ne correspond à ce filtre.</p>
-              <button type="button" onClick={() => { setUrgence(null); setChapeau(null); }} className="mt-2 text-xs font-medium text-primary hover:underline">
-                Tout afficher ({total})
-              </button>
-            </>
-          ) : (
-            <>
-              <p className="text-base font-semibold text-success">Rien ne vous attend ici.</p>
-              Aucun élément n&apos;attend un geste de votre part.
-            </>
-          )}
+      {lignes.length === 0 ? (
+        <div className="border-t border-border px-4 py-8 text-center text-sm text-muted-foreground">
+          <p className="text-base font-semibold text-success">Rien ne vous attend ici.</p>
+          Aucun élément n&apos;attend un geste de votre part.
         </div>
       ) : (
-        visibles.map((lot) => (
-          <LotCarte key={lot.id} lot={lot} ouvert={estOuvert(lot.id)} basculer={() => setOuverts((o) => ({ ...o, [lot.id]: !estOuvert(lot.id) }))} />
-        ))
+        aFaire.groupes.map((g) => <Groupe key={g.cle} g={g} ouvrir={ouvrir} ancre={ancre} />)
       )}
-      <p className="border-t border-border px-4 py-2.5 text-xs text-muted-foreground">
-        {tri === "recent"
-          ? "Plus récent d'abord : ce qui vient d'arriver en tête."
-          : "Plus urgent d'abord : retard, puis échéance proche, montant et ancienneté."}{" "}
-        Chaque geste ouvre l&apos;écran où il se fait.
-      </p>
+      {/* « Missions terrain » n'est plus un onglet : ses invitations et ordres à valider sont des lignes de la file ; la page reste à un clic. */}
+      <div className="border-t border-border px-4 py-3 sm:px-5">
+        <Link href={CHEMIN_MES_MISSIONS} className="text-[13px] font-medium text-primary hover:underline">Missions terrain</Link>
+      </div>
+
+      <Sheet
+        open={visibles.length > 0}
+        onClose={fermer}
+        width="xl"
+        title={congeOuvert ? `Congé de ${congeOuvert.employee}` : `Congés à signer (${conges.length})`}
+        description="Circuit responsable (N+1) → ressources humaines → direction générale. Approuver fait monter d'une marche ; refuser arrête le circuit."
+      >
+        <LeaveApprovals leaves={visibles} maintenant={maintenant} currentUserId={currentUserId} />
+      </Sheet>
     </section>
   );
 }

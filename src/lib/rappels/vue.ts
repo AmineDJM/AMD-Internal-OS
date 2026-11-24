@@ -12,7 +12,8 @@
  *   · Reçus    — échéances et relances envoyées par la plateforme (30 jours), non lues d'abord ;
  *   · Terminés — personnels terminés ou annulés, rappels de l'assistant arrêtés, le plus récent d'abord.
  *
- * Module PUR (aucun import) : la page serveur le nourrit, le composant client le relit.
+ * Module PUR (aucun import) : la page serveur le nourrit, les composants clients le relisent (la page
+ * complète `/mon-espace/rappels` et l'encart d'« Aujourd'hui »).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
@@ -73,4 +74,45 @@ export function ongletInitial(c: Record<OngletRappels, RappelVue[]>): OngletRapp
 /** Le compte affiché dans l'en-tête du bloc : ce qui reste à traiter (à venir + échus). */
 export function rappelsActifs(c: Record<OngletRappels, RappelVue[]>): number {
   return c.a_venir.length + c.echus.length;
+}
+
+// ───────────────────────────── L'encart « Mes rappels » d'Aujourd'hui ─────────────────────────────
+
+/**
+ * L'ENCART DE « AUJOURD'HUI » (maquette validée, 24/11/2026) : une seule liste, sans onglets — d'abord ce
+ * qui est passé et non traité (le plus ancien d'abord), puis ce qui vient (le plus proche d'abord). Les
+ * reçus et les terminés restent dans « Tous mes rappels ». `epingle` : la clé du rappel qu'on vient
+ * d'ajouter — il se montre même au-delà de `limite` (un rappel créé qu'on ne voit pas semble perdu).
+ */
+export function rappelsDuJour(
+  rappels: readonly RappelVue[], maintenant: number, limite: number, epingle?: string | null,
+): { lignes: { rappel: RappelVue; passe: boolean }[]; caches: number } {
+  const c = classerRappels(rappels, maintenant);
+  const tous = [...c.echus.map((r) => ({ rappel: r, passe: true })), ...c.a_venir.map((r) => ({ rappel: r, passe: false }))];
+  const lignes = tous.slice(0, limite);
+  const nouveau = epingle ? tous.find((x) => x.rappel.key === epingle) : undefined;
+  if (nouveau && !lignes.includes(nouveau)) lignes.push(nouveau);
+  return { lignes, caches: tous.length - lignes.length };
+}
+
+const ALGER_MS = 3_600_000; // Alger : UTC+1, sans heure d'été.
+const JOUR_MS = 86_400_000;
+const JOURS = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+const MOIS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+
+/** « Hier, 9 h », « Aujourd'hui, 14 h 30 », « Jeudi, 10 h », « 12 déc., 9 h » — à l'heure d'Alger. */
+export function quandLisible(iso: string, maintenant: number): string {
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return "";
+  const d = new Date(t + ALGER_MS);
+  const m = d.getUTCMinutes();
+  const heure = m ? `${d.getUTCHours()} h ${String(m).padStart(2, "0")}` : `${d.getUTCHours()} h`;
+  const ecart = Math.floor((t + ALGER_MS) / JOUR_MS) - Math.floor((maintenant + ALGER_MS) / JOUR_MS);
+  const memeAnnee = d.getUTCFullYear() === new Date(maintenant + ALGER_MS).getUTCFullYear();
+  const jour = ecart === 0 ? "Aujourd'hui"
+    : ecart === -1 ? "Hier"
+      : ecart === 1 ? "Demain"
+        : ecart > 1 && ecart < 7 ? JOURS[d.getUTCDay()]
+          : `${d.getUTCDate()} ${MOIS[d.getUTCMonth()]}${memeAnnee ? "" : ` ${d.getUTCFullYear()}`}`;
+  return `${jour}, ${heure}`;
 }

@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Loader2, X } from "lucide-react";
 import { cancelAdvance } from "@/modules/rh/actions";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -19,8 +20,10 @@ export interface AdvanceItem {
 
 function CancelButton({ id }: { id: string }) {
   const [saving, setSaving] = React.useState(false);
+  // L'action revalide « Mon espace » ; la liste vit désormais dans Mon dossier RH : on relit l'écran où l'on est.
+  const { rafraichir } = useRafraichir();
   return (
-    <form action={async (fd) => { setSaving(true); await cancelAdvance(fd); setSaving(false); }} className="inline">
+    <form action={async (fd) => { setSaving(true); await cancelAdvance(fd); setSaving(false); rafraichir(); }} className="inline">
       <input type="hidden" name="id" value={id} />
       <button
         type="submit"

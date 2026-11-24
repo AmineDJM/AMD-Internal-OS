@@ -7,26 +7,45 @@ import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { actionFailureMessage } from "@/lib/action-outcome";
 
 /**
- * AJOUT RAPIDE D'UN RAPPEL — une ligne, un moment, « Ajouter ». La MÊME action que « Me rappeler »
- * (`createReminder`) : un rappel n'a qu'un circuit. Les moments se calculent à l'heure LOCALE du
- * navigateur, au clic (jamais à l'affichage : une page ouverte depuis le matin proposerait « dans 1 h »
- * d'il y a trois heures).
+ * AJOUT RAPIDE D'UN RAPPEL — « Me rappeler de… », « Quand », « Ajouter ». La MÊME action que « Me rappeler »
+ * (`createReminder`) : un rappel n'a qu'un circuit. Les moments se calculent à l'heure LOCALE du navigateur,
+ * au clic (jamais à l'affichage : une page ouverte depuis le matin proposerait « dans 1 h » d'il y a trois heures).
+ *
+ * « CE SOIR » APRÈS 18 H (maquette validée, 24/11/2026) : le rappel partait déjà pour le lendemain soir, mais le
+ * choix disait encore « Ce soir ». Le libellé suit l'heure — relue à l'ouverture de la liste des choix.
  */
-const MOMENTS: { cle: string; label: string; at: (n: Date) => Date }[] = [
-  { cle: "1h", label: "Dans 1 heure", at: (n) => new Date(n.getTime() + 3_600_000) },
-  { cle: "soir", label: "Ce soir (18 h)", at: (n) => { const d = new Date(n); d.setHours(18, 0, 0, 0); return d; } },
-  { cle: "demain", label: "Demain (9 h)", at: (n) => { const d = new Date(n); d.setDate(d.getDate() + 1); d.setHours(9, 0, 0, 0); return d; } },
-  { cle: "3j", label: "Dans 3 jours", at: (n) => { const d = new Date(n); d.setDate(d.getDate() + 3); d.setHours(9, 0, 0, 0); return d; } },
+const SOIR = 18;
+const MOMENTS: { cle: string; label: (apresSoir: boolean) => string; at: (n: Date) => Date }[] = [
+  { cle: "demain", label: () => "Demain à 9 h", at: (n) => { const d = new Date(n); d.setDate(d.getDate() + 1); d.setHours(9, 0, 0, 0); return d; } },
+  { cle: "1h", label: () => "Dans 1 heure", at: (n) => new Date(n.getTime() + 3_600_000) },
+  {
+    cle: "soir",
+    label: (apresSoir) => (apresSoir ? "Demain soir à 18 h" : "Ce soir à 18 h"),
+    at: (n) => { const d = new Date(n); d.setHours(SOIR, 0, 0, 0); if (d.getTime() <= n.getTime() + 60_000) d.setDate(d.getDate() + 1); return d; },
+  },
+  { cle: "3j", label: () => "Dans 3 jours", at: (n) => { const d = new Date(n); d.setDate(d.getDate() + 3); d.setHours(9, 0, 0, 0); return d; } },
 ];
 
-export function RappelRapide() {
+export interface RappelCree {
+  id: string;
+  titre: string;
+  quand: string;
+}
+
+export function RappelRapide({ onCree }: { onCree?: (r: RappelCree) => void } = {}) {
   const { rafraichir } = useRafraichir();
   const [titre, setTitre] = React.useState("");
   const [moment, setMoment] = React.useState("demain");
-  // « Date et heure précises… » (recette du 23/11/2026) : le jour et l'heure exacts, à l'heure du navigateur.
+  // « Choisir une date… » (recette du 23/11/2026) : le jour et l'heure exacts, à l'heure du navigateur.
   const [precis, setPrecis] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [msg, setMsg] = React.useState<{ ok: boolean; t: string } | null>(null);
+  // Lu après le montage (le serveur ne connaît pas l'heure du navigateur), puis à chaque ouverture des choix.
+  const [apresSoir, setApresSoir] = React.useState(false);
+  const relireHeure = React.useCallback(() => setApresSoir(new Date().getHours() >= SOIR), []);
+  React.useEffect(relireHeure, [relireHeure]);
+  const idTexte = React.useId();
+  const idQuand = React.useId();
 
   async function envoyer(e: React.FormEvent) {
     e.preventDefault();
@@ -41,8 +60,6 @@ export function RappelRapide() {
       if (at.getTime() <= now.getTime()) { setMsg({ ok: false, t: "Ce moment est déjà passé : choisissez une date à venir." }); return; }
     } else {
       at = (MOMENTS.find((m) => m.cle === moment) ?? MOMENTS[0]).at(now);
-      // « Ce soir » passé 18 h : demain soir, plutôt qu'un rappel déjà échu que le serveur refuserait.
-      if (at.getTime() <= now.getTime() + 60_000) at = new Date(at.getTime() + 86_400_000);
     }
     setBusy(true); setMsg(null);
     const fd = new FormData();
@@ -54,6 +71,7 @@ export function RappelRapide() {
       if (r.ok) {
         setTitre(""); setPrecis("");
         setMsg({ ok: true, t: `Rappel ajouté pour le ${at.toLocaleString("fr-FR", { dateStyle: "medium", timeStyle: "short" })}.` });
+        if (r.id) onCree?.({ id: r.id, titre: t, quand: at.toISOString() });
         rafraichir();
       }
       else setMsg({ ok: false, t: r.error ?? "Le rappel n'a pas pu être créé." });
@@ -65,42 +83,48 @@ export function RappelRapide() {
   }
 
   return (
-    <form onSubmit={envoyer} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+    <form onSubmit={envoyer} className="flex flex-col gap-2">
+      <label htmlFor={idTexte} className="text-xs font-semibold text-muted-foreground">Me rappeler de…</label>
       <input
+        id={idTexte}
         type="text"
         value={titre}
         onChange={(e) => setTitre(e.target.value)}
-        placeholder="Me rappeler de…"
-        aria-label="Texte du rappel"
+        placeholder="Rappeler le CHU de Blida"
         maxLength={200}
-        className="col-span-2 h-9 min-w-0 rounded-md border border-border bg-background px-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+        className="h-10 min-w-0 rounded-[var(--radius)] border border-border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
       />
-      <select
-        value={moment}
-        onChange={(e) => setMoment(e.target.value)}
-        aria-label="Quand"
-        className="h-9 min-w-0 rounded-md border border-border bg-background px-2 text-sm"
-      >
-        {MOMENTS.map((m) => <option key={m.cle} value={m.cle}>{m.label}</option>)}
-        <option value="precis">Date et heure précises…</option>
-      </select>
-      <button
-        type="submit"
-        disabled={busy}
-        className="inline-flex h-9 items-center justify-center gap-1 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-      >
-        {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />} Ajouter
-      </button>
+      <div className="flex gap-2">
+        <label htmlFor={idQuand} className="sr-only">Quand</label>
+        <select
+          id={idQuand}
+          value={moment}
+          onChange={(e) => setMoment(e.target.value)}
+          onFocus={relireHeure}
+          onPointerDown={relireHeure}
+          className="h-10 min-w-0 flex-1 rounded-[var(--radius)] border border-border bg-background px-2 text-sm"
+        >
+          {MOMENTS.map((m) => <option key={m.cle} value={m.cle}>{m.label(apresSoir)}</option>)}
+          <option value="precis">Choisir une date…</option>
+        </select>
+        <button
+          type="submit"
+          disabled={busy}
+          className="inline-flex h-10 shrink-0 items-center justify-center gap-1 rounded-[var(--radius)] bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 focus-ring disabled:opacity-50"
+        >
+          {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />} Ajouter
+        </button>
+      </div>
       {moment === "precis" && (
         <input
           type="datetime-local"
           value={precis}
           onChange={(e) => setPrecis(e.target.value)}
           aria-label="Jour et heure du rappel"
-          className="col-span-2 h-9 min-w-0 rounded-md border border-border bg-background px-2 text-sm"
+          className="h-10 min-w-0 rounded-[var(--radius)] border border-border bg-background px-2 text-sm"
         />
       )}
-      {msg && <p role="status" className={`col-span-2 text-xs ${msg.ok ? "text-success" : "text-destructive"}`}>{msg.t}</p>}
+      {msg && <p role="status" className={`text-xs ${msg.ok ? "text-success" : "text-destructive"}`}>{msg.t}</p>}
     </form>
   );
 }

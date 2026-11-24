@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  calculerSemaine, composerEquipe, composerRaccourcis, composerTuiles, jourDeReferenceDeLaSemaine, montantDzd,
-  natureDe, phraseJournee, regrouperFile, rolesDe, totaux, type ElementFile, type MembreLu,
-} from "./aujourdhui";
+import { composerEquipe, montantDzd, natureDe, regrouperFile, totaux, type ElementFile, type MembreLu } from "./aujourdhui";
 
 /**
  * « AUJOURD'HUI » — les règles pures de l'onglet (Direction, 14/10/2026).
@@ -124,23 +121,8 @@ describe("« À faire maintenant » — la file groupée par lot (cas Super Admi
     expect(val.geste.href).toBe("/validations?focus=s1#val-s1");
   });
 
-  it("la phrase « Votre journée » se calcule sur la file", () => {
+  it("les totaux de la file : 26 objets, dont 6 en retard", () => {
     expect(totaux(lots)).toEqual({ ouverts: 26, enRetard: 6 });
-    const phrase = phraseJournee(lots).map((f) => f.t).join("");
-    expect(phrase).toBe(`26 éléments attendent un geste de votre part, dont 6 en retard. Commencez par 12 paiements à régler — 2${NBSP}022${NBSP}550${NBSP}DZD, dont 5 en retard (jusqu'à 28 j de retard).`);
-    expect(phraseJournee([]).map((f) => f.t).join("")).toBe("Rien ne vous attend pour l'instant : votre file est à jour.");
-  });
-
-  it("les tuiles du Super Admin : à traiter, en retard, paiements en attente, plus longue attente", () => {
-    const t = composerTuiles(["SUPER_ADMIN"], lots, {});
-    expect(t.map((x) => [x.k, x.v])).toEqual([
-      ["À traiter", "26"],
-      ["En retard", "6"],
-      ["Paiements en attente", `2${NBSP}022${NBSP}550${NBSP}DZD`],
-      ["Plus longue attente", `76${NBSP}j`],
-    ]);
-    expect(t[1].ton).toBe("late");
-    expect(t[3].c).toBe("REQ-2026-027 · Puce téléphonique");
   });
 });
 
@@ -178,78 +160,6 @@ describe("la nature d'une ligne et les coupes qui se disent", () => {
   it("dû aujourd'hui n'est pas en retard ; le retard commence le lendemain de l'échéance", () => {
     const [lot] = regrouperFile([base({ key: "t", objet: "TASK:1", title: "Tâche", kind: "task", deadline: new Date(NOW.getTime() - 3_600_000).toISOString() })], NOW);
     expect(lot.enRetard).toBe(0);
-  });
-});
-
-describe("Ma semaine — dimanche → jeudi, sur les horodatages existants", () => {
-  const semaine = ["2026-10-11", "2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15"];
-  const jours = [
-    ...Array(4).fill("2026-10-11"), ...Array(3).fill("2026-10-12"), ...Array(2).fill("2026-10-13"),
-    "2026-10-15", // demain : jamais compté (une horloge décalée ne fabrique pas un geste futur)
-    "2026-10-08", // la semaine dernière : hors barres
-  ];
-
-  it("fait / reste, barres par jour, aujourd'hui et le futur distingués", () => {
-    const s = calculerSemaine({ semaine, aujourdhui: "2026-10-14", joursDesGestes: jours, reste: 26, semainePrecedente: 5, mois: 23 });
-    expect(s.barres.map((b) => [b.label, b.n, b.etat])).toEqual([
-      ["dim.", 4, "passe"], ["lun.", 3, "passe"], ["mar.", 2, "passe"], ["mer.", 0, "aujourdhui"], ["jeu.", 0, "futur"],
-    ]);
-    expect(s.fait).toBe(9);
-    expect(s.pct).toBe(Math.round((9 / 35) * 100));
-    expect(s.reconnaissance?.map((f) => f.t).join("")).toBe("9 gestes depuis dimanche, plus que toute la semaine dernière (5). Journée la plus remplie : dimanche (4).");
-  });
-
-  it("sans geste cette semaine, pas de reconnaissance inventée — le mois seulement s'il y en a", () => {
-    expect(calculerSemaine({ semaine, aujourdhui: "2026-10-14", joursDesGestes: [], reste: 3, semainePrecedente: 0, mois: 0 }).reconnaissance).toBeNull();
-    expect(calculerSemaine({ semaine, aujourdhui: "2026-10-14", joursDesGestes: [], reste: 3, semainePrecedente: 0, mois: 7 }).reconnaissance?.map((f) => f.t).join(""))
-      .toBe("7 gestes depuis le début du mois.");
-    expect(calculerSemaine({ semaine, aujourdhui: "2026-10-14", joursDesGestes: [], reste: 0, semainePrecedente: 0, mois: 0 }).pct).toBe(100);
-  });
-
-  it("un vendredi ou un samedi, « Ma semaine » est celle qui vient de finir", () => {
-    expect(jourDeReferenceDeLaSemaine("2026-10-14")).toBe("2026-10-14");
-    expect(jourDeReferenceDeLaSemaine("2026-10-16")).toBe("2026-10-15");
-    expect(jourDeReferenceDeLaSemaine("2026-10-17")).toBe("2026-10-15");
-  });
-});
-
-describe("la composition par métier", () => {
-  const lots = regrouperFile(fileSuperAdmin(), NOW);
-
-  it("les rôles réels, principal puis secondaire, sans doublon", () => {
-    expect(rolesDe("FINANCE_BUDGET_MANAGER", "MEDICAL_INFO_PHARMACIST")).toEqual(["FINANCE_BUDGET_MANAGER", "MEDICAL_INFO_PHARMACIST"]);
-    expect(rolesDe("VIEWER", "VIEWER")).toEqual(["VIEWER"]);
-    expect(rolesDe("VIEWER", null)).toEqual(["VIEWER"]);
-  });
-
-  it("Finances : à régler, en retard, réglés cette semaine (lu sur paidDate), plus ancien", () => {
-    const t = composerTuiles(["FINANCE_BUDGET_MANAGER"], lots, { reglesSemaine: { n: 3, montant: 180_000 } });
-    expect(t.map((x) => x.cle)).toEqual(["paiements_montant", "paiements_retard", "regles_semaine", "plus_longue_attente"]);
-    expect(t[1]).toMatchObject({ v: "5", ton: "late" });
-    expect(t[2]).toMatchObject({ v: "3", c: `180${NBSP}000${NBSP}DZD` });
-  });
-
-  it("un chiffre sans donnée n'a pas de tuile : il est remplacé par une tuile commune réelle", () => {
-    const sans = composerTuiles(["MEDICAL_DELEGATE"], [], {});
-    expect(sans.map((x) => x.cle)).toEqual(["a_traiter", "en_retard", "plus_longue_attente"]);
-    const avec = composerTuiles(["MEDICAL_DELEGATE"], [], { visites30: 38, visitesPlanifiees: 4, medecins: 52, crManquants: 2 });
-    expect(avec.map((x) => [x.k, x.v])).toEqual([["Visites planifiées", "4"], ["Visites réalisées", "38"], ["Médecins au panel", "52"], ["Comptes rendus à écrire", "2"]]);
-  });
-
-  it("un compte à deux rôles voit l'union, sans doublon, la plus pressante d'abord", () => {
-    const t = composerTuiles(["FINANCE_BUDGET_MANAGER", "MEDICAL_INFO_PHARMACIST"], lots, { reglesSemaine: { n: 0, montant: 0 }, declValidees30: 18 });
-    expect(t).toHaveLength(4);
-    expect(new Set(t.map((x) => x.cle)).size).toBe(4);
-    expect(t[0].cle).toBe("paiements_retard");
-    expect(t.filter((x) => x.cle === "plus_longue_attente").length).toBeLessThanOrEqual(1);
-  });
-
-  it("les raccourcis du métier passent la porte de leur module, sans doublon", () => {
-    expect(composerRaccourcis(["MEDICAL_DELEGATE"], (m) => m === "MEDICAL").map((r) => r.label)).toEqual(["Ma journée", "Plan de tournée"]);
-    const deux = composerRaccourcis(["FINANCE_BUDGET_MANAGER", "SUPER_ADMIN"], () => true);
-    expect(new Set(deux.map((r) => r.href)).size).toBe(deux.length);
-    expect(deux.length).toBeLessThanOrEqual(6);
-    expect(composerRaccourcis(["VIEWER"], () => false)).toEqual([]);
   });
 });
 

@@ -1,5 +1,6 @@
 import { requireUser } from "@/lib/session";
-import { getMyHrDossier, getMyLeaveRequests, discussionsDesConges, leaveFormContext } from "@/modules/rh/api";
+import Link from "next/link";
+import { getMyAdvances, getMyHrDossier, getMyLeaveRequests, discussionsDesConges, leaveFormContext } from "@/modules/rh/api";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -21,7 +22,12 @@ import { modulesPretables, congeTermine } from "@/lib/hr/stand-in";
 import { detenteurPourInterim } from "@/lib/hr/stand-in-resolve";
 import { MeetingControls } from "@/modules/rh/ecrans/hr-meeting-controls";
 import { HrRequestThread } from "@/modules/rh/ecrans/hr-request-thread";
-import { ANCRE_MES_CONGES, ANCRE_MES_DEMANDES_RH, ancreDemandeRh } from "@/lib/chemins/rh";
+import { ANCRE_MES_AVANCES, ANCRE_MES_CONGES, ANCRE_MES_DEMANDES_RH, ancreDemandeRh } from "@/lib/chemins/rh";
+import { MyAdvances } from "@/components/hr/my-advances";
+import { MyPortfolioCard } from "@/components/planning/my-portfolio-card";
+import { getMyPortfolio } from "@/lib/queries/portfolio";
+import { lienBilanKpi } from "@/lib/chemins/espace";
+import { userCan } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +57,10 @@ export default async function MonDossierPage() {
   // MÊMES onglets que tout l'espace personnel : le dossier RH en est un, plus un module à
   // part. Deux barres d'onglets différentes selon l'écran donnaient l'impression de changer
   // d'endroit alors qu'on reste chez soi.
-  const dossierTabs = await ongletsEspace(user);
+  // CE QUI A QUITTÉ « AUJOURD'HUI » (écran simplifié, 24/11/2026) se retrouve ici : les avances sur salaire, la gamme
+  // portée ce cycle et le lien vers « Mon bilan » — mêmes lectures, mêmes composants.
+  const [dossierTabs, avances, portfolio] = await Promise.all([ongletsEspace(user), getMyAdvances(user.id), getMyPortfolio(user.id)]);
+  const voitBilan = userCan(user, "KPI", "VIEW");
 
   if (!dossier) {
     return (
@@ -71,6 +80,12 @@ export default async function MonDossierPage() {
         <NewRequestButton />
       </PageHeader>
       <ModuleTabs tabs={dossierTabs} />
+      {voitBilan && (
+        <p className="text-sm">
+          <Link href={lienBilanKpi()} className="font-medium text-primary hover:underline">Mon bilan</Link>
+          <span className="text-muted-foreground"> — vos indicateurs, votre revue et vos déclarations.</span>
+        </p>
+      )}
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <Card>
@@ -160,6 +175,18 @@ export default async function MonDossierPage() {
           />
         </CardContent>
       </Card>
+
+      {avances.length > 0 && (
+        <Card id={ANCRE_MES_AVANCES} className="scroll-mt-20">
+          <CardHeader><CardTitle>Mes avances sur salaire</CardTitle></CardHeader>
+          <CardContent className="p-3 pt-0 sm:p-4 sm:pt-0">
+            <MyAdvances advances={avances.map((a) => ({ id: a.id, amount: Number(a.amount), reason: a.reason, status: a.status, createdAt: a.createdAt.toISOString() }))} />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Ce que je porte ce cycle (« Prévisions & Force de vente ») — rien quand rien n'est affecté. */}
+      <MyPortfolioCard portfolio={portfolio} />
 
       <Card id={ANCRE_MES_DEMANDES_RH} className="scroll-mt-20">
         <CardHeader>

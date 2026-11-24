@@ -192,13 +192,17 @@ suite("Mon Équipe montre tout l'arbre, et n'ouvre les indicateurs qu'à qui enc
     expect(ids).not.toContain(`purchase-${chezUnAutre}`);
   });
 
-  it("LE CONGÉ MÈNE À MON ESPACE, au bloc qui le signe — et ce bloc existe à cette adresse", async () => {
+  it("LE CONGÉ MÈNE À MON ESPACE, au panneau qui le signe — et l'ancre existe à cette adresse", async () => {
     // `/rh/conges` est l'écran des RH : un N+1 sans le module y était refusé.
     const dir = await actorFor(users.dir, "MEDICAL_PROMOTION_MANAGER");
     const conge = (await getMyTeam(dir)).pending.find((p) => p.kind === "LEAVE" && p.who.includes("delegue"));
     expect(conge?.href).toBe("/mon-espace#conges-a-signer");
-    // Le point d'arrivée : une ancre qu'aucun élément ne porte ferait arriver en haut de page.
+    // Le point d'arrivée : une ancre qu'aucun élément ne porte ferait arriver en haut de page. Depuis le 24/11/2026, la
+    // première ligne de congé de la file la porte, et l'ancre ouvre le panneau de décision des congés.
     const { readFileSync } = await import("node:fs");
-    expect(readFileSync("src/app/(app)/mon-espace/page.tsx", "utf8")).toMatch(/<section id="conges-a-signer"/);
+    const file = readFileSync("src/app/(app)/mon-espace/file-a-faire.tsx", "utf8");
+    expect(file).toContain('const ANCRE_CONGES = "conges-a-signer"');
+    expect(file).toMatch(/<li id=\{ancre \? ANCRE_CONGES : undefined\}/);
+    expect(file).toContain("setPanneau({ type: \"conges\" })");
   });
 });

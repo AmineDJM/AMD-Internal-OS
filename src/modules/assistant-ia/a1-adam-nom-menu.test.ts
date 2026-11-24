@@ -5,6 +5,7 @@ import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, peutPiloterMissionsAdam, peutUtiliserAssistantIA, peutVoirAdam } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { ADAM_TABS, MODULE_LABELS, NAVIGATION, WORKSPACE_TABS, versEcranAdam } from "@/lib/labels";
+import { CHEMIN_MES_MISSIONS } from "@/lib/chemins/espace";
 import { navigationFor } from "@/lib/nav-access";
 import { proposerTravail } from "@/lib/missions/travaux/service";
 import { centreDeMissions, vueGlobaleDesMissions } from "@/lib/missions/view/control";
@@ -185,12 +186,12 @@ describe("3 · les MISSIONS — chacun les siennes, le Super Admin en plus la vu
 });
 
 describe("4 · « Missions terrain » — les missions d'équipe de Mon espace, renommées sans rien déplacer", () => {
-  it("l'onglet de Mon espace s'appelle « Missions terrain » ; adresse et module inchangés", async () => {
-    const onglet = WORKSPACE_TABS.find((t) => t.href === "/mon-espace/missions");
-    expect(onglet?.label).toBe("Missions terrain");
-    expect(onglet?.module).toBe("WORKSPACE");
+  it("« Missions terrain » n'est plus un onglet (Aujourd'hui simplifié, 24/11/2026) : la page garde son adresse, un lien de la file y mène", async () => {
+    expect(WORKSPACE_TABS.some((t) => t.href === CHEMIN_MES_MISSIONS)).toBe(false);
     const espace = (await navigationFor(amina)).find((n) => n.href === "/mon-espace");
-    expect((espace?.tabs ?? []).map((t) => t.label)).toContain("Missions terrain");
+    expect((espace?.tabs ?? []).map((t) => t.label)).toEqual(["Aujourd'hui", "Tâches", "Mon dossier RH"]);
     expect((espace?.tabs ?? []).map((t) => t.label)).not.toContain("Mes missions");
+    const { readFileSync } = await import("node:fs");
+    expect(readFileSync("src/app/(app)/mon-espace/file-a-faire.tsx", "utf8")).toMatch(/href=\{CHEMIN_MES_MISSIONS\}[^>]*>Missions terrain</);
   });
 });

@@ -36,8 +36,8 @@ import { EXPENSE_EDIT_MINUTES } from "@/modules/rh/partage";
  * l'envoi : sans cela, la personne qui se relit croit devoir annuler et redéposer, ce qui laisse
  * deux demandes dont une morte.
  */
-/** `compact` : le bouton discret du bloc « Moi » d'Aujourd'hui (« Ajouter ») — même feuille, même action. */
-export function ExpenseClaimButton({ compact = false }: { compact?: boolean } = {}) {
+/** `libelle` : le bouton du bloc « Demander » d'Aujourd'hui (« Une note de frais ») — même feuille, même action. */
+export function ExpenseClaimButton({ libelle }: { libelle?: string } = {}) {
   const { rafraichir } = useRafraichir();
   const [open, setOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
@@ -64,9 +64,9 @@ export function ExpenseClaimButton({ compact = false }: { compact?: boolean } = 
       {/* MÊME TAILLE QUE SES VOISINS — voir `training-request-button.tsx` : les trois boutons
           de l'en-tête de Mon espace forment un jeu, et une taille différente se lit comme une
           importance différente. */}
-      {compact ? (
-        <Button variant="outline" size="sm" onClick={() => { setErr(null); setOpen(true); }} aria-label="Ajouter une note de frais">
-          Ajouter
+      {libelle ? (
+        <Button variant="outline" className="font-medium" onClick={() => { setErr(null); setOpen(true); }}>
+          {libelle}
         </Button>
       ) : (
         <Button variant="outline" onClick={() => { setErr(null); setOpen(true); }}>

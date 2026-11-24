@@ -57,14 +57,16 @@ export const WORKSPACE_TABS: NavTab[] = [
   // TOUTES LES TÂCHES EN UN SEUL ENDROIT (Direction, 07/10) — à accepter, à faire, demandées, partagées, terminées.
   // Le compteur de l'onglet est posé par `ongletsEspace` (`queries/mes-taches.ts`).
   { module: "WORKSPACE", label: "Tâches", href: "/mon-espace/taches" },
-  // MISSIONS TERRAIN (ex-« Mes missions », renommé le 02/11/2026 : « Missions d'Adam » nomme désormais les missions de
-  // l'IA ; celles-ci sont les missions d'ÉQUIPE confiées entre collègues — MissionAssignment, données et droits inchangés).
-  // (Direction, 10/2026) — les missions Ad & Pro reliées au profil : invitations, ordre de mission
-  // (N+1 → RH), et les étapes que la personne ajoute. `/missions` y renvoie.
-  { module: "WORKSPACE", label: "Missions terrain", href: "/mon-espace/missions" },
   { module: "WORKSPACE", label: "Mon dossier RH", href: "/mon-dossier" },
-  // MON BILAN (KPI sans code, Direction 08/10) : ses KPI en continu, sa revue signée, ses déclarations.
-  { module: "KPI", label: "Mon bilan", href: "/mon-espace/bilan" },
+  // TROIS ONGLETS (maquette « Aujourd'hui » validée par le Super Admin, 24/11/2026). La maquette nommait « Mes demandes »
+  // le deuxième : aucun écran ne réunit aujourd'hui paiements, congés et notes de frais demandés par la personne
+  // (paiements → /validations, congés et notes de frais → Mon dossier RH), et l'on n'invente pas de lecture pour un
+  // onglet — « Tâches » garde donc sa place.
+  // · MISSIONS TERRAIN (ex-« Mes missions » ; missions d'ÉQUIPE confiées entre collègues — MissionAssignment) quitte la
+  //   barre : ses invitations et ses ordres de mission à valider sont des lignes de la file d'Aujourd'hui, et la page
+  //   `/mon-espace/missions` reste servie (lien en bas de la file, notifications, `/missions` y renvoie).
+  // · MON BILAN (KPI sans code, Direction 08/10) quitte la barre : il se rejoint depuis Mon dossier RH ; `/mon-espace/bilan`
+  //   reste servie, gardée par le module KPI.
   // PLUS D'ONGLET « ANNUAIRE » (Direction, 06/10 : « enlève Annuaire de Mon espace ») : les carnets vivent dans le
   // module Annuaires. La page `/mon-espace/annuaire` reste servie — liens et notifications y pointent encore.
   // Les pièces demandées ne sont PLUS un onglet : elles s'affichent en SECTION dans « Mon espace »
