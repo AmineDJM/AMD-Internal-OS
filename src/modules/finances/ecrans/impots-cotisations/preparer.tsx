@@ -24,6 +24,7 @@ import { champ, EnTetePanneau, Note, type Annoncer, type Ligne } from "./commun"
 const BADGE: Record<string, string> = {
   PAIE: "bg-primary/10 text-primary",
   FACTURES: "bg-primary/10 text-primary",
+  RETENUES: "bg-primary/10 text-primary",
   DECLARATION: "bg-warning/10 text-warning",
   JUSTIFICATIF: "bg-warning/10 text-warning",
 };
@@ -70,6 +71,7 @@ export function PanneauPreparer({
   const parts: string[] = [];
   if (d.dePaie > 0) parts.push(`${formatDzd(d.dePaie)} proposé par la paie`);
   if (d.deFactures > 0) parts.push(`${formatDzd(d.deFactures)} proposé par les factures`);
+  if (d.deRetenues > 0) parts.push(`${formatDzd(d.deRetenues)} de retenues à la source`);
   if (d.deDeclaration > 0) parts.push(`${formatDzd(d.deDeclaration)} saisi depuis ${ligne.composition === "MONTANT" ? "le justificatif" : "la déclaration"}`);
   const justificatifDeja = ligne.justificatif;
   const budget = ventilationBudgetaire(ligne.composition, d.lignes, ligne.nature, ligne.organisme);
@@ -109,6 +111,7 @@ export function PanneauPreparer({
               <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold", BADGE[l.source])}>
                 {l.source === "PAIE" ? (l.propose === null ? "À saisir (aucune retenue sur les fiches)" : `Proposé par la paie de ${mois}`)
                   : l.source === "FACTURES" ? `Proposé par les factures de ${mois}`
+                  : l.source === "RETENUES" ? `Proposé par les paiements de ${mois}`
                   : l.source === "DECLARATION" ? `À saisir depuis la déclaration${ligne.composition === "G50" ? " G50" : ""}` : "À saisir depuis le justificatif"}
               </span>
             </div>
@@ -143,9 +146,10 @@ export function PanneauPreparer({
                   <ChampMontant
                     id={`in-${ligne.id}-${l.cle}`} disabled={!peutModifier}
                     label={l.source === "FACTURES" ? "TVA à payer (modifiable)"
+                      : l.source === "RETENUES" ? "Retenues à reverser (modifiable)"
                       : l.source === "PAIE" ? `${l.cle === "irg" ? "IRG à reverser" : l.cle === "sal" ? "Part salariale à reverser" : "Part patronale"}${l.propose !== null ? " (modifiable)" : ""}`
                       : "Montant porté sur le justificatif"}
-                    valeur={saisies[l.cle as "irg" | "tva"] ?? (l.propose !== null ? formatDzd(l.propose) : "")}
+                    valeur={saisies[l.cle as "irg" | "tva" | "ras"] ?? (l.propose !== null ? formatDzd(l.propose) : "")}
                     onChange={(v) => pose(l.cle as keyof SaisiesFiscales, v)}
                   />
                 </div>
@@ -244,6 +248,8 @@ function ResultatTva({ c, d }: { c?: string; d?: string }) {
 function ExplicationLigne({ ligne, l, fiches }: { ligne: Ligne; l: LigneDecomposee; fiches: number }) {
   const t = l.source === "FACTURES"
     ? "TVA collectée sur les ventes − TVA déductible sur les achats, tirée des factures du mois. Vérifiez-la avec la G50 : corrigée ici, l'écart est tracé."
+    : l.source === "RETENUES"
+    ? "Retenues à la source calculées au paiement des honoraires de médecins et des prestataires étrangers ce mois-là. Déjà imputées au budget des dépenses : cette part se règle sans budget. Corrigée ici, l'écart est tracé."
     : l.cle === "irg"
     ? `Somme des retenues IRG inscrites sur les ${fiches} fiches salariés par les RH. La paie ne calcule pas l'IRG du mois ; retenu sur les salaires, il ne part aujourd'hui par aucun ordre de paiement.`
     : l.cle === "sal" ? `Somme des retenues « SS 9 % » des ${fiches} fiches. Le virement de paie ne paie que les nets : cette part n'est versée nulle part aujourd'hui.`
@@ -251,7 +257,7 @@ function ExplicationLigne({ ligne, l, fiches }: { ligne: Ligne; l: LigneDecompos
         : l.cle === "tva" ? "TVA nette = collectée sur les ventes − déductible sur les achats. Tant que les factures ne portent pas leur TVA, recopiez les deux montants de la G50."
             : l.cle === "montant" ? `La plateforme ne calcule pas ce montant : recopiez celui du ${justificatifAttendu(ligne.composition, ligne.periodeLibelle, ligne.organisme)}.`
               : "Ligne ajoutée par vous (droit de timbre, IRG sur autres revenus…) : libellé et montant tels que sur la déclaration.";
-  return <p className="text-sm leading-relaxed text-muted-foreground">{l.propose === null && l.source === "PAIE" ? "Aucune fiche ne porte cette retenue : recopiez le montant de la déclaration." : t}{(l.source === "PAIE" || l.source === "FACTURES") && l.propose !== null ? ` (${origineDuMontant(l).toLowerCase()})` : ""}</p>;
+  return <p className="text-sm leading-relaxed text-muted-foreground">{l.propose === null && l.source === "PAIE" ? "Aucune fiche ne porte cette retenue : recopiez le montant de la déclaration." : t}{(l.source === "PAIE" || l.source === "FACTURES" || l.source === "RETENUES") && l.propose !== null ? ` (${origineDuMontant(l).toLowerCase()})` : ""}</p>;
 }
 
 function DetailFiches({ cle, paie, total }: { cle: "irg" | "sal" | "pat"; paie: PaieDuMois; total: number | null }) {

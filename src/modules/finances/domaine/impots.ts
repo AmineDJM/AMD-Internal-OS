@@ -7,7 +7,7 @@
  *
  * LA PLATEFORME N'APPLIQUE NI TAUX NI ASSIETTE. Elle ADDITIONNE ce qui est inscrit — l'IRG et la CNAS = la somme des
  * retenues que les RH ont portées sur les fiches salariés ; la TVA du mois = collectée − déductible des FACTURES (décision
- * du Super Admin du 24/11/2026 : la source arrive avec le lot « tva », `prerempliTva` ; d'ici là, recopiées de la G50) —
+ * du Super Admin du 24/11/2026 : proposée par `prerempliTva` ; à défaut, recopiées de la G50) —
  * et elle RECOPIE le reste (acomptes, autres lignes). Un montant
  * proposé par la paie reste modifiable : l'écart avec l'envoyé est gardé, jamais effacé.
  *
@@ -178,6 +178,8 @@ export interface SaisiesFiscales {
   autres?: { libelle: string; montant: string }[];
   sal?: string;
   pat?: string;
+  /** Les retenues à la source du mois à reverser — proposées par les paiements réglés, corrigées par les Finances. */
+  ras?: string;
   montant?: string;
 }
 
@@ -192,6 +194,11 @@ export interface PropositionsPaie {
   pat: number | null;
   /** TVA à payer du mois (collectée − déductible) tirée des factures — `null` tant qu'aucune source ne la fournit. */
   tva: number | null;
+  /**
+   * Les retenues à la source à reverser sur la G50 du mois (honoraires de médecins, prestataires étrangers) : la somme des
+   * retenues « à reverser » des paiements réglés ce mois-là. Absente ou `null` : rien à reverser, pas de ligne.
+   */
+  retenues?: number | null;
   /** Le nombre de fiches additionnées. */
   fiches: number;
 }
@@ -223,11 +230,11 @@ export function propositionsDesFiches(fiches: readonly RetenuesFiche[]): Proposi
   return { irg: somme((f) => f.retIrg), sal: somme((f) => f.retSS9), pat: somme(partPatronaleDeLaFiche), tva: null, fiches: fiches.length };
 }
 
-/** D'où vient un montant : proposé par la paie (fiches), proposé par les factures (TVA), recopié d'une pièce. */
-export type SourceMontant = "PAIE" | "FACTURES" | "DECLARATION" | "JUSTIFICATIF";
+/** D'où vient un montant : proposé par la paie (fiches), les factures (TVA), les paiements réglés (retenues), ou recopié. */
+export type SourceMontant = "PAIE" | "FACTURES" | "RETENUES" | "DECLARATION" | "JUSTIFICATIF";
 
 export interface LigneDecomposee {
-  cle: "irg" | "tva" | "sal" | "pat" | "montant" | `autre${number}`;
+  cle: "irg" | "tva" | "ras" | "sal" | "pat" | "montant" | `autre${number}`;
   label: string;
   source: SourceMontant;
   montant: number;
@@ -245,6 +252,8 @@ export interface Decomposition {
   dePaie: number;
   /** La part proposée par les factures (la TVA, quand une source la fournit). */
   deFactures: number;
+  /** La part proposée par les retenues à la source du mois. */
+  deRetenues: number;
   deDeclaration: number;
   /** Ce qui reste à saisir, en mots (« TVA collectée et déductible »). */
   manque: string[];
@@ -304,6 +313,12 @@ export function decomposer(composition: CompositionFiscale, s: SaisiesFiscales, 
         source: "DECLARATION", montant: tva !== null ? Math.max(0, tva) : 0, propose: null, manque: tva === null, modifie: false,
       });
     }
+    if (p.retenues != null && p.retenues > 0) {
+      // LES RETENUES À LA SOURCE DU MOIS (honoraires, prestataires étrangers) : la plateforme les a calculées au paiement ;
+      // proposées comme la TVA, corrigibles, l'écart tracé.
+      const { valeur, modifie } = valeurProposee(s.ras, p.retenues);
+      lignes.push({ cle: "ras", label: "Retenues à la source à reverser", source: "RETENUES", montant: valeur ?? 0, propose: p.retenues, manque: false, modifie });
+    }
     (s.autres ?? []).forEach((a, i) => {
       const m = lireMontantFiscal(a.montant);
       if (m !== null && m !== 0 && !a.libelle.trim()) autreSansLibelle = true;
@@ -324,7 +339,10 @@ export function decomposer(composition: CompositionFiscale, s: SaisiesFiscales, 
   const part = (src: SourceMontant) => arrondi(lignes.filter((l) => l.source === src).reduce((t, l) => t + l.montant, 0));
   const dePaie = part("PAIE");
   const deFactures = part("FACTURES");
-  return { lignes, total, dePaie, deFactures, deDeclaration: arrondi(total - dePaie - deFactures), manque, tvaNegative, autreSansLibelle };
+  const deRetenues = part("RETENUES");
+  return {
+    lignes, total, dePaie, deFactures, deRetenues, deDeclaration: arrondi(total - dePaie - deFactures - deRetenues), manque, tvaNegative, autreSansLibelle,
+  };
 }
 
 /** Le justificatif attendu, nommé (le libellé du champ obligatoire et le remède du refus). */
@@ -361,6 +379,9 @@ export function origineDuMontant(l: Pick<LigneDecomposee, "source" | "propose" |
   }
   if (l.source === "FACTURES") {
     return l.modifie ? `Proposé par les factures, corrigé (proposé ${formatDzd(l.propose)})` : "Proposé par les factures — non modifié";
+  }
+  if (l.source === "RETENUES") {
+    return l.modifie ? `Proposé par les retenues du mois, corrigé (proposé ${formatDzd(l.propose)})` : "Proposé par les retenues du mois — non modifié";
   }
   return l.source === "DECLARATION" ? "Saisi depuis la déclaration" : "Saisi depuis le justificatif";
 }

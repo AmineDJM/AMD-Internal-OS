@@ -5,7 +5,7 @@ import { userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import {
   ordresAvecFacture, chargerOrdresDesFinances, dossierHrefByOrder, chargerTresorerie, comptesTresorerie, chargerDossiersDesLignes,
-  type DossierDeLigne,
+  type DossierDeLigne, retenuesRegleesParLesOrdres,
 } from "@/modules/finances/api";
 import { companyScopedWhere, getMyCompanies, companyOptions } from "@/lib/company";
 import { entiteParDefaut } from "@/lib/company-defaut";
@@ -73,7 +73,7 @@ export default async function PaiementsAFairePage(props: { searchParams: Promise
   // ne dépendent que des ordres et de l'entité : UN aller-retour (audit performance PERF-11).
   const ids = new Set(visibles.map((o) => o.id));
   const sourceFilters = visibles.filter((o) => o.sourceType && o.sourceId).map((o) => ({ entityType: o.sourceType!, entityId: o.sourceId! }));
-  const [avecFacture, dossiers, doublons, avecQuittance, modulesSources, envelopes, categoryLines, tresorerie, tousLesComptes, demandeOuverte, panneaux, panneauxAPayer] = await Promise.all([
+  const [avecFacture, dossiers, doublons, avecQuittance, modulesSources, envelopes, categoryLines, tresorerie, tousLesComptes, demandeOuverte, panneaux, panneauxAPayer, partsRetenues] = await Promise.all([
     ordresAvecFacture(orders.filter((o) => o.requiresInvoice && ids.has(o.id))),
     dossierHrefByOrder([...ids]),
     marquesDesOrdres([...ids]),
@@ -98,6 +98,8 @@ export default async function PaiementsAFairePage(props: { searchParams: Promise
     chargerDossiersDesLignes(visibles),
     // Le compteur de l'onglet « À payer » (ses lignes qui attendent le demandeur), quel que soit l'onglet ouvert.
     vue === "a-payer" ? Promise.resolve(null) : chargerDossiersDesLignes(aPayer),
+    // La part « retenues à la source » d'une G50 se règle sans budget, comme le serveur (`settleExpenseOrder`).
+    retenuesRegleesParLesOrdres(visibles),
   ]);
   // « PAYÉS » : d'où, quand, comment — lus sur l'écriture de trésorerie de chaque ordre réglé (compte, mode, référence).
   const ecritures = vue !== "payes" ? new Map<string, { date: Date; method: string; notes: string | null; compte: string | null }>()
@@ -137,8 +139,10 @@ export default async function PaiementsAFairePage(props: { searchParams: Promise
       etat === "DEFERRED" && o.deferredReason ? `Reporté : ${o.deferredReason}` : null,
     ].filter((a): a is string => Boolean(a));
     const remise = Boolean(o.pettyCashAllotment);
+    const retenues = partsRetenues.has(o.id);
     const auto = o.budgetCategoryId ? null : autoOf(o);
     const budget = remise ? "pas de budget (remise de caisse)"
+      : retenues ? "pas de budget (retenues déjà imputées aux dépenses)"
       : o.budgetCategoryId ? libelleBudget.get(o.budgetCategoryId) ?? "budget classé"
         : auto ? `${libelleBudget.get(auto) ?? "budget"} (automatique)` : categoryLines.length > 0 ? "à classer au paiement" : "hors enveloppe";
     return {
@@ -160,7 +164,7 @@ export default async function PaiementsAFairePage(props: { searchParams: Promise
       remise,
       // UNE REMISE DE CAISSE NE SE CLASSE PAS (son écrivain l'écrit sans budget) : la demander était un geste que le
       // serveur ignorait (défaut du 24/11/2026).
-      needsBudget: !remise && needsBudgetChoice({ onOrder: o.budgetCategoryId, auto: autoOf(o), availableCount: categoryLines.length }),
+      needsBudget: !remise && !retenues && needsBudgetChoice({ onOrder: o.budgetCategoryId, auto: autoOf(o), availableCount: categoryLines.length }),
       compteParDefautId: compteParDefaut(tousLesComptes, o.companyId),
       bv: nature ? { nature: LIBELLE_NATURE_BV[nature], quittanceJointe: avecQuittance.has(o.id) } : null,
       dossierHref: dossiers.get(o.id) ?? null,

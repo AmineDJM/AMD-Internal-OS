@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { anyRoleFilter, rolesWithModule } from "@/lib/rbac";
 import { getCompanies, predicatEntitePermise, type CompanyLite } from "@/lib/company";
 import { notifyUser } from "@/lib/notify";
+import { tvaAPayerDuMois } from "./tva";
+import { type RetenueAReverser, retenuesDuMoisAReverser } from "./retenues";
 import {
   AUCUNE_PROPOSITION, dateEcheance, estCompositionFiscale, estPeriodiciteFiscale, etatDesOrdres, periodeCourante,
   periodeSelonAvis, propositionsDesFiches, partPatronaleDeLaFiche, rappelDu, texteEcheance,
@@ -49,20 +51,21 @@ export interface PaieDuMois {
   fiches: FicheRetenue[];
   /** Sur quoi reposent les fiches : les salariés payés ce mois-là, ou à défaut les fiches actives de la société. */
   base: "PAIE_DU_MOIS" | "FICHES_ACTIVES" | "HORS_MOIS";
+  /** Les retenues à la source « à reverser » du mois (leur somme est `propositions.retenues`) — marquées reversées au paiement. */
+  retenues: RetenueAReverser[];
 }
 
 const dec = (v: Prisma.Decimal | null): number | null => (v === null ? null : Number(v));
 
 /**
- * LA TVA DU MOIS PROPOSÉE PAR LES FACTURES — la PLACE de la source (Super Admin, 24/11/2026 : la TVA de la G50 se calcule
- * depuis les factures, collectée − déductible). Le lot « tva » enregistre la TVA des factures (HT / TVA / TTC, taux) et
- * expose son calcul par société et par mois : il se branche ICI, à la fusion. Aujourd'hui aucune source : `null`, et la
- * ligne « TVA du mois » se saisit depuis la déclaration (collectée et déductible). Proposée, elle se corrige comme l'IRG,
- * l'écart tracé à l'envoi. Une source en panne ne bloque jamais la préparation : `null`.
+ * LA TVA DU MOIS PROPOSÉE PAR LES FACTURES (Super Admin, 24/11/2026 : la TVA de la G50 se calcule depuis les factures,
+ * collectée − déductible) — lue par le calcul du lot « tva » (`tvaAPayerDuMois`) : `null` quand le mois n'a rien à
+ * proposer ou qu'une facture est à compléter, et la ligne « TVA du mois » se saisit alors depuis la déclaration. Proposée,
+ * elle se corrige comme l'IRG, l'écart tracé à l'envoi. Une source en panne ne bloque jamais la préparation : `null`.
  */
 export async function prerempliTva(companyId: string, periode: string | null): Promise<number | null> {
   if (!companyId || !periode || !/^\d{4}-\d{2}$/.test(periode)) return null;
-  return null;
+  return tvaAPayerDuMois(companyId, periode);
 }
 
 /**
@@ -72,8 +75,12 @@ export async function prerempliTva(companyId: string, periode: string | null): P
  */
 export async function paieDuMois(companyId: string, periode: string | null): Promise<PaieDuMois> {
   const m = periode ? /^(\d{4})-(\d{2})$/.exec(periode) : null;
-  if (!m) return { propositions: AUCUNE_PROPOSITION, fiches: [], base: "HORS_MOIS" };
-  const tva = await prerempliTva(companyId, periode).catch(() => null);
+  if (!m) return { propositions: AUCUNE_PROPOSITION, fiches: [], base: "HORS_MOIS", retenues: [] };
+  const [tva, ras] = await Promise.all([
+    prerempliTva(companyId, periode).catch(() => null),
+    // Une source en panne ne bloque jamais la préparation : sans lecture, pas de ligne proposée.
+    retenuesDuMoisAReverser({ companyId, mois: periode! }).catch(() => ({ total: 0, lignes: [] as RetenueAReverser[] })),
+  ]);
   const year = Number(m[1]);
   const month = Number(m[2]);
   const SELECT = { fullName: true, position: true, departmentId: true, retIrg: true, retSS9: true, retSS35: true } as const;
@@ -89,7 +96,31 @@ export async function paieDuMois(companyId: string, periode: string | null): Pro
     const r = { retIrg: dec(e.retIrg), retSS9: dec(e.retSS9), retSS35: dec(e.retSS35) };
     return { nom: e.fullName, poste: e.position, departmentId: e.departmentId, ...r, partPatronale: partPatronaleDeLaFiche(r) };
   });
-  return { propositions: { ...propositionsDesFiches(fiches), tva }, fiches, base };
+  return { propositions: { ...propositionsDesFiches(fiches), tva, ...(ras.total > 0 ? { retenues: ras.total } : {}) }, fiches, base, retenues: ras.lignes };
+}
+
+// ── Les retenues à la source reversées par une G50 ─────────────────────────────────────────
+
+/**
+ * LES ORDRES QUI RÈGLENT LA PART « RETENUES À LA SOURCE » D'UNE G50 — et les retenues que chacun reverse. Lu sur la
+ * décomposition envoyée (la ligne `ras` garde son ordre et les retenues qu'elle porte). Ces ordres se règlent SANS ligne
+ * budgétaire (les retenues ont déjà consommé celles des dépenses) et, payés, passent leurs retenues « reversées ».
+ * En lot : une lecture, quel que soit le nombre d'ordres.
+ */
+export async function retenuesRegleesParLesOrdres(
+  ordres: readonly { id: string; sourceType: string | null; sourceId: string | null }[],
+): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
+  const sources = [...new Set(ordres.filter((o) => o.sourceType === "TAX_PAYMENT" && o.sourceId).map((o) => o.sourceId as string))];
+  if (sources.length === 0) return out;
+  const lignes = await prisma.echeanceFiscale.findMany({ where: { id: { in: sources } }, select: { decomposition: true } });
+  const ids = new Set(ordres.map((o) => o.id));
+  for (const l of lignes) {
+    for (const d of Array.isArray(l.decomposition) ? (l.decomposition as { cle?: string; ordreId?: string; retenuesIds?: string[] }[]) : []) {
+      if (d?.cle === "ras" && d.ordreId && ids.has(d.ordreId)) out.set(d.ordreId, Array.isArray(d.retenuesIds) ? d.retenuesIds : []);
+    }
+  }
+  return out;
 }
 
 // ── L'écran ──────────────────────────────────────────────────────────────────────────────────

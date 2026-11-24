@@ -10,7 +10,7 @@ import {
   refusSeparationDesTaches, ordreAFacture, nextFinanceRef, canDisburse, blockedReason, type CentralStatus,
   checkDeferral, budgetGate, dossierHrefByOrder, compteDeLEcriture, verserLaRemise, solderLeDossierCompagnon,
   solderVirementPaie, STATUTS_SOLDES_PAR_UN_REGLEMENT, lireSaisieReglement, noteDeReference, justificatifsDesOrdres, REFUS_REGLEMENT_SANS_JUSTIFICATIF,
-  constaterRetenueAuReglement,
+  constaterRetenueAuReglement, marquerRetenuesReversees, retenuesRegleesParLesOrdres,
 } from "@/modules/finances/api";
 import { refusSurReserve } from "./domaine/charges-fixes";
 import { pickAutoCategory } from "@/lib/budget/auto-category";
@@ -134,6 +134,10 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
     };
   }
 
+  // LA PART « RETENUES À LA SOURCE » D'UNE G50 : ces retenues ont déjà consommé la ligne des dépenses qui les ont
+  // retenues — elle se règle SANS ligne budgétaire (sinon la même somme compte deux fois), et les marque « reversées ».
+  const retenuesReversees = (await retenuesRegleesParLesOrdres([order])).get(order.id) ?? null;
+
   // ── ON CLASSE AVANT DE PAYER ───────────────────────────────────────────────────────────────
   //
   // Trois chances, dans l'ordre : la catégorie CHOISIE ICI par les Finances au moment de régler
@@ -179,7 +183,7 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
   // L'EXCEPTION QUI ÉVITE L'IMPASSE : s'il n'existe AUCUNE catégorie où classer, on paie et la
   // dépense reste à imputer. Exiger un choix dans une liste vide ferme une porte à clé sur une
   // pièce vide, et une installation sans enveloppes doit pouvoir régler ses factures.
-  const gate = budgetGate({
+  const gate = retenuesReversees ? { ok: true, categoryId: null, reason: undefined } : budgetGate({
     chosen: chosenCategoryId,
     onOrder: budgetCategoryId,
     availableCount: await prisma.budgetCategoryLine.count({ where: { envelope: { isActive: true } } }),
@@ -245,6 +249,7 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
     // LA RETENUE À LA SOURCE (24/11/2026) : l'écriture est le NET versé ; la retenue devient « à reverser » sur le mois du
     // paiement et consomme la MÊME ligne budgétaire — la dépense coûte le brut. Même transaction : jamais l'un sans l'autre.
     const retenue = await constaterRetenueAuReglement(tx, { ordreId: id, reference: order.reference, budgetCategoryId, date: saisie.date, acteurId: user.id });
+    if (retenuesReversees?.length) await marquerRetenuesReversees({ ids: retenuesReversees, ordreId: id, date: saisie.date }, tx);
     return { ...ecriture, retenue };
   });
   if (!reglement) {

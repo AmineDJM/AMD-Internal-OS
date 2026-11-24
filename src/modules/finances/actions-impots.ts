@@ -15,7 +15,7 @@ import {
   origineDuMontant, refusCorrectionEcheance, refusEnvoiEcheance, refusPreparationEcheance, refusQuittanceEcheance,
   refusRetraitEcheance, validerObligation, type CompositionFiscale, type EtatEcheance, type SaisiesFiscales,
 } from "./domaine/impots";
-import { libelleLigneBudget, repartirAuProrata, ventilationBudgetaire } from "./domaine/budget-impots";
+import { libelleLigneBudget, PART_RETENUES_SOURCE, repartirAuProrata, ventilationBudgetaire } from "./domaine/budget-impots";
 import { lignesBudgetImpots, lignesMasseSalarialeParDepartement } from "./infra/budget-impots";
 import { createExpenseOrder } from "./infra/expense-orders";
 import { assurerLignesDuCalendrier, CHEMIN_IMPOTS, type FicheRetenue, paieDuMois } from "./infra/impots";
@@ -131,7 +131,7 @@ async function envoyerLaLigne(formData: FormData, user: CurrentUser, ligne: Lign
   // CNAS à la MASSE SALARIALE des départements, au prorata des retenues que portent les fiches de leurs salariés ; une
   // autre ligne de la G50 reste à classer au règlement.
   const dateBudget = ligne.echeance ?? maintenant;
-  const imputations: { libelle: string; montant: number; categoryId: string | null }[] = [];
+  const imputations: { libelle: string; montant: number; categoryId: string | null; retenues?: boolean }[] = [];
   let fiches = paie?.base === "HORS_MOIS" ? null : paie?.fiches ?? null;
   try {
     const impots = parts.some((p) => p.cle === "TVA_NETTE" || p.cle === "IBS") ? await lignesBudgetImpots(ligne.companyId, dateBudget, user.id) : null;
@@ -160,6 +160,9 @@ async function envoyerLaLigne(formData: FormData, user: CurrentUser, ligne: Lign
           const env = r.cle ? parCategorie.get(r.cle)?.enveloppe : null;
           imputations.push({ libelle: `${libelleLigneBudget(cleMs)} · ${env ?? "à classer au règlement"}`, montant: r.montant, categoryId: r.cle });
         }
+      } else if (part.cle === PART_RETENUES_SOURCE) {
+        // Déjà consommées sur la ligne des dépenses qui les ont retenues : cet ordre se règle sans ligne budgétaire.
+        imputations.push({ libelle: libelleLigneBudget(part.cle), montant: part.montant, categoryId: null, retenues: true });
       } else {
         imputations.push({ libelle: "Autres lignes — à classer au règlement", montant: part.montant, categoryId: null });
       }
@@ -171,7 +174,7 @@ async function envoyerLaLigne(formData: FormData, user: CurrentUser, ligne: Lign
   }
 
   // UN ORDRE PAR IMPUTATION, tous par l'unique écrivain ; le plus gros est le principal (pièce, quittance).
-  const ordres: { id: string; reference: string; montant: number; cle: string }[] = [];
+  const ordres: { id: string; reference: string; montant: number; cle: string; retenues: boolean }[] = [];
   try {
     for (const imp of [...imputations].sort((a, b) => b.montant - a.montant)) {
       const o = await createExpenseOrder({
@@ -181,7 +184,7 @@ async function envoyerLaLigne(formData: FormData, user: CurrentUser, ligne: Lign
         dueDate: ligne.echeance, deadlineNature: "FIXED", requiresInvoice: false, budgetCategoryId: imp.categoryId,
         notes: imputations.length > 1 ? `${notes}\nPart imputée ici (${imp.libelle}) : ${formatDzd(imp.montant)} DZD sur ${formatDzd(d.total)} DZD.` : notes,
       });
-      ordres.push({ id: o.id, reference: o.reference, montant: imp.montant, cle: imp.libelle });
+      ordres.push({ id: o.id, reference: o.reference, montant: imp.montant, cle: imp.libelle, retenues: Boolean(imp.retenues) });
     }
   } catch (e) {
     console.error("[impots] ordre non émis", e);
@@ -222,7 +225,11 @@ async function envoyerLaLigne(formData: FormData, user: CurrentUser, ligne: Lign
     data: {
       expenseOrderId: principal.id, ordresIds: ordres.map((o) => o.id), montant: d.total, justificatifId, justificatifNom, motifRefusPrecedent: null,
       propositions: propositions as unknown as Prisma.InputJsonValue,
-      decomposition: lignesEnvoyees.map((l) => ({ cle: l.cle, label: l.label, source: l.source, montant: l.montant, propose: l.propose, origine: origineDuMontant(l) })) as Prisma.InputJsonValue,
+      // La ligne des retenues garde SON ordre et les retenues qu'elle reverse : payé, il les marque « reversées ».
+      decomposition: lignesEnvoyees.map((l) => ({
+        cle: l.cle, label: l.label, source: l.source, montant: l.montant, propose: l.propose, origine: origineDuMontant(l),
+        ...(l.cle === "ras" ? { ordreId: ordres.find((o) => o.retenues)?.id ?? null, retenuesIds: (paie?.retenues ?? []).map((r) => r.id) } : {}),
+      })) as Prisma.InputJsonValue,
     },
   });
   const references = ordres.map((o) => o.reference).join(", ");

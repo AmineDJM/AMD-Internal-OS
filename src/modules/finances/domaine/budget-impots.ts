@@ -55,8 +55,18 @@ export const CATEGORIES_MASSE_SALARIALE_IMPOTS: readonly { cle: CleLigneMasseSal
 /** Le nom de l'enveloppe d'une année (« Impôts & taxes 2026 »). */
 export const nomEnveloppeImpots = (annee: number): string => `Impôts & taxes ${annee}`;
 
-/** Où va une part d'un envoi : une ligne d'« Impôts & taxes », une ligne de la masse salariale, ou « à classer » (`null`). */
-export type CleBudget = CleLigneBudgetImpots | CleLigneMasseSalariale | null;
+/**
+ * LES RETENUES À LA SOURCE REVERSÉES PAR LA G50 (honoraires de médecins, prestataires étrangers) : déjà CONSOMMÉES sur la
+ * ligne budgétaire de la dépense qui les a retenues (`constaterRetenueAuReglement`) — leur part de la G50 se règle donc
+ * SANS ligne budgétaire, sinon la même somme compterait deux fois.
+ */
+export const PART_RETENUES_SOURCE = "RETENUES_SOURCE" as const;
+
+/**
+ * Où va une part d'un envoi : une ligne d'« Impôts & taxes », une ligne de la masse salariale, les retenues à la source
+ * (aucune ligne : déjà consommées), ou « à classer » (`null`).
+ */
+export type CleBudget = CleLigneBudgetImpots | CleLigneMasseSalariale | typeof PART_RETENUES_SOURCE | null;
 
 export interface PartBudgetaire {
   cle: CleBudget;
@@ -81,7 +91,7 @@ export function ligneBudgetDuMontant(nature: string, organisme: string): CleBudg
   return null;
 }
 
-const ORDRE_DES_CLES: readonly CleBudget[] = ["TVA_NETTE", "IBS", "MS_IRG", "MS_CNAS", null];
+const ORDRE_DES_CLES: readonly CleBudget[] = ["TVA_NETTE", "IBS", "MS_IRG", "MS_CNAS", PART_RETENUES_SOURCE, null];
 
 /**
  * LA VENTILATION D'UN ENVOI — une part par destination, montants nuls écartés. G50 : la TVA → TVA_NETTE, l'IRG → MS_IRG,
@@ -95,6 +105,7 @@ export function ventilationBudgetaire(
     if (composition === "MONTANT") return ligneBudgetDuMontant(nature, organisme);
     if (cle === "irg") return "MS_IRG";
     if (cle === "tva") return "TVA_NETTE";
+    if (cle === "ras") return PART_RETENUES_SOURCE;
     return null;
   };
   const parts = new Map<CleBudget, number>();
@@ -133,5 +144,6 @@ export function repartirAuProrata<K>(montant: number, poids: readonly { cle: K; 
 /** Le libellé d'une destination (« TVA nette à reverser », « Masse salariale — IRG », « à classer au règlement »). */
 export function libelleLigneBudget(cle: CleBudget): string {
   if (cle === null) return "à classer au règlement";
+  if (cle === PART_RETENUES_SOURCE) return "Retenues à la source — déjà imputées aux dépenses";
   return [...CATEGORIES_BUDGET_IMPOTS, ...CATEGORIES_MASSE_SALARIALE_IMPOTS].find((c) => c.cle === cle)!.nom;
 }
