@@ -29,6 +29,12 @@ import { annulable } from "@/lib/effets/ecran";
 
 const PATH = "/moyens-generaux";
 
+/** Le fichier joint sous ce nom — `null` quand le champ est vide (un navigateur envoie un fichier vide). */
+const fichierJoint = (fd: FormData, nom: string): File | null => {
+  const f = fd.get(nom);
+  return f instanceof File && f.size > 0 ? f : null;
+};
+
 /**
  * CAISSE D'AVANCE — actions serveur.
  *
@@ -149,7 +155,7 @@ export async function allotPettyCash(formData: FormData): Promise<ActionResult> 
   });
   let ordre: { id: string; reference: string };
   try {
-    ordre = await createExpenseOrder(ordreDeRemise({ departement: department, periode: periodLabel(period), amount, holderName, createdById: user.id, nature: "REMISE" }));
+    ordre = await createExpenseOrder(ordreDeRemise({ departement: department, periode: periodLabel(period), amount, holderName, createdById: user.id, nature: "REMISE", bonDeRemise: fichierJoint(formData, "bonDeRemise") }));
   } catch (e) {
     // RIEN N'EST PARTI : une remise sans ordre ne serait ni autorisable ni confirmable.
     await prisma.pettyCashAllotment.delete({ where: { id: remise.id } }).catch(sansBloquer("petty-cash-actions.allotPettyCash.pettyCashAllotment"));
@@ -551,6 +557,7 @@ export async function decidePettyCashTopUp(formData: FormData): Promise<ActionRe
       try {
         ordre = await createExpenseOrder(ordreDeRemise({
           departement: req.allotment.department, periode: periodLabel(req.allotment.period), amount: granted, holderName, createdById: user.id, nature: "RALLONGE",
+          bonDeRemise: fichierJoint(formData, "bonDeRemise"),
         }));
         await prisma.pettyCashAllotment.update({ where: { id: remise.id }, data: { expenseOrderId: ordre.id } });
       } catch (e) {

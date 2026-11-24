@@ -315,7 +315,10 @@ export const urgencyOf = (raw: string | null): PaymentUrgency => {
 
 /** La nature d'une pièce déposée ; toute autre valeur retombe sur « autre ». */
 export const kindOf = (raw: string | null): PaymentPieceKind => {
-  const allowed: PaymentPieceKind[] = ["INVOICE", "PURCHASE_ORDER", "QUOTE", "DELIVERY_NOTE", "CONTRACT", "PROOF", "OTHER"];
+  const allowed: PaymentPieceKind[] = [
+    "INVOICE", "PURCHASE_ORDER", "QUOTE", "DELIVERY_NOTE", "CONTRACT", "PROOF", "OTHER",
+    "PROFORMA", "REQUEST_LETTER", "PAYROLL_STATE", "PAYSLIP", "PAYMENT_RECEIPT", "CASH_VOUCHER", "DECLARATION",
+  ];
   return allowed.includes(raw as PaymentPieceKind) ? (raw as PaymentPieceKind) : "OTHER";
 };
 

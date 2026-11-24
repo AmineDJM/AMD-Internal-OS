@@ -255,6 +255,12 @@ function LigneEntite({
               {budgetOptions.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
             </Select>
           </div>
+          {/* LE JUSTIFICATIF DU VIREMENT (24/11/2026) : sans état de paie, la paie ne part pas au centre de paiement. */}
+          <div className="space-y-1 sm:col-span-2">
+            <Label htmlFor={`etat-${carte.companyId}-${month}`}>État de paie du mois <span className="text-destructive">*</span></Label>
+            <Input id={`etat-${carte.companyId}-${month}`} name="etatDePaie" type="file" required className="h-9 text-sm" />
+            <p className="text-[0.6875rem] text-muted-foreground">Le justificatif du virement : il accompagne la paie au centre de paiement puis aux Finances.</p>
+          </div>
           <div className="flex flex-col-reverse gap-2 sm:col-span-2 sm:flex-row sm:items-center sm:justify-end">
             <Button type="button" variant="ghost" size="sm" onClick={() => setOuvert(false)} disabled={busy}>Fermer</Button>
             <BoutonDecisif type="submit" size="sm" disabled={busy || enCours} className="h-auto min-h-9 max-w-full whitespace-normal py-1.5 text-left [&_svg]:shrink-0">

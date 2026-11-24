@@ -116,7 +116,10 @@ suite("Matériel promotionnel — circuit complet (Marketing → Assistante → 
     expect((await chooseAgency(form({ id: pmId, chosenAgency: "Agence Pub DZ", chosenAmount: "118000" }))).ok).toBe(true);
 
     ACTOR = await actorFor(asst, "DIRECTION_ASSISTANT");
-    expect((await submitBcForFinance(form({ id: pmId, bcReference: "BC-2026-9" }))).ok).toBe(true);
+    // Le BC joint : c'est lui qui justifiera le bordereau de paiement (justificatif obligatoire, 24/11/2026).
+    const bc = form({ id: pmId, bcReference: "BC-2026-9" });
+    bc.append("bcFiles", new File([`bc ${Math.random()}`], "bc.pdf", { type: "application/pdf" }));
+    expect((await submitBcForFinance(bc)).ok).toBe(true);
     const pm = await prisma.promoMaterial.findUniqueOrThrow({ where: { id: pmId } });
     expect(pm.status).toBe("BC_FINANCE_REVIEW");
     expect(pm.chosenAgency).toBe("Agence Pub DZ");

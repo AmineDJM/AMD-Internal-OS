@@ -517,6 +517,8 @@ suite("Sponsoring — pré-validation de la tenue, postes, validation finale et 
     const order = await createExpenseOrder({
       label: `${TAG}ordre global`, amount: 5000, category: "EVENEMENT", beneficiary: `${TAG}Ancien circuit`,
       sourceType: "SPONSORING", sourceId: old.id, requestedById: demandeurId, budgetCategoryId: catId,
+      // Son justificatif (24/11/2026) : la proforma du sponsoring, jointe à l'émission.
+      justificatif: { fichier: new File([`proforma ${Math.random()}`], "proforma.pdf", { type: "application/pdf" }), nature: "PROFORMA" },
     });
     await prisma.expenseOrder.update({ where: { id: order.id }, data: { centralStatus: "APPROVED", requiresInvoice: false } });
     ACTOR = await actorFor(saId, "SUPER_ADMIN");

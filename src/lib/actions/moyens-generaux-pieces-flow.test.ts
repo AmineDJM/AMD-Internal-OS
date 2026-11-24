@@ -29,6 +29,12 @@ import { peutOuvrirDocument } from "@/lib/entity-access/ouverture-pieces";
 import { empreinteDe, VERSION_LECTEUR } from "@/lib/pieces-lues/lecture-fichier";
 import { articleKey } from "@/lib/general-means/catalog-normalize";
 
+/** LE BON DE REMISE, justificatif de la remise (24/11/2026) — sans lui, elle n'entrerait pas au centre de paiement. */
+const avecBon = (f: FormData): FormData => {
+  f.set("bonDeRemise", new File([`bon ${Math.random()}`], "bon-de-remise.pdf", { type: "application/pdf" }));
+  return f;
+};
+
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * LA PIÈCE SE JUGE AVANT LA DÉPENSE — moyens généraux, par ses deux portes.
@@ -95,7 +101,7 @@ suite("moyens généraux — une pièce refusée n'écrit aucune dépense", () =
 
     // UN FOND EN MAIN, par les vraies actions (§118.176) : remis, puis autorisé par le centre.
     ACTOR = await actorFor(adminId, "SUPER_ADMIN");
-    const remise = await allotPettyCash(form({ departmentId: deptId, holderId, amount: "100000" }));
+    const remise = await allotPettyCash(avecBon(form({ departmentId: deptId, holderId, amount: "100000" })));
     expect(remise.ok, remise.error).toBe(true);
     const ligne = await prisma.pettyCashAllotment.findFirstOrThrow({ where: { departmentId: deptId }, select: { id: true, expenseOrderId: true } });
     // Autorisée par le centre — par le PDG, pas par qui l'a demandée (séparation des tâches, ARGENT-06) —, payée par

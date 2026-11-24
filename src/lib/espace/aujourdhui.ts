@@ -51,7 +51,7 @@ export interface ElementFile {
 // ─────────────────────────────────────────── Natures ─────────────────────────────────────────
 
 export type NatureLot =
-  | "paiement" | "declaration" | "declaration-prete" | "declaration-pieces" | "declaration-finale"
+  | "paiement" | "justificatif" | "declaration" | "declaration-prete" | "declaration-pieces" | "declaration-finale"
   | "validation" | "conge" | "achat" | "demande" | "adpro" | "correction" | "plan" | "mission"
   | "invitation" | "formation" | "regulatory" | "piece" | "directive" | "tache" | "stock" | "promo"
   | "prise-en-charge" | "support" | "dossier" | "agence" | "bat" | "total-dg" | "question-finances" | "autre";
@@ -77,6 +77,11 @@ export const NATURES: Record<NatureLot, DefNature> = {
   paiement: {
     chapeau: "Espace comptable", titre: (n) => `${n} ${pl(n, "paiement")} à régler`,
     sousTitre: "Ordres de dépense autorisés", verbe: "Régler", liste: "/finances/paiements-a-faire", decision: true,
+  },
+  // LE JUSTIFICATIF OBLIGATOIRE (24/11/2026) : un ordre sans pièce n'entre pas au centre — il attend chez son émetteur.
+  justificatif: {
+    chapeau: "Paiements", titre: (n) => `${n} ${pl(n, "justificatif")} à joindre`,
+    sousTitre: "Sans justificatif, le paiement n'entre pas au centre", verbe: "Joindre", liste: null, decision: false,
   },
   declaration: {
     chapeau: "Information médicale", titre: (n) => `${n} ${pl(n, "déclaration")} à faire`,
@@ -207,6 +212,7 @@ const estReste = (e: ElementFile) => e.objet.startsWith(PREFIXE_RESTE) || e.obje
 export function natureDe(e: ElementFile): NatureLot {
   const o = e.objet;
   if (o.startsWith("QUESTION_FINANCES:")) return "question-finances";
+  if (e.key.startsWith("justif-")) return "justificatif";
   if (e.kind === "payment" || o.startsWith("EXPENSE_ORDER:")) return "paiement";
   if (o.startsWith("MEDICAL_INFO_DECLARATION:")) {
     if (e.statut === "AWAITING_DIRECTION") return "declaration-finale";

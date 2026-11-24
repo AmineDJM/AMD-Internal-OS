@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { ficheScopedWhere, getMyCompanies, myCompanyScope, companyLabel } from "@/lib/company";
 import { toNumber } from "@/lib/utils";
 import type { SessionUser } from "@/lib/rbac";
-import { awaitsCentre, awaitsRequester, sitsOnPaymentCentre, ORDRE_NON_ANNULE, type CentralStatus } from "../../domaine/authorization";
+import { awaitsCentre, awaitsRequester, HORS_DU_CENTRE, sitsOnPaymentCentre, ORDRE_NON_ANNULE, type CentralStatus } from "../../domaine/authorization";
 import { ENTITE_SANS, choisirEntite } from "../../domaine/entite-centre";
 
 /**
@@ -82,7 +82,8 @@ export async function chargerCentre(
 
   const base: Prisma.ExpenseOrderWhereInput = {
     AND: [
-      { centralStatus: { not: "NOT_REQUIRED" } },
+      // Ni l'historique d'avant le centre, ni l'ordre qui attend encore son justificatif (24/11/2026) : il n'y est pas entré.
+      { centralStatus: { notIn: [...HORS_DU_CENTRE] } },
       // Une demande retirée annule son ordre : il quitte le centre — liste, compteurs, bilan (`ORDRE_NON_ANNULE`).
       ORDRE_NON_ANNULE,
       ...(canDecide ? [] : [{ requestedById: user.id }]),

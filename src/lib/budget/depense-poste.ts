@@ -52,7 +52,7 @@ export const ETATS_DEPENSE = ["A_IMPUTER", "ENGAGEE", "CONSOMMEE", "PAYEE", "ANN
 export type EtatDepense = (typeof ETATS_DEPENSE)[number];
 
 /** Où attend une dépense consommée — le vrai guichet, lu sur l'ordre de dépense. */
-export type LieuConsommation = "CENTRE_PAIEMENT" | "REPONSE_DEMANDEE" | "REFUSEE" | "FINANCES";
+export type LieuConsommation = "JUSTIFICATIF" | "CENTRE_PAIEMENT" | "REPONSE_DEMANDEE" | "REFUSEE" | "FINANCES";
 
 /**
  * Les statuts d'un ordre qui attend encore son règlement. Les MÊMES que `STATUTS_ORDRE_ENGAGES` (`budget/engage.ts`) —
@@ -135,6 +135,8 @@ export function montantEngageDuPoste(bcs: readonly BcDeLaDepense[], montantAccor
 
 export function lieuDeLOrdre(o: Pick<OrdreDeLaDepense, "centralStatus">): LieuConsommation {
   switch (o.centralStatus) {
+    // Sans justificatif, l'ordre n'est pas encore entré au centre (24/11/2026) — et surtout pas chez les Finances.
+    case "AWAITING_PROOF": return "JUSTIFICATIF";
     case "AWAITING": return "CENTRE_PAIEMENT";
     case "CHANGES_REQUESTED":
     case "INFO_REQUESTED": return "REPONSE_DEMANDEE";
@@ -170,6 +172,7 @@ export function depenseDuPoste(f: FaitsDepensePoste): DepensePoste {
 // ───────────────────────────── Les libellés ─────────────────────────────
 
 export const LIBELLE_LIEU: Record<LieuConsommation, string> = {
+  JUSTIFICATIF: "justificatif à joindre (avant le centre de paiement)",
   CENTRE_PAIEMENT: "au centre de paiement",
   REPONSE_DEMANDEE: "réponse attendue au centre de paiement",
   REFUSEE: "refusée au centre de paiement",

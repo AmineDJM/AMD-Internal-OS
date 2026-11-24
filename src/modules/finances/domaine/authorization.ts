@@ -46,6 +46,7 @@ export function isHighValue(amount: number): boolean {
  */
 export type CentralStatus =
   | "NOT_REQUIRED"      // HISTORIQUE : émis sous l'ancienne règle du seuil — plus aucun ordre n'y naît
+  | "AWAITING_PROOF"    // AVANT le centre : le justificatif manque (facture, proforma, état de paie…) — `domaine/justificatif.ts`
   | "AWAITING"          // en attente d'une décision du centre
   | "CHANGES_REQUESTED" // le centre demande une révision du montant
   | "INFO_REQUESTED"    // le centre demande une argumentation
@@ -57,6 +58,7 @@ export type CentralDecision = "APPROVE" | "REFUSE" | "REQUEST_CHANGES" | "REQUES
 
 export const CENTRAL_STATUS_LABEL: Record<CentralStatus, string> = {
   NOT_REQUIRED: "Sans autorisation requise",
+  AWAITING_PROOF: "En attente du justificatif",
   AWAITING: "En attente du centre de paiement",
   CHANGES_REQUESTED: "Révision du montant demandée",
   INFO_REQUESTED: "Argumentation demandée",
@@ -82,10 +84,35 @@ export function needsCentralAuthorization(_input: { amount: number; module?: str
   return true;
 }
 
-/** L'état d'un paiement au moment où il est émis : il attend le centre, sans exception. */
-export function initialCentralStatus(input: { amount: number; module?: string | null }): CentralStatus {
+/**
+ * L'état d'un paiement au moment où il est émis : il attend le centre, sans exception — S'IL EST JUSTIFIÉ.
+ *
+ * JUSTIFICATIF OBLIGATOIRE (Super Admin, 24/11/2026) : « tant qu'il n'y a pas de justificatif, ça ne va même pas au centre
+ * de paiement, donc pas aux Finances ». Sans pièce reconnue (`domaine/justificatif.ts`), l'ordre naît AVANT le centre,
+ * `AWAITING_PROOF` : ni le centre ni les Finances ne le voient, et il y entre seul dès la pièce jointe
+ * (`statutApresJustificatif`). `justifie` absent vaut « justifié » : seul `createExpenseOrder` émet, et il le passe toujours.
+ */
+export function initialCentralStatus(input: { amount: number; module?: string | null; justifie?: boolean }): CentralStatus {
+  if (input.justifie === false) return "AWAITING_PROOF";
   return needsCentralAuthorization(input) ? "AWAITING" : "NOT_REQUIRED";
 }
+
+/**
+ * LA PIÈCE EST LÀ : l'ordre entre au centre. Rend le nouvel état, ou `null` s'il n'y a rien à changer — un ordre qui
+ * n'attendait pas son justificatif ne bouge pas, et une pièce RETIRÉE ne fait jamais ressortir un ordre déjà au centre
+ * (on ne retire pas un dossier à celui qui décide en train de le lire).
+ */
+export function statutApresJustificatif(courant: CentralStatus, justifie: boolean): CentralStatus | null {
+  return courant === "AWAITING_PROOF" && justifie ? "AWAITING" : null;
+}
+
+/** L'ordre attend-il son justificatif (donc PAS ENCORE au centre) ? */
+export function attendJustificatif(status: string | null | undefined): boolean {
+  return status === "AWAITING_PROOF";
+}
+
+/** Les états qui ne sont PAS au centre de paiement : l'historique d'avant le centre, et l'ordre sans justificatif. */
+export const HORS_DU_CENTRE: readonly CentralStatus[] = ["NOT_REQUIRED", "AWAITING_PROOF"];
 
 /**
  * LE VERROU. La comptabilité peut-elle exécuter ce décaissement ?
@@ -109,6 +136,7 @@ export function canDisburse(status: CentralStatus): boolean {
  * que le centre refuse n'arrive pas aux Finances ; le demandeur, lui, l'apprend du centre.
  */
 export function visibleToFinance(status: CentralStatus): boolean {
+  // Seuls les ordres PAYABLES (autorisés ou sans centre) : ni refusé, ni au centre, ni en attente de justificatif (24/11/2026).
   return canDisburse(status);
 }
 
@@ -246,8 +274,9 @@ export const MOTIFS_REFUS_RAPIDES: readonly string[] = [
  * doit alors refuser plutôt que d'écrire un état incohérent.
  */
 export function applyDecision(current: CentralStatus, decision: CentralDecision): CentralStatus | null {
-  // On ne décide pas d'un paiement qui n'avait pas à passer par le centre.
-  if (current === "NOT_REQUIRED") return null;
+  // On ne décide pas d'un paiement qui n'avait pas à passer par le centre — ni d'un paiement qui n'y est pas
+  // encore entré faute de justificatif (24/11/2026) : décider sans la pièce, c'est ce que la règle interdit.
+  if (current === "NOT_REQUIRED" || current === "AWAITING_PROOF") return null;
   // Une décision rendue ne se rejoue pas — un refus se reprend par un nouvel envoi de la pièce
   // (la facture repart, audit 360° I8) : sans cette règle, deux administrateurs pourraient se
   // contredire sans trace.
@@ -350,6 +379,7 @@ export function applyResubmission(current: CentralStatus): CentralStatus | null 
  */
 export function blockedReason(status: CentralStatus): string | null {
   switch (status) {
+    case "AWAITING_PROOF": return "Ce paiement attend son justificatif (facture, proforma, état de paie…) : il n'est pas encore entré au centre de paiement.";
     case "AWAITING": return "Ce paiement attend l'autorisation du centre de paiement — tout décaissement y passe.";
     case "CHANGES_REQUESTED": return "Le centre de paiement a demandé une révision du montant : le demandeur doit corriger et resoumettre.";
     case "INFO_REQUESTED": return "Le centre de paiement a demandé une argumentation : le demandeur doit répondre et resoumettre.";

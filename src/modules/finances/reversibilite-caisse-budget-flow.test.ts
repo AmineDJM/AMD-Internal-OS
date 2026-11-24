@@ -39,6 +39,12 @@ import { corrigerAncrageTresorerie, createPayroll, createTransaction, importTran
 import { changerBudgetDepensePoste, consommerDepensePoste, imputerDepensePoste } from "@/lib/actions/budget-depense-poste-actions";
 import { envoyerPaieAuCentre, markSalaryPaid, unmarkSalaryPaid, updatePayrollEntry } from "@/modules/rh/actions-paie";
 
+/** LE BON DE REMISE, justificatif de la remise (24/11/2026) — sans lui, elle n'entrerait pas au centre de paiement. */
+const avecBon = (f: FormData): FormData => {
+  f.set("bonDeRemise", new File([`bon ${Math.random()}`], "bon-de-remise.pdf", { type: "application/pdf" }));
+  return f;
+};
+
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
 const suite = dbOk ? describe : describe.skip;
@@ -150,7 +156,7 @@ suite("K10a — caisse, budgets et paie se défont d'un geste", () => {
   // ── CAISSE D'AVANCE ──────────────────────────────────────────────────────────────────────
   it("REMETTRE une caisse (avant le centre) → annuler la RETIRE avec son ordre ; RÉTABLIR la remet", async () => {
     await commeSa();
-    const r = await allotPettyCash(fd({ departmentId: dept, holderId: u.holder, amount: "40000" }));
+    const r = await allotPettyCash(avecBon(fd({ departmentId: dept, holderId: u.holder, amount: "40000" })));
     expect(r.ok, r.error).toBe(true);
     const remise = await prisma.pettyCashAllotment.findFirstOrThrow({ where: { departmentId: dept } });
     expect(remise.expenseOrderId).toBeTruthy();
@@ -418,7 +424,9 @@ suite("K10a — caisse, budgets et paie se défont d'un geste", () => {
     await commeSa();
     const saisie = await markSalaryPaid(fd({ employeeId: employe, year: String(YEAR), month: "4", employerCost: "150000", net: "90000" }));
     expect(saisie.ok, saisie.error).toBe(true);
-    const e = await envoyerPaieAuCentre(fd({ companyId: soc, year: String(YEAR), month: "4", amount: "90000" }));
+    const envoi = fd({ companyId: soc, year: String(YEAR), month: "4", amount: "90000" });
+    envoi.set("etatDePaie", new File([`etat ${Math.random()}`], "etat-de-paie.pdf", { type: "application/pdf" })); // le justificatif exigé (24/11/2026)
+    const e = await envoyerPaieAuCentre(envoi);
     expect(e.ok, e.error).toBe(true);
     const wire = await prisma.payrollWire.findFirstOrThrow({ where: { companyId: soc, year: YEAR, month: 4 }, include: { expenseOrder: true } });
     expect(wire.expenseOrder).not.toBeNull();

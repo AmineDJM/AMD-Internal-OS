@@ -1,10 +1,14 @@
-import type { EntityType, FinanceCategory, PaymentDeadlineNature, PaymentRequestStatus } from "@prisma/client";
+import { randomBytes } from "node:crypto";
+import type { DocumentCategory, EntityType, FinanceCategory, PaymentDeadlineNature, PaymentPieceKind, PaymentRequestStatus } from "@prisma/client";
 import { createWithRetry, enSerie, referenceDeSerie } from "@/lib/refs";
 import { ENTITY_MODULE } from "@/lib/entity-access";
-import { initialCentralStatus, isHighValue, CENTRAL_AUTH_THRESHOLD_DZD, ROLES_CENTRE_DE_PAIEMENT } from "../domaine/authorization";
+import { initialCentralStatus } from "../domaine/authorization";
+import { categorieDeNature, KINDS_JUSTIFIANTS, type NatureJustificatif } from "../domaine/justificatif";
+import { lireJustificatifs, type IndiceDeJustificatif } from "./justificatif";
+import { annoncerAuCentre, demanderLeJustificatif } from "./relance-destinataires";
+import { persistUploadedDocument } from "@/lib/documents";
 import { deadlineNatureOf } from "../domaine/deadline-nature";
-import { ENTITE_SANS } from "../domaine/entite-centre";
-import { lienCentreDePaiement, lienOrdreAPayer } from "@/lib/chemins/finances";
+import { lienOrdreAPayer } from "@/lib/chemins/finances";
 import {
   needsCompanionDossier, companionPayee, companionStatusForOrder,
 } from "../domaine/dossier-auto";
@@ -74,6 +78,14 @@ interface CreateExpenseOrderInput {
    * « justificatif manquant » de l'intelligence financière.
    */
   requiresInvoice?: boolean;
+  /**
+   * LE JUSTIFICATIF, QUAND L'APPELANT LE TIENT (justificatif obligatoire, 24/11/2026). Sans pièce reconnue par la table
+   * (`domaine/justificatif.ts`), l'ordre naît « en attente du justificatif » et n'entre pas au centre. La plupart des
+   * circuits n'ont rien à passer : leur pièce est déjà sur la fiche d'origine, le dossier ou le registre. Deux cas le
+   * passent : un FICHIER joint au geste qui émet (état de paie, bon de remise…), rangé sur l'ordre ; un INDICE vers ce
+   * qui le porte avant que le lien vers l'ordre soit posé (la déclaration validée, le PDF du devis retenu).
+   */
+  justificatif?: { fichier: File; nature: NatureJustificatif } | IndiceDeJustificatif;
 }
 
 // Dépenses « événementielles » : une facture est obligatoire avant le règlement.
@@ -219,13 +231,13 @@ export async function dossierHrefByOrder(orderIds: readonly string[]): Promise<M
 async function openCompanionDossier(
   order: { id: string; label: string; amount: unknown; beneficiary: string | null; companyId: string | null; dueDate: Date | null; deadlineNature: string | null; status: string; notes: string | null },
   input: CreateExpenseOrderInput,
-): Promise<void> {
+): Promise<string | null> {
   const requesterId = input.requestedById;
   // SANS DEMANDEUR, PAS DE DOSSIER — et c'est une décision, pas un oubli. `requesterId` n'est pas
   // nullable, et inscrire à sa place le premier Super Admin venu porterait à l'audit le nom de
   // quelqu'un qui n'a rien demandé. Ces ordres-là gardent un libellé non cliquable : une lacune
   // HONNÊTE vaut mieux qu'une attribution fausse.
-  if (!needsCompanionDossier(input.sourceType) || !requesterId) return;
+  if (!needsCompanionDossier(input.sourceType) || !requesterId) return null;
   try {
     // LA FILE, ET CE QUI LA PROUVE — mesuré (§118.182). Retirée seule, la rafale de douze décaissements
     // simultanés tombe une fois sur deux (3 sur 6) : les ordres passent déjà un par un (`SERIE_ORDRES`),
@@ -268,9 +280,29 @@ async function openCompanionDossier(
         message: "Dossier ouvert automatiquement avec l'ordre de dépense — le circuit d'origine avait déjà validé la dépense.",
       },
     });
+    return dossier.id;
   } catch (e) {
     console.error("[expense-orders] dossier compagnon non ouvert", e);
+    return null;
   }
+}
+
+/**
+ * LE FICHIER JOINT AU GESTE QUI ÉMET — rangé sur l'ordre AVANT sa création (l'identifiant est choisi d'avance) : l'ordre
+ * naît alors justifié, et entre au centre d'emblée. Un fichier qui ne s'enregistre pas fait ÉCHOUER l'émission — l'appelant
+ * le dit (« rien n'est parti ») plutôt qu'un ordre qui naîtrait justifié sur une pièce absente.
+ */
+async function rangerLeFichierJoint(
+  input: CreateExpenseOrderInput, ordreId: string,
+): Promise<{ documentId: string; nature: NatureJustificatif } | null> {
+  const j = input.justificatif;
+  if (!j || !("fichier" in j) || !(j.fichier instanceof File) || j.fichier.size === 0 || !input.requestedById) return null;
+  const doc = await persistUploadedDocument(input.requestedById, {
+    entityType: "EXPENSE_ORDER", entityId: ordreId, category: categorieDeNature(j.nature) as DocumentCategory,
+    confidentiality: "INTERNAL", stepKey: null, file: j.fichier,
+  });
+  if (!doc.ok || !doc.documentId) throw new Error(doc.error ?? "Le justificatif n'a pas pu être enregistré.");
+  return { documentId: doc.documentId, nature: j.nature };
 }
 
 export async function createExpenseOrder(input: CreateExpenseOrderInput) {
@@ -282,12 +314,24 @@ export async function createExpenseOrder(input: CreateExpenseOrderInput) {
   // le PDG, le DG ou le Super Admin ne l'a pas autorisé : plus de seuil, plus d'exemption de module. Le
   // seuil survit comme MARQUEUR (`isHighValue`) pour trier la file du centre, jamais comme filtre.
   const sourceModule = input.sourceType ? ENTITY_MODULE[input.sourceType] : null;
-  const centralStatus = initialCentralStatus({ amount: input.amount, module: sourceModule });
+  // LE JUSTIFICATIF D'ABORD (24/11/2026) : le fichier joint au geste se range sur l'ordre à naître ; sinon on lit ce que
+  // la table attend pour cette origine (fiche, dossier, registre, ou l'indice de l'appelant).
+  // L'identifiant est choisi d'avance — au FORMAT de Prisma (cuid : « c » + 24 caractères), que des lecteurs reconnaissent.
+  const ordreId = `c${randomBytes(12).toString("hex")}`;
+  const joint = await rangerLeFichierJoint(input, ordreId);
+  const indice = input.justificatif && !("fichier" in input.justificatif) ? input.justificatif : {};
+  const justifie = joint !== null || (await lireJustificatifs(
+    [{ id: ordreId, sourceType: input.sourceType ?? null, sourceId: input.sourceId ?? null }], new Map([[ordreId, indice]]),
+  )).get(ordreId)?.present === true;
+  const centralStatus = initialCentralStatus({ amount: input.amount, module: sourceModule, justifie });
 
   // L'ENTITÉ se lit UNE fois, hors de l'essai : seule la RÉFÉRENCE se recalcule sous collision.
   const companyId = await companyOfExpense(input);
   const order = await enSerie(SERIE_ORDRES, () => createWithRetry(async () => prisma.expenseOrder.create({
     data: {
+      // L'ordre NÉ SOUS LA RÈGLE : son justificatif lui sera redemandé au règlement s'il venait à disparaître.
+      id: ordreId,
+      justificatifExige: true,
       reference: await nextExpenseRef(),
       companyId,
       label: input.label,
@@ -304,24 +348,34 @@ export async function createExpenseOrder(input: CreateExpenseOrderInput) {
       requiresInvoice,
       centralStatus,
     },
-  })));
+  }))).catch(async (e: unknown) => {
+    // L'ordre n'est pas né : le fichier rangé pour lui n'a plus de raison d'être.
+    if (joint) await prisma.document.delete({ where: { id: joint.documentId } }).catch(() => undefined);
+    throw e;
+  });
 
   // UN ORDRE, UN DOSSIER — quelle que soit sa provenance. Voir `openCompanionDossier`.
-  await openCompanionDossier(order, input);
+  const dossierId = await openCompanionDossier(order, input);
+  // Le fichier joint se lit AUSSI comme une pièce du dossier, sous sa vraie nature (« état de paie », « bon de remise ») :
+  // c'est là que le centre et les Finances ouvrent le justificatif. Best-effort : l'ordre est déjà justifié par le fichier.
+  if (joint && dossierId && KINDS_JUSTIFIANTS.includes(joint.nature)) {
+    await prisma.paymentPiece.create({
+      data: { requestId: dossierId, documentId: joint.documentId, kind: joint.nature as PaymentPieceKind, position: 0, createdById: input.requestedById as string },
+    }).catch((e) => console.error("[expense-orders] pièce du dossier non posée", e));
+  }
 
   const money = `${input.amount.toLocaleString("fr-FR")} DZD`;
-  if (centralStatus === "AWAITING") {
-    // On alerte LE CENTRE, pas les Finances : elles ne doivent rien voir tant que l'autorisation
-    // n'est pas donnée. Les prévenir maintenant les ferait relancer un dossier qu'elles ne
-    // peuvent pas traiter. Les montants importants le DISENT dans le corps du message : la file
-    // du centre en compte désormais beaucoup, et tous ne se valent pas.
-    await notifyRoles([...ROLES_CENTRE_DE_PAIEMENT], {
-      type: "VALIDATION_REQUIRED",
-      title: "Autorisation de paiement demandée",
-      body: `${order.reference} — ${input.label} (${money}${isHighValue(input.amount) ? `, au-dessus de ${CENTRAL_AUTH_THRESHOLD_DZD.toLocaleString("fr-FR")} DZD` : ""})`,
-      // L'entité où l'ordre attend : le centre n'a plus qu'une file par entité.
-      link: lienCentreDePaiement(companyId ?? ENTITE_SANS),
+  if (centralStatus === "AWAITING_PROOF") {
+    // NI LE CENTRE NI LES FINANCES : le service qui détient la pièce, et lui seul (sa ligne « Aujourd'hui » le rappelle).
+    const lien = input.sourceType === "PAYMENT_REQUEST" && input.sourceId ? paymentDossierHref(input.sourceId) : dossierId ? paymentDossierHref(dossierId) : "/validations/paiements";
+    await demanderLeJustificatif({
+      reference: order.reference, label: input.label, sourceType: input.sourceType ?? null, sourceId: input.sourceId ?? null,
+      requestedById: input.requestedById ?? null, lien,
     });
+  } else if (centralStatus === "AWAITING") {
+    // On alerte LE CENTRE, pas les Finances : elles ne doivent rien voir tant que l'autorisation
+    // n'est pas donnée. Les montants importants le DISENT dans le corps du message.
+    await annoncerAuCentre({ reference: order.reference, label: input.label, amount: input.amount, companyId });
   } else {
     // Chemin HISTORIQUE : plus aucun ordre ne naît hors du centre. Il reste pour que la fonction
     // ne dépende pas d'une invariante qu'un futur changement de règle pourrait rompre en silence.

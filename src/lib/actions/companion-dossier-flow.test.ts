@@ -197,6 +197,8 @@ suite("Un ordre de dépense, un dossier — quelle que soit sa provenance", () =
       label: `${TAG} demande au secrétariat`, amount: 4000, category: "AUTRE",
       sourceType: "ADMIN_REQUEST", sourceId: `ar-${Math.random().toString(36).slice(2)}`,
       requestedById: requesterId,
+      // Sa proforma, justificatif du paiement (24/11/2026) — jointe à l'émission, rangée au dossier.
+      justificatif: { fichier: new File([`proforma ${Math.random()}`], "proforma.pdf", { type: "application/pdf" }), nature: "PROFORMA" },
     });
     orders.push(order.id);
     // LE CENTRE A AUTORISÉ — c'est son geste, pas celui qu'on teste ici. Sans lui, le règlement

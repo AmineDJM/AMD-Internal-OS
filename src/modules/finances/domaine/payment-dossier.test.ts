@@ -9,8 +9,8 @@ const gate = (o: Partial<DossierGate> = {}): DossierGate => ({
 });
 
 describe("la pièce qui JUSTIFIE la dépense", () => {
-  it("le bon de commande, la facture et le DEVIS", () => {
-    expect([...JUSTIFYING_KINDS].sort()).toEqual(["INVOICE", "PURCHASE_ORDER", "QUOTE"]);
+  it("le bon de commande, la facture, le DEVIS — et la proforma, un devis sous son vrai nom (24/11/2026)", () => {
+    expect([...JUSTIFYING_KINDS].sort()).toEqual(["INVOICE", "PROFORMA", "PURCHASE_ORDER", "QUOTE"]);
     expect(hasJustifyingPiece([{ kind: "INVOICE" }])).toBe(true);
     expect(hasJustifyingPiece([{ kind: "PURCHASE_ORDER" }])).toBe(true);
   });

@@ -530,7 +530,7 @@ export async function decideCareQuote(_prev: ActionResult | undefined, formData:
       where: { id },
       select: {
         id: true, supplier: true, amountDzd: true, status: true, expenseOrderId: true, amount: true, currency: true, retainedAt: true,
-        decidedById: true, decidedAt: true,
+        decidedById: true, decidedAt: true, documentId: true,
         congressNationalId: true, congressInternationalId: true,
         cells: { select: { cellId: true } },
       },
@@ -617,6 +617,8 @@ export async function decideCareQuote(_prev: ActionResult | undefined, formData:
           sourceId: requestId,
           requestedById: user.id,
           budgetCategoryId,
+          // Le PDF du devis retenu justifie le paiement (24/11/2026) ; sans lui, l'ordre attend sa pièce avant le centre.
+          justificatif: { documentId: quote.documentId },
           // LE BUDGET EST EN DZD : un devis saisi en dollars entre à son équivalent au taux figé de la demande.
           notes: `Devis couvrant ${cellIds.length} élément(s) de la prise en charge.${quote.currency === "USD" && quote.amount != null ? ` Saisi : ${montantLisible(toNumber(quote.amount), "USD")} (converti au taux de la demande).` : ""}`,
         });

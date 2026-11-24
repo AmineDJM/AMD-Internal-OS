@@ -59,7 +59,7 @@ suite("le centre de paiement accueille le Directeur Général", () => {
   });
 
   it("LE TEST DE LA DIRECTION : le DG voit l'ordre en attente et l'autorise", async () => {
-    const ordre = await createExpenseOrder({ label: `${TAG}Imprimerie`, amount: 120_000, category: "FOURNISSEUR", beneficiary: "Imprimerie Atlas", requestedById: demandeurId });
+    const ordre = await createExpenseOrder({ label: `${TAG}Imprimerie`, amount: 120_000, category: "FOURNISSEUR", beneficiary: "Imprimerie Atlas", requestedById: demandeurId, justificatif: { fichier: new File([`facture ${Math.random()}`], "facture.pdf", { type: "application/pdf" }), nature: "INVOICE" } });
     ordres.push(ordre.id);
     expect(ordre.centralStatus).toBe("AWAITING");
     // Il est prévenu, comme le PDG.
@@ -80,7 +80,7 @@ suite("le centre de paiement accueille le Directeur Général", () => {
   });
 
   it("la Direction y reste ; le Directeur des opérations n'y siège pas (le témoin)", async () => {
-    const ordre = await createExpenseOrder({ label: `${TAG}Traiteur`, amount: 80_000, category: "FOURNISSEUR", beneficiary: "Traiteur", requestedById: demandeurId });
+    const ordre = await createExpenseOrder({ label: `${TAG}Traiteur`, amount: 80_000, category: "FOURNISSEUR", beneficiary: "Traiteur", requestedById: demandeurId, justificatif: { fichier: new File([`facture ${Math.random()}`], "facture.pdf", { type: "application/pdf" }), nature: "INVOICE" } });
     ordres.push(ordre.id);
     ACTEUR = await session(opsId, "OPERATIONS_DIRECTOR");
     const refus = await decidePayment(fd({ id: ordre.id, decision: "APPROVE" }));

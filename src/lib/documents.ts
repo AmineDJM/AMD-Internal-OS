@@ -14,6 +14,7 @@ import { signalerDocumentDepose } from "@/lib/enrichissement/signalement";
 import { inscrireDocument } from "@/modules/bibliotheque/api-inscription";
 import { sansBloquer } from "@/lib/journal";
 import { nomPourCle, typeDeDepot } from "@/lib/drive/mime-nom";
+import { libererLesOrdresJustifies } from "@/modules/finances/api-justificatif";
 
 /**
  * Chemin de dossier SÛR : jamais de « .. », jamais de chemin absolu, séparateur « / », borné.
@@ -148,6 +149,9 @@ export async function persistUploadedDocument(
     documentId, entityType, category, confidentiality, blobId: ecrit.blobId, sha256: ecrit.sha256,
     nom: file.name, mime: typeDeDepot(file.name, file.type), taille: file.size, deposeParId: userId,
   });
+  // LE JUSTIFICATIF OBLIGATOIRE (24/11/2026) : la pièce attendue par un ordre — sur sa fiche, son poste, le registre —
+  // le fait entrer au centre de paiement, sans second geste. Ne lève jamais.
+  await libererLesOrdresJustifies(userId);
 
   // MIROIR DRIVE, en arrière-plan : le document est déjà enregistré, c'est ce que la personne
   // voit. La copie se termine côté serveur — on ne fait pas attendre un téléversement pour elle.
@@ -213,6 +217,7 @@ export async function inscrireDocumentDirect(
       documentId: created.id, entityType, category: input.category, confidentiality: input.confidentiality, blobId: input.blobId,
       sha256: blob?.sha256 ?? null, nom: name, mime: input.mimeType, taille: input.size, deposeParId: userId,
     });
+    await libererLesOrdresJustifies(userId);
     // REGULATORY (Direction, 06/10) : la pièce rejoint le dossier du produit dans la catégorie
     // « Regulatory » par RÉFÉRENCE à son blob — aucun octet relu, même pour plusieurs Go.
     if (entityType === "REGULATORY_PRODUCT" && input.confidentiality === "INTERNAL") {

@@ -25,7 +25,13 @@ export {
   CENTRAL_AUTH_THRESHOLD_DZD, CENTRAL_DECISION_LABEL, CENTRAL_STATUS_LABEL, type CentralDecision,
   type CentralStatus, memeBeneficiaire, MOTIFS_REFUS_RAPIDES, ORDRE_NON_ANNULE, PAYMENT_CENTRE_REFUSAL,
   refusOrdreFerme, ROLES_CENTRE_DE_PAIEMENT, sitsOnPaymentCentre, visibleToFinance,
+  attendJustificatif, HORS_DU_CENTRE, statutApresJustificatif,
 } from "./domaine/authorization";
+export {
+  estRegularisation, JUSTIFICATIF_DE_SOURCE, LIBELLE_LIEU_JUSTIFICATIF, LIBELLE_NATURE_JUSTIFICATIF, type LieuJustificatif,
+  type NatureJustificatif, ORIGINES_JUSTIFIEES, type OrigineOrdre, phraseJustificatifAttendu, REFUS_REGLEMENT_SANS_JUSTIFICATIF,
+  refusDeDepotDePiece, regleDeJustificatif, type RegleJustificatif, titreJoindreJustificatif,
+} from "./domaine/justificatif";
 export {
   canMarkPaidDirectly, canSendToSettlement, cleEnvoiAuReglement, dateDeReglementAEcrire, invoiceDirection,
   ordreClos, peutDaterLeReglement, REFUS_DATE_REGLEMENT_HORS_FINANCES, REFUS_FACTURE_EMISE_AU_REGLEMENT,

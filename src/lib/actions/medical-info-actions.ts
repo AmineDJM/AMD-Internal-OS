@@ -808,6 +808,8 @@ export async function validateDeclarationByDirection(formData: FormData): Promis
             sourceId: decl.sourceId,
             requestedById: decl.requesterId,
             budgetCategoryId: decl.budgetCategoryId,
+            // La déclaration validée EST le justificatif du versement (24/11/2026) — son lien vers l'ordre se pose juste après.
+            justificatif: { declarationId: id },
           })
         : null;
     } catch (err) {

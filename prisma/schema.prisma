@@ -7074,6 +7074,10 @@ model ExpenseOrder {
   /// écrivain, `createExpenseOrder`, pose `AWAITING`, et un cliquet interdit tout second
   /// écrivain qui hériterait de ce défaut (§118.148). Voir `src/lib/payments/authorization.ts`.
   centralStatus         String                 @default("NOT_REQUIRED")
+  /// NÉ SOUS LA RÈGLE DU JUSTIFICATIF (24/11/2026) — posé par `createExpenseOrder`. Un ordre qui le porte n'entre au
+  /// centre qu'avec son justificatif (sinon `centralStatus = AWAITING_PROOF`) et ne se règle qu'avec lui. Les ordres
+  /// d'avant (`false`) continuent leur circuit : le centre les signale « sans justificatif », sans les bloquer.
+  justificatifExige     Boolean                @default(false)
   centralDecidedById    String?
   centralDecidedAt      DateTime?
   /// Le montant que le centre demande de retenir, quand il demande une révision.
@@ -14211,6 +14215,14 @@ enum PaymentPieceKind {
   CONTRACT
   PROOF
   OTHER
+  /// Les justificatifs d'un paiement qui n'est pas une facture (justificatif obligatoire, 24/11/2026).
+  PROFORMA
+  REQUEST_LETTER
+  PAYROLL_STATE
+  PAYSLIP
+  PAYMENT_RECEIPT
+  CASH_VOUCHER
+  DECLARATION
 }
 
 /// Le verdict des finances sur UNE pièce. Refuser tout un dossier parce qu'une facture

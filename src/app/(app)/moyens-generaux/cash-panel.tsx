@@ -282,6 +282,12 @@ export function CashPanel({ view, people }: { view: GeneralMeansView; people: { 
               <Input name="note" placeholder="Facultatif" className="mt-1 h-9" />
             </label>
           </div>
+          {/* LE JUSTIFICATIF DE LA REMISE (24/11/2026) : sans bon de remise, la remise attend avant le centre de paiement. */}
+          <label className="block text-xs">
+            Bon de remise
+            <Input name="bonDeRemise" type="file" className="mt-1 h-9" />
+            <span className="mt-0.5 block text-[0.6875rem] text-muted-foreground">Le justificatif de la remise — sans lui, elle n&apos;entre pas au centre de paiement : il se joindra au dossier de paiement.</span>
+          </label>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" type="submit" disabled={busy === "allot"}>
               {busy === "allot" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Envoyer au centre de paiement

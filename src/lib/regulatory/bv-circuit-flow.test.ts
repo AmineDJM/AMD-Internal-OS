@@ -95,10 +95,14 @@ suite("BV d'un dossier réglementaire — étape → centre de paiement → Fina
   });
 
   /** Un BV de l'ANCIEN circuit, tel que `requestBV` l'émettait avant le 24/11/2026 : il finit son parcours d'avant. */
-  const ancienOrdre = (nature: "25" | "75", montant: number) => createExpenseOrder({
-    label: `BV ${nature} % — ${TAG}REG ${TAG}PARACETAMOL`, amount: montant, category: "IMPOT", beneficiary: "ANPP",
-    sourceType: "REGULATORY_PRODUCT", sourceId: produitId, requestedById: raId, notes: "Échéance ANPP le 30 — urgent",
-  });
+  // La PROFORMA de l'ANPP, que `requestBV` rangeait sur l'étape de demande : le justificatif du BV (24/11/2026).
+  const ancienOrdre = async (nature: "25" | "75", montant: number) => {
+    await prisma.document.create({ data: { name: `${TAG}proforma-${nature}.pdf`, entityType: "REGULATORY_PRODUCT", entityId: produitId, category: "PROFORMA", confidentiality: "INTERNAL", uploadedById: raId } });
+    return createExpenseOrder({
+      label: `BV ${nature} % — ${TAG}REG ${TAG}PARACETAMOL`, amount: montant, category: "IMPOT", beneficiary: "ANPP",
+      sourceType: "REGULATORY_PRODUCT", sourceId: produitId, requestedById: raId, notes: "Échéance ANPP le 30 — urgent",
+    });
+  };
 
   it("un ordre de BV de l'ancien circuit naît EN ATTENTE du centre de paiement, produit lisible ; il empêche une nouvelle demande", async () => {
     await ancienOrdre("25", 150000);

@@ -332,7 +332,8 @@ export function PaymentDossier({
           </ul>
         )}
 
-        {(isRequester || isFinance) && open && (
+        {/* Un paiement soldé se RÉGULARISE : on ajoute une pièce à son dossier compagnon, jamais on n'en retire (24/11/2026). */}
+        {(isRequester || isFinance) && (open || (isCompanion && status === "APPROVED")) && (
           <AddPiece id={id} busy={busy} run={run} />
         )}
 

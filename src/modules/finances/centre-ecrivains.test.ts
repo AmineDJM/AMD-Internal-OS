@@ -154,6 +154,9 @@ const ECRIVAINS_AUTORISATION: Record<string, string> = {
   // Réviser un ordre non réglé (budget d'un congrès relevé, demande de paiement corrigée) RENVOIE
   // l'ordre au centre quand la révision dépasse ce qu'il a autorisé — la règle le décide (§118.191).
   "src/modules/finances/infra/revision-ordre.ts": "statutApresRevision",
+  // L'ordre né SANS justificatif (« en attente du justificatif ») entre au centre à sa pièce jointe — et seulement
+  // de cet état-là vers « en attente du centre » : la règle le décide (`statutApresJustificatif`, 24/11/2026).
+  "src/modules/finances/infra/justificatif.ts": "statutApresJustificatif",
 };
 const ECRIVAINS_PAIEMENT: Record<string, string> = {
   // Le geste des Finances qui PAIE un ordre, et il consulte le verrou avant d'écrire.

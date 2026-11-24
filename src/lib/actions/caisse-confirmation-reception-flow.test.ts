@@ -28,6 +28,12 @@ import { settleExpenseOrder } from "@/modules/finances/actions-depenses";
 import { getGeneralMeans } from "@/lib/queries/general-means";
 import { libelleRemise } from "@/lib/general-means/remise-centre";
 
+/** LE BON DE REMISE, justificatif de la remise (24/11/2026) — sans lui, elle n'entrerait pas au centre de paiement. */
+const avecBon = (f: FormData): FormData => {
+  f.set("bonDeRemise", new File([`bon ${Math.random()}`], "bon-de-remise.pdf", { type: "application/pdf" }));
+  return f;
+};
+
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
 const suite = dbOk ? describe : describe.skip;
@@ -72,7 +78,7 @@ suite("Caisse d'avance — payée par les Finances, comptée à la confirmation 
   const remiseDe = async (amount: number) => prisma.pettyCashAllotment.findFirstOrThrow({ where: { departmentId: dMg, amount }, orderBy: { createdAt: "desc" } });
   const remettre = async (amount: string) => {
     ACTOR = await acteur(u.sa, "SUPER_ADMIN");
-    return allotPettyCash(fd({ departmentId: dMg, holderId: u.caissier, amount }));
+    return allotPettyCash(avecBon(fd({ departmentId: dMg, holderId: u.caissier, amount })));
   };
   const centre = async (orderId: string, decision: "APPROVE" | "REFUSE", body = "") => {
     ACTOR = await acteur(u.pdg, "DIRECTION");
@@ -235,7 +241,7 @@ suite("Caisse d'avance — payée par les Finances, comptée à la confirmation 
 
   it("7. LA SEULE CAISSE QUI REÇOIT EST CELLE DU SERVICE : une remise, une rallonge accordée vers un autre département sont refusées ; sans service désigné, aucune", async () => {
     ACTOR = await acteur(u.sa, "SUPER_ADMIN");
-    const autre = await allotPettyCash(fd({ departmentId: dAutre, holderId: u.caissier, amount: "7000" }));
+    const autre = await allotPettyCash(avecBon(fd({ departmentId: dAutre, holderId: u.caissier, amount: "7000" })));
     expect(autre.ok).toBe(false);
     expect(autre.error).toMatch(/celle des moyens généraux \(« .* Moyens généraux »\)/);
     expect(await prisma.pettyCashAllotment.count({ where: { departmentId: dAutre } })).toBe(0);
@@ -255,7 +261,7 @@ suite("Caisse d'avance — payée par les Finances, comptée à la confirmation 
     expect(await prisma.pettyCashAllotment.count({ where: { departmentId: dAutre } })).toBe(1);
 
     SERVICE = null;
-    const sans = await allotPettyCash(fd({ departmentId: dMg, holderId: u.caissier, amount: "7000" }));
+    const sans = await allotPettyCash(avecBon(fd({ departmentId: dMg, holderId: u.caissier, amount: "7000" })));
     SERVICE = dMg;
     expect(sans.ok).toBe(false);
     expect(sans.error).toMatch(/Aucun service des moyens généraux n'est désigné.*Administration › Réglages/);

@@ -25,6 +25,12 @@ import { addDepartmentExpense } from "./department-budget-actions";
 import { decidePayment } from "@/modules/finances/actions-centre";
 import { settleExpenseOrder } from "@/modules/finances/actions-depenses";
 
+/** LE BON DE REMISE, justificatif de la remise (24/11/2026) — sans lui, elle n'entrerait pas au centre de paiement. */
+const avecBon = (f: FormData): FormData => {
+  f.set("bonDeRemise", new File([`bon ${Math.random()}`], "bon-de-remise.pdf", { type: "application/pdf" }));
+  return f;
+};
+
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
 const suite = dbOk ? describe : describe.skip;
@@ -111,7 +117,7 @@ suite("Caisse d'avance continue", () => {
 
   const remettre = async (amount: string, period: string) => {
     ACTOR = await actorFor(adminId, "SUPER_ADMIN");
-    return allotPettyCash(form({ departmentId: deptId, holderId, amount, period }));
+    return allotPettyCash(avecBon(form({ departmentId: deptId, holderId, amount, period })));
   };
   /**
    * LE CENTRE AUTORISE, LES FINANCES PAIENT, LE CAISSIER CONFIRME — et la somme compte dans la caisse
@@ -169,7 +175,7 @@ suite("Caisse d'avance continue", () => {
 
   it("la remise suivante NE REDEMANDE PAS la détentrice — elle est reprise du fond", async () => {
     ACTOR = await actorFor(adminId, "SUPER_ADMIN");
-    const r = await allotPettyCash(form({ departmentId: deptId, amount: "10000", period: "2026-09" }));
+    const r = await allotPettyCash(avecBon(form({ departmentId: deptId, amount: "10000", period: "2026-09" })));
     expect(r.ok, r.error).toBe(true);
     const derniere = await prisma.pettyCashAllotment.findFirst({ where: { departmentId: deptId }, orderBy: { createdAt: "desc" } });
     expect(derniere?.holderId).toBe(holderId);
