@@ -134,7 +134,7 @@ suite("Visite médicale — « Ce n'est pas un cas » (interface du délégué)"
     const ligne = { repId: ids.kam!, nom: `${TAG}kam`, buId: ids.bu!, buNom: null, secteurNom: null, panelVide: false } as unknown as LigneDelegue;
     const e = await chargerEquipeTerrain({ user: ACTOR!, lignes: [ligne], aTraiter: { plansAValider: [], ciblesNonVues: { total: 0, decideurs: 0 }, secteursVacants: [], coachingsEnRetard: [] } });
     expect(e.aRelire.lignes[0]).toMatchObject({ visitId: v1, pvIa: "POSSIBLE", ecarteParLeDelegue: true });
-    const actions = lignesARelire({ aRelire: e.aRelire, liens: { relire: (id) => `/planning?relire=${id}` } as never });
+    const actions = lignesARelire({ aRelire: e.aRelire, liens: { relire: (id: string) => `/planning?relire=${id}` } as never });
     expect(actions[0]!.sous).toContain("le délégué indique : « ce n'est pas un cas »");
     const r = await chargerRapportARelire(ACTOR!, { mode: "all" } as never, v1);
     expect(r?.visite.pvEcarteLe).not.toBeNull();

@@ -236,7 +236,7 @@ export function JourneeDelegue({
                   <span className="block truncate text-xs text-muted-foreground">{jourEtHeure(l.date)} · {l.institution ?? "—"}</span>
                 </span>
                 <Badge tone={tonDuDelai(l.heuresRestantes)}>reste {l.heuresRestantes} h</Badge>
-                <Button size="sm" variant={tonDuDelai(l.heuresRestantes) === "danger" ? "default" : "outline"} className="h-10 sm:h-9"
+                <Button size="sm" variant={tonDuDelai(l.heuresRestantes) === "danger" ? "primary" : "outline"} className="h-10 sm:h-9"
                   onClick={() => ouvrirCible({ sorte: "PLANIFIEE", visitId: l.id })} disabled={occupe}>
                   Écrire le compte rendu
                 </Button>

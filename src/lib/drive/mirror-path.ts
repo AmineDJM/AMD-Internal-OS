@@ -40,6 +40,8 @@ export const COPIE_AU_DRIVE: Record<EntityType, "copie" | "miroir-propre" | "jam
   PHARMACOVIGILANCE_CASE: "jamais", RECLAMATION: "jamais",
   // Une échéance de charge fixe : sa facture vit sur l'ordre de paiement.
   FIXED_CHARGE: "jamais",
+  // Un paiement d'impôt (G50, bordereau) : comme la charge fixe, sa pièce vit sur l'ordre de paiement.
+  TAX_PAYMENT: "jamais",
   // Voyageurs : ordres de mission, prises en charge, billets et hôtels du secrétariat, missions chauffeur
   MISSION_ASSIGNMENT: "jamais", CONGRESS_INTERNATIONAL: "jamais", CONGRESS_NATIONAL: "jamais", AD_PRO_ITEM: "jamais",
   ADMIN_REQUEST: "jamais", DRIVER_MISSION: "jamais",

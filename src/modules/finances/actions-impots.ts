@@ -18,7 +18,8 @@ import {
 import { libelleLigneBudget, repartirAuProrata, ventilationBudgetaire } from "./domaine/budget-impots";
 import { lignesBudgetImpots, lignesMasseSalarialeParDepartement } from "./infra/budget-impots";
 import { createExpenseOrder } from "./infra/expense-orders";
-import { assurerLignesDuCalendrier, CHEMIN_IMPOTS, paieDuMois } from "./infra/impots";
+import { assurerLignesDuCalendrier, CHEMIN_IMPOTS, type FicheRetenue, paieDuMois } from "./infra/impots";
+import { libererLesOrdresJustifies } from "./infra/justificatif";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -143,7 +144,7 @@ async function envoyerLaLigne(formData: FormData, user: CurrentUser, ligne: Lign
           const mois = /^\d{4}-\d{2}$/.test(ligne.periode ?? "") ? ligne.periode : `${maintenant.getUTCFullYear()}-${String(maintenant.getUTCMonth() + 1).padStart(2, "0")}`;
           fiches = (await paieDuMois(ligne.companyId, mois)).fiches;
         }
-        const poidsDe = (f: (typeof fiches)[number]) => (cleMs === "MS_IRG" ? f.retIrg ?? 0 : (f.retSS9 ?? 0) + (f.partPatronale ?? 0));
+        const poidsDe = (f: FicheRetenue) => (cleMs === "MS_IRG" ? f.retIrg ?? 0 : (f.retSS9 ?? 0) + (f.partPatronale ?? 0));
         const msParDep = await lignesMasseSalarialeParDepartement(
           ligne.companyId, dateBudget, fiches.map((f) => f.departmentId).filter((x): x is string => Boolean(x)),
         );
@@ -211,6 +212,10 @@ async function envoyerLaLigne(formData: FormData, user: CurrentUser, ligne: Lign
       }
     }
   }
+
+  // LE JUSTIFICATIF OBLIGATOIRE (24/11/2026) : les ordres naissent « en attente du justificatif » (la pièce n'est déposée
+  // qu'une fois leur identifiant connu) ; la G50 / le bordereau désormais sur chaque ordre les fait entrer au centre.
+  await libererLesOrdresJustifies(user.id);
 
   await prisma.echeanceFiscale.updateMany({
     where: { id: ligne.id, expenseOrderId: null },

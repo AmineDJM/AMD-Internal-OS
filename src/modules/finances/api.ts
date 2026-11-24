@@ -77,7 +77,7 @@ export { getComptaData, getResultatMensuel } from "./infra/requetes/compta";
 // L'écran « Comptabilité » (maquette validée, 24/11/2026) : la société, l'onglet, la recherche, les panneaux, le Résultat.
 export {
   type CandidatRattachement, chargerComptabilite, type ControleCompta, type DetailEcriture, type DonneesComptabilite,
-  type EtapeChaine, type FactureCompta, type LigneCompta, type ParamsComptabilite, type PieceCompta, SANS_SOCIETE,
+  type EtapeChaineCompta, type FactureCompta, type LigneCompta, type ParamsComptabilite, type PieceCompta, SANS_SOCIETE,
 } from "./infra/requetes/comptabilite";
 export { fileAInstruire, instruitLesDemandes, myPaymentRequests } from "./infra/requetes/my-payment-requests";
 export {

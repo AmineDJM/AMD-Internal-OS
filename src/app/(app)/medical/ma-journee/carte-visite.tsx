@@ -95,10 +95,10 @@ export function CarteVisiteDuJour({
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-2">
           {l.geste === "COMMENCER" && (
-            <Button variant={estProchaine ? "default" : "outline"} className="h-10" onClick={onCommencer} disabled={occupe}>Commencer</Button>
+            <Button variant={estProchaine ? "primary" : "outline"} className="h-10" onClick={onCommencer} disabled={occupe}>Commencer</Button>
           )}
           {l.etat === "FAITE" && (
-            <Button variant={alertePv ? "default" : "outline"} className="h-10" onClick={onVoir} disabled={occupe}>Voir</Button>
+            <Button variant={alertePv ? "primary" : "outline"} className="h-10" onClick={onVoir} disabled={occupe}>Voir</Button>
           )}
           {l.etat === "FAITE" && !alertePv && l.geste === "AUCUN" && <Check className="h-4 w-4 text-success" aria-label="Compte rendu envoyé" />}
           <MenuPlus label="Autres actions sur la visite">

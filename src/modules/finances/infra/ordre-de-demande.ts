@@ -59,7 +59,7 @@ export async function ligneBudgetaireDeLaNature(nature: NatureDepense, companyId
 
 /** Ce que la nature fait de l'ordre d'une demande : son entrée pour `createExpenseOrder`, et la retenue à prévoir. */
 export interface OrdrePrepare {
-  ordre: ReturnType<typeof ordreDeLaDemande> & { category: FinanceCategory };
+  ordre: Omit<ReturnType<typeof ordreDeLaDemande>, "category"> & { category: FinanceCategory };
   demande: { id: string; reference: string; payee: string; requesterId: string };
   retenue: { nature: string; regime: RegimeRetenueSource; calcul: CalculRetenue; phrase: string } | null;
 }

@@ -58,7 +58,7 @@ export interface LigneCompta {
   prevue: boolean;
 }
 
-export interface EtapeChaine { etape: string; qui: string; date: string | null; attention: boolean }
+export interface EtapeChaineCompta { etape: string; qui: string; date: string | null; attention: boolean }
 
 export interface DetailEcriture extends LigneCompta {
   tiersLabel: "Payé à" | "Reçu de";
@@ -70,7 +70,7 @@ export interface DetailEcriture extends LigneCompta {
   invoiceRef: string;
   notes: string;
   pieces: PieceCompta[];
-  chaine: EtapeChaine[];
+  chaine: EtapeChaineCompta[];
   budget: string;
   origineHref: string | null;
   /** « Contre-passée le … » / « Écriture inverse de FIN-… » — la trace de la compensation. */
@@ -446,7 +446,7 @@ async function chargerDetailEcriture(user: CurrentUser, id: string, parSociete: 
   };
   const jour = (d: Date | null | undefined) => (d ? d.toISOString() : null);
 
-  const chaine: EtapeChaine[] = ordre
+  const chaine: EtapeChaineCompta[] = ordre
     ? [
         { etape: "Demandé par", qui: qui(ordre.requestedById), date: jour(ordre.createdAt), attention: !ordre.requestedById },
         ordre.centralDecidedById

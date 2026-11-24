@@ -73,7 +73,7 @@ suite("Nature de la dépense et retenue à la source — la chaîne réelle", ()
   };
 
   beforeAll(async () => {
-    for (const [k, role] of [["dem", "PRODUCT_MANAGER"], ["pdg", "DIRECTION"], ["cpt", "FINANCE_BUDGET_MANAGER"], ["sa", "SUPER_ADMIN"]] as const) {
+    for (const [k, role] of [["dem", "PRODUCT_MANAGER"], ["pdg", "GENERAL_MANAGER"], ["cpt", "FINANCE_BUDGET_MANAGER"], ["sa", "SUPER_ADMIN"]] as const) {
       u[k] = { id: (await prisma.user.create({ data: { name: `${TAG}${k}`, email: `${TAG}${k}@t.dz`, role, passwordHash: "x" } })).id, role };
     }
     societe = await adventumCompanyId();
