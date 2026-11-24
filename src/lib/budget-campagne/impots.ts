@@ -25,13 +25,15 @@ import { CLE_MS_CNAS, CLE_MS_IRG, controleCoutEmployeur, repartirSelonProfil, ty
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
+import { CODE_ENVELOPPE_IMPOTS, LIGNES_BUDGET_IMPOTS } from "@/modules/finances/partage";
+
 // ─────────────────────────────── Les clés (enveloppe du lot « impôts ») ───────────────────────────────
 
-/** La clé de l'enveloppe Impôts & taxes. À remplacer par la constante finances à la fusion (lot impots). */
-export const ENVELOPPE_IMPOTS_TAXES = "IMPOTS_TAXES";
+/** La clé de l'enveloppe Impôts & taxes — celle du module Finances, qui la crée et y impute les paiements. */
+export const ENVELOPPE_IMPOTS_TAXES = CODE_ENVELOPPE_IMPOTS;
 
-/** Les clés stables des lignes de l'enveloppe. À remplacer par la constante finances à la fusion (lot impots). */
-export const CLES_IMPOTS = ["TVA_NETTE", "IBS"] as const;
+/** Les clés stables des lignes de l'enveloppe — celles du module Finances. */
+export const CLES_IMPOTS = [LIGNES_BUDGET_IMPOTS.TVA_NETTE, LIGNES_BUDGET_IMPOTS.IBS] as const;
 export type CleImpot = (typeof CLES_IMPOTS)[number];
 
 export const LIBELLE_IMPOT: Record<CleImpot, string> = {

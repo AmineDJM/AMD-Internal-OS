@@ -1,6 +1,7 @@
 import type { SourceEcheances } from "./regles";
 import { lireEcheancesRh } from "@/modules/rh/api";
 import { echeancesLegal } from "@/lib/legal/echeances";
+import { lireEcheancesImpots } from "@/modules/finances/api";
 
 /**
  * LES SOURCES D'ÉCHÉANCES BRANCHÉES DANS « AUJOURD'HUI » (échéances intégrées, Super Admin 24/11/2026).
@@ -13,4 +14,8 @@ import { echeancesLegal } from "@/lib/legal/echeances";
 export const SOURCES_ECHEANCES: readonly SourceEcheances[] = [
   { cle: "rh", lire: lireEcheancesRh },
   echeancesLegal,
+  { cle: "finances.impots", lire: lireEcheancesImpots },
+  // Le renouvellement des décisions d'enregistrement (Regulatory) et la déclaration de pharmacovigilance ont DÉJÀ leur
+  // ligne dans « Aujourd'hui » (`action-center-renouvellements.ts`, `action-center-pharmacovigilance.ts`, avec leurs
+  // paliers propres : 12 mois, 5 jours) : les brancher ici les doublerait.
 ];

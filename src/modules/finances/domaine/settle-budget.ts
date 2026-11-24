@@ -82,3 +82,12 @@ function pick(v: string | null | undefined): string | null {
 export function needsBudgetChoice(input: BudgetGateInput): boolean {
   return !budgetGate(input).ok;
 }
+
+/**
+ * LES ORDRES QUI NE TOUCHENT AUCUN BUDGET — la trésorerie seulement (contrôle final, 24/11/2026). Une AVANCE SUR SALAIRE
+ * n'est pas une charge : c'est une créance sur le salarié, reprise sur sa paie — dont le net, lui, consomme la masse
+ * salariale. L'imputer au règlement compterait la même somme deux fois.
+ */
+export function ordreHorsBudget(o: { sourceType: string | null }): boolean {
+  return o.sourceType === "SALARY_ADVANCE";
+}

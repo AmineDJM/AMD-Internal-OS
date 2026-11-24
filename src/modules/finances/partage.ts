@@ -105,7 +105,7 @@ export {
   FENETRE_FRACTIONNEMENT_JOURS, detecterFractionnement, seuilsDeFractionnement, phraseFractionnement,
   type DemandeComparable, type SeuilDeFractionnement, type SignalFractionnement,
 } from "./domaine/fractionnement";
-export { BUDGET_CLASSIFY_PROMPT, budgetGate, needsBudgetChoice } from "./domaine/settle-budget";
+export { BUDGET_CLASSIFY_PROMPT, budgetGate, needsBudgetChoice, ordreHorsBudget } from "./domaine/settle-budget";
 export { STATUTS_SOLDES_PAR_UN_REGLEMENT } from "./domaine/soldes-au-reglement";
 export {
   checkDeferral, deferralNote, SETTLEMENT_LABEL, settlementState, type SettlementState, sortForSettlement,
@@ -121,7 +121,7 @@ export {
 // La paie VERSÉE par le centre de paiement (décision du 28/10/2026) : les RH décident les salaires, les Finances les
 // versent — le mois de la paie, l'état d'un salaire et du virement, le coût employeur et la masse salariale.
 export {
-  basisLabel, type CostBasis, defaultEmployerCost, entryBasis, entryCost, type PayrollCostInput,
+  basisLabel, type CostBasis, coutNetMasseSalariale, defaultEmployerCost, entryBasis, entryCost, type PayrollCostInput,
 } from "./domaine/payroll-cost";
 export { type LigneMasseMensuelle, type MasseMensuelle, masseMensuelleParEntite } from "./domaine/payroll-mass";
 export {
@@ -165,5 +165,6 @@ export {
 // budgétaire et les autres lots importent d'ici.
 export {
   CATEGORIES_BUDGET_IMPOTS, CATEGORIES_MASSE_SALARIALE_IMPOTS, type CleLigneBudgetImpots, type CleLigneMasseSalariale,
-  CODE_ENVELOPPE_IMPOTS, LIGNES_BUDGET_IMPOTS, LIGNES_MASSE_SALARIALE, nomEnveloppeImpots,
+  CODE_ENVELOPPE_IMPOTS, LIGNES_BUDGET_IMPOTS, LIGNES_MASSE_SALARIALE, nomEnveloppeImpots, PART_RETENUES_SOURCE,
+  ventilationBudgetaire,
 } from "./domaine/budget-impots";

@@ -108,10 +108,10 @@ test("Directeur général — il siège, mais ne décide pas un paiement qu'il a
 
 test("Directeur des opérations — aucun siège au centre de paiement", async ({ recette: r, page }) => {
   await r.etape("Se connecter comme Directeur des opérations et ouvrir /centre-de-paiement",
-    "« Vous ne siégez pas au centre de paiement » — aucun bouton de décision", async () => {
+    "« réservé à la Direction générale » — aucun bouton de décision", async () => {
       await r.connecter("dirOps");
       await r.aller("/centre-de-paiement");
-      await expect(page.getByText("Vous ne siégez pas au centre de paiement")).toBeVisible();
+      await expect(page.getByText("Le centre de paiement est réservé à la Direction générale", { exact: true })).toBeVisible();
       await expect(page.getByRole("button", { name: "Autoriser le paiement" })).toHaveCount(0);
     });
 });

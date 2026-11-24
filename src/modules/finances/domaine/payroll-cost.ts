@@ -55,6 +55,18 @@ export function entryCost(e: PayrollCostInput): number {
   return num(e.gross) + num(e.bonuses) - num(e.deductions);
 }
 
+/**
+ * CE QUE LA LIGNE « MASSE SALARIALE » D'UN BUDGET CONSOMME — le NET versé, primes comprises (contrôle final, 24/11/2026).
+ *
+ * La masse salariale d'un budget se lit en trois lignes : net + primes, IRG (`MS_IRG`), CNAS (`MS_CNAS`) ; leur total est
+ * le coût employeur. L'IRG et la CNAS y sont imputés par Impôts & cotisations, au paiement de la G50 et du bordereau :
+ * consommer ici le coût employeur les compterait deux fois. À défaut de net saisi : brut + primes − retenues salariales.
+ */
+export function coutNetMasseSalariale(e: PayrollCostInput & { net?: number | null }): number {
+  if (e.net != null && Number.isFinite(e.net) && e.net > 0) return e.net;
+  return Math.max(0, num(e.gross) + num(e.bonuses) - num(e.deductions));
+}
+
 /** La base réellement utilisée pour une ligne — pour le dire à l'écran. */
 export function entryBasis(e: PayrollCostInput): CostBasis {
   if (e.employerCost != null && Number.isFinite(e.employerCost)) return "EMPLOYER_COST";

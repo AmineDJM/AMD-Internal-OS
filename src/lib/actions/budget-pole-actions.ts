@@ -21,6 +21,7 @@ import { sansBloquer } from "@/lib/journal";
 import { toNumber } from "@/lib/utils";
 import { refusReallocationEntreEnveloppes, refusTotalBudget } from "@/lib/budget/budget-du-directeur";
 import { enveloppeDeBudget, estDirecteurDuBudget } from "@/lib/budget/directeur-serveur";
+import { refusSurReserve } from "@/modules/finances/partage";
 
 /**
  * LES BUDGETS DES PÔLES — les gestes de chaque pôle sur SES enveloppes (Direction, 08/10).
@@ -199,7 +200,7 @@ export async function reallouerCategorie(formData: FormData): Promise<ActionResu
   const montant = fdNum(formData, "montant");
   const motif = fdStr(formData, "motif")?.trim() ?? null;
   const [source, cible] = await Promise.all([
-    sourceId ? prisma.budgetCategoryLine.findUnique({ where: { id: sourceId }, select: { id: true, name: true, envelopeId: true, parentId: true, allocated: true } }) : null,
+    sourceId ? prisma.budgetCategoryLine.findUnique({ where: { id: sourceId }, select: { id: true, name: true, cle: true, envelopeId: true, parentId: true, allocated: true } }) : null,
     cibleId ? prisma.budgetCategoryLine.findUnique({ where: { id: cibleId }, select: { id: true, name: true, envelopeId: true, parentId: true } }) : null,
   ]);
   const entreEnveloppes = Boolean(source && cible && source.envelopeId !== cible.envelopeId);
@@ -209,6 +210,9 @@ export async function reallouerCategorie(formData: FormData): Promise<ActionResu
     cible: cible ? { envelopeId: cible.envelopeId, parentId: cible.parentId } : null,
   });
   if (refusSaisie || !source || !cible || montant == null || !motif) return { ok: false, error: refusSaisie ?? "Saisie incomplète." };
+  // RÉALLOUER DEPUIS LA RÉSERVE POUR IMPRÉVUS, c'est la libérer : le DG ou le Super Admin seulement (24/11/2026).
+  const refusReserve = refusSurReserve({ cle: source.cle, geste: "BAISSER", user });
+  if (refusReserve) return { ok: false, error: refusReserve };
   const [env, envCible, budgetSource, budgetCible] = await Promise.all([
     prisma.budgetEnvelope.findUnique({
       where: { id: source.envelopeId },

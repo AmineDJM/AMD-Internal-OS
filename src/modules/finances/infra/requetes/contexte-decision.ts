@@ -289,8 +289,8 @@ export async function contexteDecisionDesOrdres(
     return out;
   };
 
-  // LE BUDGET : la catégorie de l'ordre, sinon celle de sa source ; paie et caisse n'en ont pas.
-  const horsBudget = (f: FamilleOrdre) => f === "PAIE" || f === "CAISSE";
+  // LE BUDGET : la catégorie de l'ordre, sinon celle de sa source ; paie, caisse et avance sur salaire n'en ont pas.
+  const horsBudget = (f: FamilleOrdre) => f === "PAIE" || f === "CAISSE" || f === "AVANCE";
   const budgets = briques.budget
     ? await essayer("budget", manques, null as Map<string, BudgetDecision> | null, () => briques.budget!(
         pourBriques.filter((o) => !horsBudget(o.famille)).map((o) => ({
@@ -429,7 +429,12 @@ export async function contexteDecisionDesOrdres(
     alertes.push(...ecarts);
 
     const budget: BudgetDecision = horsBudget(famille)
-      ? { etat: "HORS_ENVELOPPE", phrase: famille === "PAIE" ? "Hors enveloppe : la masse salariale s'impute par service" : "Hors budget : une remise de caisse n'est pas une dépense, ses achats s'imputent un à un" }
+      ? {
+          etat: "HORS_ENVELOPPE",
+          phrase: famille === "PAIE" ? "Hors enveloppe : la masse salariale s'impute par service"
+            : famille === "AVANCE" ? "Hors budget : une avance sur salaire n'est pas une charge, elle est reprise sur la paie"
+              : "Hors budget : une remise de caisse n'est pas une dépense, ses achats s'imputent un à un",
+        }
       : budgets?.get(o.id) ?? (budgets ? { etat: "NON_IMPUTE" } : { etat: "INCONNU" });
     const depasse = alerteBudget(budget);
     if (depasse) alertes.push(depasse);

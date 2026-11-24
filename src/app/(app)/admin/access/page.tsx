@@ -2,18 +2,19 @@ import Link from "next/link";
 import { ArrowLeft, ShieldCheck, Coins } from "lucide-react";
 import { requireModule } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { PERMISSIONS, defaultScope, MODULES, ACTIONS, type Action, type Module } from "@/lib/rbac";
+import { PERMISSIONS, defaultScope, MODULES, MODULES_SUPER_ADMIN_SEUL, ACTIONS, type Action, type Module } from "@/lib/rbac";
 import { buildAccessSheet, type PermissionMatrix } from "@/lib/rbac-sheet";
 import { MODULE_LABELS, ROLE_LABELS, ACTION_LABELS } from "@/lib/labels";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ModuleAccessGrid, type AccessUser, type UserModuleState, type PipelineConfig } from "./module-access-grid";
-import { PaymentCentreSeats, type SeatCandidate, type SeatHolder } from "./payment-centre-seats";
+import { PaymentCentreSeats, type SeatHolder } from "./payment-centre-seats";
 import { getAppSettings } from "@/lib/settings";
 import { BackLink } from "@/components/shared/back-link";
 import { formatDate } from "@/lib/utils";
 import { sansBloquer } from "@/lib/journal";
 import { isRetiredModule } from "@/lib/modules-retired";
+import { ROLES_CENTRE_DE_PAIEMENT } from "@/modules/finances/partage";
 
 export const dynamic = "force-dynamic";
 
@@ -87,13 +88,11 @@ export default async function AccessByModulePage() {
         }])),
       }
     : undefined;
-  // ── LE CERCLE DU CENTRE DE PAIEMENT ──────────────────────────────────────────────────────
+  // ── QUI DÉCIDE AU CENTRE DE PAIEMENT ─────────────────────────────────────────────────────
   //
-  // Depuis le 24/11/2026, siéger au centre, c'est avoir le module `PAYMENT_CENTRE` (`sitsOnPaymentCentre`) : la grille
-  // ci-dessus le règle comme tout autre module — l'accorder fait siéger, le bloquer retire le siège (au Super Admin près).
-  // Le SIÈGE NOMMÉ reste : c'est une désignation motivée et tracée, qui ouvre le module sans rien d'autre. On montre les
-  // deux titres ensemble — le RÔLE (défaut du module) et la DÉSIGNATION — pour qu'on ne retire pas un siège en pensant
-  // fermer une porte que le rôle tient ouverte.
+  // La Direction générale seule (Super Admin, 24/11/2026) : le Super Admin et le Directeur Général, en principal ou en
+  // « autre rôle » (`sitsOnPaymentCentre`) — la console peut seulement fermer le centre au Directeur Général (module
+  // bloqué). Les désignations nommées d'hier restent en base, sans effet : listées pour être retirées.
   const seatRows = await prisma.paymentCentreSeat.findMany({
     include: { user: { select: { id: true, name: true, role: true } }, grantedBy: { select: { name: true } } },
     orderBy: { grantedAt: "desc" },
@@ -102,21 +101,17 @@ export default async function AccessByModulePage() {
     userId: r.userId, name: r.user.name, role: ROLE_LABELS[r.user.role] ?? r.user.role,
     note: r.note, grantedBy: r.grantedBy?.name ?? null, grantedAt: formatDate(r.grantedAt.toISOString()),
   }));
-  const seated = new Set(seats.map((s) => s.userId));
+  const directionGenerale = (r: string | null) => r != null && (ROLES_CENTRE_DE_PAIEMENT as readonly string[]).includes(r);
   const byRole = users
-    .filter((u) => u.role === "SUPER_ADMIN" || u.role === "DIRECTION" || u.role === "GENERAL_MANAGER")
-    .map((u) => ({ id: u.id, name: u.name, role: ROLE_LABELS[u.role] ?? u.role }));
-  // Les candidats : ni ceux qui y siègent déjà par leur rôle (un siège nommé n'ajouterait rien),
-  // ni ceux déjà désignés, ni le compte système — autoriser un décaissement est un geste de
-  // personne, et le laisser dans la liste inviterait à l'auto-escalade par un humain qui clique.
-  const candidates: SeatCandidate[] = users
-    .filter((u) => !u.isSystem && u.role !== "SUPER_ADMIN" && u.role !== "DIRECTION" && u.role !== "GENERAL_MANAGER" && !seated.has(u.id))
+    .filter((u) => u.role === "SUPER_ADMIN"
+      || ((directionGenerale(u.role) || directionGenerale(u.secondaryRole)) && !u.access.some((a) => a.module === "PAYMENT_CENTRE" && !a.canView)))
     .map((u) => ({ id: u.id, name: u.name, role: ROLE_LABELS[u.role] ?? u.role }));
 
   // LES MODULES RETIRÉS DU SERVICE n'entrent plus dans la feuille (24/11/2026) : `getAccess` les vide pour tout le monde,
-  // Super Admin compris (`modules-retired.ts`) — une ligne réglable qui n'ouvre rien fait croire la console cassée.
+  // Super Admin compris (`modules-retired.ts`) — une ligne réglable qui n'ouvre rien fait croire la console cassée. Ceux
+  // RÉSERVÉS AU SUPER ADMIN (Brain, Adam, son bureau) non plus : ils ne s'accordent à personne (`MODULES_SUPER_ADMIN_SEUL`).
   const sheet = buildAccessSheet(
-    MODULES.filter((m) => !isRetiredModule(m)),
+    MODULES.filter((m) => !isRetiredModule(m) && !MODULES_SUPER_ADMIN_SEUL.includes(m)),
     MODULE_LABELS as Record<string, string>,
     PERMISSIONS as unknown as PermissionMatrix,
     ACTIONS,
@@ -147,10 +142,10 @@ export default async function AccessByModulePage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Coins className="h-4 w-4 text-primary" /> Qui siège au centre de paiement</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Coins className="h-4 w-4 text-primary" /> Qui décide au centre de paiement</CardTitle>
         </CardHeader>
         <CardContent>
-          <PaymentCentreSeats seats={seats} candidates={candidates} byRole={byRole} />
+          <PaymentCentreSeats seats={seats} byRole={byRole} />
         </CardContent>
       </Card>
     </div>

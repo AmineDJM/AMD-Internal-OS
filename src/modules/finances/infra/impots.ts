@@ -99,6 +99,30 @@ export async function paieDuMois(companyId: string, periode: string | null): Pro
   return { propositions: { ...propositionsDesFiches(fiches), tva, ...(ras.total > 0 ? { retenues: ras.total } : {}) }, fiches, base, retenues: ras.lignes };
 }
 
+// ── Les échéances dans « Aujourd'hui » ─────────────────────────────────────────────────────
+
+/** Une échéance oubliée depuis plus longtemps ne remonte plus dans « Aujourd'hui » : elle reste sur l'écran des impôts. */
+const RETARD_MAX_IMPOTS_JOURS = 90;
+
+/**
+ * LES ÉCHÉANCES FISCALES ET SOCIALES À PRÉPARER, pour « Aujourd'hui » (échéances intégrées, `echeances/registre.ts`) : une
+ * ligne tant qu'aucun ordre n'est parti au centre (`expenseOrderId` vide — à préparer, ou refusée et rendue), menant à la
+ * ligne de l'écran. Les responsables de métier : le droit « Modifier » sur Impôts & cotisations, cloisonné par société.
+ */
+export async function lireEcheancesImpots({ maintenant, jusquau }: { maintenant: Date; jusquau: Date }) {
+  const lignes = await prisma.echeanceFiscale.findMany({
+    where: { expenseOrderId: null, echeance: { gte: new Date(maintenant.getTime() - RETARD_MAX_IMPOTS_JOURS * 86_400_000), lte: jusquau } },
+    select: { id: true, companyId: true, organisme: true, nature: true, periodeLibelle: true, echeance: true },
+    orderBy: { echeance: "asc" },
+  });
+  return lignes.map((l) => ({
+    source: "finances.impots", id: l.id, module: "Impôts & cotisations",
+    libelle: `${l.nature} — ${l.periodeLibelle}`, detail: l.organisme, date: l.echeance as Date,
+    href: `${CHEMIN_IMPOTS}?ligne=${l.id}`, liste: CHEMIN_IMPOTS, companyId: l.companyId,
+    responsables: [] as string[], droit: { module: "FINANCES_IMPOTS", action: "UPDATE" as const },
+  }));
+}
+
 // ── Les retenues à la source reversées par une G50 ─────────────────────────────────────────
 
 /**

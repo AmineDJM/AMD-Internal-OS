@@ -95,4 +95,6 @@ export {
   previsionTresorerieChargesFixes,
 } from "./infra/requetes/charges-fixes";
 // ── Impôts & cotisations (24/11/2026) : l'écran, et la tâche planifiée du calendrier (lignes de la période, rappel J-7) ──
-export { chargerImpotsCotisations, type DonneesImpots, echeancesFiscalesDues, retenuesRegleesParLesOrdres } from "./infra/impots";
+export {
+  chargerImpotsCotisations, type DonneesImpots, echeancesFiscalesDues, lireEcheancesImpots, retenuesRegleesParLesOrdres,
+} from "./infra/impots";

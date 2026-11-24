@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import type { AccessScope, EntityType } from "@prisma/client";
 import { requireUser } from "@/lib/session";
-import { userCan, MODULES, PERMISSIONS, ACTIONS, type Module } from "@/lib/rbac";
+import { userCan, MODULES, MODULES_SUPER_ADMIN_SEUL, PERMISSIONS, ACTIONS, type Module } from "@/lib/rbac";
 import { actionsOfModule, type PermissionMatrix } from "@/lib/rbac-sheet";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
@@ -69,9 +69,13 @@ export async function saveAccessMatrix(formData: FormData): Promise<ActionResult
   const refus = await refusSurLaCible(admin, userId, "DROITS");
   if (refus) return { ok: false, error: refus };
 
+  const cible = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
   for (const module of MODULES) {
     // Un module retiré n'est plus présenté (fiche de la personne) : on ne réécrit pas ce que l'écran n'a pas montré.
     if (isRetiredModule(module)) continue;
+    // Brain, Adam et son bureau n'appartiennent qu'au Super Admin (`MODULES_SUPER_ADMIN_SEUL`) : ils ne s'accordent à
+    // personne d'autre — la fiche ne les présente pas, et rien de ce qu'un formulaire en dirait ne s'écrit.
+    if (cible?.role !== "SUPER_ADMIN" && MODULES_SUPER_ADMIN_SEUL.includes(module)) continue;
     const mode = fdStr(formData, `mode_${module}`) ?? "DEFAULT";
     if (mode === "DEFAULT") {
       await prisma.userAccess.deleteMany({ where: { userId, module } });
@@ -121,6 +125,7 @@ export async function saveModuleAccess(formData: FormData): Promise<ActionResult
   if (!module || !MODULES.includes(module)) return { ok: false, error: "Module manquant." };
   // Un module RETIRÉ du service n'ouvre rien à personne (`modules-retired.ts`) : y écrire des accès laisserait croire le contraire.
   if (isRetiredModule(module)) return { ok: false, error: "Ce module est retiré du service : ses accès ne se règlent plus. Rien n'a été enregistré." };
+  if (MODULES_SUPER_ADMIN_SEUL.includes(module)) return { ok: false, error: "Ce module est réservé au Super Admin : il ne s'accorde à personne d'autre. Rien n'a été enregistré." };
   const userIds = formData.getAll("userId").map(String).filter(Boolean);
   const supported = supportedActions(module);
   // TOUT OU RIEN : une seule cible refusée fait tomber l'enregistrement, jamais seulement sa ligne.

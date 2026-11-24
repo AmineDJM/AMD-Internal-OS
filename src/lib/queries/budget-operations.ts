@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/utils";
-import { entryCost } from "@/modules/finances/partage";
+import { coutNetMasseSalariale } from "@/modules/finances/partage";
 import { voitLesSalaires } from "@/lib/hr/confidentialite";
 import type { SessionUser } from "@/lib/rbac";
 import type { BudgetOverview } from "@/lib/queries/budget";
@@ -54,19 +54,22 @@ export async function chargerForceDeVente(): Promise<ForceDeVente> {
   };
 }
 
-/** Les lignes de paie de la force de vente sur des années, réduites à leur coût (`entryCost`). */
+/**
+ * Les lignes de paie de la force de vente sur des années, réduites à ce que la ligne « masse salariale » consomme : le
+ * NET + primes (`coutNetMasseSalariale`). L'IRG et la CNAS sont imputés à part, sur `MS_IRG` / `MS_CNAS`, par Impôts &
+ * cotisations : le coût employeur ici les compterait deux fois (contrôle final, 24/11/2026).
+ */
 async function lignesPaie(fdv: ForceDeVente, anneeDe: number, anneeA: number): Promise<LignePaie[]> {
   const ids = [...fdv.rattachement.keys()];
   if (ids.length === 0) return [];
   const lignes = await prisma.payrollEntry.findMany({
     where: { employeeId: { in: ids }, year: { gte: anneeDe, lte: anneeA } },
-    select: { employeeId: true, year: true, month: true, employerCost: true, gross: true, bonuses: true, deductions: true },
+    select: { employeeId: true, year: true, month: true, net: true, gross: true, bonuses: true, deductions: true },
   });
   return lignes.map((l) => ({
     employeeId: l.employeeId, year: l.year, month: l.month, companyId: fdv.societe.get(l.employeeId) ?? null,
-    cost: entryCost({
-      employerCost: l.employerCost == null ? null : toNumber(l.employerCost),
-      gross: toNumber(l.gross), bonuses: toNumber(l.bonuses), deductions: toNumber(l.deductions),
+    cost: coutNetMasseSalariale({
+      net: toNumber(l.net), gross: toNumber(l.gross), bonuses: toNumber(l.bonuses), deductions: toNumber(l.deductions),
     }),
   }));
 }

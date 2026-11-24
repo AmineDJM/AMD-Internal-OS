@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { requireModule } from "@/lib/session";
 import { AgirCommeButton, ImpersonateButton } from "./impersonate-button";
 import { prisma } from "@/lib/prisma";
-import { PERMISSIONS, defaultScope, MODULES, ACTIONS, type Action, type Module, regulatoryLockWhere } from "@/lib/rbac";
+import { PERMISSIONS, defaultScope, MODULES, MODULES_SUPER_ADMIN_SEUL, ACTIONS, type Action, type Module, regulatoryLockWhere } from "@/lib/rbac";
 import { isRetiredModule } from "@/lib/modules-retired";
 import { buildAccessSheet, type PermissionMatrix } from "@/lib/rbac-sheet";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -66,7 +66,9 @@ export default async function AdminUserPage(props: { params: Promise<{ id: strin
   const hors = new Set(hiddenModules);
   const overrideMap = new Map(target.access.map((a) => [a.module, a]));
   // Les modules RETIRÉS du service ne se présentent plus (24/11/2026) : ils n'ouvrent rien, à personne (`modules-retired.ts`).
-  const matrixRows: ModuleAccessRow[] = MODULES.filter((m) => !isRetiredModule(m)).map((module) => {
+  // Ceux RÉSERVÉS AU SUPER ADMIN (Brain, Adam, son bureau) ne s'accordent à personne d'autre (`MODULES_SUPER_ADMIN_SEUL`).
+  const reglables = MODULES.filter((m) => !isRetiredModule(m) && (target.role === "SUPER_ADMIN" || !MODULES_SUPER_ADMIN_SEUL.includes(m)));
+  const matrixRows: ModuleAccessRow[] = reglables.map((module) => {
     const ov = overrideMap.get(module);
     const def = PERMISSIONS[target.role]?.[module] ?? [];
     const roleSummary = def.length

@@ -11,8 +11,8 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Centre de paiement — AMD Internal OS" };
 
 /**
- * LE CENTRE DE PAIEMENT — le PDG, le Directeur Général, le Super Admin et les sièges nommés : le centre AUTORISE ou
- * REFUSE, la comptabilité exécute.
+ * LE CENTRE DE PAIEMENT — la Direction générale seule, le Directeur Général et le Super Admin (24/11/2026) : le centre
+ * AUTORISE ou REFUSE, la comptabilité exécute.
  *
  * AUCUN décaissement ne quitte les Finances sans passer par ici, quel que soit son montant (Direction, 09/2026) ; le
  * seuil de 50 000 DZD survit comme un MARQUEUR qui trie la file (`isHighValue`, `trierFile`), jamais comme un filtre.
@@ -24,14 +24,14 @@ export const metadata = { title: "Centre de paiement — AMD Internal OS" };
  * compteurs répétés, plus de description d'en-tête, plus de deux liens vers la même page : la file est le compte, la
  * fiche est le dossier.
  *
- * L'écran reste ouvert au DEMANDEUR qui ne siège pas : il y suit ses propres paiements, sans gestes de décision.
- * Qui n'y siège pas et n'a rien demandé lit la règle et le geste qui l'y fait entrer.
+ * L'écran reste ouvert au DEMANDEUR qui n'y décide pas : il y suit ses propres paiements, sans gestes de décision.
+ * Qui n'y décide pas et n'a rien demandé lit la règle, et comment faire autoriser un paiement.
  */
 export default async function CentreDePaiementPage(props: { searchParams?: Promise<{ entite?: string; ordre?: string }> }) {
   const searchParams = await props.searchParams;
   const user = await requireUser();
 
-  // Le chargeur décide de la portée (sociétés ouvertes, siège ou demandeur) et VALIDE l'entité de l'adresse.
+  // Le chargeur décide de la portée (sociétés ouvertes, Direction générale ou demandeur) et VALIDE l'entité de l'adresse.
   const centre = await chargerCentre(user, { entite: searchParams?.entite ?? null });
   const { canDecide } = centre;
 
@@ -39,12 +39,7 @@ export default async function CentreDePaiementPage(props: { searchParams?: Promi
     return (
       <div className="space-y-5">
         <h1 className="text-2xl font-bold">Centre de paiement</h1>
-        <EmptyState icon="ShieldAlert" title="Vous ne siégez pas au centre de paiement" description={PAYMENT_CENTRE_REFUSAL} />
-        <p className="text-center text-xs text-muted-foreground">
-          Cocher le module « Centre de paiement » dans la grille des accès ne suffit pas, et poser un « autre rôle »
-          non plus : le siège se donne <strong>par votre nom</strong>, depuis Administration → Accès → « Qui siège au
-          centre de paiement ».
-        </p>
+        <EmptyState icon="ShieldAlert" title="Le centre de paiement est réservé à la Direction générale" description={PAYMENT_CENTRE_REFUSAL} />
       </div>
     );
   }

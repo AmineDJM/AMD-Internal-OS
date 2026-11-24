@@ -1,4 +1,5 @@
 import { plier } from "@/lib/utils";
+import { LIGNES_MASSE_SALARIALE } from "@/modules/finances/partage";
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * LA CAMPAGNE BUDGÉTAIRE — LES RÈGLES (Budgets 2027, Direction 10/2026, maquette validée).
@@ -104,9 +105,8 @@ export const LIBELLE_DOMAINE: Record<DomaineCampagne, string> = {
  */
 export const CLES_RECONNUES = [
   "BV_25", "BV_75", "MASSE_SALARIALE_FDV", "MASSE_SALARIALE",
-  // La masse salariale INCLUT l'IRG et la CNAS, affichés à part (Super Admin, 24/11/2026). À remplacer par la constante
-  // finances à la fusion (lot impots, module Budgets).
-  "MS_IRG", "MS_CNAS",
+  // La masse salariale INCLUT l'IRG et la CNAS, affichés à part (Super Admin, 24/11/2026) — les clés du module Finances.
+  LIGNES_MASSE_SALARIALE.MS_IRG, LIGNES_MASSE_SALARIALE.MS_CNAS,
   // Le budget de l'Administration (Super Admin, 24/11/2026).
   "DONS_MECENAT", "RESERVE_IMPREVUS", "REMBOURSEMENT_EMPRUNT",
 ] as const;

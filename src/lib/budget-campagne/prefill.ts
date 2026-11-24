@@ -7,6 +7,7 @@ import { CLE_MS_CNAS, CLE_MS_IRG, prevoirMasseNette, retenuesDesFiches } from ".
 import { categoriesGouvernees, consommationIntegree, contextesDesCategories } from "@/lib/queries/budget-integration";
 import { lireBvAcceptes } from "@/lib/queries/budget-bv-acceptes";
 import { LIBELLE_NATURE_BV } from "@/lib/regulatory/bv-circuit";
+import { prefillChargesFixesSociete } from "@/modules/finances/api";
 
 /**
  * « PRÉ-REMPLIR DEPUIS L'ANNÉE EN COURS » — jamais une page blanche (maquette validée).
@@ -191,12 +192,12 @@ export async function calculerPrefill(e: EntreePrefill): Promise<LignePrefill[]>
 }
 
 /**
- * LE POINT D'ENTRÉE DES CHARGES FIXES (loyer, charges locatives…) — pré-remplies depuis « Informations de la société »
- * (section « Locaux & charges fixes ») par le lot qui la tient, en lignes de source `AUTO_CHARGES_FIXES`. Rien ici tant
- * que ce lot n'est pas fusionné : une source vide ne fait pas de ligne.
+ * LES CHARGES FIXES (loyer, charges locatives…) — pré-remplies depuis « Informations de la société » (section « Locaux &
+ * charges fixes », module Finances), en lignes de source `AUTO_CHARGES_FIXES`. Elles appartiennent à UNE société : un
+ * pôle sans société n'en reçoit pas. Une source vide ne fait pas de ligne.
  */
-export async function prefillChargesFixes(_e: EntreePrefill): Promise<LignePrefill[]> {
-  return [];
+export async function prefillChargesFixes(e: EntreePrefill): Promise<LignePrefill[]> {
+  return e.companyId ? prefillChargesFixesSociete(e.companyId, e.annee) : [];
 }
 
 async function prefillBv(e: EntreePrefill, debut: Date, fin: Date, projete: (m: number) => number): Promise<LignePrefill[]> {

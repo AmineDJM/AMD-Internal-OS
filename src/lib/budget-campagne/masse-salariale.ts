@@ -10,9 +10,11 @@
  *     `retSS35`) — jamais un pourcentage ajouté par-dessus le coût employeur ;
  *   • contrôle affiché : net + primes + IRG + CNAS = coût employeur des fiches.
  *
- * Module PUR, sans aucun import.
+ * Module PUR : il n'importe que les clés des lignes, depuis la porte pure du module Finances.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
+
+import { LIGNES_MASSE_SALARIALE } from "@/modules/finances/partage";
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const positif = (n: number | null | undefined) => (n !== null && n !== undefined && Number.isFinite(n) && n > 0 ? n : 0);
@@ -71,9 +73,9 @@ export function repartirSelonProfil(montant: number, poids?: readonly number[] |
   return parts.map((c) => c / 100);
 }
 
-/** Les clés stables des sous-lignes de la masse salariale. À remplacer par la constante finances à la fusion (lot impots). */
-export const CLE_MS_IRG = "MS_IRG";
-export const CLE_MS_CNAS = "MS_CNAS";
+/** Les clés stables des sous-lignes de la masse salariale — celles du module Finances (Impôts & cotisations y impute). */
+export const CLE_MS_IRG = LIGNES_MASSE_SALARIALE.MS_IRG;
+export const CLE_MS_CNAS = LIGNES_MASSE_SALARIALE.MS_CNAS;
 
 /** Les éléments d'une fiche salarié utiles à la prévision (mensuels). */
 export interface FicheRetenues {

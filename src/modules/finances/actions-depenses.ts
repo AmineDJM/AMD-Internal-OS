@@ -10,7 +10,7 @@ import {
   refusSeparationDesTaches, ordreAFacture, nextFinanceRef, canDisburse, blockedReason, type CentralStatus,
   checkDeferral, budgetGate, dossierHrefByOrder, compteDeLEcriture, verserLaRemise, solderLeDossierCompagnon,
   solderVirementPaie, STATUTS_SOLDES_PAR_UN_REGLEMENT, lireSaisieReglement, noteDeReference, justificatifsDesOrdres, REFUS_REGLEMENT_SANS_JUSTIFICATIF,
-  constaterRetenueAuReglement, marquerRetenuesReversees, retenuesRegleesParLesOrdres,
+  constaterRetenueAuReglement, marquerRetenuesReversees, ordreHorsBudget, retenuesRegleesParLesOrdres,
 } from "@/modules/finances/api";
 import { refusSurReserve } from "./domaine/charges-fixes";
 import { pickAutoCategory } from "@/lib/budget/auto-category";
@@ -183,7 +183,8 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
   // L'EXCEPTION QUI ÉVITE L'IMPASSE : s'il n'existe AUCUNE catégorie où classer, on paie et la
   // dépense reste à imputer. Exiger un choix dans une liste vide ferme une porte à clé sur une
   // pièce vide, et une installation sans enveloppes doit pouvoir régler ses factures.
-  const gate = retenuesReversees ? { ok: true, categoryId: null, reason: undefined } : budgetGate({
+  // Une avance sur salaire ne se classe pas non plus : trésorerie seulement (`ordreHorsBudget`).
+  const gate = retenuesReversees || ordreHorsBudget(order) ? { ok: true, categoryId: null, reason: undefined } : budgetGate({
     chosen: chosenCategoryId,
     onOrder: budgetCategoryId,
     availableCount: await prisma.budgetCategoryLine.count({ where: { envelope: { isActive: true } } }),

@@ -3,6 +3,8 @@ import { toNumber } from "@/lib/utils";
 import { recordAudit } from "@/lib/audit";
 import { enSerie } from "@/lib/refs";
 import { bornesAnnee } from "@/lib/budget/domaines";
+import { CLE_DEPARTEMENT_INFORMATIQUE } from "@/lib/rbac";
+import { enveloppeInformatique } from "@/modules/informatique/api";
 import { STATUTS_ACCEPTES, estPoleAdministration, estStatutProposition, montantRetenu, nomEnveloppe, planEnveloppe, type LignePourEnveloppe } from "./regles";
 
 /**
@@ -23,7 +25,7 @@ export async function ouvrirEnveloppeDeLaProposition(proposalId: string, actorId
       select: {
         id: true, status: true, poleLabel: true, domaine: true, envelopeId: true, currentVersion: true, estRectificatif: true,
         campaign: { select: { year: true, title: true, companyId: true } },
-        department: { select: { companyId: true, name: true, code: true, head: { select: { userId: true } }, deputy: { select: { userId: true } } } },
+        department: { select: { companyId: true, name: true, code: true, cle: true, head: { select: { userId: true } }, deputy: { select: { userId: true } } } },
         lines: { select: { id: true, key: true, label: true, categoryKey: true, categoryLineId: true, propose: true, ajuste: true, decision: true } },
         versions: { select: { lines: true } },
       },
@@ -45,9 +47,18 @@ export async function ouvrirEnveloppeDeLaProposition(proposalId: string, actorId
       }
     }
 
-    const existante = p.envelopeId
-      ? await prisma.budgetEnvelope.findUnique({ where: { id: p.envelopeId }, select: { id: true, totalAmount: true, categories: { select: { id: true, name: true, cle: true, allocated: true, parentId: true } } } })
-      : null;
+    const lireEnveloppe = (id: string) =>
+      prisma.budgetEnvelope.findUnique({ where: { id }, select: { id: true, totalAmount: true, categories: { select: { id: true, name: true, cle: true, allocated: true, parentId: true } } } });
+    let existante = p.envelopeId ? await lireEnveloppe(p.envelopeId) : null;
+    // LE DÉPARTEMENT INFORMATIQUE a déjà SON enveloppe de l'année (« Informatique AAAA », ouverte d'office par son module,
+    // où l'IA s'impute chaque mois) : la campagne s'y lie au lieu d'en ouvrir une seconde.
+    const societe = p.campaign.companyId ?? p.department?.companyId ?? null;
+    if (!existante && p.department?.cle === CLE_DEPARTEMENT_INFORMATIQUE && societe) {
+      const it = await enveloppeInformatique(societe, bornesAnnee(p.campaign.year).debut, actorId);
+      await prisma.budgetProposal.updateMany({ where: { id: p.id, envelopeId: null }, data: { envelopeId: it.envelopeId } });
+      const lie = (await prisma.budgetProposal.findUnique({ where: { id: p.id }, select: { envelopeId: true } }))?.envelopeId;
+      existante = lie ? await lireEnveloppe(lie) : null;
+    }
 
     let envelopeId = existante?.id ?? null;
     let cree = false;

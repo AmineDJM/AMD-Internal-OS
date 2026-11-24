@@ -114,7 +114,8 @@ suite("Banque & paiements — défauts et circuit de la question", () => {
     expect(file.find((o) => o.id === ordres.remise)?.pettyCashAllotment).not.toBeNull();
     expect(file.find((o) => o.id === ordres.autorise)?.pettyCashAllotment).toBeNull();
     const page = readFileSync("src/app/(app)/finances/paiements-a-faire/page.tsx", "utf8");
-    expect(page).toMatch(/needsBudget: !remise && needsBudgetChoice\(/);
+    // La remise, la part « retenues » d'une G50 et l'avance sur salaire ne demandent pas de budget (contrôle final, 24/11/2026).
+    expect(page).toMatch(/needsBudget: !remise && [^\n]*needsBudgetChoice\(/);
   });
 
   it("le règlement écrit la date, le mode et la référence ; une date future est refusée", async () => {

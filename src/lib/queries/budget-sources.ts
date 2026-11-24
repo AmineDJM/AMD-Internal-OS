@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/utils";
 import { ENTITY_MODULE } from "@/lib/entity-access";
 import { pickAutoCategory } from "@/lib/budget/auto-category";
+import { ordreHorsBudget } from "@/modules/finances/partage";
 import { STATUTS_ORDRE_ENGAGES, dateDeLaDepense, ordreEngage } from "@/lib/budget/engage";
 import { depenseDuPoste, ordreEnCircuit, type DepensePoste, type FaitsDepensePoste } from "@/lib/budget/depense-poste";
 import { contextesDesCategories, jugerEngagements } from "@/lib/queries/budget-integration";
@@ -231,7 +232,8 @@ export async function engagementsBruts(catIds: readonly string[], periodEnd: Dat
     ? await prisma.adProItem.findMany({ where: { expenseOrderId: { in: ordres.map((o) => o.id) }, status: "APPROVED", budgetCategoryId: { not: null } }, select: { expenseOrderId: true } })
     : [];
   for (const a of autresPostes) if (a.expenseOrderId) rattaches.add(a.expenseOrderId);
-  const sansCategorie = ordres.filter((o) => !rattaches.has(o.id) && ordreEngage(o.status, o.centralStatus) && !o.budgetCategoryId && !o.pettyCashAllotment && !o.payrollWire);
+  // Une avance sur salaire n'engage aucun budget (trésorerie seulement, `ordreHorsBudget`) : elle n'est pas une charge.
+  const sansCategorie = ordres.filter((o) => !rattaches.has(o.id) && ordreEngage(o.status, o.centralStatus) && !o.budgetCategoryId && !o.pettyCashAllotment && !o.payrollWire && !ordreHorsBudget(o));
   let auto: ((m: string | null) => string | null) | null = null;
   if (sansCategorie.length) {
     const [envelopes, categories] = await Promise.all([
@@ -241,7 +243,7 @@ export async function engagementsBruts(catIds: readonly string[], periodEnd: Dat
     auto = (m) => pickAutoCategory(m, envelopes, categories);
   }
   for (const o of ordres) {
-    if (rattaches.has(o.id) || !ordreEngage(o.status, o.centralStatus) || o.pettyCashAllotment || o.payrollWire) continue;
+    if (rattaches.has(o.id) || !ordreEngage(o.status, o.centralStatus) || o.pettyCashAllotment || o.payrollWire || ordreHorsBudget(o)) continue;
     const cat = o.budgetCategoryId ?? (auto && o.sourceType ? auto(ENTITY_MODULE[o.sourceType] ?? null) : null);
     if (!cat || !dansLEnveloppe.has(cat)) continue;
     ajouter({ categoryId: cat, montant: toNumber(o.amount), posteId: null, sourceType: o.sourceType, sourceId: o.sourceId, nature: "EN_CIRCUIT", ordreId: o.id });

@@ -13,7 +13,7 @@ import { cn, toNumber, formatCurrency } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/page-header";
 import { MenuDossier } from "@/components/shared/menu-dossier";
 import {
-  settlementState, sortForSettlement, needsBudgetChoice, compteParDefaut, deadlineNatureOf, etatHistorique, jourFr,
+  settlementState, sortForSettlement, needsBudgetChoice, ordreHorsBudget, compteParDefaut, deadlineNatureOf, etatHistorique, jourFr,
   jourAlger, lireVueBanque, type VueBanque,
 } from "@/modules/finances/partage";
 import { marquesDesOrdres } from "@/lib/factures/connues";
@@ -140,9 +140,11 @@ export default async function PaiementsAFairePage(props: { searchParams: Promise
     ].filter((a): a is string => Boolean(a));
     const remise = Boolean(o.pettyCashAllotment);
     const retenues = partsRetenues.has(o.id);
+    const avance = ordreHorsBudget(o);
     const auto = o.budgetCategoryId ? null : autoOf(o);
     const budget = remise ? "pas de budget (remise de caisse)"
       : retenues ? "pas de budget (retenues déjà imputées aux dépenses)"
+        : avance ? "pas de budget (avance sur salaire — reprise sur la paie)"
       : o.budgetCategoryId ? libelleBudget.get(o.budgetCategoryId) ?? "budget classé"
         : auto ? `${libelleBudget.get(auto) ?? "budget"} (automatique)` : categoryLines.length > 0 ? "à classer au paiement" : "hors enveloppe";
     return {
@@ -164,7 +166,7 @@ export default async function PaiementsAFairePage(props: { searchParams: Promise
       remise,
       // UNE REMISE DE CAISSE NE SE CLASSE PAS (son écrivain l'écrit sans budget) : la demander était un geste que le
       // serveur ignorait (défaut du 24/11/2026).
-      needsBudget: !remise && !retenues && needsBudgetChoice({ onOrder: o.budgetCategoryId, auto: autoOf(o), availableCount: categoryLines.length }),
+      needsBudget: !remise && !retenues && !avance && needsBudgetChoice({ onOrder: o.budgetCategoryId, auto: autoOf(o), availableCount: categoryLines.length }),
       compteParDefautId: compteParDefaut(tousLesComptes, o.companyId),
       bv: nature ? { nature: LIBELLE_NATURE_BV[nature], quittanceJointe: avecQuittance.has(o.id) } : null,
       dossierHref: dossiers.get(o.id) ?? null,
