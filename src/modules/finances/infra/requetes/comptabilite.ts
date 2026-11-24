@@ -233,10 +233,14 @@ async function liensDesEcritures(ecritures: readonly EcritureLue[]) {
     }),
     demandes.length ? prisma.paymentPiece.findMany({
       where: { requestId: { in: demandes.map((d) => d.id) }, status: { not: "REJECTED" } },
-      select: { requestId: true, document: { select: { id: true, name: true, mimeType: true } } },
+      select: { requestId: true, documentId: true },
       orderBy: { createdAt: "asc" },
     }) : [],
   ]);
+  // Les fichiers des pièces du dossier de paiement (`PaymentPiece` ne porte que l'identifiant du document).
+  const docsDemandes = piecesDemandes.length
+    ? await prisma.document.findMany({ where: { id: { in: piecesDemandes.map((p) => p.documentId) } }, select: { id: true, name: true, mimeType: true } })
+    : [];
 
   const piece = (d: { id: string; name: string; mimeType: string | null }): PieceCompta => ({ id: d.id, nom: d.name, href: `/api/documents/${d.id}`, mime: d.mimeType });
   const docsDe = (type: string, id: string) => docs.filter((d) => d.entityType === type && d.entityId === id).map(piece);
@@ -263,7 +267,8 @@ async function liensDesEcritures(ecritures: readonly EcritureLue[]) {
       ...(ordre ? [
         ...docsDe("EXPENSE_ORDER", ordre.id),
         ...facturesDesOrdres.filter((f) => f.expenseOrderId === ordre.id).flatMap(piecesFacture),
-        ...piecesDemandes.filter((p) => demandesDeLOrdre(ordre).includes(p.requestId)).map((p) => piece(p.document)),
+        ...piecesDemandes.filter((p) => demandesDeLOrdre(ordre).includes(p.requestId))
+          .flatMap((p) => docsDemandes.filter((d) => d.id === p.documentId).map(piece)),
       ] : []),
     ];
     const vues = new Set<string>();
