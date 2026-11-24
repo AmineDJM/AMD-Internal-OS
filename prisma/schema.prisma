@@ -6683,6 +6683,9 @@ model Employee {
   trialRenewed        Boolean       @default(false)
   trialRenewalStart   DateTime?
   trialRenewalEnd     DateTime?
+  /// La PROCHAINE visite médicale du travail (périodique) — saisie par les RH ; elle remonte dans « Aujourd'hui » des RH
+  /// et du N+1 à J-30 (échéances intégrées, 24/11/2026). Nulle = pas de visite planifiée.
+  prochaineVisiteMedicale DateTime?
   leaveBalanceDays    Decimal       @default(30) @db.Decimal(6, 1) // solde de congés (jours)
   // Acquisition automatique des congés : 2,5 j / mois. Marqueur « YYYY-MM » du dernier
   // mois crédité (idempotent) — voir accrueMonthlyLeave() dans src/lib/scheduled.ts.

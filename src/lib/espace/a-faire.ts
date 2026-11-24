@@ -198,7 +198,7 @@ export function grouperAFaire(lots: readonly Lot[], opts: { piecesEnAttente?: nu
       const paquets = UNE_LIGNE_PAR_OBJET.has(lot.nature) ? lignes.map((l) => [l]) : [lignes];
       for (const paquet of paquets) {
         const id = paquets.length > 1 || morceaux.size > 1 ? `${lot.id}:${cle}:${paquet.length === 1 ? paquet[0].key : "lot"}` : lot.id;
-        const refait = construireLot({ id, nature: lot.nature, module: lot.module, lignes: paquet, suite: null }, { taireRetard: cle === "retard" });
+        const refait = construireLot({ id, nature: lot.nature, module: lot.module, lignes: paquet, suite: null, liste: lot.liste }, { taireRetard: cle === "retard" });
         if (!refait) continue;
         if (lot.nature === "conge" && suite) {
           // Les congés au-delà du plafond du centre : une ligne à part, qui ouvre le panneau de tous les congés.

@@ -39,6 +39,7 @@ export interface EmployeeFormValues {
   trialRenewed: boolean;
   trialRenewalStart: string;
   trialRenewalEnd: string;
+  prochaineVisiteMedicale: string;
   birthDate: string;
   email: string;
   phone: string;
@@ -223,6 +224,7 @@ export function EmployeeForm({ employee, managerOptions, departmentOptions, user
           </label>
           <TextInput name="trialRenewalStart" label="2ᵉ période — début" type="date" defaultValue={v.trialRenewalStart} />
           <TextInput name="trialRenewalEnd" label="2ᵉ période — fin" type="date" defaultValue={v.trialRenewalEnd} />
+          <TextInput name="prochaineVisiteMedicale" label="Prochaine visite médicale du travail" type="date" defaultValue={v.prochaineVisiteMedicale} />
           <TextInput name="birthDate" label="Date de naissance" type="date" defaultValue={v.birthDate} />
           {/* Clavier e-mail SANS la validation du navigateur : une adresse déjà mal saisie en base bloquerait tout l'enregistrement. */}
           <TextInput name="email" label="Email" inputMode="email" defaultValue={v.email} autoComplete="off" />

@@ -188,6 +188,8 @@ export async function updateEmployee(formData: FormData): Promise<ActionResult> 
     trialRenewed: fdBool(formData, "trialRenewed"),
     trialRenewalStart: fdDate(formData, "trialRenewalStart"),
     trialRenewalEnd: fdDate(formData, "trialRenewalEnd"),
+    // La prochaine visite médicale du travail : elle remonte dans « Aujourd'hui » des RH et du N+1 à J-30.
+    prochaineVisiteMedicale: fdDate(formData, "prochaineVisiteMedicale"),
     leaveBalanceDays: fdNum(formData, "leaveBalanceDays") ?? 0,
     birthDate: fdDate(formData, "birthDate"),
     nationalId: fdStr(formData, "nationalId"),
@@ -221,7 +223,7 @@ export async function updateEmployee(formData: FormData): Promise<ActionResult> 
     { actorId: user.id, module: "Ressources humaines", entityType: "EMPLOYEE", entityId: id, summary: `Fiche de ${after.fullName}` },
     before as unknown as Record<string, unknown>,
     after as unknown as Record<string, unknown>,
-    ["fullName", "position", "department", "baseSalary", "contractType", "contractEnd", "leaveBalanceDays", "isActive", "userId", "managerId"],
+    ["fullName", "position", "department", "baseSalary", "contractType", "contractEnd", "prochaineVisiteMedicale", "leaveBalanceDays", "isActive", "userId", "managerId"],
   );
   // LE COMPTE SUIT LA FICHE quand elle change d'état (§118.184 — S13).
   const compte = before.isActive !== after.isActive ? await compteSuitLaFiche(user, after, after.isActive) : null;

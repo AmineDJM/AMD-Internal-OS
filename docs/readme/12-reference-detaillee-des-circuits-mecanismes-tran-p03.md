@@ -583,6 +583,16 @@ missions, Mon dossier RH, Mon bilan) ne changent pas.
   ancienneté** ; `phraseJournee` ; `composerTuiles` / `composerRaccourcis` (composition par rôle `METIERS`, union sans
   doublon pour un compte à deux rôles, tuile absente quand aucune donnée ne la porte) ; `calculerSemaine` ;
   `composerEquipe`.
+- **Échéances des modules** (Super Admin, 24/11/2026 — « intégré, sans être visible comme une fonction à part ») : aucune
+  page « échéancier ». Chaque module déclare ses échéances (`SourceEcheances`, registre `lib/echeances/registre.ts`) ;
+  `lib/queries/echeances-aujourdhui.ts:lignesEcheancesPour` les lit pour la personne et `lib/echeances/regles.ts` décide :
+  responsable (droit d'écriture du module, ou personne nommée — N+1, auteur) dès J-30 (« Plus tard »), priorité haute à
+  J-10 (« Aujourd'hui »), « En retard » une fois dépassée ; Super Admin / Direction / DG : seulement ≤ 10 j ou dépassées ;
+  cloisonnement par société (`predicatEntitePermise`) et lecteurs d'une pièce restreinte. Un lot par module (nature
+  `echeance`, chapeau = le module), 30 lignes au plus puis « et N autres » vers la liste du module. Branchées : RH
+  (`modules/rh` `lireEcheancesRh` — fin de contrat hors CDI, fin d'essai, `Employee.prochaineVisiteMedicale`) et Legal
+  (`lib/legal/echeances.ts` — engagements, 90 j de retard au plus). Les rappels Legal (`legal/expiry-sweep.ts`) lisent
+  désormais par lots paginés jusqu'à épuisement, l'échéance proche AVANT les termes passés (plus de plafond de 300).
 - **Gestes** : chaque lot et chaque ligne MÈNENT à l'écran qui fait le geste (aucun circuit neuf). « Régler les N en
   retard » ouvre `/finances/paiements-a-faire?focus=id1,id2…` (l'écran met en évidence chaque ordre listé) ; les
   congés gardent leur bloc `#conges-a-signer` sur la page. Pas de « Confier à… » : aucun mécanisme de réaffectation
