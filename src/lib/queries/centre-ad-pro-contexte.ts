@@ -220,7 +220,7 @@ export async function contexteDuCentreAdPro(lignes: readonly LigneCentre[], user
     .filter((l) => l.forme === "TOTAL_DG" || l.forme === "ETAPE_CIRCUIT")
     .flatMap((l) => (postesDe.get(cleLigne(l)) ?? []).map((p) => p.id));
   const [pieces, payes] = await Promise.all([
-    piecesDesPostes([...new Set([...idsPostesTotaux, ...postesBC.map((p) => p.id)])]).catch(sansBloquer("centre-ad-pro-contexte.piecesDesPostes", new Map())),
+    piecesDesPostes([...new Set([...idsPostesTotaux, ...postesBC.map((p) => p.id)])]).catch(sansBloquer("centre-ad-pro-contexte.piecesDesPostes", new Map() as Awaited<ReturnType<typeof piecesDesPostes>>)),
     (async () => {
       const ids = [...new Set(postesDesDemandes.map((p) => p.expenseOrderId).filter((x): x is string => Boolean(x)))];
       if (!ids.length) return new Map<string, number>();
