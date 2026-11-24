@@ -182,8 +182,21 @@ export async function addAdProItem(_prev: ActionResult | undefined, formData: Fo
     // LE POSTE « PAR UNE AGENCE » EN UN GESTE (23/11/2026) : soumis avec son cahier des charges, prospection demandée.
     const cahier = voie === "AGENCE" ? fdStr(formData, "cahierDesCharges") : null;
     const suite = cahier ? await lancerLePosteAgence({ user, itemId: created.id, owner: { parent: parentRaw, id: parentId }, cahier, assistanteId: fdStr(formData, "assistanteId"), soumettre: (fd) => submitAdProItem(undefined, fd) }) : null;
+    // UN POSTE AJOUTÉ PAR LA DIRECTION MARKETING NE SE « SOUMET » PAS À ELLE-MÊME (recette 24/11/2026) : il naît en attente
+    // de SON accord (montant et budget) — « Soumettre pour validation » n'a de sens que pour une autre partie prenante. La
+    // soumission ordinaire (`submitAdProItem`), mêmes gardes et même trace ; refusée, le poste reste en brouillon, et le dit.
+    let enAttente: string | null = null;
+    if (!suite && kind !== "STOCK_MATERIAL" && (await peutTrancherSur(user, { parent: parentRaw, id: parentId })).marketing) {
+      const fdSoumettre = new FormData();
+      fdSoumettre.set("id", created.id);
+      const s = await submitAdProItem(undefined, fdSoumettre).catch(sansBloquer("ad-pro-item-actions.addAdProItem.soumettreDOffice", null));
+      enAttente = s?.ok
+        ? `Poste ajouté${detailFiches} — en attente de votre accord (montant et budget).`
+        : `Poste ajouté${detailFiches}, en brouillon : ${s?.error ?? "il n'a pas pu être mis en attente de votre accord"}.`;
+    }
     revalidate(parentRaw, parentId);
-    return { ok: true, id: created.id, ...(suite || detailFiches ? { message: suite ?? `Poste ajouté${detailFiches}.` } : {}) };
+    const message = suite ?? enAttente ?? (detailFiches ? `Poste ajouté${detailFiches}.` : null);
+    return { ok: true, id: created.id, ...(message ? { message } : {}) };
   } catch (err) {
     console.error("[ad-pro-item] création impossible", err);
     return { ok: false, error: "Le poste n'a pas pu être ajouté. Réessayez dans un instant." };

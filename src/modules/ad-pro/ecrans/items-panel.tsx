@@ -495,6 +495,8 @@ export function AdProItemsPanel({
               tardif={tardif}
               verrouille={Boolean(busy)}
               masquerLeBouton={adding}
+              assistantes={contexte.assistantes}
+              marketing={contexte.validation.marketing}
               onFait={(r) => { setMsg({ ok: r.ok, text: r.text }); if (r.crees > 0) rafraichir(); }}
             />
           </div>

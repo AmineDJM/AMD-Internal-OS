@@ -1,5 +1,6 @@
 import type { AdProItemKind } from "@prisma/client";
 import { ITEM_KIND_LABELS, type AdProParent } from "./postes";
+import { voieAgencePossible, voieParDefaut } from "./parcours-agence";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -60,6 +61,8 @@ export interface PosteDuFichier {
   quantite: number | null;
   /** Le montant en DZD ÉCRIT dans le document pour ce poste — `null` s'il n'y est pas (jamais calculé). */
   montant: number | null;
+  /** COMMENT IL SE PAIE (recette 24/11/2026) — choisi à la relecture ; absent de la lecture du modèle. */
+  voie?: "AGENCE" | "DIRECT" | null;
 }
 
 export interface LecturePostes {
@@ -295,14 +298,21 @@ export interface LigneSaisie {
   description: string;
   quantite: string;
   montant: string;
+  /** « AGENCE », « DIRECT » ou vide (la nature n'a pas de voie). */
+  voie: string;
 }
 
-export const LIGNE_VIDE: LigneSaisie = { nature: "OTHER", libelle: "", description: "", quantite: "", montant: "" };
+/** La voie proposée d'office pour une nature — la règle du formulaire « Ajouter un poste » (`voieParDefaut`). */
+export const voieProposee = (nature: string): string =>
+  (NATURES_DU_FICHIER as readonly string[]).includes(nature) ? voieParDefaut(nature as AdProItemKind) ?? "" : "";
+
+export const LIGNE_VIDE: LigneSaisie = { nature: "OTHER", libelle: "", description: "", quantite: "", montant: "", voie: voieProposee("OTHER") };
 
 export function ligneDepuisPoste(p: PosteDuFichier): LigneSaisie {
   return {
     nature: p.nature, libelle: p.libelle, description: p.description ?? "",
     quantite: p.quantite !== null ? String(p.quantite) : "", montant: p.montant !== null ? String(p.montant) : "",
+    voie: voieProposee(p.nature),
   };
 }
 
@@ -324,7 +334,11 @@ export function posteDepuisLaSaisie(l: LigneSaisie): { ok: true; poste: PosteDuF
     m = n > 0 ? Math.round(n * 100) / 100 : null;
   }
   const description = l.description.trim().slice(0, DESCRIPTION_MAX) || null;
-  return { ok: true, poste: { nature: l.nature as NatureDuFichier, libelle: libelle.slice(0, LIBELLE_MAX), description, quantite: q, montant: m } };
+  const voie = l.voie === "AGENCE" || l.voie === "DIRECT" ? l.voie : null;
+  if (voie === "AGENCE" && !voieAgencePossible(l.nature as AdProItemKind)) {
+    return { ok: false, error: "Cette nature ne passe pas par une agence : choisissez « Directement »." };
+  }
+  return { ok: true, poste: { nature: l.nature as NatureDuFichier, libelle: libelle.slice(0, LIBELLE_MAX), description, quantite: q, montant: m, voie } };
 }
 
 /** Les précisions du poste : sa description, puis sa quantité — le formulaire d'ajout n'a pas de champ quantité. */
@@ -334,16 +348,40 @@ export function notesDuPoste(p: PosteDuFichier): string | null {
 }
 
 /**
- * LE FORMULAIRE QUE L'ÉCRAN « AJOUTER UN POSTE » ENVERRAIT — pour `addAdProItem`, l'action ordinaire. Le montant
- * estimé ne part que s'il est connu ; la voie de paiement n'est pas choisie ici (la règle d'avant, comme les postes
- * proposés depuis la description d'un événement) : elle se règle ensuite sur la carte du poste.
+ * CE QUE L'ASSISTANTE ENVERRA AUX AGENCES pour un poste lu dans le cahier des charges : son libellé, sa description, sa
+ * quantité, et le renvoi au fichier gardé dans les pièces de la demande.
  */
-export function versFormulaireDuPoste(p: PosteDuFichier, parent: AdProParent, parentId: string): [string, string][] {
+export function cahierDuPoste(p: PosteDuFichier, fichier: string | null): string {
+  const lignes = [
+    [p.libelle, p.description].filter(Boolean).join(" — "),
+    p.quantite !== null ? `Quantité : ${p.quantite.toLocaleString("fr-FR")}` : null,
+    fichier ? `Voir le cahier des charges joint à la demande : « ${fichier} ».` : null,
+  ].filter(Boolean);
+  return lignes.join("\n").slice(0, NOTES_MAX);
+}
+
+/**
+ * LE FORMULAIRE QUE L'ÉCRAN « AJOUTER UN POSTE » ENVERRAIT — pour `addAdProItem`, l'action ordinaire. Le montant
+ * estimé ne part que s'il est connu.
+ *
+ * LA VOIE DE PAIEMENT SE CHOISIT À LA RELECTURE (recette 24/11/2026) : sans elle, les postes du fichier naissaient en
+ * brouillon sans voie (« Soumettre », puis « Accorder » avant tout devis). « Par une agence » part avec son cahier des
+ * charges et l'assistante choisie : `addAdProItem` lance la prospection dans le même geste (`lancerLePosteAgence`),
+ * comme le formulaire « Ajouter un poste ».
+ */
+export function versFormulaireDuPoste(
+  p: PosteDuFichier, parent: AdProParent, parentId: string, o: { assistanteId?: string | null; fichier?: string | null } = {},
+): [string, string][] {
   const champs: [string, string][] = [
     ["parent", parent], ["parentId", parentId], ["kind", p.nature], ["label", p.libelle], ["budgetKind", "INCLUDED"],
   ];
   const notes = notesDuPoste(p);
   if (notes) champs.push(["notes", notes]);
   if (p.montant !== null && p.montant > 0) champs.push(["amountEstimated", String(p.montant)]);
+  if (p.voie) champs.push(["voie", p.voie]);
+  if (p.voie === "AGENCE") {
+    champs.push(["cahierDesCharges", cahierDuPoste(p, o.fichier ?? null)]);
+    if (o.assistanteId) champs.push(["assistanteId", o.assistanteId]);
+  }
   return champs;
 }

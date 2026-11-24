@@ -264,8 +264,10 @@ suite("Sponsoring — pré-validation de la tenue, postes, validation finale et 
     // opérations a validé la DEMANDE en amont ; il ne revalide plus chaque poste (l'ancien premier temps est franchi
     // d'office à la soumission, et tracé). L'accord sans budget n'existe toujours pas.
     // Le poste du sponsoring est né en attente (prévalidation) ; le stand, ajouté ensuite, se soumet.
+    // Le stand, AJOUTÉ PAR LA DIRECTION MARKETING, est né en attente lui aussi : elle ne se « soumet » pas un poste à
+    // elle-même (recette 24/11/2026) — le soumettre encore est refusé, il attend déjà.
     ACTOR = await actorFor(demandeurId, "DIRECTION_ASSISTANT");
-    expect((await submitAdProItem(undefined, fd({ id: standId }))).ok).toBe(true);
+    expect((await submitAdProItem(undefined, fd({ id: standId }))).ok, "déjà en attente : rien à soumettre").toBe(false);
     for (const id of [postAutoId, standId]) {
       const soumis = await prisma.adProItem.findUniqueOrThrow({ where: { id } });
       expect(soumis.status).toBe("PENDING");
@@ -421,8 +423,12 @@ suite("Sponsoring — pré-validation de la tenue, postes, validation finale et 
     // Le traiteur (poste tardif, ajouté à la demande déclarée — recette 24/11/2026) se SOUMET puis la Direction Marketing le
     // refuse (un seul temps, 27/10/2026) — la vraie voie, pas un refus posé sur un brouillon.
     const traiteur = await prisma.adProItem.findFirstOrThrow({ where: { sponsoringId: spoId, label: `${TAG}Traiteur` } });
-    ACTOR = await actorFor(demandeurId, "DIRECTION_ASSISTANT");
-    expect((await submitAdProItem(undefined, fd({ id: traiteur.id }))).ok).toBe(true);
+    // Ajouté par la Direction Marketing, il est né en attente ; ajouté par une autre partie prenante, il se soumet.
+    if (traiteur.status === "DRAFT") {
+      ACTOR = await actorFor(demandeurId, "DIRECTION_ASSISTANT");
+      expect((await submitAdProItem(undefined, fd({ id: traiteur.id }))).ok).toBe(true);
+    }
+    expect((await prisma.adProItem.findUniqueOrThrow({ where: { id: traiteur.id } })).status).toBe("PENDING");
     ACTOR = await actorFor(dm2Id, "PRODUCT_MANAGER");
     expect((await decideAdProItem(undefined, fd({ id: traiteur.id, decision: "REJECTED", note: "Hors budget" }))).ok).toBe(true);
     ACTOR = await actorFor(dmId, "PRODUCT_MANAGER");

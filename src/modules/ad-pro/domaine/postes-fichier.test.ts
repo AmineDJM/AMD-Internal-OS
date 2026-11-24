@@ -117,7 +117,8 @@ describe("de la relecture au formulaire d'ajout ordinaire", () => {
   const poste: PosteDuFichier = { nature: "PRINTING", libelle: "Kakémonos 85 × 200 cm", description: "Pour le stand.", quantite: 4, montant: 48_000 };
 
   it("une ligne relue se relit à l'identique", () => {
-    expect(posteDepuisLaSaisie(ligneDepuisPoste(poste))).toEqual({ ok: true, poste });
+    // La voie proposée d'office pour la nature s'y ajoute (recette 24/11/2026) : l'imprimerie passe par une agence.
+    expect(posteDepuisLaSaisie(ligneDepuisPoste(poste))).toEqual({ ok: true, poste: { ...poste, voie: "AGENCE" } });
   });
 
   it("refuse ce que addAdProItem refuserait ou avalerait en silence", () => {
@@ -126,7 +127,7 @@ describe("de la relecture au formulaire d'ajout ordinaire", () => {
     expect(posteDepuisLaSaisie({ ...LIGNE_VIDE, libelle: "x", quantite: "2,5" }).ok).toBe(false);
     expect(posteDepuisLaSaisie({ ...LIGNE_VIDE, libelle: "x", montant: "beaucoup" }).ok).toBe(false);
     expect(posteDepuisLaSaisie({ ...LIGNE_VIDE, libelle: " x ", montant: "250 000" })).toEqual({
-      ok: true, poste: { nature: "OTHER", libelle: "x", description: null, quantite: null, montant: 250_000 },
+      ok: true, poste: { nature: "OTHER", libelle: "x", description: null, quantite: null, montant: 250_000, voie: LIGNE_VIDE.voie || null },
     });
   });
 
@@ -137,5 +138,15 @@ describe("de la relecture au formulaire d'ajout ordinaire", () => {
     ]);
     const sansRien = versFormulaireDuPoste({ ...poste, description: null, quantite: null, montant: null }, "EVENT", "e1");
     expect(sansRien.map(([k]) => k)).toEqual(["parent", "parentId", "kind", "label", "budgetKind"]);
+  });
+
+  it("PAR UNE AGENCE : la voie, le cahier des charges et l'assistante partent avec le poste (recette 24/11/2026)", () => {
+    const f = new Map(versFormulaireDuPoste({ ...poste, voie: "AGENCE" }, "SPONSORING", "s1", { assistanteId: "a1", fichier: "cahier.pdf" }));
+    expect(f.get("voie")).toBe("AGENCE");
+    expect(f.get("assistanteId")).toBe("a1");
+    expect(f.get("cahierDesCharges")).toBe("Kakémonos 85 × 200 cm — Pour le stand.\nQuantité : 4\nVoir le cahier des charges joint à la demande : « cahier.pdf ».");
+    const direct = new Map(versFormulaireDuPoste({ ...poste, voie: "DIRECT" }, "SPONSORING", "s1", { assistanteId: "a1" }));
+    expect(direct.get("voie")).toBe("DIRECT");
+    expect(direct.has("cahierDesCharges") || direct.has("assistanteId")).toBe(false);
   });
 });

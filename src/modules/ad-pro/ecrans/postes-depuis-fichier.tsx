@@ -10,8 +10,10 @@ import { addAdProItem } from "../actions-postes";
 import { proposerPostesDepuisFichier } from "../actions-postes-fichier";
 import { ITEM_KIND_LABELS, type AdProParent } from "../domaine/postes";
 import {
-  LIGNE_VIDE, ligneDepuisPoste, lireNombre, NATURES_DU_FICHIER, posteDepuisLaSaisie, versFormulaireDuPoste, type LigneSaisie,
+  LIGNE_VIDE, ligneDepuisPoste, lireNombre, NATURES_DU_FICHIER, posteDepuisLaSaisie, versFormulaireDuPoste, voieProposee, type LigneSaisie,
 } from "../domaine/postes-fichier";
+import { voieAgencePossible } from "../domaine/parcours-agence";
+import type { AdProItemKind } from "@prisma/client";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -44,9 +46,13 @@ interface Ligne extends LigneSaisie {
 
 type Etape = "fichier" | "lecture" | "relecture";
 
-export function PostesDepuisFichier({ parent, parentId, tardif, verrouille, masquerLeBouton = false, onFait }: {
+export function PostesDepuisFichier({ parent, parentId, tardif, verrouille, masquerLeBouton = false, onFait, assistantes = [], marketing = false }: {
   parent: AdProParent;
   parentId: string;
+  /** Les assistantes de direction — la Direction Marketing choisit celle qui prospecte les postes « par une agence ». */
+  assistantes?: { id: string; name: string }[];
+  /** La personne qui regarde tranche pour la Direction Marketing : ses postes « par une agence » partent en prospection. */
+  marketing?: boolean;
   /** Un poste ajouté maintenant l'est après la décision (§118.151) — dit ici comme dans « Ajouter un poste ». */
   tardif: boolean;
   /** Le panneau des postes est occupé (une action, un rafraîchissement) : le bouton attend. */
@@ -67,6 +73,7 @@ export function PostesDepuisFichier({ parent, parentId, tardif, verrouille, masq
   const [lignes, setLignes] = React.useState<Ligne[]>([]);
   const [creation, setCreation] = React.useState(false);
   const [bilan, setBilan] = React.useState<string | null>(null);
+  const [assistanteId, setAssistanteId] = React.useState(assistantes.length === 1 ? assistantes[0]!.id : "");
   const verrou = React.useRef(false);
   const compteur = React.useRef(0);
 
@@ -119,7 +126,10 @@ export function PostesDepuisFichier({ parent, parentId, tardif, verrouille, masq
   };
 
   const modifier = (cle: number, champ: keyof LigneSaisie, valeur: string) => {
-    setLignes((ls) => ls.map((l) => (l.cle === cle ? { ...l, [champ]: valeur, montantLu: champ === "montant" ? false : l.montantLu, erreur: null } : l)));
+    // Changer la nature repropose SA voie (la règle du formulaire « Ajouter un poste »).
+    setLignes((ls) => ls.map((l) => (l.cle === cle
+      ? { ...l, [champ]: valeur, ...(champ === "nature" ? { voie: voieProposee(valeur) } : {}), montantLu: champ === "montant" ? false : l.montantLu, erreur: null }
+      : l)));
   };
   const retirer = (cle: number) => setLignes((ls) => ls.filter((l) => l.cle !== cle));
   const ajouter = () => setLignes((ls) => [...ls, nouvelle(LIGNE_VIDE)]);
@@ -133,6 +143,11 @@ export function PostesDepuisFichier({ parent, parentId, tardif, verrouille, masq
       setBilan("Corrigez les lignes signalées : aucun poste n'a été créé.");
       return;
     }
+    // L'ASSISTANTE QUI PROSPECTE : la Direction Marketing la choisit quand il y en a plusieurs (l'action l'exige).
+    if (marketing && parAgence > 0 && assistantes.length > 1 && !assistanteId) {
+      setBilan("Choisissez l'assistante de direction qui prospecte les agences : aucun poste n'a été créé.");
+      return;
+    }
     verrou.current = true;
     setCreation(true);
     setBilan(null);
@@ -142,7 +157,7 @@ export function PostesDepuisFichier({ parent, parentId, tardif, verrouille, masq
     for (const { l, r } of lues) {
       if (!r.ok) continue;
       const f = new FormData();
-      for (const [k, v] of versFormulaireDuPoste(r.poste, parent, parentId)) f.append(k, v);
+      for (const [k, v] of versFormulaireDuPoste(r.poste, parent, parentId, { assistanteId: assistanteId || null, fichier: fichier?.name ?? null })) f.append(k, v);
       let x: { ok: boolean; error?: string };
       try {
         x = await addAdProItem(undefined, f);
@@ -168,6 +183,7 @@ export function PostesDepuisFichier({ parent, parentId, tardif, verrouille, masq
   }
 
   const n = lignes.length;
+  const parAgence = lignes.filter((l) => l.voie === "AGENCE").length;
   const avertissementTardif = tardif && (
     <p className="flex items-start gap-1.5 text-[0.6875rem] text-warning">
       <AlertTriangle className="mt-px h-3 w-3 shrink-0" />
@@ -266,6 +282,27 @@ export function PostesDepuisFichier({ parent, parentId, tardif, verrouille, masq
               </p>
             )}
 
+            {parAgence > 0 && (
+              <div className="space-y-2 rounded-xl border border-border bg-muted/30 px-3 py-2 text-sm">
+                <p className="text-muted-foreground">
+                  {marketing
+                    ? "Les postes « par une agence » partent tout de suite en prospection chez l'assistante, avec le cahier des charges ; les autres attendent votre accord (montant et budget)."
+                    : "Les postes « par une agence » sont soumis à la Direction Marketing, qui lance la prospection ; les autres lui sont soumis pour accord."}
+                </p>
+                {marketing && assistantes.length > 1 && (
+                  <label htmlFor="pf-assistante" className="block text-xs">
+                    Assistante qui prospecte les agences
+                    <select id="pf-assistante" value={assistanteId} disabled={creation} onChange={(e) => setAssistanteId(e.target.value)} className={CHAMP}>
+                      <option value="">— Choisir —</option>
+                      {assistantes.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                    </select>
+                  </label>
+                )}
+                {marketing && assistantes.length === 1 && (
+                  <p className="text-xs text-muted-foreground">Assistante qui prospecte : {assistantes[0]!.name}.</p>
+                )}
+              </div>
+            )}
             {n === 0 ? (
               <p className="rounded-xl border border-dashed border-border p-3 text-sm text-muted-foreground">
                 Aucune ligne : ajoutez-en une, ou fermez le panneau.
@@ -305,6 +342,14 @@ export function PostesDepuisFichier({ parent, parentId, tardif, verrouille, masq
                           id={id("description")} value={l.description} rows={2} maxLength={600} disabled={creation}
                           onChange={(e) => modifier(l.cle, "description", e.target.value)} className={CHAMP}
                         />
+                      </label>
+                      <label htmlFor={id("voie")} className="block text-xs">
+                        Comment ce poste se paie
+                        <select id={id("voie")} value={l.voie} disabled={creation} onChange={(e) => modifier(l.cle, "voie", e.target.value)} className={CHAMP}>
+                          {l.voie === "" && <option value="">À choisir ensuite sur la carte du poste</option>}
+                          {voieAgencePossible(l.nature as AdProItemKind) && <option value="AGENCE">Par une agence — prospection par l&apos;assistante</option>}
+                          <option value="DIRECT">Directement — sans agence</option>
+                        </select>
                       </label>
                       <div className="grid grid-cols-2 gap-2">
                         <label htmlFor={id("quantite")} className="block min-w-0 text-xs">
