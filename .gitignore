@@ -63,6 +63,7 @@ next-env.d.ts
 # Playwright (artefacts E2E locaux)
 /test-results/
 /playwright-report/
+/recette-sortie/
 e2e-screenshots/
 
 # Sorties du banc de connaissance (fichiers d'essai régénérables à la demande)
