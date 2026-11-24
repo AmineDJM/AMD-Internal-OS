@@ -1,6 +1,7 @@
 import type { FieldDef, MarqueDeChamp } from "@/components/shared/create-record-button";
 import type { ChampPrerempli, PrerempliDocumentLegal } from "@/lib/pieces-lues/prerempli-document-legal";
 import { LIBELLES_FACTURE } from "./legal-fields";
+import { CHAMP_TVA_LUE, CHAMPS_TVA } from "@/modules/finances/partage";
 
 /**
  * LES CHAMPS DE « NOUVEAU DOCUMENT », REMPLIS DEPUIS LA PIÈCE LUE — module PUR, sans import de valeur.
@@ -19,7 +20,7 @@ import { LIBELLES_FACTURE } from "./legal-fields";
 /** Ce que la personne a touché avant de changer de pièce : une valeur, ou des identifiants (parties). */
 export type Gardes = Partial<Record<string, string | string[]>>;
 
-const CHAMPS_LUS: readonly string[] = ["title", "reference", "kind", "startDate", "endDate", "amount", "direction", "notes", "chainFromId"];
+const CHAMPS_LUS: readonly string[] = ["title", "reference", "kind", "startDate", "endDate", "amount", "direction", "notes", "chainFromId", ...CHAMPS_TVA];
 
 export function champsPreremplis(
   base: readonly FieldDef[],
@@ -37,6 +38,10 @@ export function champsPreremplis(
   const aCreer = p?.partie.aCreer;
   const lueACreer = Boolean(aCreer && (aCreer.nom || aCreer.nif || aCreer.rc));
 
+  // LA TVA PROPOSÉE PAR LA LECTURE : enregistrée comme « lue sur la pièce, confirmée » (la personne valide en enregistrant).
+  if (p && CHAMPS_TVA.some((c) => p.valeurs[c as ChampPrerempli] !== undefined) && base.some((f) => f.type !== "hidden" && CHAMPS_TVA.includes(f.name))) {
+    out.push({ type: "hidden", name: CHAMP_TVA_LUE, value: "1" });
+  }
   for (const f of base) {
     switch (f.type) {
       case "hidden":

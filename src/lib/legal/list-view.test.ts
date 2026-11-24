@@ -205,3 +205,19 @@ describe("Legal — l'écran vide DIT pourquoi il est vide", () => {
     expect(describeActiveFilters(initialLegalListState(SCOPE_TOUS, false))).toEqual([]);
   });
 });
+
+describe("« TVA à compléter » (lot « tva ») — les factures que la G50 ne peut pas compter", () => {
+  const facture = (id: string, tva: LegalListRow["tva"], status = "ACTIVE"): LegalListRow => ({ ...bc(1), id, kind: "INVOICE", status, tva });
+  it("ne garde que les factures et avoirs non annulés dont la TVA manque ou est à revoir — et se nomme", () => {
+    const rows = [
+      facture("a-completer", { ht: null, tva: null, aCompleter: "TVA_NON_RENSEIGNEE", phrase: "TVA non renseignée" }),
+      facture("complete", { ht: 100, tva: 19, aCompleter: null, phrase: null }),
+      facture("annulee", { ht: null, tva: null, aCompleter: "TVA_NON_RENSEIGNEE", phrase: "x" }, "CANCELLED"),
+      bc(2),
+    ];
+    const state: LegalListState = { ...initialLegalListState("all|tous|INVOICE", false), tvaOnly: true };
+    expect(visibleLegalRows(rows, state).map((r) => r.id)).toEqual(["a-completer"]);
+    expect(hasActiveFilter(state)).toBe(true);
+    expect(describeActiveFilters(state)).toContain("TVA à compléter");
+  });
+});

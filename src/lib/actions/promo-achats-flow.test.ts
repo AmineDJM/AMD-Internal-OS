@@ -478,6 +478,9 @@ suite("Matériel promotionnel — achats piochés dans le catalogue, facture lig
     expect(r.message ?? "").toMatch(/Écarts avec le BC : « Fiche posologique Nivolex » : 4\s000 facturées sur 5\s000 restant au BC/);
     const detail = await prisma.promoFacture.findUniqueOrThrow({ where: { legalDocumentId: factureB1 }, select: { tvaRate: true, totalImprime: true, quoteId: true } });
     expect([Number(detail.tvaRate), Number(detail.totalImprime), detail.quoteId]).toEqual([19, 178_500, quoteB]);
+    // LA TVA DÉDUCTIBLE de la facture (lot « tva ») : tirée de ses lignes — 150 000 HT à 19 % = 28 500.
+    const tva = await prisma.factureTva.findUniqueOrThrow({ where: { legalDocumentId: factureB1 }, select: { source: true, sens: true, montantHt: true, montantTva: true, montantTtc: true } });
+    expect([tva.source, tva.sens, Number(tva.montantHt), Number(tva.montantTva), Number(tva.montantTtc)]).toEqual(["LIGNES", "DEDUCTIBLE", 150_000, 28_500, 178_500]);
     expect((await lignesDe(factureB1)).map((l) => [l.designation, Number(l.quantite), l.action, Boolean(l.requestItemId)])).toEqual([
       ["Fiche posologique Nivolex", 4000, "IMPRESSION", true], ["Stylo logo", 1000, "ACHAT", true], ["Bloc-notes logo", 200, "IMPRESSION", false],
     ]);

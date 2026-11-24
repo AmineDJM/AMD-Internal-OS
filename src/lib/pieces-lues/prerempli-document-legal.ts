@@ -2,6 +2,7 @@ import type { EntetesReperes, Repere, TypePieceLue } from "@/lib/pieces-lues/ent
 import type { IdentiteEmetteur } from "@/lib/pieces-lues/emetteur";
 import { normaliserNif, normaliserRc, type IdentifiantsDuGroupe, type ResultatFournisseur } from "@/lib/pieces-lues/fournisseur";
 import type { NatureLegaleLue, SyntheseLegale, UniteDuree } from "@/lib/pieces-lues/synthese-legale";
+import { tvaProposee } from "@/lib/pieces-lues/prerempli-tva";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -35,7 +36,10 @@ import type { NatureLegaleLue, SyntheseLegale, UniteDuree } from "@/lib/pieces-l
  */
 
 /** Les champs du formulaire Legal que la pièce peut remplir — les noms de `legal-fields.ts`. */
-export type ChampPrerempli = "title" | "reference" | "kind" | "startDate" | "endDate" | "amount" | "direction" | "notes" | "chainFromId";
+export type ChampPrerempli =
+  | "title" | "reference" | "kind" | "startDate" | "endDate" | "amount" | "direction" | "notes" | "chainFromId"
+  // LA TVA D'UNE FACTURE (lot « tva ») : base HT et TVA par taux, timbre — noms tirés de la table des taux.
+  | `tvaHt_${number}` | `tvaMontant_${number}` | "tvaAutres";
 
 export type SourceChamp = "REGLES" | "LUNA" | "CALCUL";
 
@@ -208,6 +212,12 @@ export function preremplirDocumentLegal(e: EntreePrerempli): PrerempliDocumentLe
     montantConflit = `Les totaux imprimés se contredisent (${conflit.valeurs.join(" / ")}) : le montant n'est pas repris — saisissez celui de la pièce.`;
   } else if (total?.valeur != null && total.valeur > 0) {
     poser("amount", String(total.valeur), { source: "REGLES", preuve: `${total.extrait} (${fr(total.valeur)} DZD)`, ou: ou(total) });
+  }
+
+  // LA TVA D'UNE FACTURE — des totaux imprimés seuls, chaque champ avec sa preuve (`prerempli-tva.ts`).
+  if (facture && !conflit) {
+    const tva = tvaProposee(t);
+    for (const [champ, v] of Object.entries(tva.valeurs)) poser(champ as ChampPrerempli, v, tva.marques[champ] ?? null);
   }
 
   // LE SENS DE L'ARGENT — prouvé par l'émetteur, sinon choisi par la personne.

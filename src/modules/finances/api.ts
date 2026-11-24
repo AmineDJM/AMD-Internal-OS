@@ -20,6 +20,8 @@
  */
 
 export * from "./partage";
+// La TVA des factures (lot « tva ») : la porte étroite, réexportée.
+export * from "./api-tva";
 
 // ── Commandes : l'ordre de dépense, de sa naissance au centre à sa fin ───────────────────────
 export { createExpenseOrder, dossierHrefByOrder, SERIE_DEMANDES_PAIEMENT } from "./infra/expense-orders";

@@ -14530,6 +14530,9 @@ model LegalDocument {
   updatedAt                DateTime              @updatedAt
   /// LE DÉTAIL d'une facture de matériel promotionnel (§118.165) : lignes, taxes, réception.
   promoFacture             PromoFacture?
+  /// LA TVA d'une facture ou d'un avoir (lot « tva », 24/11/2026) : HT, TVA, TTC et le détail par taux. Absente =
+  /// TVA « non renseignée » — jamais inventée ; la facture est alors « à compléter ».
+  tva                      FactureTva?
 
   @@index([companyId, status])
   @@index([kind])
@@ -14541,6 +14544,48 @@ model LegalDocument {
   @@index([amendsId])
   @@index([bcPrevalidationRequestId])
   @@index([paidDate])
+}
+
+/// LA TVA D'UNE FACTURE (ou d'un avoir) — ce que la G50 additionne (Super Admin, 24/11/2026).
+///
+/// Une ligne par facture renseignée ; pas de ligne = TVA « non renseignée » (les factures d'avant ce lot gardent leur
+/// montant comme TTC, rien ne leur est inventé). La société et la date de facture (la période de TVA) restent celles
+/// de la pièce (`companyId`, `startDate`) : on ne les recopie pas. Le sens se lit sur la pièce (`direction`, ou celle
+/// de la facture d'un avoir) ; `sens` ne sert qu'à défaut — une pièce déposée par un circuit qui ne pose pas de
+/// direction mais dont on SAIT qu'elle est une facture d'achat. `montantTtc` est le TTC au moment de la saisie : si la pièce change
+/// de montant ensuite, la TVA redevient « à revoir » au lieu de compter un HT qui ne correspond plus.
+/// Les règles (somme par taux, collectée − déductible, cohérence HT + TVA = TTC) vivent dans
+/// `src/modules/finances/domaine/tva.ts`.
+model FactureTva {
+  id              String           @id @default(cuid())
+  legalDocumentId String           @unique
+  legalDocument   LegalDocument    @relation(fields: [legalDocumentId], references: [id], onDelete: Cascade)
+  /// `COLLECTEE` (facture de vente) ou `DEDUCTIBLE` (facture d'achat) — à défaut de la direction de la pièce.
+  sens            String?
+  montantHt       Decimal          @db.Decimal(14, 2)
+  montantTva      Decimal          @db.Decimal(14, 2)
+  /// Timbre et taxes additionnelles, hors base de TVA : HT + TVA + autres = TTC.
+  autresTaxes     Decimal          @default(0) @db.Decimal(14, 2)
+  montantTtc      Decimal          @db.Decimal(14, 2)
+  /// `FABRIQUE` (calculée par la plateforme), `SAISIE` (tapée), `LECTURE` (proposée par la lecture de la pièce,
+  /// confirmée par la personne), `LIGNES` (calculée des lignes saisies d'une facture de matériel).
+  source          String
+  saisieParId     String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  taux            FactureTvaTaux[]
+}
+
+/// LE DÉTAIL PAR TAUX d'une facture : la base HT et la TVA à 19 %, 9 % ou 0 %. Taux en pour cent.
+model FactureTvaTaux {
+  id           String     @id @default(cuid())
+  factureTvaId String
+  factureTva   FactureTva @relation(fields: [factureTvaId], references: [id], onDelete: Cascade)
+  taux         Decimal    @db.Decimal(5, 2)
+  baseHt       Decimal    @db.Decimal(14, 2)
+  montantTva   Decimal    @db.Decimal(14, 2)
+
+  @@unique([factureTvaId, taux])
 }
 
 /// UN LECTEUR AUTORISÉ d'un document légal. Le déposant les désigne à la création, et peut les

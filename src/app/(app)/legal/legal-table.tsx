@@ -19,7 +19,7 @@ import { PartagerButton } from "@/components/shared/partager-button";
 import { invoiceSettlementState, INVOICE_SETTLEMENT, isInvoice } from "@/lib/labels";
 import { legalWriteAllowed } from "@/lib/lecteurs/legal";
 import {
-  EMPTY_FILTERS, URGENT_EXPIRY,
+  EMPTY_FILTERS, URGENT_EXPIRY, tvaACompleter,
   initialLegalListState, syncLegalListState, visibleLegalRows, hasActiveFilter, describeActiveFilters,
   type LegalColumnFilters, type LegalListRow,
 } from "@/lib/legal/list-view";
@@ -100,6 +100,10 @@ export function LegalTable({
     setState((p) => ({ ...p, watchOnly: next(p.watchOnly) }));
   const setUnpaidOnly = (next: (v: boolean) => boolean) =>
     setState((p) => ({ ...p, unpaidOnly: next(p.unpaidOnly) }));
+  const tvaOnly = Boolean(synced.tvaOnly);
+  // LA VUE DES FACTURES (lot « tva ») : HT, TVA et TTC en colonnes — la TVA de la G50 se calcule de là.
+  const vueFactures = f.kind === "INVOICE" || f.kind === "CREDIT_NOTE";
+  const colonnes = (canEdit ? 10 : 9) + (vueFactures ? 2 : 0);
 
   const set = (k: keyof LegalColumnFilters) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const v = e.target.value;
@@ -114,6 +118,7 @@ export function LegalTable({
   // que le tableau sous les yeux ferait douter des deux.
   const impayee = (r: LegalRow) => isInvoice(r.kind) && !r.paidDate && r.status !== "CANCELLED";
   const unpaidCount = rows.filter(impayee).length;
+  const tvaCount = rows.filter(tvaACompleter).length;
   const shownInvoiceTotal = shown.filter(impayee).reduce((a, r) => a + (r.amount ?? 0), 0);
 
   const run = async (key: string, fn: () => Promise<{ ok: boolean; error?: string; message?: string }>) => {
@@ -157,13 +162,23 @@ export function LegalTable({
             Factures à régler ({unpaidCount})
           </button>
         )}
+        {/* LA TVA À COMPLÉTER : les factures que la G50 ne peut pas encore compter. */}
+        {tvaCount > 0 && (
+          <button
+            type="button" onClick={() => setState((p) => ({ ...p, tvaOnly: !p.tvaOnly }))}
+            className={cn("inline-flex min-h-9 items-center gap-1 rounded-md border px-2.5 py-1 font-medium sm:min-h-0 sm:px-2",
+              tvaOnly ? "border-warning/60 bg-warning/10 text-warning" : "border-input hover:bg-secondary")}
+          >
+            TVA à compléter ({tvaCount})
+          </button>
+        )}
         {shownInvoiceTotal > 0 && (
           <span className="font-semibold text-foreground tabular-nums">Reste à payer affiché&nbsp;: {formatCurrency(shownInvoiceTotal)}</span>
         )}
         {active && (
           <button
             type="button"
-            onClick={() => setState((p) => ({ ...p, filters: { ...EMPTY_FILTERS }, watchOnly: false, unpaidOnly: false }))}
+            onClick={() => setState((p) => ({ ...p, filters: { ...EMPTY_FILTERS }, watchOnly: false, unpaidOnly: false, tvaOnly: false }))}
             className="inline-flex min-h-9 items-center gap-1 rounded-md border border-input px-2.5 py-1 font-medium hover:bg-secondary sm:min-h-0 sm:px-2"
           >
             <FilterX className="h-3.5 w-3.5" /> Réinitialiser
@@ -209,7 +224,9 @@ export function LegalTable({
               <th className="px-3 pt-2 text-left font-medium">Partie</th>
               <th className="px-3 pt-2 text-left font-medium">Début</th>
               <th className="px-3 pt-2 text-left font-medium">Échéance</th>
-              <th className="px-3 pt-2 text-right font-medium">Montant</th>
+              {vueFactures && <th className="px-3 pt-2 text-right font-medium">HT</th>}
+              {vueFactures && <th className="px-3 pt-2 text-right font-medium">TVA</th>}
+              <th className="px-3 pt-2 text-right font-medium">{vueFactures ? "TTC" : "Montant"}</th>
               <th className="px-3 pt-2 text-left font-medium">État</th>
               <th className="px-3 pt-2 text-left font-medium">Pièce</th>
               {canEdit && <th className="px-3 pt-2 text-left font-medium">Actions</th>}
@@ -226,6 +243,8 @@ export function LegalTable({
               <th className="px-2 pb-2 pt-1"><input value={f.counterparty} onChange={set("counterparty")} placeholder="Filtrer" className={cellInput} /></th>
               <th className="px-2 pb-2 pt-1"><input type="month" value={f.startMonth} onChange={set("startMonth")} title="Mois de début" className={cellInput} /></th>
               <th className="px-2 pb-2 pt-1"><input type="month" value={f.endMonth} onChange={set("endMonth")} title="Mois d'échéance" className={cellInput} /></th>
+              {vueFactures && <th className="px-2 pb-2 pt-1" />}
+              {vueFactures && <th className="px-2 pb-2 pt-1" />}
               <th className="px-2 pb-2 pt-1" />
               <th className="px-2 pb-2 pt-1">
                 <select value={f.status} onChange={set("status")} className={cellInput}>
@@ -240,7 +259,7 @@ export function LegalTable({
           <tbody className="divide-y divide-border">
             {shown.length === 0 ? (
               <tr>
-                <td colSpan={canEdit ? 10 : 9} className="px-3 py-8 text-center text-sm text-muted-foreground">
+                <td colSpan={colonnes} className="px-3 py-8 text-center text-sm text-muted-foreground">
                   {rows.length === 0 ? (
                     "Aucun engagement dans cette vue."
                   ) : (
@@ -254,7 +273,7 @@ export function LegalTable({
                       </span>
                       <button
                         type="button"
-                        onClick={() => setState((p) => ({ ...p, filters: { ...EMPTY_FILTERS }, watchOnly: false, unpaidOnly: false }))}
+                        onClick={() => setState((p) => ({ ...p, filters: { ...EMPTY_FILTERS }, watchOnly: false, unpaidOnly: false, tvaOnly: false }))}
                         className="inline-flex items-center gap-1 rounded-md border border-input px-2 py-1 text-xs font-medium hover:bg-secondary"
                       >
                         <FilterX className="h-3.5 w-3.5" /> Tout afficher
@@ -300,6 +319,14 @@ export function LegalTable({
                       <span className="text-xs text-muted-foreground">sans échéance</span>
                     )}
                   </td>
+                  {vueFactures && <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{r.tva?.ht != null ? formatCurrency(r.tva.ht) : "—"}</td>}
+                  {vueFactures && (
+                    <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
+                      {r.tva?.aCompleter
+                        ? <Link href={`/legal/${r.id}`} title={r.tva.phrase ?? undefined}><Badge tone="warning" dot={false}>À compléter</Badge></Link>
+                        : r.tva?.tva != null ? formatCurrency(r.tva.tva) : "—"}
+                    </td>
+                  )}
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{r.amount !== null ? formatCurrency(r.amount) : "—"}</td>
                   <td className="px-3 py-2">
                     <span className="flex flex-wrap items-center gap-1">

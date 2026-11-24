@@ -57,6 +57,11 @@ export interface LegalListRow {
   nonRetenu?: string | null;
   /** LE DOSSIER DE CLASSEMENT, en chemin lisible (« Événements › 2026 › Journée… ») — absent : non classé. */
   dossier?: string | null;
+  /**
+   * LA TVA d'une facture ou d'un avoir (lot « tva ») : HT et TVA renseignés, et ce qui reste à compléter (`phrase`).
+   * Absente : la pièce ne déclare pas de TVA (un bail, un BC).
+   */
+  tva?: { ht: number | null; tva: number | null; aCompleter: string | null; phrase: string | null } | null;
 }
 
 /** Les niveaux d'échéance qui méritent qu'on s'en occupe — le filtre « à surveiller ». */
@@ -91,6 +96,8 @@ export interface LegalListState {
    * répondre en trois filtres de colonnes revient à ne pas y répondre.
    */
   unpaidOnly: boolean;
+  /** LA TVA À COMPLÉTER : les factures dont la TVA manque ou ne correspond plus — ce que la G50 ne peut pas compter. */
+  tvaOnly?: boolean;
 }
 
 /**
@@ -112,7 +119,7 @@ export function legalListScope(opts: {
 
 /** L'état initial d'une liste : ses filtres sont ceux que le périmètre impose, et rien d'autre. */
 export function initialLegalListState(scope: string, watchByDefault: boolean, kind = ""): LegalListState {
-  return { scope, filters: { ...EMPTY_FILTERS, kind }, watchOnly: watchByDefault, unpaidOnly: false };
+  return { scope, filters: { ...EMPTY_FILTERS, kind }, watchOnly: watchByDefault, unpaidOnly: false, tvaOnly: false };
 }
 
 /**
@@ -158,13 +165,19 @@ export function visibleLegalRows(rows: readonly LegalListRow[], state: LegalList
     // payée — la montrer ici gonflerait une dette qui n'existe pas.
     // « À régler » : ni réglée, ni annulée, ni entièrement créditée par ses avoirs — la lecture du compte d'en-tête.
     if (state.unpaidOnly && !(r.kind === "INVOICE" && !r.paidDate && r.status !== "CANCELLED" && !entierementCreditee(r.amount, r.avoirs ?? 0))) return false;
+    if (state.tvaOnly && !tvaACompleter(r)) return false;
     return true;
   });
 }
 
+/** UNE PIÈCE DONT LA TVA EST À COMPLÉTER — facture ou avoir non annulé, TVA absente ou à revoir. */
+export function tvaACompleter(r: Pick<LegalListRow, "kind" | "status" | "tva">): boolean {
+  return (r.kind === "INVOICE" || r.kind === "CREDIT_NOTE") && r.status !== "CANCELLED" && Boolean(r.tva?.aCompleter);
+}
+
 /** Y a-t-il un filtre actif ? Sert à proposer « Réinitialiser » — et à l'expliquer. */
 export function hasActiveFilter(state: LegalListState): boolean {
-  return state.watchOnly || state.unpaidOnly || Object.values(state.filters).some(Boolean);
+  return state.watchOnly || state.unpaidOnly || Boolean(state.tvaOnly) || Object.values(state.filters).some(Boolean);
 }
 
 /**
@@ -178,6 +191,7 @@ export function describeActiveFilters(state: LegalListState): string[] {
   const out: string[] = [];
   if (state.watchOnly) out.push("à surveiller (échéance proche ou dépassée)");
   if (state.unpaidOnly) out.push("factures restant à régler");
+  if (state.tvaOnly) out.push("TVA à compléter");
   const f = state.filters;
   if (f.reference) out.push(`référence « ${f.reference} »`);
   if (f.title) out.push(`titre « ${f.title} »`);
