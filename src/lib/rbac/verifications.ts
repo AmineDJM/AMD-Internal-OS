@@ -7,38 +7,37 @@
 import type { AccessScope } from "@prisma/client";
 import { peutAnnuaire as regleAnnuaire, ouvertParSection, type AnnuaireAccordable, type FaitsAnnuaire, type GesteAnnuaire } from "../annuaires/acces"; // module PUR, zéro import → aucun cycle
 import { MODULES, type Action, type Module } from "./modules";
-import { hasGlobalView, hasRole, regleDemandeEtatStock } from "./roles";
+import { hasGlobalView, hasRole, peutVoirAdam, regleDemandeEtatStock } from "./roles";
 import type { EffectiveAccess, SessionUser } from "./acces";
 
 /**
- * L'ASSISTANT IA EST-IL OUVERT À CETTE PERSONNE ? Le module `ASSISTANT_IA` en VUE — le Super Admin
- * l'a d'office, les autres seulement si l'accès leur est ouvert (Administration › Accès). Un droit
- * qui ne tiendrait qu'à un intérim ne compte pas : l'assistant parle au nom de son utilisateur.
+ * ADAM (L'ASSISTANT IA) EST-IL OUVERT À CETTE PERSONNE ? Le Super Admin seul (24/11/2026 : « Adam : fermé à tous sauf
+ * Super Admin ») — rôle principal ET module `ASSISTANT_IA` en VUE ; l'ouvrir dans la console à quelqu'un d'autre n'ouvre
+ * plus rien. Un droit qui ne tiendrait qu'à un intérim ne compte pas : l'assistant parle au nom de son utilisateur.
  */
 export function peutUtiliserAssistantIA(u: SessionUser): boolean {
-  return userCan(u, "ASSISTANT_IA", "VIEW") && !estPrete(u, "ASSISTANT_IA", "VIEW");
+  // ADAM EST FERMÉ À TOUS SAUF AU SUPER ADMIN (24/11/2026) : le rôle est relu ici, une clé accordée par erreur n'ouvre rien.
+  return peutVoirAdam(u) && userCan(u, "ASSISTANT_IA", "VIEW") && !estPrete(u, "ASSISTANT_IA", "VIEW");
 }
 
 /** Le refus, écrit une fois — page, actions et confirmation disent la même phrase. */
-export const REFUS_ASSISTANT_IA = "L'assistant ne vous est pas ouvert.";
+export const REFUS_ASSISTANT_IA = "Adam est réservé au Super Admin.";
 
 /**
  * LE BUREAU D'ADAM EST-IL OUVERT À CETTE PERSONNE ? — ses onglets Boîte de réception, Réglages d'Adam et Bureau d'Adam
- * (`/adam/*`, ex-« My Chief of Staff »). La clé `CHIEF_OF_STAFF` en « Voir », telle que la console la règle, et elle seule
- * (Super Admin, 24/11/2026).
- *
- * Hier, les onglets exigeaient le module ET le rôle Super Admin (`peutVoirAdam`) : la Direction portait le module par
- * défaut sans jamais rien ouvrir, et l'accorder à quelqu'un ne servait à rien. Le module n'est plus dans les défauts de la
- * Direction : par défaut, le Super Admin seul — l'état d'hier ; ensuite, accorder ouvre et bloquer ferme. La conversation
- * avec Adam (`/assistant`) reste au module `ASSISTANT_IA` ; les outils exécutifs, la voix et le brief gardent `peutVoirAdam`.
+ * (`/adam/*`, ex-« My Chief of Staff »). Le Super Admin seul (24/11/2026, « Adam : fermé à tous sauf Super Admin ») : son
+ * rôle principal ET la clé `CHIEF_OF_STAFF` en « Voir » — la console peut encore la lui BLOQUER, jamais l'ouvrir à un autre.
+ * La conversation avec Adam (`/assistant`) suit `peutUtiliserAssistantIA` ; les outils exécutifs, la voix et le brief
+ * gardent `peutVoirAdam`.
  * Un geste prêté par un intérim ne compte pas : le bureau ne se délègue pas (`hr/stand-in.ts`).
  */
 export function ouvreLeBureauAdam(u: SessionUser): boolean {
-  return userCan(u, "CHIEF_OF_STAFF", "VIEW") && !estPrete(u, "CHIEF_OF_STAFF", "VIEW");
+  // Même fermeture qu'Adam (24/11/2026) : la clé de la console ne suffit plus, il faut être le Super Admin.
+  return peutVoirAdam(u) && userCan(u, "CHIEF_OF_STAFF", "VIEW") && !estPrete(u, "CHIEF_OF_STAFF", "VIEW");
 }
 
 /** Le refus du bureau d'Adam, écrit une fois — il dit le remède. */
-export const REFUS_BUREAU_ADAM = "Le bureau d'Adam ne vous est pas ouvert — un Super Admin l'ouvre dans Administration › Accès (« My Chief of Staff »).";
+export const REFUS_BUREAU_ADAM = "Le bureau d'Adam est réservé au Super Admin.";
 
 /** Does the user's effective access permit this action on this module? */
 export function userCan(user: SessionUser, module: Module, action: Action): boolean {

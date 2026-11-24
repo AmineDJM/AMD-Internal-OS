@@ -287,7 +287,7 @@ export function TrainingBoard({
                       <div className="space-y-2 rounded-lg border border-border bg-background p-2.5">
                         <p className="text-xs font-medium">Votre décision — {CHAIN_STAGE_LABELS[t.stage]}</p>
                         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                          {t.stage === "DG" && (
+                          {t.stage === "OPERATIONS" && (
                             <label className="text-xs">
                               Montant accordé (DZD)
                               <Input
@@ -296,7 +296,7 @@ export function TrainingBoard({
                                 inputMode="decimal" className="mt-1 h-10 text-right tabular-nums sm:h-9"
                               />
                               <span className="text-[0.6875rem] text-muted-foreground">
-                                La direction accorde souvent moins que demandé — le budget suit CE montant.
+                                On accorde souvent moins que demandé — le budget suit CE montant.
                               </span>
                             </label>
                           )}
@@ -313,7 +313,7 @@ export function TrainingBoard({
                             const fd = new FormData();
                             fd.set("id", t.id); fd.set("decision", "APPROVED");
                             if (note[t.id]) fd.set("note", note[t.id]);
-                            if (t.stage === "DG") fd.set("amountGranted", granted[t.id] ?? String(t.amount));
+                            if (t.stage === "OPERATIONS") fd.set("amountGranted", granted[t.id] ?? String(t.amount));
                             void run(`dec:${t.id}`, () => decideTraining(fd), "Formation validée.");
                           }} className="inline-flex min-h-10 items-center gap-1 rounded-md border border-success/30 px-3 py-1 text-xs font-medium text-success hover:bg-success/10 disabled:opacity-50 sm:min-h-0 sm:px-2">
                             {busy === `dec:${t.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ThumbsUp className="h-3.5 w-3.5" />} Approuver

@@ -105,10 +105,8 @@ export const PERMISSIONS: Record<UserRole, RoleMatrix> = {
     // Force de vente et des Business Units … → oui ») : il les GÈRE, en portée TOUT (`resolveRepScope` → « all »). Le
     // Marketing cockpit, lui, reste en LECTURE : il se recopiait de la Force de vente (plus bas) et n'est pas son métier.
     SALES_PLANNING: MANAGE, BUSINESS_UNITS: MANAGE, MARKETING_COCKPIT: READ,
-    // ADVENTUM BRAIN LIMITÉ À SON PÉRIMÈTRE (même décision) : il lit les risques de SON domaine (PCH, stocks,
-    // logistique, ventes, force de vente, terrain) et agit dessus (prendre en charge, relancer, ignorer, résoudre) —
-    // la règle est `adventum/perimetre.ts`. Le briefing, la question libre et les seuils restent au Super Admin.
-    ADVENTUM_BRAIN: ["VIEW", "UPDATE"],
+    // ADVENTUM BRAIN : RETIRÉ (Super Admin, 24/11/2026 — « Adventum Brain : Super Admin uniquement ») ; son ancienne vue
+    // bornée à son périmètre n'existe plus (`MODULES_SUPER_ADMIN_SEUL`). Les risques et leur historique restent en base.
     DIRECTIVES: DIRECTIVES_USER, SUPPORT: SUPPORT_USER, DOSSIERS: DOSSIERS_USER, NOTIFICATIONS: ["VIEW"],
     // LE STOCK PROMOTIONNEL (décision de la Direction, 01/10/2026) : « la vue globale du stock
     // promotionnel, mais aussi la gestion du matériel de ses équipes — les superviseurs en dessous

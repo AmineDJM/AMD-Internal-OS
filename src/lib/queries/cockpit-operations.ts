@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { companyScopedWhere } from "@/lib/company";
 import { userCan, type SessionUser } from "@/lib/rbac";
 import { resolveRepScope } from "@/lib/sfe";
 import { busDuPerimetre, chargerPilotage, type Pilotage } from "@/lib/queries/force-de-vente";
@@ -11,7 +12,6 @@ import { canoniquesDesDossiers, chargerChaine, chargerConsommationMensuelle, cha
 import { busPch, chainesContratsPch, demandeNonServie, fraicheurPch, produitsVentesPch, synthesePch, type BuPch } from "@/lib/ventes-pch/requetes";
 import { SOURCE_RECEPTIONS, dateDuMois, decalerMois, periodeDe, periodePrecedente } from "@/lib/ventes-pch/calculs";
 import { lireRisques } from "@/lib/adventum/brain-read";
-import { filtreDuPerimetre } from "@/lib/adventum/perimetre";
 import { ageEnJours } from "@/lib/stocks/pch-central";
 import { CHEMIN_STOCKS_CHAINE, CHEMIN_STOCK_PCH } from "@/lib/chemins/stocks";
 import {
@@ -28,7 +28,7 @@ import {
  *
  * Rien n'est ressaisi ni recalculé à côté : les ventes PCH (`ventes-pch/requetes.ts`), la chaîne des contrats, les
  * stocks de la chaîne et leur consommation (`queries/stock-pch.ts`), la force de vente (`queries/force-de-vente.ts`),
- * les risques d'Adventum Brain bornés au périmètre des opérations (`adventum/perimetre.ts`). Les calculs sont purs
+ * les risques d'Adventum Brain (au Super Admin seul depuis le 24/11/2026). Les calculs sont purs
  * (`cockpit-operations/calculs.ts`). Un signal dont la personne ne voit pas l'écran n'est pas lu : son lien serait mort.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
@@ -77,6 +77,14 @@ export interface CockpitOperations {
 
 const VIDE: CumulLivre = { lisible: false, boites: 0, valeur: 0, valorise: false };
 
+/** Les BU des sociétés de la personne (celles de l'en-tête), `null` quand rien n'est à restreindre (Super Admin, vue groupe). */
+async function busDeMesSocietes(userId: string): Promise<Set<string> | null> {
+  const base = { isActive: true };
+  const where = await companyScopedWhere(userId, base);
+  if (where === base) return null;
+  return new Set((await prisma.businessUnit.findMany({ where, select: { id: true } })).map((b) => b.id));
+}
+
 export async function chargerCockpitOperations(user: SessionUser, buDemandee: string | null, maintenant: Date = new Date()): Promise<CockpitOperations> {
   const acces: AccesCockpit = {
     ventes: userCan(user, "PCH_VENTES", "VIEW"),
@@ -89,7 +97,9 @@ export async function chargerCockpitOperations(user: SessionUser, buDemandee: st
   const moisCourant = maintenant.toISOString().slice(0, 7);
   const annee = maintenant.getUTCFullYear();
 
-  const [fraicheur, bus, produitsVentes] = await Promise.all([fraicheurPch(), busPch(), produitsVentesPch(null)]);
+  const [fraicheur, tousLesBus, produitsVentes, busSociete] = await Promise.all([fraicheurPch(), busPch(), produitsVentesPch(null), busDeMesSocietes(user.id)]);
+  // UN DIRECTEUR NE VOIT QUE SA SOCIÉTÉ (Super Admin, 24/11/2026) : les BU d'une autre société ne s'affichent pas, ni leurs KAM.
+  const bus = busSociete ? tousLesBus.filter((b) => busSociete.has(b.id)) : tousLesBus;
   const buId = buDemandee && bus.some((b) => b.id === buDemandee) ? buDemandee : null;
   const produitsDeLaBu = buId ? new Set(produitsVentes.filter((p) => p.bus.some((b) => b.id === buId)).map((p) => p.id)) : null;
   const nomDuProduit = new Map(produitsVentes.map((p) => [p.id, p.nom]));
@@ -161,8 +171,11 @@ export async function chargerCockpitOperations(user: SessionUser, buDemandee: st
   let fdv: CockpitOperations["fdv"] = { ouvert: acces.fdv, horsPerimetre: false, pct: null, vues: 0, cibles: 0, delta: null };
   let pilotage: Pilotage | null = null;
   if (acces.fdv) {
-    const scope = await resolveRepScope(user);
-    const busFdv = await busDuPerimetre(scope, user.id);
+    const scope0 = await resolveRepScope(user);
+    const scope = scope0.mode === "all" && busSociete
+      ? { ...scope0, repIds: (await prisma.salesRepProfile.findMany({ where: { businessUnitId: { in: [...busSociete] } }, select: { repId: true } })).map((p) => p.repId) }
+      : scope0;
+    const busFdv = (await busDuPerimetre(scope, user.id)).filter((b) => !busSociete || busSociete.has(b.id));
     if (buId && !busFdv.some((b) => b.id === buId)) fdv = { ...fdv, horsPerimetre: true };
     else {
       const p = await chargerPilotage({ scope, userId: user.id, buId, year: maintenant.getFullYear(), month: maintenant.getMonth() + 1, maintenant });
@@ -244,7 +257,7 @@ export async function chargerCockpitOperations(user: SessionUser, buDemandee: st
     items.push(...aTraiterFichiersPch(fraicheur.sources, fraicheur.dernierMois, "/sales/importer"));
   }
   if (acces.brain) {
-    const risques = await lireRisques(maintenant, filtreDuPerimetre(user.role === "SUPER_ADMIN"));
+    const risques = await lireRisques(maintenant);
     const ouverts = risques.filter((r) => (r.status === "NOUVEAU" || r.status === "PRIS_EN_CHARGE") && !r.resolvedAt && !(r.snoozedUntil && new Date(r.snoozedUntil) > maintenant));
     items.push(...aTraiterBrain(ouverts, "/adventum-brain"));
   }

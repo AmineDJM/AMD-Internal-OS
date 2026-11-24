@@ -36,8 +36,9 @@ export { genererEtRemettreAttestation, type PreparationAttestation, preparerAtte
 export { remplirOrdreDeMission } from "./infra/ordre-mission/modele";
 export { genererEtRemettreOrdreDeMission, referenceOrdreMissionSuggeree, societeDeLOrdreDeMission } from "./infra/ordre-mission-depot";
 
-// ── Organisation : ligne hiérarchique, arbre d'équipe, indicateurs, départ
+// ── Organisation : ligne hiérarchique, arbre d'équipe, indicateurs, départ, directeurs
 export { compteSuitLaFiche } from "./infra/depart";
+export { autorisateursDeLaFormation, departementsDiriges, societesOuJAutoriseLesFormations } from "./infra/directeurs";
 
 // ── Lectures des écrans
 export { getLeavesToDecide, getMyAdvances, getMyLeaveBalance, getMyLeaveRequests, getRhData } from "./infra/requetes/hr";

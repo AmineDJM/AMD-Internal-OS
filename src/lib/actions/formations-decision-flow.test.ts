@@ -13,7 +13,8 @@ import { decideTraining } from "./training-actions";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * QUI SIGNE UNE FORMATION — la marche du N+1 et la marche « DG » (§118.185 — audit 360°, I12).
+ * QUI SIGNE UNE FORMATION — la marche du N+1 et la dernière marche (§118.185 — audit 360°, I12 ; puis
+ * Super Admin, 24/11/2026 : la dernière marche est l'autorisation du Directeur des opérations, sans le DG).
  *
  * Deux impasses mesurées par l'audit. (1) La marche « DG » ne s'ouvrait qu'à la VUE GLOBALE, qui
  * exclut délibérément le Directeur Général : le rôle qui porte le nom de l'étape ne pouvait pas la
@@ -22,7 +23,9 @@ import { decideTraining } from "./training-actions";
  * sans responsable désigné : la page cachait un bouton que l'action aurait accepté.
  *
  * Joué par la vraie action, avec des acteurs sans vue globale, et la page tenue à son point
- * d'appel : elle doit lire LA MÊME chaîne et LE MÊME sommet que l'action.
+ * d'appel : elle doit lire LA MÊME chaîne et LE MÊME autorisateur que l'action. Depuis le 24/11/2026,
+ * le Directeur Général n'est plus dans le circuit : le Directeur des opérations (le responsable de la
+ * Direction des opérations dans l'organigramme) autorise, toutes formations confondues.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
@@ -43,7 +46,7 @@ const fd = (o: Record<string, string>) => {
   return f;
 };
 
-suite("qui signe une formation : le chef de département, le Directeur Général", () => {
+suite("qui signe une formation : le chef de département, le Directeur des opérations (plus le DG)", () => {
   const users: Record<string, string> = {};
   const emps: Record<string, string> = {};
   let dept = "";
@@ -73,15 +76,18 @@ suite("qui signe une formation : le chef de département, le Directeur Général
     await seed("demandeur", "SALES_USER", dept);
     await seed("dg", "GENERAL_MANAGER");
     await seed("etranger", "SALES_USER");
+    // Le Directeur des opérations : le responsable de la Direction des opérations du groupe (formations sans société).
+    await seed("ops", "SALES_USER");
+    await prisma.department.create({ data: { name: "Direction des opérations", code: `${TAG}OPS`, headId: emps.ops } });
   }, 120_000);
   afterAll(nettoyer, 120_000);
 
-  const formation = (stage: "MANAGER" | "HR" | "DG") =>
+  const formation = (stage: "MANAGER" | "HR" | "OPERATIONS") =>
     prisma.training.create({
       data: { title: `${TAG} formation ${stage}`, reference: `${TAG}-${stage}-${Math.random().toString(36).slice(2, 8)}`, requesterId: users.demandeur, stage, status: "PENDING", amount: 50_000 },
       select: { id: true },
     });
-  const lire = (id: string) => prisma.training.findUniqueOrThrow({ where: { id }, select: { stage: true, status: true, managerDecidedById: true, dgDecidedById: true } });
+  const lire = (id: string) => prisma.training.findUniqueOrThrow({ where: { id }, select: { stage: true, status: true, managerDecidedById: true, dgDecidedById: true, opsDecidedById: true } });
 
   it("LE CHEF DU DÉPARTEMENT signe la marche du N+1 d'un salarié sans responsable désigné", async () => {
     const t = await formation("MANAGER");
@@ -102,35 +108,40 @@ suite("qui signe une formation : le chef de département, le Directeur Général
     expect((await lire(t.id)).stage).toBe("MANAGER");
   });
 
-  it("LE DIRECTEUR GÉNÉRAL signe la marche « DG » — le rôle qui porte le nom de l'étape", async () => {
-    const t = await formation("DG");
-    ACTOR = await actorFor(users.dg, "GENERAL_MANAGER");
+  it("LE DIRECTEUR DES OPÉRATIONS autorise la dernière marche — l'organigramme le désigne, pas son rôle", async () => {
+    const t = await formation("OPERATIONS");
+    ACTOR = await actorFor(users.ops, "SALES_USER");
     const r = await decideTraining(fd({ id: t.id, decision: "APPROVED" }));
     expect(r.ok, r.ok ? undefined : r.error).toBe(true);
     const apres = await lire(t.id);
-    expect(apres.dgDecidedById).toBe(users.dg);
+    expect(apres.opsDecidedById).toBe(users.ops);
+    expect(apres.dgDecidedById).toBeNull();
     expect(apres.status).toBe("APPROVED");
   });
 
-  it("…et le chef du département, lui, n'y a pas la main", async () => {
-    const t = await formation("DG");
-    ACTOR = await actorFor(users.chef, "MEDICAL_PROMOTION_MANAGER");
-    const r = await decideTraining(fd({ id: t.id, decision: "APPROVED" }));
-    expect(r.ok).toBe(false);
-    expect(r.ok ? "" : r.error).toMatch(/direction générale/);
+  it("…et ni le Directeur Général ni le chef du département n'y ont la main", async () => {
+    const t = await formation("OPERATIONS");
+    for (const [cle, role] of [["dg", "GENERAL_MANAGER"], ["chef", "MEDICAL_PROMOTION_MANAGER"]] as const) {
+      ACTOR = await actorFor(users[cle], role);
+      const r = await decideTraining(fd({ id: t.id, decision: "APPROVED" }));
+      expect(r.ok).toBe(false);
+      expect(r.ok ? "" : r.error).toMatch(/Directeur des opérations/);
+    }
   });
 
-  it("LA PAGE lit la même chaîne et le même sommet que l'action (point d'appel)", () => {
+  it("LA PAGE lit la même chaîne et le même autorisateur que l'action (point d'appel)", () => {
     const src = readFileSync("src/app/(app)/formations/page.tsx", "utf8").replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "");
     // La chaîne : l'organigramme réel, chef de département compris — pas la seule fiche.
     expect(src).toMatch(/managementChainOf\(/);
     expect(src).toMatch(/loadReportingLine\(\)/);
-    // Le sommet : la direction générale, DG compris — pas la vue globale.
-    expect(src).toMatch(/const sommet = isTopManagement\(user\);/);
-    expect(src).toMatch(/canDecideChain\([\s\S]{0,400}isDg: sommet/);
-    // Et l'action lit le même sommet.
+    // L'outrepasse : le Super Admin seul ; la dernière marche : le Directeur des opérations, par la règle de l'action.
+    expect(src).toMatch(/const sommet = user\.role === "SUPER_ADMIN";/);
+    expect(src).toMatch(/canDecideChain\([\s\S]{0,400}isDg: sommet, isOps:/);
+    expect(src).toMatch(/autorisateursDeLaFormation\(/);
+    // Et l'action lit le même outrepasse et le même autorisateur.
     const action = readFileSync("src/lib/actions/training-actions.ts", "utf8").replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "");
-    expect(action).toMatch(/const isDg = isTopManagement\(user\);/);
+    expect(action).toMatch(/const isDg = user\.role === "SUPER_ADMIN";/);
+    expect(action).toMatch(/autorisateursDeLaFormation\(training\.companyId, training\.requesterId\)/);
     expect(action).toMatch(/getManagementChain\(emp\.id\)/);
   });
 });

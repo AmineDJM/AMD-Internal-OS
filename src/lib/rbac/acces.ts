@@ -18,7 +18,7 @@ import { sansBloquer } from "@/lib/journal"; // module PUR, zéro import → auc
 import { modulesParBase } from "@/platform/donnees/contexte"; // D5 : le port de l'accès par base (aucun import de module)
 import { MODULES, type Action, type Module } from "./modules";
 import { PERMISSIONS } from "./permissions";
-import { defaultScope, hasGlobalView, recruitmentAccessFor, seesWholeSecretariat } from "./roles";
+import { defaultScope, hasGlobalView, MODULES_SUPER_ADMIN_SEUL, recruitmentAccessFor, seesWholeSecretariat } from "./roles";
 
 // `cache` is a React Server Components API; fall back to identity outside an
 // RSC render (e.g. unit tests) so the module loads everywhere.
@@ -628,6 +628,10 @@ export const getAccess = perRequest(
       for (const o of parBase.ouvrir) if (!SIEGES.has(o.module as Module)) grantImplicit(o.module as Module, o.gestes as Action[], "ALL");
       for (const m of parBase.masquer) modules.delete(m as Module);
     }
+
+    // LES MODULES DU SUPER ADMIN SEUL (24/11/2026) — Adventum Brain et Adam : retirés à tout autre compte, en dernier, pour
+    // qu'aucune porte (rôle, « autre rôle », console, base ouverte) ne les rende (`MODULES_SUPER_ADMIN_SEUL`).
+    if (role !== "SUPER_ADMIN") for (const m of MODULES_SUPER_ADMIN_SEUL) modules.delete(m);
 
     return {
       modules, rowGrants, secondaryRole, role,

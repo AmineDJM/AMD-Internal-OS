@@ -103,6 +103,15 @@ export function peutVoirAdam(u: UserRole | RoleBearer): boolean {
 /** Le refus, écrit UNE fois — une action serveur d'Adam appelée hors de son écran dit cette phrase. */
 export const REFUS_ADAM = "Adam est réservé au Super Admin.";
 
+/**
+ * LES MODULES QUI N'APPARTIENNENT QU'AU SUPER ADMIN (Super Admin, 24/11/2026) — Adventum Brain (l'accès du Directeur des
+ * opérations sur son périmètre est retiré), Adam en conversation (`ASSISTANT_IA`) et son bureau (`CHIEF_OF_STAFF`) : « fermés
+ * à tous sauf Super Admin ». La règle tient même si la console est mal réglée : l'accès résolu les retire à tout autre compte
+ * (`getAccess`), et les portes d'Adam relisent le rôle (`peutUtiliserAssistantIA`, `ouvreLeBureauAdam`). Le rôle PRINCIPAL
+ * seul, comme les missions : le Super Admin est un compte, pas une casquette qu'on prête. Les données et l'historique restent.
+ */
+export const MODULES_SUPER_ADMIN_SEUL: readonly Module[] = ["ADVENTUM_BRAIN", "ASSISTANT_IA", "CHIEF_OF_STAFF"];
+
 /** L'utilisateur porte-t-il ce rôle, en **principal OU en secondaire** ? */
 export function hasRole(u: RoleBearer, role: UserRole): boolean {
   return u.role === role || u.secondaryRole === role;

@@ -12,6 +12,9 @@ import { Badge } from "@/components/ui/badge";
 import { cn, formatCurrency } from "@/lib/utils";
 import { BudgetContextBar } from "./budget-context-bar";
 import { AlerteAImputer } from "./alerte-a-imputer";
+import { BoutonReallouer } from "./reallouer-bouton";
+import { canManageEnvelope } from "@/lib/rbac";
+import { droitsDeReallocation } from "@/lib/budget/directeur-serveur";
 import { ancreCategorieBudget } from "@/lib/chemins/budgets";
 
 /**
@@ -53,9 +56,20 @@ export async function VueEnsembleRegulatory({ user, titre, overview, envelopes, 
   const anneeFin = overview.period.to.slice(0, 4);
   const exercice = anneeDebut === anneeFin ? anneeDebut : `${anneeDebut}–${anneeFin}`;
 
+  // RÉALLOUER (24/11/2026) : le directeur du budget Regulatory, ou qui gère l'enveloppe — le même panneau que le Marketing.
+  const realloc = await droitsDeReallocation(user, overview.envelope.id);
+  const peutReallouer = realloc.directeur || canManageEnvelope(user, overview.envelope);
+
   return (
     <div className="space-y-5">
       <PageHeader title={titre} description={`Enveloppe ${exercice}`}>
+        {peutReallouer && (
+          <BoutonReallouer
+            envelopeId={overview.envelope.id}
+            categoriesBrutes={overview.categories.map((c) => ({ id: c.id, name: c.name, parentId: c.parentId, allocated: c.allocated, consumed: c.consumed, committed: c.committed }))}
+            autres={realloc.autres}
+          />
+        )}
         <a
           href={exportHref}
           className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-secondary sm:min-h-0 sm:px-2.5"

@@ -27,6 +27,10 @@ import { accesAssistantIa } from "./infra/role-config";
  *   3. LES MISSIONS : chacun lit SES missions — jamais celle d'un collègue (liste, fiche, travaux de l'assistant) ; le
  *      Super Admin a EN PLUS la vue globale, propriétaire nommé.
  *   4. « MISSIONS TERRAIN » : l'onglet des missions d'équipe de Mon espace est renommé, adresse et module inchangés.
+ *
+ * DEPUIS LE 24/11/2026 (Super Admin : « Adam : fermé à tous sauf Super Admin ») : la clé ASSISTANT_IA ouverte dans la
+ * console à un employé (Dalia) ne lui ouvre plus rien ; Amina et Bilal, dont on compare les missions, sont donc des comptes
+ * Super Admin — la règle « chacun les siennes » se lit sur leurs travaux, la vue globale sur le compte de Samir.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 const TAG = `__a1adam_${Date.now()}_`;
@@ -48,18 +52,20 @@ async function confier(u: CurrentUser, titre: string): Promise<string> {
 const destinations = (menu: { href: string; tabs?: { href: string }[] }[]) => menu.map((n) => n.href);
 
 let sa: CurrentUser;
-let amina: CurrentUser; // déléguée médicale, Adam ouvert
-let bilal: CurrentUser; // délégué médical, Adam ouvert
+let amina: CurrentUser; // compte Super Admin, Adam ouvert
+let bilal: CurrentUser; // compte Super Admin, Adam ouvert
 let chafia: CurrentUser; // déléguée médicale, SANS Adam
+let dalia: CurrentUser; // déléguée médicale, clé ASSISTANT_IA ouverte dans la console — Adam reste fermé
 let missionAmina = "";
 let missionBilal = "";
 let executionBilal = "";
 
 beforeAll(async () => {
   sa = await personne("Samir", "SUPER_ADMIN");
-  amina = await personne("Amina", "MEDICAL_DELEGATE", true);
-  bilal = await personne("Bilal", "MEDICAL_DELEGATE", true);
+  amina = await personne("Amina", "SUPER_ADMIN", true);
+  bilal = await personne("Bilal", "SUPER_ADMIN", true);
   chafia = await personne("Chafia", "MEDICAL_DELEGATE");
+  dalia = await personne("Dalia", "MEDICAL_DELEGATE", true);
   missionAmina = await confier(amina, `${TAG} Synthèse des visites d'Amina`);
   missionBilal = await confier(bilal, `${TAG} Synthèse des visites de Bilal`);
   // Une mission d'EXÉCUTION (table Mission, kind RUNTIME) à Bilal : la liste d'exécution d'Amina ne doit pas la montrer.
@@ -94,22 +100,30 @@ describe("1 · le NOM — « Adam » partout, la clé de module et les droits in
     expect(sectionProfil(profil)).toContain("Je suis Adam, l'assistant d'Amina");
   });
 
-  it("les accès restent ceux d'aujourd'hui, personne par personne", () => {
+  it("Adam au Super Admin seul (24/11/2026) : la clé de la console n'ouvre plus rien à un employé", () => {
     expect(peutUtiliserAssistantIA(amina)).toBe(true);
+    expect(peutUtiliserAssistantIA(sa)).toBe(true);
+    expect(peutUtiliserAssistantIA(dalia), "clé ASSISTANT_IA ouverte dans la console").toBe(false);
     expect(peutUtiliserAssistantIA(chafia)).toBe(false);
-    expect(peutVoirAdam(amina), "avoir Adam n'ouvre pas les capacités du Super Admin").toBe(false);
+    expect(peutVoirAdam(dalia)).toBe(false);
     expect(peutVoirAdam(sa)).toBe(true);
   });
 });
 
 describe("2 · le MENU — réel, calculé par `navigationFor` sur la base", () => {
-  it("un employé à qui Adam est ouvert : « Adam » et « Missions d'Adam », jamais « My Chief of Staff »", async () => {
-    const menu = await navigationFor(amina);
+  it("un employé à qui la console ouvre Adam : ni Adam, ni ses missions, ni « My Chief of Staff » (24/11/2026)", async () => {
+    const menu = await navigationFor(dalia);
     const d = destinations(menu);
-    expect(menu.find((n) => n.href === "/assistant")?.label).toBe("Adam");
-    expect(menu.find((n) => n.href === "/centre-de-missions")?.label).toBe("Missions d'Adam");
+    expect(d).not.toContain("/assistant");
+    expect(d).not.toContain("/centre-de-missions");
     expect(d).not.toContain("/chief-of-staff");
     expect(menu.map((n) => n.label)).not.toContain("My Chief of Staff");
+  });
+
+  it("un compte Super Admin : « Adam » et « Missions d'Adam » portent leur nom", async () => {
+    const menu = await navigationFor(amina);
+    expect(menu.find((n) => n.href === "/assistant")?.label).toBe("Adam");
+    expect(menu.find((n) => n.href === "/centre-de-missions")?.label).toBe("Missions d'Adam");
   });
 
   it("un employé sans Adam : ni Adam, ni ses missions — rien ne s'ouvre par le renommage", async () => {
@@ -129,7 +143,7 @@ describe("2 · le MENU — réel, calculé par `navigationFor` sur la base", () 
   it("les onglets de l'ex-Chief of Staff : la règle qui les affiche ne s'ouvre qu'au Super Admin", () => {
     expect(ADAM_TABS.map((t) => t.label)).toEqual(["Conversation", "Boîte de réception", "Réglages d'Adam", "Bureau d'Adam"]);
     expect(peutVoirAdam(sa)).toBe(true);
-    for (const u of [amina, bilal, chafia]) expect(peutVoirAdam(u), u.name).toBe(false);
+    for (const u of [dalia, chafia]) expect(peutVoirAdam(u), u.name).toBe(false);
   });
 
   it("/chief-of-staff mène à l'écran d'Adam — paramètres compris (retour Google, question, référence)", () => {
@@ -169,7 +183,8 @@ describe("3 · les MISSIONS — chacun les siennes, le Super Admin en plus la vu
 
   it("un employé n'a pas la règle du Super Admin : la fiche d'autrui ne se résout pas pour lui", () => {
     // La page `/missions/<id>` ne résout le propriétaire d'une autre personne que sous ce prédicat.
-    expect(peutPiloterMissionsAdam(amina)).toBe(false);
+    expect(peutPiloterMissionsAdam(chafia)).toBe(false);
+    expect(peutPiloterMissionsAdam(dalia)).toBe(false);
     expect(peutPiloterMissionsAdam(sa)).toBe(true);
   });
 
@@ -188,7 +203,7 @@ describe("3 · les MISSIONS — chacun les siennes, le Super Admin en plus la vu
 describe("4 · « Missions terrain » — les missions d'équipe de Mon espace, renommées sans rien déplacer", () => {
   it("« Missions terrain » n'est plus un onglet (Aujourd'hui simplifié, 24/11/2026) : la page garde son adresse, un lien de la file y mène", async () => {
     expect(WORKSPACE_TABS.some((t) => t.href === CHEMIN_MES_MISSIONS)).toBe(false);
-    const espace = (await navigationFor(amina)).find((n) => n.href === "/mon-espace");
+    const espace = (await navigationFor(dalia)).find((n) => n.href === "/mon-espace");
     expect((espace?.tabs ?? []).map((t) => t.label)).toEqual(["Aujourd'hui", "Tâches", "Mon dossier RH"]);
     expect((espace?.tabs ?? []).map((t) => t.label)).not.toContain("Mes missions");
     const { readFileSync } = await import("node:fs");

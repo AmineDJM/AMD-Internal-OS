@@ -1,5 +1,32 @@
 ## 🧾 Journal des évolutions récentes
 
+### LE POUVOIR DES DIRECTEURS : RÉALLOCATION LIBRE DANS SON BUDGET, FORMATIONS AU DIRECTEUR DES OPÉRATIONS, BRAIN ET ADAM AU SUPER ADMIN (2026-11-24)
+
+Décisions du Super Admin du 24/11/2026 (section « Pouvoir des directeurs & données IA »).
+- **Le directeur** = le responsable du département dans l'organigramme (`Department.headId`), jamais l'adjoint (pas de
+  sous-délégation) : `@/modules/rh/partage` (`estDirecteurDe`, `directeursDesOperationsDeLaSociete`, `estDirectionDesOperations`,
+  `autorisateursDeFormation`), lu en base par `@/modules/rh/api` (`departementsDiriges`, `autorisateursDeLaFormation`).
+- **Réallocation** (`reallouerCategorie`, le geste existant élargi) : le directeur réalloue librement entre toutes les
+  catégories de tête de SON budget — enveloppes du même pôle, de sa société et du même exercice, ou enveloppes générales nées
+  de la campagne de son département (`lib/budget/budget-du-directeur.ts`) —, d'une enveloppe à l'autre s'il le faut ; le
+  total du budget est relu dans la transaction et la réallocation est annulée s'il changeait. Ni plafond ni validation (la
+  part cessible reste : on ne retire pas l'argent payé ou engagé). Le Super Admin est notifié (+ audit), pas le DG. Le geste
+  vit dans Budget Marketing (panneau « Réallouer », liste « Vers » élargie) et, nouveau, dans l'en-tête du Budget Operations
+  & Sales et du Budget Regulatory (`budgets/reallouer-bouton.tsx`).
+- **Formations** : N+1 → RH → **autorisation du Directeur des opérations** (nouvelle marche `OPERATIONS`, migration
+  `20270248000000_pouvoir_directeurs`, colonnes `opsDecided*`), plus de marche DG ; une formation organisée par les RH
+  (réglementaire, convocation) y entre directement. Le Directeur des opérations = le responsable de la Direction des
+  opérations de la société (organigramme), à défaut le rôle `OPERATIONS_DIRECTOR`, à défaut le Super Admin. Une formation
+  restée « chez le DG » se lit à cette marche (`etapeDeFormation`), sans réécriture. Notifications nominatives, « Aujourd'hui »
+  (`queries/action-center-formations.ts`) et liste des formations à jour. L'outrepasse reste au seul Super Admin.
+- **Accès réservés** : Adventum Brain, Adam (`ASSISTANT_IA`) et le bureau d'Adam (`CHIEF_OF_STAFF`) sont retirés à tout
+  compte non Super Admin par l'accès résolu (`MODULES_SUPER_ADMIN_SEUL`, `getAccess`), et les portes d'Adam relisent le rôle :
+  une clé ouverte dans la console n'ouvre plus rien. La vue Brain bornée du Directeur des opérations est retirée
+  (`lib/adventum/perimetre.ts` supprimé). ROI Ad & Pro et graphe d'influence : déjà Super Admin seul (vérifié). Données et
+  historiques intacts ; « Agir comme » inchangé.
+- **Société** : le Cockpit Opérations ne liste plus les BU (ni leurs KAM) d'une société à laquelle la personne n'a pas accès.
+- Banc : `src/lib/actions/pouvoir-directeurs-flow.test.ts`.
+
 ### MOYENS GÉNÉRAUX : LE SERVICE SE RÈGLE DANS LES RÉGLAGES, LA CAISSE NE COMPTE UNE REMISE QU'À LA CONFIRMATION DU CAISSIER (2026-11-24)
 
 Décisions du Super Admin du 24/11/2026.

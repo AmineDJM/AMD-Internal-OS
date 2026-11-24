@@ -4,7 +4,9 @@ Le métier des Ressources humaines : la **fiche salarié**, les **congés** (fic
 escalade, intérim désigné), la **paie** (coût, masse salariale, correction d'une ligne, virement — qui part au
 **centre de paiement** des Finances comme une demande, jamais payé ici), les **avances sur salaire**, les
 **demandes et documents RH** (attestation de travail générée, ordre de mission, entrevues, archives au Drive),
-les **notes de frais**, et l'organisation lue par Mon Équipe (ligne hiérarchique, arbre, indicateurs).
+les **notes de frais**, et l'organisation lue par Mon Équipe (ligne hiérarchique, arbre, indicateurs) — dont **qui est
+le directeur** d'un département (son responsable dans l'organigramme, `domaine/directeurs.ts`, 24/11/2026) et qui autorise
+une formation (le Directeur des opérations de la société).
 Lit `coffre` (porte d'écriture : la double écriture des salaires, IBAN, NIN) et `referentiels`, et `finances` (le centre de paiement et la paie versée) (`carte.ts`).
 
 | Porte / dossier | Rôle |

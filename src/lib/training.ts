@@ -4,9 +4,11 @@ import type { ChainStage } from "@/lib/approval-chain";
  * FORMATION — deux origines, un seul objet, deux points de départ dans le circuit.
  *
  * Un salarié qui DEMANDE une formation la fait monter comme un congé : son responsable
- * (charge de l'équipe), les RH (droit et budget), la direction (arbitrage). Les RH qui en
- * ORGANISENT une n'ont, elles, personne à consulter en amont — elles SONT l'étape RH, et
- * leur demande part directement à la direction. Faire passer les RH par elles-mêmes serait
+ * (charge de l'équipe), les RH (droit et budget), puis l'AUTORISATION du Directeur des
+ * opérations (Super Admin, 24/11/2026 : « sans le DG, mais TOUTES les formations, y compris
+ * réglementaires, passent par l'autorisation du Directeur des opérations »). Les RH qui en
+ * ORGANISENT une — les formations réglementaires, les convocations — n'ont personne à consulter
+ * en amont : elles SONT l'étape RH, et leur formation part directement à cette autorisation. Faire passer les RH par elles-mêmes serait
  * une signature vide, et faire passer une formation d'équipe par le N+1 d'un organisateur
  * n'aurait pas de sens : ce n'est pas son équipe.
  *
@@ -45,8 +47,20 @@ export const PARTICIPANT_STATE_LABELS: Record<TrainingParticipantState, { label:
  * d'attendre dans le vide une signature que personne ne peut donner.
  */
 export function initialTrainingStage(origin: TrainingOrigin, hasManager: boolean): ChainStage {
-  if (origin === "HR") return "DG";
+  if (origin === "HR") return ETAPE_FINALE_FORMATION;
   return hasManager ? "MANAGER" : "HR";
+}
+
+/** La dernière marche de toute formation : l'autorisation du Directeur des opérations — jamais le DG (24/11/2026). */
+export const ETAPE_FINALE_FORMATION = "OPERATIONS" as const;
+
+/**
+ * L'ÉTAPE D'UNE FORMATION, LUE SELON LA RÈGLE DU 24/11/2026 — une formation restée « en attente de la direction
+ * générale » (déposée avant la décision) attend désormais l'autorisation du Directeur des opérations : rien n'est
+ * réécrit en base (l'historique reste), la marche se LIT ainsi, à l'écran comme dans l'action.
+ */
+export function etapeDeFormation(stage: ChainStage, status: string): ChainStage {
+  return stage === "DG" && status === "PENDING" ? ETAPE_FINALE_FORMATION : stage;
 }
 
 /**

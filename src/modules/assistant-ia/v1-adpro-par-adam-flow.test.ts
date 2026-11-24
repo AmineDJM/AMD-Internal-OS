@@ -33,6 +33,7 @@ import { outilsV1, type PropositionPreparee } from "./infra/outils-v1";
 import { SPONSORING_CREATION } from "./infra/operations/adpro-sponsoring";
 import { executerOperationIA } from "./infra/operations";
 import { confirmerIntentionAssistantIA } from "@/modules/assistant-ia/actions";
+import { confirmerCarte } from "@/modules/assistant-ia/api";
 import { demanderPaiementPoste } from "@/modules/ad-pro/actions-postes-paiement";
 import { settleExpenseOrder } from "@/modules/finances/actions-depenses";
 import { annulerGeste } from "@/lib/effets/annulation";
@@ -71,7 +72,10 @@ async function parAdam(qui: Qui, outilNom: string, entree: Record<string, unknow
   expect(sortie.statut, JSON.stringify(sortie)).toBe("EN_ATTENTE_DE_CONFIRMATION");
   expect(props).toHaveLength(1);
   const p = props[0]!;
-  const r = await confirmerIntentionAssistantIA(p.intentId, p.proposition.confirmText ?? undefined);
+  // ADAM EST AU SUPER ADMIN SEUL (24/11/2026) : la porte refuse ces comptes, clé de la console ouverte ou non. Le moteur
+  // des cartes, derrière la porte, reste celui que ce banc éprouve : la carte confirmée y agit au nom de la personne.
+  if (user.role !== "SUPER_ADMIN") expect(await confirmerIntentionAssistantIA(p.intentId, p.proposition.confirmText ?? undefined)).toMatchObject({ ok: false });
+  const r = await confirmerCarte(user, p.intentId, p.proposition.confirmText ?? undefined);
   expect(r.ok, r.error).toBe(true);
   return r;
 }

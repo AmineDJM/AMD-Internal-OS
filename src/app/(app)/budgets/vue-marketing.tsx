@@ -9,6 +9,7 @@ import { dinar, disponible, pctPeriodeEcoulee, pourcent, resteIntegration, rythm
 import { cleMois } from "@/lib/budget/engage";
 import type { VueLot } from "@/lib/budget-marketing/integration-serveur";
 import { BudgetContextBar } from "./budget-context-bar";
+import { droitsDeReallocation } from "@/lib/budget/directeur-serveur";
 import { TableauMarketing } from "./marketing-tableau";
 
 /**
@@ -47,6 +48,8 @@ export async function VueEnsembleMarketing({ user, base, titre, description, ove
   const q = `env=${encodeURIComponent(env)}`;
   const exportBase = `/api/budgets/marketing/export?${q}&from=${overview.period.from.slice(0, 10)}&to=${overview.period.to.slice(0, 10)}`;
   const peutGerer = canManageEnvelope(user, overview.envelope);
+  // LE DIRECTEUR DU BUDGET (organigramme, 24/11/2026) réalloue librement dans tout son budget, même sans gérer l'enveloppe.
+  const realloc = await droitsDeReallocation(user, overview.envelope.id);
   const integration = lot ? resteIntegration(lot) : null;
   const pill = r.cle === "AU_RYTHME" ? "bg-success/10 text-success" : r.cle === "EN_AVANCE" ? "bg-warning/15 text-warning" : "bg-primary/10 text-primary";
 
@@ -96,7 +99,8 @@ export async function VueEnsembleMarketing({ user, base, titre, description, ove
         }}
         reallocations={rapport.reallocations}
         pctEcoule={ecoule}
-        peutReallouer={peutGerer}
+        peutReallouer={peutGerer || realloc.directeur}
+        autresLignes={realloc.autres}
         liens={{
           depenses: `${base}/depenses?${q}`, reglages: `${base}/reglages?${q}`, demandes: `${base}/ad-pro?${q}`, export: exportBase,
           integration: lot && peutGerer ? `${base}/integration?${q}` : null,

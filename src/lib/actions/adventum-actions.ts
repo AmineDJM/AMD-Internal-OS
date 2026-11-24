@@ -4,7 +4,6 @@ import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
-import { filtreDuPerimetre } from "@/lib/adventum/perimetre";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
@@ -100,10 +99,9 @@ const histoireDe = (h: unknown): HistoryEntry[] => (Array.isArray(h) ? (h as His
  */
 export async function agirSurRisque(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  // HORS SUPER ADMIN (Direction, 08/10) : qui a « Modifier » sur Adventum Brain agit sur les risques de SON périmètre —
-  // la même règle que la lecture (`adventum/perimetre.ts`), relue ci-dessous sur le risque visé.
-  const superAdmin = user.role === "SUPER_ADMIN";
-  if (!superAdmin && !userCan(user, "ADVENTUM_BRAIN", "UPDATE")) return DENIED;
+  // ADVENTUM BRAIN EST AU SUPER ADMIN SEUL (24/11/2026) : la vue bornée du Directeur des opérations est retirée, le rôle
+  // est relu ici même si l'accès résolu le retire déjà (`MODULES_SUPER_ADMIN_SEUL`).
+  if (user.role !== "SUPER_ADMIN" || !userCan(user, "ADVENTUM_BRAIN", "UPDATE")) return DENIED;
   const riskId = fdStr(formData, "riskId");
   let geste = fdStr(formData, "geste");
   const assigneeId = fdStr(formData, "assigneeId");
@@ -112,7 +110,7 @@ export async function agirSurRisque(formData: FormData): Promise<ActionResult> {
   if (!riskId || !geste) return { ok: false, error: "Geste incomplet." };
 
   const risk = await prisma.brainRisk.findUnique({ where: { id: riskId } });
-  if (!risk || !filtreDuPerimetre(superAdmin)({ category: risk.category, module: risk.module })) return { ok: false, error: "Ce risque n'existe plus." };
+  if (!risk) return { ok: false, error: "Ce risque n'existe plus." };
   const gestes = gestesDe(risk.detail);
   const tache = gestes.find((a) => a.payload?.kind === "task")?.payload as Extract<AutopilotPayload, { kind: "task" }> | undefined;
   const relance = gestes.find((a) => a.payload?.kind === "notify")?.payload as Extract<AutopilotPayload, { kind: "notify" }> | undefined;

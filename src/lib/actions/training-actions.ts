@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { UserRole } from "@prisma/client";
 import { requireUser } from "@/lib/session";
-import { userCan, hasGlobalView, isTopManagement, rolesWithModule, type SessionUser } from "@/lib/rbac";
+import { userCan, hasGlobalView, rolesWithModule, type SessionUser } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { auNomDeQui } from "@/lib/hr/stand-in-resolve";
 import { recordAudit } from "@/lib/audit";
@@ -18,9 +18,10 @@ import {
   canDecideChain, applyChainDecision, chainNotifyRoles, CHAIN_STAGE_LABELS, type ChainStage,
 } from "@/lib/approval-chain";
 import {
-  initialTrainingStage, initialParticipantState, canRespondToInvitation, canEditTraining,
-  type TrainingAttendance,
+  initialTrainingStage, initialParticipantState, canRespondToInvitation, canEditTraining, etapeDeFormation,
+  ETAPE_FINALE_FORMATION, type TrainingAttendance,
 } from "@/lib/training";
+import { autorisateursDeLaFormation } from "@/modules/rh/api";
 import { fdStr, fdNum, fdDate, type ActionResult } from "@/lib/actions/types";
 import { refusAnnulationFormation } from "@/lib/annulations/regles";
 import { sansBloquer } from "@/lib/journal";
@@ -31,8 +32,9 @@ const PATH = CHEMIN_FORMATIONS;
  * FORMATIONS — actions serveur.
  *
  * Deux origines qui produisent le même objet : la demande d'un salarié (qui monte
- * N+1 → RH → DG) et la formation organisée par les RH (qui part directement au DG, puisque
- * les RH SONT l'étape RH). Les postes — location de salle, traiteur, intervenant — sont des
+ * N+1 → RH → Directeur des opérations) et la formation organisée par les RH — réglementaire,
+ * convocation — (qui part directement à l'autorisation du Directeur des opérations, puisque les
+ * RH SONT l'étape RH). Plus de marche DG (Super Admin, 24/11/2026). Les postes — location de salle, traiteur, intervenant — sont des
  * `AdProItem`, validés un par un par la direction : exactement le mécanisme déjà éprouvé sur
  * les sponsorings, plutôt qu'un second circuit à maintenir en parallèle.
  */
@@ -45,6 +47,16 @@ async function revalidateTraining(id?: string): Promise<void> {
   revalidatePath(PATH);
   revalidatePath("/mon-espace");
   if (id) revalidatePath(`${PATH}/${id}`);
+}
+
+/**
+ * PRÉVENIR CEUX QUI AUTORISENT — le Directeur des opérations de la société de la formation (organigramme), à défaut le
+ * rôle, à défaut le Super Admin (`autorisateursDeLaFormation`). Nommément : c'est une personne, pas une fonction.
+ */
+async function prevenirAutorisateurs(t: { id: string; companyId: string | null; requesterId: string | null }, title: string, body: string): Promise<void> {
+  const { userIds } = await autorisateursDeLaFormation(t.companyId, t.requesterId);
+  await Promise.all(userIds.map((userId) => notifyUser({ userId, type: "VALIDATION_REQUIRED", title, body, link: lienFormation(t.id) })
+    .catch(sansBloquer("training-actions.prevenirAutorisateurs"))));
 }
 
 /**
@@ -180,10 +192,7 @@ export async function createHrTraining(_prev: ActionResult | undefined, formData
     if (err) return { ok: false, error: err };
   }
 
-  await notifyRoles(chainNotifyRoles("DG") as UserRole[], {
-    type: "VALIDATION_REQUIRED", title: "Formation à valider (direction)",
-    body: `${title} — ${amount} DZD`, link: lienFormation(created.id),
-  });
+  await prevenirAutorisateurs({ id: created.id, companyId, requesterId: user.id }, "Formation à autoriser", `${title} — ${amount} DZD`);
   await recordAudit({
     actorId: user.id, action: "CREATE", module: "Ressources humaines", entityType: "TRAINING", entityId: created.id,
     summary: `Formation organisée ${created.reference} — ${title}`,
@@ -193,12 +202,12 @@ export async function createHrTraining(_prev: ActionResult | undefined, formData
 }
 
 /** Le pouvoir de trancher de cette personne sur CETTE formation. */
-async function deciderFor(user: SessionUser, training: { managerId: string | null; requesterId: string | null }) {
-  // LA MARCHE « DG » EST CELLE DE LA DIRECTION GÉNÉRALE — et le Directeur Général en fait partie
-  // (audit 360°, I12). `hasGlobalView` l'exclut délibérément : le rôle qui porte le nom de l'étape
-  // ne pouvait pas la signer. Le congé a payé ce défaut avant la formation et l'a fermé par
-  // `isTopManagement` (`hr/leave-core.ts`) : les deux circuits lisent désormais le même sommet.
-  const isDg = isTopManagement(user);
+async function deciderFor(user: SessionUser, training: { managerId: string | null; requesterId: string | null; companyId: string | null }) {
+  // PLUS DE DG DANS LE CIRCUIT (Super Admin, 24/11/2026) : la dernière marche est l'autorisation du Directeur des
+  // opérations, lu dans l'organigramme (`autorisateursDeLaFormation`). L'outrepasse à toute marche reste au seul Super
+  // Admin, souverain — ni le Directeur Général, ni la Direction : « sans le DG ».
+  const isDg = user.role === "SUPER_ADMIN";
+  const isOps = (await autorisateursDeLaFormation(training.companyId, training.requesterId)).userIds.includes(user.id);
   const isHr = isHrOf(user);
   // LE N+1, OU SON INTÉRIMAIRE (§118.185 — audit 360°, I18) — la même lecture que le congé. La
   // règle « on ne tranche pas sa propre demande » reste celle de `canDecideChain`.
@@ -217,13 +226,13 @@ async function deciderFor(user: SessionUser, training: { managerId: string | nul
       isManager = chain.some((m) => Boolean(m.userId && ids.has(m.userId)));
     }
   }
-  return { id: user.id, isManager, isHr, isDg };
+  return { id: user.id, isManager, isHr, isDg, isOps };
 }
 
 /**
- * DÉCIDER — une marche du circuit. La dernière (DG) accorde définitivement et peut RÉVISER le
- * montant : la direction accorde souvent moins que demandé, et l'écrire ailleurs ferait
- * diverger le budget de la décision.
+ * DÉCIDER — une marche du circuit. La dernière (l'autorisation du Directeur des opérations)
+ * accorde définitivement et peut RÉVISER le montant : on accorde souvent moins que demandé, et
+ * l'écrire ailleurs ferait diverger le budget de la décision.
  */
 export async function decideTraining(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
@@ -238,19 +247,21 @@ export async function decideTraining(formData: FormData): Promise<ActionResult> 
   if (!training) return { ok: false, error: "Formation introuvable." };
 
   const decider = await deciderFor(user, training);
+  // Une formation restée « chez le DG » se lit à l'autorisation du Directeur des opérations (`etapeDeFormation`).
+  const etape = etapeDeFormation(training.stage as ChainStage, training.status);
   const allowed = canDecideChain(
-    { status: training.status === "PENDING" ? "PENDING" : "APPROVED", stage: training.stage as ChainStage, requesterUserId: training.requesterId },
+    { status: training.status === "PENDING" ? "PENDING" : "APPROVED", stage: etape, requesterUserId: training.requesterId },
     decider,
   );
   if (!allowed.ok) return { ok: false, error: allowed.reason ?? "Non autorisé." };
 
   const note = fdStr(formData, "note");
-  const next = applyChainDecision(training.stage as ChainStage, decision);
+  const next = applyChainDecision(etape, decision, { derniere: ETAPE_FINALE_FORMATION });
   const now = new Date();
   const stamp: Record<string, Record<string, unknown>> = {
     MANAGER: { managerDecidedById: user.id, managerDecidedAt: now, managerNote: note },
     HR: { hrDecidedById: user.id, hrDecidedAt: now, hrNote: note },
-    DG: { dgDecidedById: user.id, dgDecidedAt: now, dgNote: note },
+    OPERATIONS: { opsDecidedById: user.id, opsDecidedAt: now, opsNote: note },
   };
   // La direction peut accorder un montant différent de celui demandé.
   const granted = next.granted ? fdNum(formData, "amountGranted") : null;
@@ -263,19 +274,23 @@ export async function decideTraining(formData: FormData): Promise<ActionResult> 
     data: {
       status: next.status === "PENDING" ? "PENDING" : next.status === "APPROVED" ? "APPROVED" : "REJECTED",
       stage: next.stage,
-      ...(stamp[training.stage] ?? {}),
+      ...(stamp[etape] ?? {}),
       ...(next.granted ? { amountGranted: granted ?? Number(training.amount) } : {}),
     },
   });
   if (ecrit.count === 0) return { ok: false, error: "Cette demande vient d'être tranchée par quelqu'un d'autre — rechargez la page." };
 
   if (next.status === "PENDING") {
-    const roles = chainNotifyRoles(next.stage) as UserRole[];
-    if (roles.length) {
-      await notifyRoles(roles, {
-        type: "VALIDATION_REQUIRED", title: "Formation à valider",
-        body: `${training.title} — ${CHAIN_STAGE_LABELS[next.stage]}`, link: lienFormation(id),
-      });
+    if (next.stage === ETAPE_FINALE_FORMATION) {
+      await prevenirAutorisateurs(training, "Formation à autoriser", `${training.title} — ${CHAIN_STAGE_LABELS[next.stage]}`);
+    } else {
+      const roles = chainNotifyRoles(next.stage) as UserRole[];
+      if (roles.length) {
+        await notifyRoles(roles, {
+          type: "VALIDATION_REQUIRED", title: "Formation à valider",
+          body: `${training.title} — ${CHAIN_STAGE_LABELS[next.stage]}`, link: lienFormation(id),
+        });
+      }
     }
   }
   if (training.requesterId) {
@@ -290,7 +305,7 @@ export async function decideTraining(formData: FormData): Promise<ActionResult> 
   await recordAudit({
     actorId: user.id, action: decision === "APPROVED" ? "VALIDATE" : "REFUSE",
     module: "Ressources humaines", entityType: "TRAINING", entityId: id,
-    summary: `Formation ${training.reference} — ${decision === "APPROVED" ? (next.granted ? "accordée" : `validée (${CHAIN_STAGE_LABELS[training.stage as ChainStage]})`) : "refusée"}`,
+    summary: `Formation ${training.reference} — ${decision === "APPROVED" ? (next.granted ? "autorisée par le Directeur des opérations" : `validée (${CHAIN_STAGE_LABELS[etape]})`) : "refusée"}`,
   });
   await revalidateTraining(id);
   return { ok: true };
@@ -420,7 +435,7 @@ export async function annulerFormation(formData: FormData): Promise<ActionResult
   const motif = fdStr(formData, "motif");
   const training = await prisma.training.findUnique({
     where: { id },
-    select: { id: true, reference: true, title: true, status: true, stage: true, requesterId: true, managerId: true },
+    select: { id: true, reference: true, title: true, status: true, stage: true, requesterId: true, managerId: true, companyId: true },
   });
   if (!training) return { ok: false, error: "Formation introuvable." };
   if (training.requesterId !== user.id) return { ok: false, error: "Seul le salarié qui a demandé cette formation l'annule." };
@@ -441,6 +456,8 @@ export async function annulerFormation(formData: FormData): Promise<ActionResult
     if (chef?.userId && chef.userId !== user.id) {
       await notifyUser({ userId: chef.userId, type: "GENERIC", title: "Formation annulée", body: corps, link: lienFormation(id) }).catch(sansBloquer("training-actions.annulerFormation.notifyUser"));
     }
+  } else if (training.status === "PENDING" && etapeDeFormation(training.stage as ChainStage, training.status) === ETAPE_FINALE_FORMATION) {
+    await prevenirAutorisateurs(training, "Formation annulée", corps);
   } else {
     const roles = (training.status === "APPROVED" ? ["DIRECTION", "SUPER_ADMIN", ...rolesWithModule("TRAINING", "UPDATE")] : chainNotifyRoles(training.stage as ChainStage)) as UserRole[];
     if (roles.length) await notifyRoles([...new Set(roles)], { type: "GENERIC", title: "Formation annulée", body: corps, link: lienFormation(id) }).catch(sansBloquer("training-actions.annulerFormation.notifyRoles"));

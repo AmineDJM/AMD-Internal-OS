@@ -153,9 +153,12 @@ suite("Lot T2 — l'annuaire tenu par l'assistant (base locale, exécuté puis a
     expect("carte" in p, JSON.stringify(p)).toBe(true);
     if (!("carte" in p)) return;
     expect(p.carte.fields[0]!.value).toBe(`${a("delegue")}, ${a("delegue_ouest")}`);
-    const r = await confirmerOperation(u.marketing, DEMANDER_AU_TERRAIN.nom, p.args);
+    // ADAM EST AU SUPER ADMIN SEUL (24/11/2026) : la mission d'Adam ne s'ouvre plus pour la Direction Marketing ; le Super
+    // Admin, lui, la confie — la même carte, les mêmes destinataires.
+    expect((await confirmerOperation(u.marketing, DEMANDER_AU_TERRAIN.nom, p.args)).ok).toBe(false);
+    const r = await confirmerOperation(u.superadmin, DEMANDER_AU_TERRAIN.nom, p.args);
     expect(r.ok, JSON.stringify(r)).toBe(true);
-    const m = await prisma.mission.findFirstOrThrow({ where: { ownerId: u.marketing.id, kind: "TRAVAIL", context: "carte demander_au_terrain" }, orderBy: { createdAt: "desc" }, include: { steps: true } });
+    const m = await prisma.mission.findFirstOrThrow({ where: { ownerId: u.superadmin.id, kind: "TRAVAIL", context: "carte demander_au_terrain" }, orderBy: { createdAt: "desc" }, include: { steps: true } });
     expect(m.status).not.toBe("AWAITING_APPROVAL");
     expect(JSON.stringify(m.steps)).toContain(S.users.delegue);
     expect(JSON.stringify(m.steps)).toContain(S.users.delegue_ouest);

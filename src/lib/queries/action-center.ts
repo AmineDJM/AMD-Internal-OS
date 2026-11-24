@@ -3,6 +3,7 @@ import { tempsEnAttente, peutTenir, estDirectionOperations, estDirectionMarketin
 import { canAccessEntity } from "@/lib/entity-access";
 import { auNomDeQui } from "@/lib/hr/stand-in-resolve";
 import { getLeavesToDecide } from "@/modules/rh/api";
+import { lignesFormationsAAutoriser } from "@/lib/queries/action-center-formations";
 import { tachesAgence, totauxEnAttenteDuDg } from "@/modules/ad-pro/api";
 import { dedoublonner, trierConges, PREFIXE_CONGE, PREFIXE_DEMANDE_ADMIN, PREFIXE_RESTE } from "@/lib/queries/mes-decisions";
 import { clausePlansADecider } from "@/lib/sfe/tournee";
@@ -417,6 +418,9 @@ export async function getActionCenter(user: SessionUser) {
       });
     }
   }
+
+  // (d bis) LES FORMATIONS À AUTORISER par le Directeur des opérations (24/11/2026).
+  items.push(...(await lignesFormationsAAutoriser(user.id).catch(sansBloquer("action-center.lignesFormationsAAutoriser", []))));
 
   // (e) LES MISSIONS AD & PRO (Direction, 10/2026) — les ordres de mission à valider comme N+1 (une décision), et
   //     mes invitations à confirmer (un geste). Les deux se tranchent dans « Mon espace › Mes missions ».

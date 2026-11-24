@@ -7,6 +7,9 @@
  * BORNÉ (maquette « onglets » validée) : chaque catégorie affiche ce qu'elle peut CÉDER — ce qui reste libre au-dessus
  * de son payé + engagé et de ce que ses sous-catégories répartissent (`budget/marketing-vue.ts`, `cessible`) ; le
  * serveur revérifie la même borne. Le geste passe par une SECONDE confirmation, comme le reste du module.
+ *
+ * LE DIRECTEUR DU BUDGET (24/11/2026) voit aussi, dans « Vers », les catégories des AUTRES enveloppes de son budget
+ * (`autres`, lues par `droitsDeReallocation`) : le montant passe d'une enveloppe à l'autre, le total du budget ne bouge pas.
  */
 
 import * as React from "react";
@@ -19,12 +22,13 @@ import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { actionFailureMessage } from "@/lib/action-outcome";
 import { reallouerCategorie } from "@/lib/actions/budget-pole-actions";
 import { MOTIF_MIN, refusReallocation, type NoeudArbre } from "@/lib/budget/marketing-vue";
+import type { LigneDAutreEnveloppe } from "@/lib/budget/budget-du-directeur";
 import { FenetreConfirmation, type Confirmation } from "./fenetre-confirmation";
 import { fmt } from "./marketing-graphiques";
 
 export interface DemandeReallocation { sourceId?: string; cibleId?: string; montant?: number; besoin?: number }
 
-export function ReallouerSheet({ ouverte, onClose, tetes, envelopeId, initial, onFait }: {
+export function ReallouerSheet({ ouverte, onClose, tetes, envelopeId, initial, onFait, autres = [] }: {
   ouverte: boolean;
   onClose: () => void;
   /** Les catégories de tête, cumulées (`arbreCategories`). */
@@ -33,6 +37,8 @@ export function ReallouerSheet({ ouverte, onClose, tetes, envelopeId, initial, o
   initial: DemandeReallocation;
   /** Le message de réussite, pour l'écran qui a ouvert le panneau. */
   onFait?: (message: string) => void;
+  /** Les catégories de tête des autres enveloppes du même budget — au directeur de ce budget (et au Super Admin) seulement. */
+  autres?: LigneDAutreEnveloppe[];
 }) {
   const { enCours: rafraichit, rafraichir } = useRafraichir();
   const [sourceId, setSourceId] = React.useState(initial.sourceId ?? "");
@@ -53,7 +59,9 @@ export function ReallouerSheet({ ouverte, onClose, tetes, envelopeId, initial, o
   }, [ouverte, initial]);
 
   const source = tetes.find((l) => l.id === sourceId);
-  const cible = tetes.find((l) => l.id === cibleId);
+  const cibleIci = tetes.find((l) => l.id === cibleId);
+  const cibleAilleurs = autres.find((l) => l.id === cibleId);
+  const cible = cibleIci ?? (cibleAilleurs ? { nom: cibleAilleurs.nom, alloue: cibleAilleurs.alloue, paye: 0, engage: 0 } : undefined);
   const valeur = Number(montant.replace(/\s/g, "").replace(",", "."));
   const besoin = cible ? Math.max(0, cible.paye + cible.engage - cible.alloue) : 0;
 
@@ -82,7 +90,8 @@ export function ReallouerSheet({ ouverte, onClose, tetes, envelopeId, initial, o
     const refus = refusReallocation({
       sourceId, cibleId, montant: Number.isFinite(valeur) ? valeur : null, motif,
       source: source ? { envelopeId, parentId: null, alloue: source.alloue, cessible: source.cessible, nom: source.nom } : null,
-      cible: cible ? { envelopeId, parentId: null } : null,
+      cible: cible ? { envelopeId: cibleAilleurs?.envelopeId ?? envelopeId, parentId: null } : null,
+      entreEnveloppes: Boolean(cibleAilleurs),
     });
     if (refus || !source || !cible) { setErreur(refus ?? "Catégorie introuvable."); return; }
     setErreur(null);
@@ -90,7 +99,7 @@ export function ReallouerSheet({ ouverte, onClose, tetes, envelopeId, initial, o
       titre: "Confirmer la réallocation ?",
       corps: (
         <div className="grid gap-1.5">
-          <p><b className="tabular-nums">{fmt(valeur)} DZD</b> passent de « {source.nom} » à « {cible.nom} ». L&apos;enveloppe ne change pas.</p>
+          <p><b className="tabular-nums">{fmt(valeur)} DZD</b> passent de « {source.nom} » à « {cible.nom} »{cibleAilleurs ? ` (${cibleAilleurs.enveloppe})` : ""}. {cibleAilleurs ? "Le total du budget ne change pas." : "L'enveloppe ne change pas."}</p>
           <p className="text-xs text-muted-foreground tabular-nums">{source.nom} : {fmt(source.alloue)} → {fmt(source.alloue - valeur)} · {cible.nom} : {fmt(cible.alloue)} → {fmt(cible.alloue + valeur)}</p>
           <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">Motif : {motif.trim()}</p>
         </div>
@@ -107,7 +116,7 @@ export function ReallouerSheet({ ouverte, onClose, tetes, envelopeId, initial, o
         open={ouverte}
         onClose={onClose}
         title={cible ? `Réallouer vers « ${cible.nom} »` : "Réallouer"}
-        description="Un montant passe d'une catégorie à une autre de la même enveloppe ; l'enveloppe ne change pas."
+        description={autres.length > 0 ? "Un montant passe d'une ligne à une autre de votre budget ; son total ne change pas." : "Un montant passe d'une catégorie à une autre de la même enveloppe ; l'enveloppe ne change pas."}
         footer={(
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={onClose} disabled={occupe}>Annuler</Button>
@@ -137,6 +146,14 @@ export function ReallouerSheet({ ouverte, onClose, tetes, envelopeId, initial, o
               {tetes.filter((l) => l.id !== sourceId).map((l) => (
                 <option key={l.id} value={l.id}>{l.nom} — reste {fmt(l.reste)}</option>
               ))}
+              {[...new Set(autres.map((l) => l.envelopeId))].map((envId) => {
+                const lignes = autres.filter((l) => l.envelopeId === envId);
+                return (
+                  <optgroup key={envId} label={lignes[0]?.enveloppe ?? "Autre enveloppe"}>
+                    {lignes.map((l) => <option key={l.id} value={l.id}>{l.nom} — alloué {fmt(l.alloue)}</option>)}
+                  </optgroup>
+                );
+              })}
             </Select>
           </div>
           <div className="space-y-1.5">

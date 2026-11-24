@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { societesOuJAutoriseLesFormations } from "@/modules/rh/api";
 import { standInForUserIds } from "@/lib/hr/stand-in-resolve";
 import { companyScopedWhere, ficheScopedWhere, platformScope } from "@/lib/company";
 import {
@@ -72,10 +73,20 @@ export async function clauseFormationsVisibles(user: SessionUser): Promise<Prism
   const fichesAbsents = absents.length
     ? (await prisma.employee.findMany({ where: { userId: { in: absents } }, select: { id: true } })).map((e) => e.id)
     : [];
+  // LE DIRECTEUR DES OPÉRATIONS (24/11/2026) voit ce qu'il doit autoriser dans SES sociétés, et ce qu'il a autorisé.
+  const societesAutorisees = await societesOuJAutoriseLesFormations(user.id);
+  const ids = societesAutorisees.filter((c): c is string => c !== null);
   return {
     OR: [
       { requesterId: user.id },
       { participants: { some: { userId: user.id } } },
+      { opsDecidedById: user.id },
+      ...(societesAutorisees.length
+        ? [{
+            status: "PENDING" as const, stage: { in: ["OPERATIONS" as const, "DG" as const] },
+            OR: [...(ids.length ? [{ companyId: { in: ids } }] : []), ...(societesAutorisees.includes(null) ? [{ companyId: null }] : [])],
+          }]
+        : []),
       ...(moi ? [{ managerId: moi.id }, { requester: { employee: { managerId: moi.id } } }] : []),
       ...(fichesAbsents.length
         ? [{
