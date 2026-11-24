@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import {
   siegeAuCentreAdPro, REFUS_CENTRE_AD_PRO, FORME_PORTE, NATURES_A_VISA,
-  visaAutoriseAAvancer, motifBlocageVisa, trierCentre, compteursCentre,
+  visaAutoriseAAvancer, motifBlocageVisa, trierCentre,
   type LigneCentre, type FormePorte,
 } from "./centre";
 import { AD_PRO_KINDS } from "./unified";
@@ -109,58 +109,6 @@ describe("ce que le centre affiche en tête", () => {
     // Le tri ne MUTE pas son entrée : deux écrans qui lisent la même liste ne se marchent pas dessus.
     expect(rows.map((r) => r.entityId)).toEqual(["grosse", "vieille"]);
   });
-
-  /**
-   * LA MOITIÉ QUI COMPTE : `sansMontant`. Additionner les montants connus et présenter la somme
-   * comme « engagement total » est une coupe silencieuse — le lecteur croit voir le total, il en
-   * voit une partie (§118.60). Le cas qui ferait tomber cette assertion est exactement celui-là :
-   * quelqu'un retire le compte et l'écran annonce 2 000 000 pour trois demandes dont deux n'ont
-   * pas de montant.
-   */
-  it("le total voyage avec le NOMBRE de lignes sans montant", () => {
-    const c = compteursCentre([
-      ligne({ entityId: "a", montant: 2_000_000 }),
-      ligne({ entityId: "b", montant: null }),
-      ligne({ entityId: "c", montant: 0 }),
-    ], new Date("2026-09-21T00:00:00.000Z"));
-    expect(c.enAttente).toBe(3);
-    expect(c.montantTotal).toBe(2_000_000);
-    expect(c.sansMontant).toBe(2);
-  });
-
-  it("« dormantes » compte à partir de 7 jours révolus, et pas avant", () => {
-    const maintenant = new Date("2026-09-21T12:00:00.000Z");
-    const c = compteursCentre([
-      ligne({ entityId: "6j", depuis: "2026-09-15T12:00:00.000Z" }),
-      ligne({ entityId: "7j", depuis: "2026-09-14T12:00:00.000Z" }),
-      ligne({ entityId: "20j", depuis: "2026-09-01T12:00:00.000Z" }),
-    ], maintenant);
-    expect(c.dormantes).toBe(2);
-  });
-
-  it("aucune ligne : des zéros, jamais un NaN dans une jauge", () => {
-    const c = compteursCentre([], new Date("2026-09-21T00:00:00.000Z"));
-    expect(c).toEqual({ enAttente: 0, dormantes: 0, montantTotal: 0, sansMontant: 0, bonsDeCommande: 0 });
-  });
-
-  /**
-   * LES BONS DE COMMANDE SE COMPTENT À PART (§118.148). Le BC d'un poste est une part d'une
-   * enveloppe DÉJÀ accordée à la demande : l'ajouter au total des demandes compterait deux fois le
-   * même argent, et un BC sans montant gonflerait « sans montant » d'une ligne qui n'en est pas
-   * une. Le cas qui ferait tomber cette assertion est exactement celui-là : quelqu'un retire le
-   * filtre `estFormeBC` et le total passe de 2 000 000 à 2 600 000 sur la même file.
-   */
-  it("un BC attend au centre, compte dans « en attente », jamais dans le total des demandes", () => {
-    const c = compteursCentre([
-      ligne({ entityId: "demande", montant: 2_000_000 }),
-      ligne({ entityId: "bc-poste", forme: "BC_POSTE", montant: 600_000 }),
-      ligne({ entityId: "bc-legal", forme: "BC_LEGAL", montant: null }),
-    ], new Date("2026-09-21T00:00:00.000Z"));
-    expect(c.enAttente).toBe(3);
-    expect(c.bonsDeCommande).toBe(2);
-    expect(c.montantTotal).toBe(2_000_000);
-    expect(c.sansMontant).toBe(0);
-  });
 });
 
 /**
@@ -215,7 +163,8 @@ describe("les points d'appel de la garde de visa", () => {
    * que l'écran du centre porte le formulaire, et que l'action ouvre bien sa porte au siège.
    */
   it("le seuil est réglable DEPUIS le centre, et l'action ouvre sa porte au siège", () => {
-    expect(lire("src/app/(app)/centre-ad-pro/centre-board.tsx")).toMatch(/setAdProDgThreshold/);
+    // Le réglage vit dans le menu ⋯ du centre (maquette du 24/11/2026).
+    expect(lire("src/app/(app)/centre-ad-pro/menu-centre.tsx")).toMatch(/setAdProDgThreshold/);
     const settings = lire("src/lib/actions/settings-actions.ts");
     const deb = settings.indexOf("export async function setAdProDgThreshold");
     expect(deb).toBeGreaterThan(-1);

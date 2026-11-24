@@ -59,6 +59,7 @@ export { deposerFichiersSurLaPiece, retirerFichierDeLaPiece } from "./infra/pris
 export { ENVOI_FINANCES_CHAMP, ENVOI_FINANCES_RESUME, envoiAuxFinances } from "./infra/prise-en-charge/realisation";
 export { referentAInscrire } from "./infra/referent-de-la-gamme";
 export { demandeAttendLeCentre, demandesAuCentreAdPro, demandeurDuVisa, peutResoumettreAuCentre, visasTranchesCentreAdPro, type VisaTranche } from "./infra/requetes/centre";
+export { decisionsRecentesCentreAdPro } from "./infra/requetes/centre-decides";
 export { type CongressDetail, type CongressListRow, getCongressDetail, getCongressList } from "./infra/requetes/congres";
 export { getAdProCreateData, getAdProRequests, lignesDepensesAdPro } from "./infra/requetes/demandes";
 export { devisDesPostes, empreintesDesDevis } from "./infra/requetes/devis-poste";

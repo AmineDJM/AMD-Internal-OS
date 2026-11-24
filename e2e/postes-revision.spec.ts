@@ -199,14 +199,18 @@ test("LE CENTRE RENVOIE CE QU'IL MONTRAIT : un montant changé après l'affichag
   const { id } = await poste("Affiches", { orderStage: "REQUESTED", orderRequestedAt: new Date(), orderRequestedById: kamId, orderNote: "Réf. DV-77." });
   await login(page, GM_EMAIL);
   await aller(page, "/centre-ad-pro");
-  const ligne = page.locator("li").filter({ hasText: `${P}Affiches` }).last();
+  // La file à gauche, la fiche de décision à droite (maquette du 24/11/2026) : on ouvre la ligne, on décide sur la fiche.
+  const ligne = page.locator("#file-centre + ul li").filter({ hasText: `${P}Affiches` }).last();
   await expect(ligne).toBeVisible();
-  // Pendant que le Directeur Général lit la ligne, le montant change.
+  await ligne.getByRole("button").click();
+  const fiche = page.getByTestId("fiche-centre");
+  await expect(fiche.getByRole("heading", { name: new RegExp(`${P}Affiches`) })).toBeVisible();
+  // Pendant que le Directeur Général lit la fiche, le montant change.
   await prisma.adProItem.update({ where: { id }, data: { amountGranted: 800_000 } });
-  await cliquerDecisif(ligne.getByRole("button", { name: "Valider le bon de commande" }));
-  await expect(ligne.getByText(/a changé pendant que vous lisiez \(600\s000 → 800\s000 DZD\)/)).toBeVisible();
+  await cliquerDecisif(fiche.getByRole("button", { name: "Viser le BC" }));
+  await expect(fiche.getByText(/a changé pendant que vous lisiez \(600\s000 → 800\s000 DZD\)/)).toBeVisible();
   expect((await prisma.adProItem.findUniqueOrThrow({ where: { id }, select: { orderStage: true, orderVisaAmount: true } }))).toEqual({ orderStage: "REQUESTED", orderVisaAmount: null });
-  await capture(page, "c2-centre-relire", ligne);
+  await capture(page, "c2-centre-relire", fiche);
 });
 
 test("SECRÉTARIAT : supprimée dans les trente minutes, annulée au-delà — motif à l'appui, sans disparaître", async ({ page }) => {

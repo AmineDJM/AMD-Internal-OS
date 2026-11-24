@@ -28,7 +28,7 @@ const POINTS: Point[] = [
   // « Annuler la demande » (ex-« Refuser » des Finances : il annule l'ordre) ; « Refuser » reste celui d'une pièce.
   ["src/app/(app)/validations/paiements/[id]/dossier.tsx", "Annuler la demande", 1],
   ["src/app/(app)/validations/paiements/[id]/dossier.tsx", "Refuser", 1],
-  ["src/app/(app)/centre-ad-pro/centre-board.tsx", "reexaminerVisaCentreAdPro", 1],
+  ["src/app/(app)/centre-ad-pro/menu-centre.tsx", "reexaminerVisaCentreAdPro", 1],
   ["src/app/(app)/centre-ad-pro/centre-board.tsx", 'decider("VALIDER")', 1],
   ["src/app/(app)/centre-ad-pro/centre-board.tsx", 'decider("RENVOYER")', 1],
   ["src/app/(app)/centre-ad-pro/centre-board.tsx", 'decider("REFUSER")', 1],

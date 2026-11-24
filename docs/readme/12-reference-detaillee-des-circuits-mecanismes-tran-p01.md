@@ -121,9 +121,21 @@ pas un contrôle sur une absence de donnée.
 jamais** une décision tranchée : une resoumission après refus n'efface pas la décision du centre.
 Il **FIGE** le seuil qui l'a déclenché (§118.41) — sans quoi baisser le seuil rendrait la décision
 passée inexplicable, le centre affichant « 2 M au-dessus de 5 M ». Un **refus exige son motif**,
-c'est celui que le demandeur lira. Et le centre affiche le **nombre de lignes sans montant** à côté
-du total engagé : additionner les montants connus et présenter la somme comme « total » serait une
-coupe silencieuse (§118.60).
+c'est celui que le demandeur lira. Une ligne sans montant le dit en alerte (« Montant non renseigné ») au
+lieu de se fondre dans un total.
+
+**L'ÉCRAN (maquette validée le 24/11/2026, lot ctradpro).** Titre, pastilles des sociétés permises
+(`predicatEntitePermise`, la règle des fiches) et menu ⋯ (« Déjà décidés » avec le réexamen d'un refus,
+« Réglage des seuils » — les deux seuils, un bouton). À gauche la file « À décider » : objet, montant,
+société, nature, demandeur, depuis quand, **reste de la ligne budgétaire imputée**, nombre de pièces, alerte
+courte en rouge ; **le seuil se dit une fois**, dans la bulle ⓘ de la file. À droite la fiche : la demande
+(ou le BC), « Déjà validé », les postes (total) ou les devis reçus et « devis → accordé → BC » (BC), les
+pièces en aperçu, le budget et le déjà payé, puis les gestes — **les mêmes actions serveur** : le total par
+`statuerTotalDg` (valider / renvoyer en révision), le BC d'un poste par `approveAdProItemOrder`, visa et BC
+Legal par `deciderVisaCentreAdPro`, « Demander une précision » par `addAdProComment` (le fil de la demande
+ou du poste). Le contexte se charge en lot (`lib/queries/centre-ad-pro-contexte.ts`) ; l'affichage est pur
+(`modules/ad-pro/domaine/centre-vue.ts` : gestes par forme, alertes, pastilles) ; « Déjà décidés » relit
+visas, totaux et BC de poste (`infra/requetes/centre-decides.ts`).
 
 **LA CONVERSATION.** `adpro_operation/decide_gate_visa` offre les deux directions, comme
 `decide_other_request` — sa voisine SENSITIVE, offerte ainsi depuis toujours. Trois faits **mesurés**
@@ -135,7 +147,7 @@ la **liste du centre elle-même**, jamais par une seconde requête (§118.5).
 
 **Fichiers** : `lib/seuils/ad-pro.ts` (socle) ; `lib/ad-pro/{centre,visa}.ts` ;
 `lib/queries/ad-pro-centre.ts` ; `lib/actions/ad-pro-centre-actions.ts` ;
-`app/(app)/centre-ad-pro/{page,centre-board}.tsx` ; migration
+`app/(app)/centre-ad-pro/{page,centre-board,fiche-centre,menu-centre}.tsx` ; migration
 `20261117090000_centre_validation_ad_pro`. **Bancs** : 6 + 14 + 12 tests, dont un de bout en bout
 par les **vrais points d'entrée**, et **15 sabotages** dont le bilan est au journal.
 

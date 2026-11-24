@@ -228,13 +228,13 @@ test("BONS DE COMMANDE — le signataire RENVOIE le BC à son émetteur : il qui
 test("CENTRE AD & PRO — un siège RENVOIE une « autre demande » pour correction, motif exigé", async ({ page }) => {
   await login(page, EMAIL.pdg);
   await aller(page, "/centre-ad-pro");
-  const motif = page.locator(`#note-${autreId}`);
-  await expect(motif).toBeVisible();
-  // La décision de CETTE ligne : le plus proche conteneur qui porte son champ de motif.
-  const ligne = page.locator("div.space-y-2", { has: motif }).last();
-  const renvoyer = ligne.getByRole("button", { name: "Renvoyer pour correction" });
+  // La file à gauche, la fiche de décision à droite (maquette du 24/11/2026) : on ouvre la ligne, puis « Renvoyer ».
+  await page.locator(`#ligne-centre-${autreId}`).getByRole("button").click();
+  const fiche = page.getByTestId("fiche-centre");
+  await fiche.getByRole("button", { name: "Renvoyer", exact: true }).click();
+  const renvoyer = fiche.getByRole("button", { name: "Confirmer le renvoi" });
   await expect(renvoyer, "pas de renvoi sans motif").toBeDisabled();
-  await motif.fill(MOTIF_CENTRE);
+  await fiche.locator("#motif-centre").fill(MOTIF_CENTRE);
   await cliquerDecisif(renvoyer);
   await expect.poll(async () => (await prisma.adProGateVisa.findUnique({ where: { entityType_entityId: { entityType: "AD_PRO_OTHER", entityId: autreId } } }))?.status, { timeout: 15_000 })
     .toBe("CHANGES_REQUESTED");
