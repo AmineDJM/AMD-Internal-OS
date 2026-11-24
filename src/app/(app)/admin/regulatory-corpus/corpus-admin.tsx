@@ -7,11 +7,12 @@ import { Input, Textarea } from "@/components/ui/input";
 import { Retour } from "@/components/ui/retour";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { actionFailureMessage } from "@/lib/action-outcome";
+import { ExtraitCitation, type CitationAffichee } from "./extrait-citation";
 import { createCorpusSourceVersion, setCorpusVersionStatus, seedAnppCorpus, searchCorpusAction } from "@/lib/regulatory/intelligence/corpus/actions";
 
 interface Version { id: string; version: string; status: string; approvedAt: string | Date | null; _count: { sections: number } }
 interface Source { id: string; authority: string; jurisdiction: string; code: string; title: string; versions: Version[] }
-interface Citation { sectionId: string; authority: string; code: string; version: string; path: string; heading: string | null; snippet: string; rank: number }
+interface Citation extends CitationAffichee { sectionId: string; authority: string; code: string; version: string; path: string; heading: string | null; rank: number }
 
 export function CorpusAdmin({ sources, hasAnpp }: { sources: Source[]; hasAnpp: boolean }) {
   const { rafraichir } = useRafraichir();
@@ -102,7 +103,7 @@ export function CorpusAdmin({ sources, hasAnpp }: { sources: Source[]; hasAnpp: 
               citations.map((c) => (
                 <div key={c.sectionId} className="rounded-md border border-border/60 px-2.5 py-1.5 text-xs">
                   <p className="font-medium [overflow-wrap:anywhere]">{c.authority} · {c.code} v{c.version} · {c.path}{c.heading ? ` — ${c.heading}` : ""}</p>
-                  <p className="text-muted-foreground" dangerouslySetInnerHTML={{ __html: c.snippet }} />
+                  <ExtraitCitation c={c} />
                 </div>
               ))}
           </div>

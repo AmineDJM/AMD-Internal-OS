@@ -11,8 +11,9 @@ import { recordAudit } from "@/lib/audit";
 import { notifyUser } from "@/lib/notify";
 import {
   mirrorEmployeeContractToDrive, marquerDemandeRhTraitee, resolveVisibility, shouldMirrorToDrive,
-  visibilityLabel,
+  visibilityLabel, hrNature, refusTransitionDemandeRh,
 } from "@/modules/rh/api";
+import { clauseSalariesVisibles } from "@/lib/queries/visibilite-listes";
 import { synchroniserOrdreEmis } from "@/lib/missions-equipe/serveur";
 import { sansBloquer } from "@/lib/journal";
 import { inscrireDocumentRh } from "@/modules/bibliotheque/api-inscription";
@@ -41,10 +42,12 @@ export async function POST(req: NextRequest) {
   const catRaw = (form.get("category") as string) || "OTHER";
   const category = (Object.values(HrDocumentCategory) as string[]).includes(catRaw) ? (catRaw as HrDocumentCategory) : "OTHER";
   const requestId = (form.get("requestId") as string) || null;
-  // La demande à laquelle la pièce répond est celle de CE salarié — sinon on marquait « prête » la demande d'un autre.
-  if (requestId && !(await prisma.hrDocumentRequest.findFirst({ where: { id: requestId, employeeId }, select: { id: true } }))) {
-    return NextResponse.json({ error: "Demande introuvable pour ce salarié." }, { status: 404 });
-  }
+  // La demande à laquelle la pièce répond est celle de CE salarié — sinon on marquait « prête » la demande d'un autre —
+  // et dans le périmètre de la file « Demandes RH » (`clauseSalariesVisibles`, la clause de `processHrRequest`).
+  const demande = requestId
+    ? await prisma.hrDocumentRequest.findFirst({ where: { id: requestId, employeeId, employee: await clauseSalariesVisibles(user.id) }, select: { status: true, type: true } })
+    : null;
+  if (requestId && !demande) return NextResponse.json({ error: "Demande introuvable pour ce salarié." }, { status: 404 });
 
   // QUI VERRA CETTE PIÈCE. Le défaut suit la NATURE du document : ce qu'on remet au salarié
   // (bulletin, attestations) lui est visible, ce que les RH conservent (contrat, avenant, pièce
@@ -78,15 +81,25 @@ export async function POST(req: NextRequest) {
   // La pièce entre à la bibliothèque, CONFIDENTIELLE (J1) : ouverte par la règle de `/api/rh/document`, jamais à un modèle.
   await inscrireDocumentRh({ id: doc.id, blobId, sha256, nom: doc.name, mime: file.type || "application/octet-stream", taille: size, deposeParId: user.id });
 
-  // Si le document répond à une demande : la marquer « prête » et prévenir l'employé.
-  if (requestId) {
-    await prisma.hrDocumentRequest.update({ where: { id: requestId }, data: { status: "READY", handledById: user.id } }).catch(sansBloquer("upload-route.POST.hrDocumentRequest"));
+  // Si le document répond à une demande : la marquer « prête » et prévenir l'employé — seulement si le graphe des statuts
+  // le permet (audit sécurité 11/2026) : une pièce jointe à une demande annulée, remise, à un congé ou à une note de frais
+  // ne la rend pas « prête » (ces décisions ont leur porte). Écriture conditionnée au statut lu (§118.151).
+  let marquee = false;
+  if (requestId && demande && demande.status !== "READY" && !refusTransitionDemandeRh(hrNature(demande.type), demande.status, "READY")) {
+    const pris = await prisma.hrDocumentRequest.updateMany({ where: { id: requestId, status: demande.status }, data: { status: "READY", handledById: user.id } })
+      .catch(sansBloquer("upload-route.POST.hrDocumentRequest", { count: 0 }));
+    marquee = pris.count === 1;
+  }
+  if (requestId && marquee) {
     await marquerDemandeRhTraitee(requestId); // brique KPI « demandes traitées »
     // Un ordre de mission joint à la main : la mission Ad & Pro reliée le sait (« émis »).
     await synchroniserOrdreEmis(requestId, user.id);
     if (employee.userId) {
       await notifyUser({ userId: employee.userId, type: "GENERIC", title: "Votre document RH est prêt", body: doc.name, link: "/mon-dossier" });
     }
+  } else if (requestId && visibleToEmployee && employee.userId) {
+    // Pièce ajoutée sans changer l'état (document remplacé, pièce à une note de frais) : le salarié la voit, on le prévient.
+    await notifyUser({ userId: employee.userId, type: "GENERIC", title: "Un document a été joint à votre demande RH", body: doc.name, link: "/mon-dossier" });
   }
 
   // Contrat / avenant : AUSSI enregistré dans le Drive, sous « RH — Contrats / <employé> ».

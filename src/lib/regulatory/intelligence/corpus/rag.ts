@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { semanticSearchSections, mergeHybrid } from "./semantic";
 import { sansBloquer } from "@/lib/journal";
+import { OPTIONS_TS_HEADLINE_SQL, segmentsExtrait, texteExtrait } from "./extrait";
+import type { Segment } from "@/modules/bibliotheque/partage";
 
 /**
  * RAG RÉGLEMENTAIRE (G4) — recherche dans le corpus **actif** via Postgres FTS `french`
@@ -23,7 +25,13 @@ export interface Citation {
   version: string;
   path: string;
   heading: string | null;
+  /** Extrait en TEXTE BRUT (jamais de HTML) — pour les invites des agents et les exports. */
   snippet: string;
+  /**
+   * Le même extrait découpé pour l'écran : les termes trouvés en `fort`. À rendre en JSX
+   * (`<mark>`), jamais en HTML. Absent quand la voie ne surligne pas (trigrammes, sémantique).
+   */
+  segments?: Segment[];
   rank: number;
 }
 
@@ -94,7 +102,7 @@ async function searchCorpusLexical(query: string, filters: CorpusFilters = {}): 
     SELECT sec."id" AS "sectionId", src."id" AS "sourceId", sv."id" AS "sourceVersionId",
       src."authority", src."jurisdiction", src."code", src."title", sv."version",
       sec."path", sec."heading",
-      ts_headline('french', sec."text", plainto_tsquery('french', $1), 'MaxWords=42, MinWords=16, ShortWord=2') AS snippet,
+      ts_headline('french', sec."text", plainto_tsquery('french', $1), ${OPTIONS_TS_HEADLINE_SQL}) AS snippet,
       ts_rank(sec."search_vector", plainto_tsquery('french', $1)) AS rank
     ${base} AND sec."search_vector" @@ plainto_tsquery('french', $1)
     ORDER BY rank DESC LIMIT $${limIdx}`;
@@ -123,7 +131,9 @@ async function searchCorpusLexical(query: string, filters: CorpusFilters = {}): 
     }
   }
 
-  return rows.map((r) => ({ ...r, rank: Number(r.rank) }));
+  // L'extrait de `ts_headline` porte des marqueurs sentinelles (jamais `<b>`) : on le livre à plat
+  // ET découpé, pour que personne n'ait à l'injecter comme HTML.
+  return rows.map((r) => ({ ...r, snippet: texteExtrait(r.snippet), segments: segmentsExtrait(r.snippet), rank: Number(r.rank) }));
 }
 
 /** Nombre de sections indexées dans le corpus ACTIF (diagnostic UI). */

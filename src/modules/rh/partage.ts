@@ -18,7 +18,7 @@ export { amendImpact, canAmend, resolvedGross, validateAmounts } from "./domaine
 export { decisionRattachement, phraseRattachement } from "./domaine/rattachement-paie";
 
 // ── Demandes et documents RH, notes de frais, attestation de travail, ordre de mission
-export { CATEGORIE_DU_DEPOT, HR_DOCUMENT_STATUSES, hrNature, type HrNature } from "./domaine/hr-request-flow";
+export { CATEGORIE_DU_DEPOT, HR_DOCUMENT_STATUSES, hrNature, suitesTraitementRh, refusTransitionDemandeRh, type HrNature } from "./domaine/hr-request-flow";
 export { defaultVisibleToEmployee, resolveVisibility, shouldMirrorToDrive, visibilityLabel } from "./domaine/document-visibility";
 export { canEditExpenseClaim, EXPENSE_EDIT_MINUTES, expenseAmountError, expenseEditDeadline, expenseEditLabel, type ExpenseEditState } from "./domaine/expense-claim";
 export { accords, type ChampsAttestation, type Civilite, CIVILITES, dateCourteFr, dateLongueFr, LIBELLE_PROVENANCE, phraseNaissance, type ProvenanceChamp } from "./domaine/attestation-travail/regles";
