@@ -58,6 +58,10 @@ const REGLES: Regle[] = [
   { motif: /^\/finances\/bons-de-commande$/, cible: () => "/bons-de-commande" },
   { motif: /^\/finances\/paie$/, cible: () => "/rh/paie" },
 
+  // ── Validations ──
+  // Le Centre de validations n'a plus qu'UN écran (24/11/2026) : `/validations`, où `?focus=` ouvre la fiche de l'étape.
+  { motif: /^\/centre-de-validations$/, cible: () => "/validations" },
+
   // ── RH ──
   { motif: /^\/admin\/departments$/, cible: () => "/rh/departements" },
 

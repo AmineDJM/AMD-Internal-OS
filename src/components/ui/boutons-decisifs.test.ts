@@ -130,6 +130,10 @@ const POINTS: Point[] = [
   ["src/app/(app)/demandes/approval-buttons.tsx", 'trancher("APPROVED")', 1],
   ["src/app/(app)/demandes/approval-buttons.tsx", "trancher(ouvert)", 1],
   ["src/app/(app)/demandes/[id]/attachment-validation.tsx", "withdraw(current)", 1],
+  // Centre de validations, un seul écran (24/11/2026) : accepter, confirmer le refus, renvoyer pour correction.
+  ["src/app/(app)/validations/centre-board.tsx", "onClick={p.accepter}", 1],
+  ["src/app/(app)/validations/centre-board.tsx", "onClick={p.refuser}", 1],
+  ["src/app/(app)/validations/centre-board.tsx", "Envoyer et renvoyer", 1],
 ];
 
 /** La source sans ses commentaires (un commentaire qui cite le composant ne pose aucun bouton). */

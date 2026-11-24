@@ -105,7 +105,8 @@ export const LIBELLE_ETAT_BC: Record<EtatPorteBC, string> = {
 /** Le chemin vers l'écran du centre — pour les liens des refus et des notifications. */
 export const CHEMIN_CENTRE_BC: Record<CentreBC, string> = {
   AD_PRO: "/centre-ad-pro",
-  VALIDATION: "/centre-de-validations",
+  // Le centre de validations n'a plus qu'un écran, `/validations` (24/11/2026) ; l'ancienne adresse y mène aussi.
+  VALIDATION: "/validations",
 };
 
 /**

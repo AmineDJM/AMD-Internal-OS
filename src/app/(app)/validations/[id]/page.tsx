@@ -22,6 +22,7 @@ import { ResubmitValidation } from "./resubmit";
 import { ParticipantsValidation } from "./participants";
 import { ValidationDecision } from "../validation-decision";
 import { AvisSurLeMessage } from "../validation-item-review";
+import { ValidationAttachments } from "../validation-attachments";
 import { CommentThread, type CommentItem } from "@/components/shared/comment-thread";
 import { commenterValidation } from "@/lib/actions/validation-actions";
 import { updateComment, deleteComment } from "@/lib/actions/comment-actions";
@@ -123,7 +124,7 @@ export default async function ValidationRequestPage(props: { params: Promise<{ i
   return (
     <div className="space-y-5">
       <BackLink href="/validations">
-        <ArrowLeft className="h-4 w-4" /> Demandes de validations
+        <ArrowLeft className="h-4 w-4" /> Centre de validations
       </BackLink>
 
       <PageHeader title={req.title} description={`${req.reference} · ${req.module}`}>
@@ -160,8 +161,8 @@ export default async function ValidationRequestPage(props: { params: Promise<{ i
         </Card>
       )}
 
-      {/* LA DÉCISION, EN TÊTE DE LA FICHE, quand c'est à la personne à l'écran de trancher — les mêmes gestes que la carte
-          de « Demandes de validations ». L'avis sur le message reste offert, dit facultatif, sous la décision. */}
+      {/* LA DÉCISION, EN TÊTE DE LA FICHE, quand c'est à la personne à l'écran de trancher — la même action que le Centre
+          de validations. L'avis sur le message reste offert, dit facultatif, sous la décision. */}
       {monEtape && (
         <Card id="decision" className="scroll-mt-24 border-primary/50 ring-1 ring-primary/30">
           <CardHeader>
@@ -228,7 +229,12 @@ export default async function ValidationRequestPage(props: { params: Promise<{ i
               {docItems.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Aucune pièce jointe à cette demande.</p>
               ) : (
-                <DocumentList documents={docItems} canDelete={false} canEdit={false} path={`/validations/${req.id}`} />
+                monEtape ? (
+                  // LE VERDICT PAR PIÈCE (un avis facultatif) vit ici depuis que le centre n'a plus qu'un écran (24/11/2026).
+                  <ValidationAttachments stepId={monEtape.stepId} documents={docItems} decisions={monEtape.itemDecisions} />
+                ) : (
+                  <DocumentList documents={docItems} canDelete={false} canEdit={false} path={`/validations/${req.id}`} />
+                )
               )}
             </CardContent>
           </Card>

@@ -40,6 +40,9 @@ const TABLE: [string, string][] = [
   ["/finances/paiements/p9", "/validations/paiements/p9"],
   ["/finances/bons-de-commande", "/bons-de-commande"],
   ["/finances/paie", "/rh/paie"],
+  // Validations : le centre n'a plus qu'un écran (24/11/2026), l'étape visée reste désignée
+  ["/centre-de-validations", "/validations"],
+  ["/centre-de-validations?focus=s1#val-s1", "/validations?focus=s1#val-s1"],
   // RH
   ["/admin/departments", "/rh/departements"],
   ["/rh/demandes?id=req123", "/rh/demandes?demande=req123"],
