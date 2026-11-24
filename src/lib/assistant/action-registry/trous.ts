@@ -185,6 +185,14 @@ export function classerTrous(): void {
     "moyens-generaux-registre-actions:archiverMoyenGeneral", "moyens-generaux-registre-actions:reserverMoyenGeneral",
     "moyens-generaux-registre-actions:annulerReservationMoyenGeneral",
   ]);
+  // Le département Informatique (24/11/2026) : gestes d'écran de l'équipe Informatique, hors d'Adam.
+  X("département Informatique : les registres (abonnements & licences, parc) se saisissent par l'équipe sur pièce, et une IA "
+    + "n'impute jamais son PROPRE coût au budget — le geste reste à la personne qui fixe le taux USD → DZD", [
+    "informatique-abonnements-actions:creerAbonnement", "informatique-abonnements-actions:modifierAbonnement",
+    "informatique-abonnements-actions:resilierAbonnement",
+    "informatique-parc-actions:creerMateriel", "informatique-parc-actions:modifierMateriel",
+    "informatique-cout-ia-actions:imputerCoutIa",
+  ]);
   G("tâches : répondre/faire/valider POUR SOI (accepter la tâche, déposer le travail)", [
     "task-actions:respondTaskRequest", "task-actions:submitTaskWork", "task-actions:reopenTaskWork",
     "task-actions:addTaskComment",

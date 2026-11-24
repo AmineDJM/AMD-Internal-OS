@@ -32,6 +32,8 @@ export const COPIE_AU_DRIVE: Record<EntityType, "copie" | "miroir-propre" | "jam
   // RH
   EMPLOYEE: "jamais", PAYROLL: "jamais", LEAVE_REQUEST: "jamais", SALARY_ADVANCE: "jamais", HR_REQUEST: "jamais",
   RECRUITMENT_REQUEST: "jamais", RECRUITMENT_CANDIDATE: "jamais", TRAINING: "jamais",
+  // Informatique : le contrat d'un abonnement (montants, conditions) reste au registre.
+  IT_SUBSCRIPTION: "jamais",
   // Médical
   MEDICAL_INFO_DECLARATION: "jamais", DOCTOR: "jamais", VISIT: "jamais",
   // Pharmacovigilance et qualité (une réclamation peut décrire un patient)

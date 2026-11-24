@@ -51,6 +51,13 @@ export const DECLARATIONS_METIERS: Readonly<Record<string, DeclarationAnnulation
   "moyens-generaux-registre-actions:archiverMoyenGeneral": retour("la fiche retrouve son statut d'avant"),
   "moyens-generaux-registre-actions:reserverMoyenGeneral": retour("la réservation créée est retirée : le créneau se libère"),
   "moyens-generaux-registre-actions:annulerReservationMoyenGeneral": retour("la réservation reprend son statut confirmé, si le créneau est toujours libre"),
+  // Le département Informatique (24/11/2026) : ses registres et l'imputation du coût de l'IA.
+  "informatique-abonnements-actions:creerAbonnement": retour("la fiche créée est retirée, sa pièce jointe avec elle (journal des effets)"),
+  "informatique-abonnements-actions:modifierAbonnement": retour("la fiche retrouve ses valeurs d'avant (journal des effets), si personne ne l'a changée depuis"),
+  "informatique-abonnements-actions:resilierAbonnement": retour("l'abonnement redevient actif"),
+  "informatique-parc-actions:creerMateriel": retour("la fiche créée est retirée (journal des effets)"),
+  "informatique-parc-actions:modifierMateriel": retour("la fiche retrouve ses valeurs d'avant (journal des effets), si personne ne l'a changée depuis"),
+  "informatique-cout-ia-actions:imputerCoutIa": retour("les imputations du mois et leurs lignes de dépense budgétaire retrouvent leurs montants d'avant (journal des effets) ; celles créées sont retirées"),
 
   // T2 (décision 0052) : l'annuaire tenu en lot — un geste, tout le lot revient à ses valeurs d'avant.
   "fournisseurs-annuaire-actions:appliquerLotAnnuaire": retour("chaque fiche du lot reprend ses valeurs d'avant (journal des effets), en un geste ; refusée si une fiche a été changée depuis par quelqu'un d'autre"),

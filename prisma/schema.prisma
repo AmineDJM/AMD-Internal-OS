@@ -451,6 +451,8 @@ enum EntityType {
   /// UN RELEVÉ DU STOCK PCH CENTRAL reçu par mail — l'identifiant est la DATE du mail (AAAA-MM-JJ) : le mail
   /// ou le PDF de la PCH s'y joint. Aucune table : les quantités sont des `StockSnapshot` (scope PCH / ANNEX).
   STOCK_PCH_RELEVE
+  /// Le contrat ou la facture d'un abonnement du département Informatique (24/11/2026).
+  IT_SUBSCRIPTION
 }
 
 enum DocumentCategory {
@@ -700,8 +702,12 @@ model Department {
   adamRules       AdamRule[]
   /// Les propositions de ce pôle aux campagnes budgétaires (Budgets 2027…).
   budgetProposals BudgetProposal[]          @relation("BudgetProposalDepartment")
+  /// CLÉ STABLE d'un département que le code reconnaît (« INFORMATIQUE », 24/11/2026) — nulle pour un département libre.
+  /// Le nom et le code restent modifiables par les RH ; une seule ligne par société et par clé.
+  cle             String?
 
   @@unique([companyId, name])
+  @@unique([companyId, cle])
   @@index([parentId])
   @@index([headId])
   @@index([companyId])
@@ -20080,4 +20086,91 @@ model DepartSalarieTache {
 
   @@unique([departId, source])
   @@index([departId])
+}
+
+/// ═══════════════════════════════════════════════════════════════════════════════════════════
+/// LE DÉPARTEMENT INFORMATIQUE (Super Admin, 24/11/2026) — ses registres et l'imputation du coût de l'IA à son budget.
+/// Module `src/modules/informatique/`. Rien n'est préchargé : l'équipe saisit, le coût de l'IA se calcule du journal.
+/// Ids de société, de catégorie, de personne : sans contrainte (comme `BudgetCampaign.companyId`) — retirer l'une n'emporte
+/// pas la fiche, l'écran le dit.
+/// ═══════════════════════════════════════════════════════════════════════════════════════════
+
+/// Un abonnement ou une licence (OpenAI, Anthropic, Mistral, suite bureautique…) : son coût, son échéance et son rappel.
+model AbonnementInformatique {
+  id               String    @id @default(cuid())
+  companyId        String
+  fournisseur      String
+  objet            String
+  /// MENSUEL | ANNUEL — la liste vit dans `informatique/domaine/registres.ts`.
+  periodicite      String    @default("MENSUEL")
+  montant          Decimal   @db.Decimal(14, 2)
+  /// DZD | USD | EUR — le montant est saisi dans la devise de la facture.
+  devise           String    @default("DZD")
+  /// Prochaine échéance de renouvellement ; le rappel part `rappelJours` avant.
+  echeance         DateTime?
+  rappelJours      Int       @default(30)
+  /// L'échéance pour laquelle le rappel est parti : une nouvelle échéance rouvre le rappel, jamais deux pour la même.
+  rappelEnvoyePour DateTime?
+  /// La ligne budgétaire qui porte l'abonnement (« Abonnements & licences » du budget Informatique, par défaut).
+  budgetCategoryId String?
+  /// ACTIF | RESILIE
+  statut           String    @default("ACTIF")
+  notes            String?
+  createdById      String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([companyId])
+  @@index([echeance])
+}
+
+/// Un matériel du parc informatique : ce qu'il est, à qui il est confié, sa garantie et son état.
+model MaterielInformatique {
+  id           String    @id @default(cuid())
+  companyId    String
+  /// PORTABLE | FIXE | ECRAN | TELEPHONE | TABLETTE | IMPRIMANTE | RESEAU | SERVEUR | AUTRE
+  type         String
+  /// Marque et modèle (« Dell Latitude 5440 »).
+  reference    String
+  numeroSerie  String?
+  /// L'affectation : une personne de l'organigramme, ou un département (salle commune, stock du service).
+  employeeId   String?
+  departmentId String?
+  dateAchat    DateTime?
+  finGarantie  DateTime?
+  /// EN_SERVICE | EN_STOCK | EN_REPARATION | HORS_SERVICE
+  etat         String    @default("EN_SERVICE")
+  notes        String?
+  createdById  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([companyId])
+  @@index([employeeId])
+}
+
+/// LE COÛT DE L'IA D'UN MOIS, IMPUTÉ AU BUDGET INFORMATIQUE D'UNE SOCIÉTÉ — une ligne par (société, mois), rejouable.
+/// Le montant consomme la ligne « Intelligence artificielle (consommation) » par une ligne de dépense budgétaire
+/// (`BudgetExpenseLine`, `expenseLineId`) : aucun ordre de paiement. `detail` garde la répartition par fonction IA et
+/// par département demandeur (qui consomme).
+model ImputationCoutIa {
+  id            String   @id @default(cuid())
+  companyId     String
+  /// « AAAA-MM », heure d'Alger.
+  mois          String
+  categoryId    String
+  expenseLineId String?
+  coutUsd       Decimal  @db.Decimal(14, 6)
+  tauxUsdDzd    Decimal  @db.Decimal(12, 4)
+  montantDzd    Decimal  @db.Decimal(14, 2)
+  appels        Int      @default(0)
+  /// Appels sans tarif connu (coût inconnu, jamais compté zéro en silence) : l'écran le dit.
+  sansTarif     Int      @default(0)
+  detail        Json     @default("{}")
+  calculeLe     DateTime @default(now())
+  calculeParId  String?
+  createdAt     DateTime @default(now())
+
+  @@unique([companyId, mois])
+  @@index([mois])
 }

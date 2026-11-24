@@ -69,20 +69,21 @@ par base :
    du coffre et est journalisée (`AccesDonneeSensible`) ; aucun modèle d'IA ne le lit jamais.
 
 <!-- BASES:DEBUT -->
-_Généré par `npm run bases:generer` — 520 tables, 29 bases. Ne pas éditer à la main._
+_Généré par `npm run bases:generer` — 534 tables, 30 bases. Ne pas éditer à la main._
 
-### Bases métier (382 tables)
+### Bases métier (385 tables)
 
 | Base | Tables | Sensibilité | Modules qui l'ouvrent aujourd'hui |
 |---|---:|---|---|
 | Personnel & dossiers RH (`personnel`) | 8 | Confidentiel (jusqu'à secret) | Ressources humaines, Employés, Demandes RH, Formations, Mon Équipe |
 | Paie & rémunérations (`paie`) | 3 | Secret | Ressources humaines |
 | Recrutement (`recrutement`) | 8 | Confidentiel (jusqu'à secret) | Recrutement |
-| Finances, paiements & trésorerie (`finances`) | 12 | Confidentiel (jusqu'à secret) | Finances, Centre de paiement |
+| Finances, paiements & trésorerie (`finances`) | 12 | Confidentiel (jusqu'à secret) | Finances (transverse), Banque & paiements, Comptabilité, Doublons de factures, Centre de paiement |
 | Budgets & caisses (`budgets`) | 19 | Confidentiel | Budgets, Budget Marketing, Budget Regulatory, Budget Operations & Sales, Campagne budgétaire |
 | Juridique, contrats & courriers (`juridique`) | 8 | Confidentiel | Legal, Courriers, Bons de commande |
 | Sociétés du groupe & organisation interne (`societes`) | 5 | Restreint (jusqu'à secret) | Administration, Business Units |
 | Coffre des données sensibles (`coffre`) | 2 | Secret | Administration |
+| Département Informatique (`informatique`) | 3 | Restreint | Consommation IA, Abonnements & licences, Parc informatique |
 | Annuaires, personnes & organisations (`annuaires`) | 21 | Restreint (jusqu'à secret) | Annuaires |
 | Ad & Pro, congrès & événements (`ad-pro`) | 36 | Confidentiel | Sponsoring, Prises en charge Internationales, Prises en charge Nationales, Événements, Consulting, Ad & Pro — autres demandes, Centre de validation Ad & Pro |
 | Matériel promotionnel (`materiel-promo`) | 19 | Restreint | Matériel promotionnel, Stock promotionnel, Catalogue promotionnel |
@@ -91,7 +92,7 @@ _Généré par `npm run bases:generer` — 520 tables, 29 bases. Ne pas éditer 
 | Développement & études de marché (`developpement`) | 9 | Confidentiel | Market Intelligence, Projets |
 | Marchés publics, ventes & logistique (`ventes`) | 20 | Restreint | Marchés PCH, Ventes PCH, Ventes, Logistique |
 | Stocks (`stocks`) | 10 | Restreint | Stocks PCH |
-| Force de vente, médecins & segmentation (`terrain`) | 44 | Restreint (jusqu'à confidentiel) | Promotion médicale, Rapports terrain, Prévisions & Force de vente, Segmentation Studio, Segmentation — potentiel forcé à la main, Consumption Intelligence, Marketing cockpit |
+| Force de vente, médecins & segmentation (`terrain`) | 44 | Restreint (jusqu'à confidentiel) | Visite médicale, Rapports terrain, Prévisions & Force de vente, Segmentation Studio, Segmentation — potentiel forcé à la main, Consumption Intelligence, Marketing cockpit |
 | Information médicale & pharmacovigilance (`info-medicale`) | 5 | Confidentiel (jusqu'à secret) | Information médicale, Pharmacovigilance |
 | Drive & documents (`documents`) | 27 | Restreint (jusqu'à confidentiel) | Drive, Documents |
 | Messagerie, courriels & agenda (`communication`) | 22 | Confidentiel | Messagerie, Espace de travail, Notifications |
@@ -186,7 +187,7 @@ Les postes ouverts, leurs approbations, les candidats et leurs candidatures (don
 Les demandes de paiement, ordres de dépense, mouvements, comptes de trésorerie et le centre de paiement.
 
 - **Écrite par** : Finances (`src/modules/finances/`, écrans Finances, Centre de paiement, Demandes de paiement)
-- **Modules** : Finances (`FINANCES`), Centre de paiement (`PAYMENT_CENTRE`)
+- **Modules** : Finances (transverse) (`FINANCES`), Banque & paiements (`FINANCES_BANQUE`), Comptabilité (`FINANCES_COMPTABILITE`), Doublons de factures (`FINANCES_DOUBLONS`), Centre de paiement (`PAYMENT_CENTRE`)
 - **Lecture par défaut** (matrice des rôles, avant surcharges individuelles) : Super Admin, Direction des opérations, Directeur Général, Directeur des Opérations, Responsable Finance / Budget
 - **Écriture par défaut** : Super Admin, Direction des opérations, Directeur Général, Responsable Finance / Budget
 - **Assistant IA** (familles) : BUDGETS
@@ -196,16 +197,16 @@ Les demandes de paiement, ordres de dépense, mouvements, comptes de trésorerie
 
 | Table | Libellé | Sensibilité | Écrite par (actions) |
 |---|---|---|---|
-| `PaymentRequest` | Demande de paiement | Confidentiel | expense-actions, medical-info-actions, payment-request-actions |
-| `PaymentPiece` | Pièce d'une demande de paiement | Confidentiel | medical-info-actions, payment-request-actions |
+| `PaymentRequest` | Demande de paiement | Confidentiel | expense-actions, medical-info-actions, payment-request-actions, payment-request-pieces-actions |
+| `PaymentPiece` | Pièce d'une demande de paiement | Confidentiel | payment-request-actions |
 | `PaymentRequestEvent` | Événement d'une demande de paiement | Confidentiel | ad-pro-item-actions, budget-depense-poste-actions, expense-actions, invoice-actions +3 |
-| `ExpenseOrder` | Ordre de dépense | Confidentiel | ad-pro-item-actions, admin-request-actions, budget-depense-poste-actions, budget-envelope-actions +18 |
-| `FinanceTransaction` | Mouvement financier (encaissement, décaissement) | Confidentiel | budget-depense-poste-actions, budget-envelope-actions, budget-pole-actions, custom-field-actions +7 |
+| `ExpenseOrder` | Ordre de dépense | Confidentiel | ad-pro-item-actions, admin-request-actions, budget-depense-poste-actions, budget-envelope-actions +17 |
+| `FinanceTransaction` | Mouvement financier (encaissement, décaissement) | Confidentiel | budget-depense-poste-actions, budget-envelope-actions, budget-pole-actions, custom-field-actions +6 |
 | `TreasuryAccount` | Compte de trésorerie (banque, caisse) | Secret — banque et RIB des comptes de la société | actualisation-soldes-actions, finance-actions |
 | `DemandeActualisationSoldes` | Demande d'actualisation des soldes | Confidentiel | actualisation-soldes-actions, finance-actions |
 | `LigneActualisationSoldes` | Solde déclaré pour un compte | Confidentiel | actualisation-soldes-actions |
 | `PaymentCentreSeat` | Siège au centre de paiement | Confidentiel | payment-centre-seat-actions |
-| `PaymentCentreMessage` | Message du centre de paiement | Confidentiel | congress-request-actions, payment-centre-actions, payment-request-actions, relance-paiement-actions |
+| `PaymentCentreMessage` | Message du centre de paiement | Confidentiel | care-actions, congress-request-actions, payment-centre-actions, payment-request-actions +1 |
 | `PaymentThreshold` | Seuil de signature d'un paiement | Confidentiel | — |
 | `DocumentRequest` | Demande de pièce justificative | Confidentiel | document-request-actions, hr-document-actions, reservation-fiche-actions |
 
@@ -227,7 +228,7 @@ Les enveloppes, lignes et campagnes budgétaires, les budgets de département et
 | `BudgetLine` | Ligne budgétaire | Confidentiel | budget-actions, custom-field-actions |
 | `BudgetEnvelope` | Enveloppe budgétaire | Confidentiel | budget-campagne-actions, budget-envelope-actions, budget-pole-actions |
 | `BudgetCategoryLine` | Ligne par catégorie budgétaire | Confidentiel | budget-campagne-actions, budget-envelope-actions, budget-pole-actions, integration-adpro-actions +1 |
-| `BudgetExpenseLine` | Dépense imputée au budget | Confidentiel | budget-envelope-actions, budget-pole-actions, mission-actions |
+| `BudgetExpenseLine` | Dépense imputée au budget | Confidentiel | budget-envelope-actions, budget-pole-actions, informatique-cout-ia-actions, mission-actions |
 | `BudgetCampaign` | Campagne budgétaire | Confidentiel | budget-campagne-actions |
 | `BudgetProposal` | Proposition de budget | Confidentiel | budget-campagne-actions |
 | `BudgetProposalVersion` | Version d'une proposition de budget | Confidentiel | budget-campagne-actions |
@@ -241,7 +242,7 @@ Les enveloppes, lignes et campagnes budgétaires, les budgets de département et
 | `DepartmentExpenseLine` | Ligne de dépense de département | Confidentiel | department-budget-actions, natures-moyens-generaux-actions, petty-cash-actions |
 | `PettyCashPlan` | Plan de caisse d'avance | Confidentiel | petty-cash-actions |
 | `PettyCashTopUpRequest` | Demande de réapprovisionnement de caisse | Confidentiel | petty-cash-actions |
-| `PettyCashAllotment` | Dotation de caisse d'avance | Confidentiel | expense-actions, payment-centre-actions, petty-cash-actions |
+| `PettyCashAllotment` | Dotation de caisse d'avance | Confidentiel | expense-actions, petty-cash-actions |
 | `CoutRepartitionBu` | Répartition d'un coût entre business units | Confidentiel | repartition-couts-actions |
 
 #### Juridique, contrats & courriers — `juridique` (8 tables, confidentiel)
@@ -259,7 +260,7 @@ Les contrats, bons de commande, factures et devis (documents légaux) et le regi
 
 | Table | Libellé | Sensibilité | Écrite par (actions) |
 |---|---|---|---|
-| `LegalDocument` | Document légal (contrat, bon de commande, facture, devis, avoir) | Confidentiel | ad-pro-item-actions, ad-pro-rattacher-legal, bc-signature-actions, budget-depense-poste-actions +9 |
+| `LegalDocument` | Document légal (contrat, bon de commande, facture, devis, avoir) | Confidentiel | ad-pro-item-actions, ad-pro-rattacher-legal, bc-signature-actions, budget-depense-poste-actions +10 |
 | `LegalFolder` | Dossier juridique | Confidentiel | legal-folder-actions |
 | `LegalDocumentReader` | Lecteur autorisé d'un document légal | Confidentiel | legal-actions |
 | `BcBrouillonVersion` | Version du brouillon d'un bon de commande | Confidentiel | ad-pro-item-actions |
@@ -304,6 +305,24 @@ La copie chiffrée des IBAN, RIB, NIN et salaires, et le journal de qui les a lu
 |---|---|---|---|
 | `DonneeSensible` | Donnée sensible chiffrée (IBAN, RIB, NIN, salaire) | Secret | — |
 | `AccesDonneeSensible` | Journal des lectures d'une donnée sensible | Secret | — |
+
+#### Département Informatique — `informatique` (3 tables, restreint)
+
+Les abonnements et licences du groupe, son parc informatique, et le coût de l'IA imputé chaque mois au budget Informatique.
+
+- **Écrite par** : Département Informatique (`src/modules/informatique/`, écrans Consommation IA, Abonnements & licences, Parc informatique)
+- **Modules** : Consommation IA (`INFORMATIQUE_CONSOMMATION_IA`), Abonnements & licences (`INFORMATIQUE_ABONNEMENTS`), Parc informatique (`INFORMATIQUE_PARC`)
+- **Lecture par défaut** (matrice des rôles, avant surcharges individuelles) : Super Admin
+- **Écriture par défaut** : Super Admin
+- Les trois écrans : Super Admin et responsable du département Informatique de l'organigramme (accordé par ce fait, `getAccess`)
+- Périmètre d'entité : chaque écran et chaque geste bornés aux sociétés de la personne (`getMyCompanies`)
+- Imputation du coût IA : une ligne par société et par mois, rejouable ; consommation par ligne de dépense budgétaire, sans ordre de paiement
+
+| Table | Libellé | Sensibilité | Écrite par (actions) |
+|---|---|---|---|
+| `AbonnementInformatique` | Abonnement ou licence (fournisseur, coût, échéance, rappel) | Restreint | informatique-abonnements-actions |
+| `MaterielInformatique` | Matériel du parc informatique (affectation, garantie, état) | Restreint | informatique-parc-actions |
+| `ImputationCoutIa` | Coût de l'IA d'un mois imputé au budget Informatique d'une société (détail par fonction et département) | Restreint | informatique-cout-ia-actions |
 
 #### Annuaires, personnes & organisations — `annuaires` (21 tables, restreint)
 
@@ -356,8 +375,8 @@ Les dépenses de promotion auprès des professionnels de santé : sponsoring, co
 
 | Table | Libellé | Sensibilité | Écrite par (actions) |
 |---|---|---|---|
-| `AdProItem` | Demande Ad & Pro | Confidentiel | ad-pro-item-actions, budget-depense-poste-actions, document-request-actions, integration-adpro-actions |
-| `AdProItemPiece` | Pièce d'une demande Ad & Pro | Confidentiel | ad-pro-item-actions, budget-depense-poste-actions |
+| `AdProItem` | Demande Ad & Pro | Confidentiel | ad-pro-agence-actions, ad-pro-execution-actions, ad-pro-item-actions, budget-depense-poste-actions +2 |
+| `AdProItemPiece` | Pièce d'une demande Ad & Pro | Confidentiel | ad-pro-agence-actions, ad-pro-item-actions, budget-depense-poste-actions |
 | `AdProItemDecision` | Décision sur une demande Ad & Pro | Confidentiel | — |
 | `AdProVoyageur` | Voyageur d'une demande Ad & Pro | Confidentiel | ad-pro-item-actions |
 | `AdProVoyageurDevis` | Devis de voyage d'un voyageur | Confidentiel | ad-pro-item-actions |
@@ -372,22 +391,22 @@ Les dépenses de promotion auprès des professionnels de santé : sponsoring, co
 | `AdProIntegrationDecision` | Décision d'intégration budgétaire | Confidentiel | integration-adpro-actions |
 | `AdProRapprochement` | Rapprochement Ad & Pro / budget | Confidentiel | rapprochement-adpro-actions |
 | `AdProRapprochementLecture` | Lecture d'un rapprochement | Confidentiel | rapprochement-adpro-actions |
-| `AdProOtherRequest` | Autre demande Ad & Pro | Confidentiel | ad-pro-centre-actions, ad-pro-other-actions, workflow-actions |
+| `AdProOtherRequest` | Autre demande Ad & Pro | Confidentiel | ad-pro-centre-actions, ad-pro-item-actions, ad-pro-other-actions, workflow-actions |
 | `AdProProductAllocation` | Répartition d'une demande par produit | Confidentiel | — |
 | `AdProStockLine` | Ligne de stock consommée par une demande | Confidentiel | ad-pro-item-actions |
 | `DemandeReservation` | Demande de réservation (voyage, hôtel) | Confidentiel | ad-pro-item-actions, care-actions, reservation-fiche-actions |
-| `SponsoringRequest` | Demande de sponsoring | Confidentiel | custom-field-actions, expense-actions, medical-info-actions, sponsoring-actions |
-| `CongressInternational` | Congrès international | Confidentiel | care-actions, congress-request-actions, custom-field-actions, medical-info-actions +1 |
-| `CongressNational` | Congrès national | Confidentiel | care-actions, congress-request-actions, custom-field-actions, medical-info-actions +1 |
+| `SponsoringRequest` | Demande de sponsoring | Confidentiel | ad-pro-item-actions, custom-field-actions, expense-actions, medical-info-actions +1 |
+| `CongressInternational` | Congrès international | Confidentiel | ad-pro-item-actions, care-actions, congress-request-actions, custom-field-actions +2 |
+| `CongressNational` | Congrès national | Confidentiel | ad-pro-item-actions, care-actions, congress-request-actions, custom-field-actions +2 |
 | `CareBeneficiary` | Bénéficiaire d'une prise en charge | Confidentiel | care-actions, congress-beneficiary-actions, congress-request-actions |
-| `CareCell` | Cellule de prise en charge | Confidentiel | care-actions, congress-beneficiary-actions, congress-request-actions, reservation-fiche-actions |
+| `CareCell` | Cellule de prise en charge | Confidentiel | care-actions, congress-beneficiary-actions, reservation-fiche-actions |
 | `CareQuote` | Devis de prise en charge | Confidentiel | care-actions, reservation-fiche-actions |
 | `CareQuoteCell` | Cellule d'un devis de prise en charge | Confidentiel | — |
 | `CareGroupPoste` | Poste d'un groupe de prise en charge | Confidentiel | care-actions |
 | `ConsultingContract` | Contrat de consulting | Confidentiel | ad-pro-centre-actions, consulting-actions |
 | `ConsultingTask` | Tâche de consulting | Confidentiel | consulting-actions |
 | `BusinessUnitMarketingReferent` | Référent marketing d'une business unit | Confidentiel | sales-planning-actions |
-| `Event` | Événement | Confidentiel | event-actions, workflow-actions |
+| `Event` | Événement | Confidentiel | ad-pro-item-actions, event-actions, workflow-actions |
 | `EventRegistration` | Inscription à un événement | Confidentiel | event-actions |
 | `MissionAssignment` | Mission terrain d'un événement | Confidentiel | hr-document-actions, mission-actions |
 | `MissionParticipationVersion` | Version de la participation à une mission | Confidentiel | mission-actions |
@@ -440,7 +459,7 @@ Les produits enregistrés, dossiers d'AMM et leurs versions, réserves ANPP, sou
 
 | Table | Libellé | Sensibilité | Écrite par (actions) |
 |---|---|---|---|
-| `RegulatoryProduct` | Produit enregistré (réglementaire) | Restreint | assistant-actions, custom-field-actions, expense-actions, product-range-actions +4 |
+| `RegulatoryProduct` | Produit enregistré (réglementaire) | Restreint | assistant-actions, custom-field-actions, expense-actions, product-range-actions +5 |
 | `RegulatoryVariation` | Variation d'un enregistrement | Restreint | regulatory-actions |
 | `RegulatoryUpdateReminder` | Rappel de mise à jour réglementaire | Restreint | regulatory-reminder-actions |
 | `RegulatoryStep` | Étape réglementaire | Restreint | regulatory-actions |
@@ -588,7 +607,7 @@ Les états de stock datés chez les établissements, les niveaux d'ouverture, mo
 Les médecins et établissements visités, les visites, plans de tournée, secteurs, rapports terrain, coaching, segmentation et consommation.
 
 - **Écrite par** : Promotion médicale & segmentation (`src/lib/medical/`, `src/modules/consommation/`, écrans Médical, Rapports terrain, Planification, Segmentation, Consommation)
-- **Modules** : Promotion médicale (`MEDICAL`), Rapports terrain (`FIELD_REPORTS`), Prévisions & Force de vente (`SALES_PLANNING`), Segmentation Studio (`SEGMENTATION`), Segmentation — potentiel forcé à la main (`SEGMENTATION_POTENTIEL`), Consumption Intelligence (`CONSUMPTION`), Marketing cockpit (`MARKETING_COCKPIT`)
+- **Modules** : Visite médicale (`MEDICAL`), Rapports terrain (`FIELD_REPORTS`), Prévisions & Force de vente (`SALES_PLANNING`), Segmentation Studio (`SEGMENTATION`), Segmentation — potentiel forcé à la main (`SEGMENTATION_POTENTIEL`), Consumption Intelligence (`CONSUMPTION`), Marketing cockpit (`MARKETING_COCKPIT`)
 - **Lecture par défaut** (matrice des rôles, avant surcharges individuelles) : Super Admin, Direction des opérations, Directeur Général, Directeur des Opérations, Responsable Ventes, Manager Promotion Médicale, Délégué Médical, National Sales, Direction Marketing, Manager Business Development, Pharmacien resp. information médicale
 - **Écriture par défaut** : Super Admin, Direction des opérations, Directeur Général, Directeur des Opérations, Manager Promotion Médicale, Délégué Médical, National Sales, Direction Marketing, Manager Business Development
 - Le délégué voit SON secteur (`SalesSectorRep`) ; le responsable son équipe ; accès ligne à ligne (`RowGrant`, DOCTOR / VISIT / DELEGATE_PLAN)
@@ -600,7 +619,7 @@ Les médecins et établissements visités, les visites, plans de tournée, secte
 | `MedicalDoctor` | Médecin (professionnel de santé) | Restreint | care-actions, custom-field-actions, force-de-vente-actions, fournisseurs-annuaire-actions +5 |
 | `MedicalInstitution` | Établissement de santé | Restreint | fournisseurs-annuaire-actions, medical-actions, segmentation-actions |
 | `MedicalInstitutionService` | Service d'un établissement | Restreint | etablissement-services-actions |
-| `MedicalVisit` | Visite médicale | Restreint | custom-field-actions, medical-actions, medical-directory-crud-actions, tour-plan-actions +1 |
+| `MedicalVisit` | Visite médicale | Restreint | custom-field-actions, medical-actions, medical-directory-crud-actions, relecture-visite-actions +2 |
 | `MedicalVisitProduct` | Produit présenté en visite | Restreint | tour-visit-actions |
 | `MedicalVisitMessage` | Message promotionnel délivré en visite | Restreint | tour-visit-actions |
 | `MedicalVisitSupportNumerique` | Support numérique utilisé en visite | Restreint | field-report-actions, medical-actions, tour-visit-actions |
@@ -653,7 +672,7 @@ Les questions d'information médicale reçues et les cas de pharmacovigilance (e
 
 | Table | Libellé | Sensibilité | Écrite par (actions) |
 |---|---|---|---|
-| `MedicalInfoDeclaration` | Déclaration d'information médicale | Confidentiel | ad-pro-item-actions, congress-request-actions, medical-info-actions, promo-execution-actions |
+| `MedicalInfoDeclaration` | Déclaration d'information médicale | Confidentiel | congress-request-actions, medical-info-actions, promo-execution-actions |
 | `MedicalInfoSlip` | Fiche d'information médicale | Confidentiel | medical-info-actions |
 | `MedicalInfoDocRequest` | Demande de document d'information médicale | Confidentiel | medical-info-actions |
 | `PharmacovigilanceCase` | Cas de pharmacovigilance | Secret — donnée de santé d'un patient (âge, sexe, effet indésirable) | pharmacovigilance-actions |
@@ -674,21 +693,21 @@ Les fichiers de l'entreprise : Drive, versions, partages, pièces classées et l
 | Table | Libellé | Sensibilité | Écrite par (actions) |
 |---|---|---|---|
 | `DriveSpace` | Espace du Drive | Restreint | drive-space-actions |
-| `DriveNode` | Dossier ou fichier du Drive | Restreint | ad-pro-item-actions, custom-field-actions, database-admin-actions, drive-actions +5 |
+| `DriveNode` | Dossier ou fichier du Drive | Restreint | ad-pro-item-actions, custom-field-actions, database-admin-actions, document-actions +6 |
 | `DriveShare` | Partage d'un élément du Drive | Restreint | drive-actions |
 | `DriveComment` | Commentaire sur un fichier | Restreint | drive-comment-actions |
 | `DriveTextIndex` | Index de recherche plein texte du Drive | Restreint | — |
 | `FileVersion` | Version d'un fichier | Restreint | drive-actions |
 | `FileBlob` | Contenu d'un fichier | Confidentiel — contenu brut de TOUS les fichiers, contrats et fiches de paie compris | — |
 | `FileBlobChunk` | Morceau du contenu d'un fichier | Confidentiel — contenu brut de tous les fichiers | — |
-| `StoredFile` | Fichier stocké | Restreint | ad-pro-pieces-actions, admin-delete-actions, care-actions, database-admin-actions +6 |
+| `StoredFile` | Fichier stocké | Restreint | ad-pro-pieces-actions, admin-delete-actions, care-actions, database-admin-actions +5 |
 | `DirectUpload` | Dépôt de fichier en cours | Restreint | — |
-| `Document` | Document | Restreint | ad-pro-discussion-actions, ad-pro-item-actions, ad-pro-other-actions, ad-pro-pieces-actions +44 |
+| `Document` | Document | Restreint | ad-pro-discussion-actions, ad-pro-execution-actions, ad-pro-item-actions, ad-pro-other-actions +45 |
 | `EntityMention` | Mention d'un sujet dans un document | Restreint | — |
 | `Piece` | Pièce (fichier classé, une fois pour toutes) | Confidentiel — pièces d'identité, passeports, RIB classés | feedback-actions, kpi-actions, messaging-actions |
 | `PieceLien` | Rattachement d'une pièce à un sujet | Restreint | feedback-actions, kpi-actions, messaging-actions |
 | `LecturePiece` | Lecture automatique d'une pièce | Restreint | — |
-| `LecturePieceConfirmation` | Confirmation d'une lecture de pièce | Restreint | promo-devis-actions, promo-execution-actions |
+| `LecturePieceConfirmation` | Confirmation d'une lecture de pièce | Restreint | department-budget-actions, promo-devis-actions, promo-execution-actions |
 | `Extraction` | Passage d'un extracteur sur une pièce | Restreint | — |
 | `FaitPropose` | Fait lu sur une pièce (proposition) | Confidentiel — valeurs lues sur des pièces d'identité ou bancaires | enrichissement-actions |
 | `FaitConfirme` | Fait confirmé sur une fiche | Confidentiel — valeurs confirmées sur une fiche (identité, coordonnées) | — |
@@ -735,7 +754,7 @@ Les conversations internes, les courriels envoyés et reçus, les réunions, l'a
 | `CalendarEvent` | Événement d'agenda | Confidentiel | calendar-actions, hr-document-actions |
 | `CalendarInvite` | Invitation d'agenda | Confidentiel | calendar-actions |
 | `Reminder` | Rappel | Confidentiel | reminder-actions |
-| `Notification` | Notification | Confidentiel | actualisation-soldes-actions, ad-pro-centre-actions, ad-pro-edit-actions, ad-pro-item-actions +54 |
+| `Notification` | Notification | Confidentiel | actualisation-soldes-actions, ad-pro-agence-actions, ad-pro-centre-actions, ad-pro-edit-actions +58 |
 
 #### Tâches, demandes internes & validations — `travail` (19 tables, restreint)
 
@@ -760,14 +779,14 @@ Les tâches, directives, demandes de support, dossiers suivis et les circuits de
 | `DossierMessage` | Message d'un dossier suivi | Restreint | ad-pro-item-actions, dossier-actions, reservation-fiche-actions |
 | `DossierMessageAttachment` | Pièce jointe d'un message de dossier | Restreint | dossier-actions |
 | `ValidationRule` | Règle de validation | Restreint | validation-actions |
-| `ValidationRequest` | Demande de validation | Restreint | ad-pro-item-actions, ad-pro-rattacher-legal, admin-request-actions, legal-actions +7 |
+| `ValidationRequest` | Demande de validation | Restreint | ad-pro-item-actions, ad-pro-rattacher-legal, admin-request-actions, legal-actions +8 |
 | `ValidationParticipant` | Participant à une validation | Restreint | validation-actions |
 | `ValidationStep` | Étape de validation | Restreint | validation-actions |
 | `ValidationItemDecision` | Décision par élément d'une validation | Restreint | validation-actions |
 | `WorkflowDefinition` | Circuit (définition) | Restreint | workflow-actions |
 | `WorkflowDefinitionVersion` | Version d'un circuit | Restreint | workflow-actions |
 | `WorkflowStep` | Étape d'un circuit | Restreint | workflow-actions |
-| `WorkflowInstance` | Circuit en cours | Restreint | ad-pro-edit-actions, ad-pro-other-actions, ad-pro-transfer-actions, event-actions +2 |
+| `WorkflowInstance` | Circuit en cours | Restreint | ad-pro-edit-actions, ad-pro-other-actions, ad-pro-transfer-actions, congress-request-actions +3 |
 | `WorkflowStepEvent` | Événement d'une étape de circuit | Restreint | ad-pro-other-actions, ad-pro-transfer-actions, porte-dg-actions |
 
 #### Moyens généraux & demandes administratives — `moyens-generaux` (9 tables, restreint)
@@ -784,11 +803,11 @@ Les demandes administratives et d'achats, fournitures, missions de chauffeur, sa
 |---|---|---|---|
 | `AdministrativeRequest` | Demande administrative | Restreint | ad-pro-item-actions, admin-request-actions, assistant-actions, custom-field-actions +8 |
 | `AdminApproval` | Approbation d'une demande administrative | Restreint | admin-request-actions, promo-devis-actions, promo-material-actions, purchase-request-actions |
-| `OfficeSupplyArticle` | Article de fourniture de bureau | Restreint | office-supply-actions |
+| `OfficeSupplyArticle` | Article de fourniture de bureau | Restreint | department-budget-actions, office-supply-actions |
 | `PurchaseRequestLogEntry` | Journal d'une demande d'achat | Restreint | admin-request-actions, purchase-request-actions |
 | `BesoinAnnuelService` | Besoin annuel d'un service | Restreint | besoins-services-actions |
-| `DriverMission` | Mission de chauffeur | Restreint | admin-request-actions |
-| `DriverMissionStop` | Étape d'une mission de chauffeur | Restreint | admin-request-actions |
+| `DriverMission` | Mission de chauffeur | Restreint | — |
+| `DriverMissionStop` | Étape d'une mission de chauffeur | Restreint | — |
 | `MoyenGeneral` | Moyen général (salle, véhicule) | Restreint | moyens-generaux-registre-actions |
 | `MoyenGeneralReservation` | Réservation d'une salle ou d'un véhicule | Restreint | moyens-generaux-registre-actions |
 
@@ -883,8 +902,8 @@ Ce que chaque personne dit à son assistant et ce qu'il retient d'elle : fils, m
 
 - **Écrite par** : Assistant IA (`src/modules/assistant-ia/`, écran Assistant) et Adam (`src/lib/assistant/`)
 - **Modules** : Adam (`ASSISTANT_IA`), My Chief of Staff (bureau d'Adam) (`CHIEF_OF_STAFF`)
-- **Lecture par défaut** (matrice des rôles, avant surcharges individuelles) : Super Admin, Direction des opérations
-- **Écriture par défaut** : Super Admin, Direction des opérations
+- **Lecture par défaut** (matrice des rôles, avant surcharges individuelles) : Super Admin
+- **Écriture par défaut** : Super Admin
 - STRICTEMENT PERSONNEL : toute lecture filtre `userId` de la session ; rien d'une autre personne n'y entre (S1, décision 0048)
 - Fermé en Vue exacte ; le filtre de confidentialité retire paie, IBAN et pièces d'identité avant tout modèle
 
@@ -897,7 +916,7 @@ Ce que chaque personne dit à son assistant et ce qu'il retient d'elle : fils, m
 | `AssistantMemoryItem` | Souvenir typé | Confidentiel | assistant-actions, assistant-ia-actions |
 | `AssistantHotState` | État courant de la conversation | Confidentiel | — |
 | `AssistantArtifact` | Document produit par l'assistant | Confidentiel | — |
-| `AssistantReminder` | Rappel posé par l'assistant | Confidentiel | — |
+| `AssistantReminder` | Rappel posé par l'assistant | Confidentiel | reminder-actions |
 | `AssistantIaFil` | Fil de l'Assistant IA (une conversation par personne) | Confidentiel | assistant-ia-consommation-actions |
 | `AssistantIaTour` | Tour du fil (message ou réponse) | Confidentiel | assistant-ia-consommation-actions |
 | `AssistantIaAttentePieces` | Pièces attendues dans un fil | Confidentiel | — |
@@ -934,7 +953,7 @@ Ce qui fait tourner l'IA : réglages et plafonds, missions et travaux, gestes et
 
 | Table | Libellé | Sensibilité | Écrite par (actions) |
 |---|---|---|---|
-| `AssistantActionIntent` | Action proposée par l'assistant (à confirmer) | Restreint | assistant-actions |
+| `AssistantActionIntent` | Action proposée par l'assistant (à confirmer) | Restreint | assistant-actions, assistant-ia-actions |
 | `AssistantProvenance` | Provenance d'une réponse | Restreint | — |
 | `AssistantRoleConfig` | Réglage de l'assistant par rôle | Restreint | — |
 | `AssistantRoleConfigAudit` | Historique des réglages par rôle | Restreint | — |
@@ -1003,7 +1022,7 @@ Qui a fait quoi et quand : journal d'audit, activité, corbeille, appels d'API, 
 
 | Table | Libellé | Sensibilité | Écrite par (actions) |
 |---|---|---|---|
-| `AuditLog` | Journal d'audit | Secret — les valeurs avant / après de toute écriture, paie comprise | acces-bases-actions, access-actions, actualisation-soldes-actions, ad-pro-centre-actions +155 |
+| `AuditLog` | Journal d'audit | Secret — les valeurs avant / après de toute écriture, paie comprise | acces-bases-actions, access-actions, actualisation-soldes-actions, ad-pro-centre-actions +158 |
 | `ActivityLog` | Journal d'activité | Confidentiel | adoption-actions |
 | `SessionEvent` | Événement de session | Confidentiel | — |
 | `DeletedRecord` | Élément en corbeille | Secret — copie complète de chaque ligne supprimée, de toutes les bases | ad-pro-item-actions, ad-pro-pieces-actions, admin-delete-actions, bd-project-actions +9 |

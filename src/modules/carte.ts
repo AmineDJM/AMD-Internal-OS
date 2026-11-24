@@ -73,6 +73,11 @@ export const CARTE = {
    * gardé au lieu d'être purgé. Lit les finances (santé d'enveloppe, trésorerie) pour l'instantané quotidien par société.
    */
   pilotage: ["finances"],
+  /**
+   * Département Informatique (24/11/2026) : abonnements & licences, parc, et le coût de l'IA imputé chaque mois au budget
+   * Informatique de chaque société (journal `ModelCallLog` → `BudgetExpenseLine`). Ne lit aucun module.
+   */
+  informatique: [],
 } as const satisfies Record<string, readonly string[]>;
 
 export type NomModule = keyof typeof CARTE;

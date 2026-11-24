@@ -222,4 +222,24 @@ export const BASES_PERSONNES_ARGENT: BaseDef[] = [
       AccesDonneeSensible: "Journal des lectures d'une donnée sensible",
     },
   },
+  {
+    cle: "informatique",
+    nom: "Département Informatique",
+    nature: "metier",
+    raison: "Les abonnements et licences du groupe, son parc informatique, et le coût de l'IA imputé chaque mois au budget Informatique.",
+    sensibilite: "restreint",
+    ecritPar: "Département Informatique (`src/modules/informatique/`, écrans Consommation IA, Abonnements & licences, Parc informatique)",
+    modules: ["INFORMATIQUE_CONSOMMATION_IA", "INFORMATIQUE_ABONNEMENTS", "INFORMATIQUE_PARC"],
+    famillesIa: [],
+    mecanismes: [
+      "Les trois écrans : Super Admin et responsable du département Informatique de l'organigramme (accordé par ce fait, `getAccess`)",
+      "Périmètre d'entité : chaque écran et chaque geste bornés aux sociétés de la personne (`getMyCompanies`)",
+      "Imputation du coût IA : une ligne par société et par mois, rejouable ; consommation par ligne de dépense budgétaire, sans ordre de paiement",
+    ],
+    tables: {
+      AbonnementInformatique: "Abonnement ou licence (fournisseur, coût, échéance, rappel)",
+      MaterielInformatique: "Matériel du parc informatique (affectation, garantie, état)",
+      ImputationCoutIa: "Coût de l'IA d'un mois imputé au budget Informatique d'une société (détail par fonction et département)",
+    },
+  },
 ];

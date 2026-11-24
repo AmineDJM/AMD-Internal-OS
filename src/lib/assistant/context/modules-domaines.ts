@@ -130,6 +130,10 @@ export const SERVICE_DU_MODULE: Record<CleModule, ServiceDuModule> = {
   PROSPECTION_AGENCES: { domaines: ["MISSION", "FINANCE"] },
   CONTROLES_CONFORMITE: { domaines: ["REGULATORY"] },
   CORBEILLE: { domaines: [] },
+  // Le département Informatique (24/11/2026) : aucun outil d'Adam — gestes d'écran (imputer le coût de l'IA, tenir les registres).
+  INFORMATIQUE_CONSOMMATION_IA: { domaines: [] },
+  INFORMATIQUE_ABONNEMENTS: { domaines: [] },
+  INFORMATIQUE_PARC: { domaines: [] },
   RECETTES: { domaines: ["MISSION"], mots: ["recettes de la maison", "comment on fait chez nous", "procedure validee"], outils: [] },
   ADMIN: { domaines: ["ADMIN"] },
   PCH: { domaines: ["REGULATORY"], outils: ["pch_operation", "pch_market_status"] },

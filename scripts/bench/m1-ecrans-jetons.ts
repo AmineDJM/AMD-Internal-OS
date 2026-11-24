@@ -22,7 +22,7 @@ async function connecter(p: Page, email: string) {
   const admin = await (await b.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
   admin.setDefaultTimeout(120_000);
   await connecter(admin, "super@adventum-bench.dz");
-  await admin.goto(`${BASE}/admin/ai/consommation`);
+  await admin.goto(`${BASE}/informatique/consommation-ia`);
   await admin.getByText("Plafond par personne et par jour").waitFor();
   console.log("console :", await admin.getByText("Sans plafond", { exact: true }).first().isVisible());
   await admin.screenshot({ path: `${SORTIE}/erp-admin-consommation-sans-plafond.jpg`, type: "jpeg", quality: 62 });

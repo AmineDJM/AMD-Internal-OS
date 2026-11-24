@@ -732,6 +732,18 @@ const DETTE_HERITEE: Record<string, string[]> = {
     // (`referenceDeSerie`, comme les demandes Ad & Pro) — primitive transverse, cible : le socle.
     "src/modules/salles/actions.ts → src/lib/refs",
   ],
+  informatique: [
+    // Le département Informatique (24/11/2026) : les sociétés permises à la personne (`getMyCompanies`) bornent chaque écran
+    // et chaque geste — la règle d'entité du groupe, transverse ; cible = une porte « entités » du socle (proposition §5.3).
+    "src/modules/informatique/actions-abonnements.ts → src/lib/company",
+    "src/modules/informatique/actions-cout-ia.ts → src/lib/company",
+    "src/modules/informatique/actions-parc.ts → src/lib/company",
+    "src/modules/informatique/infra/requetes.ts → src/lib/company",
+    // Le contrat d'un abonnement : le dépôt commun des pièces de module (`deposerPieceDeModule`) — socle à terme.
+    "src/modules/informatique/actions-abonnements.ts → src/lib/storage",
+    // Le rappel de renouvellement : les notifications, transverses — socle à terme.
+    "src/modules/informatique/infra/taches.ts → src/lib/notify",
+  ],
 };
 
 /** Le socle : ce qu'un module a le droit de lire sans que ce soit une dette. */

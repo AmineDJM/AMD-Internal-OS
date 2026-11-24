@@ -20,7 +20,7 @@ export interface NavItem {
    * Pôle d'entreprise auquel l'entrée appartient (groupe « Pôles » uniquement). C'est ce qui
    * remplace les treize entrées à plat : l'utilisateur voit son entreprise, pas les modules.
    */
-  pole?: "REGULATORY" | "ADMINISTRATION" | "MARKETING" | "OPERATIONS_SALES" | "BUSINESS_DEV";
+  pole?: "REGULATORY" | "ADMINISTRATION" | "MARKETING" | "OPERATIONS_SALES" | "BUSINESS_DEV" | "INFORMATIQUE";
   /**
    * Garde SUPPLÉMENTAIRE au droit de module, résolue côté serveur dans le layout. Sert aux
    * écrans dont l'ouverture dépend d'un réglage et pas seulement d'un rôle (l'analyse CTD est
@@ -99,6 +99,10 @@ export const MODULE_LABELS: Record<Module, string> = {
   FINANCES_BANQUE: "Banque & paiements",
   FINANCES_COMPTABILITE: "Comptabilité",
   FINANCES_DOUBLONS: "Doublons de factures",
+  // Le département Informatique (24/11/2026) : ses trois écrans, nommés comme dans le menu.
+  INFORMATIQUE_CONSOMMATION_IA: "Consommation IA",
+  INFORMATIQUE_ABONNEMENTS: "Abonnements & licences",
+  INFORMATIQUE_PARC: "Parc informatique",
   RH: "Ressources humaines",
   PAIE: "Paie",
   CONGRESS_INTERNATIONAL: "Prises en charge Internationales",
@@ -490,6 +494,12 @@ export const NAVIGATION: NavItem[] = [
   // UNE molécule, UN laboratoire. C'était le geste le plus fréquent du pôle, et il fallait deux
   // clics et connaître le chemin pour y arriver.
   { module: "PRODUCT_EXPLORER", label: "Explorateur produits", href: "/explorateur-produits", icon: "PackageSearch", group: "Pôles", pole: "BUSINESS_DEV", match: ["/business-development/marche/produits"] },
+
+  // INFORMATIQUE — le département du groupe (Super Admin, 24/11/2026) : le coût de l'IA (l'écran de consommation, rattaché
+  // ici depuis l'Administration, et son rapprochement avec le budget Informatique), les abonnements et le parc.
+  { module: "INFORMATIQUE_CONSOMMATION_IA", label: "Consommation IA", href: "/informatique/consommation-ia", icon: "Gauge", group: "Pôles", pole: "INFORMATIQUE" },
+  { module: "INFORMATIQUE_ABONNEMENTS", label: "Abonnements & licences", href: "/informatique/abonnements", icon: "KeyRound", group: "Pôles", pole: "INFORMATIQUE" },
+  { module: "INFORMATIQUE_PARC", label: "Parc informatique", href: "/informatique/parc", icon: "Laptop", group: "Pôles", pole: "INFORMATIQUE" },
 
   // Transverse — « Demandes de validations » est le bureau de validation : chacun
   // y demande une validation professionnelle (selon l'accès accordé par le Super

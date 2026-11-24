@@ -154,7 +154,7 @@ export default async function AiControlCenterPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Centre de contrôle IA</h1>
           <p className="text-sm text-muted-foreground">
             Activez ou coupez l'IA par fonction, et suivez son usage. Réservé au Super Admin.{" "}
-            <Link href="/admin/ai/consommation" className="underline">Consommation IA d'Adam — plafonds par personne</Link>
+            <Link href="/informatique/consommation-ia" className="underline">Consommation IA — plafonds par personne (pôle Informatique)</Link>
             {" · "}
             <Link href="/admin/ai/acces" className="underline">Adam — accès (salaires, contrats, budgets… par rôle et par personne)</Link>
             {" · "}
