@@ -143,7 +143,7 @@ export {
 export {
   bornesDeLaPeriode, calculerTvaDuMois, CHAMP_TVA_AUTRES, CHAMP_TVA_ENVOYEE, CHAMP_TVA_LUE, champHt, CHAMPS_TVA, champTva,
   type DetailTaux, estPeriodeTva, estTauxTva, type FactureIncomplete, type FacturePourTva, LIBELLE_SENS_TVA, LIBELLE_SOURCE_TVA,
-  libelleTaux, type LigneTva, PHRASE_INCOMPLETE, periodeDeLaFacture, type RaisonIncomplete, raisonIncomplete, refusSaisieTva,
+  libelleTaux as libelleTauxTva, type LigneTva, PHRASE_INCOMPLETE, periodeDeLaFacture, type RaisonIncomplete, raisonIncomplete, refusSaisieTva,
   REGLE_DE_RATTACHEMENT, type SensTva, sensDeLaDirection, type SourceTva, TAUX_TVA, type TauxTva, totauxDeLaSaisie, tvaAPreremplir,
   tvaDe, valeursDuFormulaire,
 } from "./domaine/tva";

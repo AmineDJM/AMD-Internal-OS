@@ -1,5 +1,5 @@
 import type { Repere, TotauxReperes } from "@/lib/pieces-lues/entetes";
-import { CHAMP_TVA_AUTRES, champHt, champTva, estTauxTva, libelleTaux } from "@/modules/finances/partage";
+import { CHAMP_TVA_AUTRES, champHt, champTva, estTauxTva, libelleTauxTva as libelleTaux } from "@/modules/finances/partage";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
