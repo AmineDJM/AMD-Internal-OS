@@ -2,7 +2,7 @@ import Link from "next/link";
 import {
   Palette, Activity, Bot, Building2, Coins, Columns3, Database, Factory, FileCog, Gauge, Globe2, HardDrive,
   History, Layers, Library, Mail, Map as MapIcon, MessageSquare, MessagesSquare, Network, Radar, Rocket,
-  Settings2, ShieldCheck, LockKeyhole, Trash2, Workflow, ScanSearch, ScrollText,
+  Settings2, ShieldCheck, LockKeyhole, Trash2, Workflow, ScanSearch, ScrollText, HandCoins,
 } from "lucide-react";
 import { requireModule } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
@@ -121,6 +121,10 @@ export default async function AdminPage() {
             {/* INTELLIGENCE TERRAIN (Direction, 10/2026) : graphe d'influence (Luna) et ROI Ad & Pro — Super Admin seul. */}
             <Link href="/admin/intelligence-terrain">
               <Button variant="outline"><Radar className="h-4 w-4" /> Intelligence terrain</Button>
+            </Link>
+            {/* LE REGISTRE DES AVANTAGES AUX PROFESSIONNELS DE SANTÉ (24/11/2026) — Super Admin seul, à côté de l'intelligence terrain. */}
+            <Link href="/admin/avantages">
+              <Button variant="outline"><HandCoins className="h-4 w-4" /> Avantages aux professionnels</Button>
             </Link>
             <Link href="/admin/ai">
               <Button variant="outline"><Bot className="h-4 w-4" /> Contrôle IA</Button>
