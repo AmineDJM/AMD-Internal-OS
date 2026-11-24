@@ -49,6 +49,7 @@ async function main(): Promise<void> {
   const { prisma } = await import("../src/lib/prisma");
   const { migrationsManquantes } = await import("../src/lib/taches-de-fond/migrations");
   const { controlerAuDemarrage } = await import("../src/lib/taches-de-fond/sante");
+  const { verifierCleDriveAuDemarrage } = await import("../src/lib/storage/cle-drive-empreinte");
 
   const detenteur = identiteDesBaux();
 
@@ -64,7 +65,9 @@ async function main(): Promise<void> {
     migrationsManquantes: () => migrationsManquantes(),
     // Le CONTRÔLE AU DÉMARRAGE (décision 0019), une fois la base à jour : chaque variable ou pièce du moteur qui manque
     // est dite en clair, dans le journal ET dans Administration › Diagnostic. Il ne bloque pas.
-    apresMigrations: () => controlerAuDemarrage({ detenteur }),
+    // La clé des fichiers est comparée à la référence commune (audit Drive du 24/11, A2) : divergente, le worker
+    // refuse d'écrire des fichiers que le web ne saurait pas relire.
+    apresMigrations: async () => { await verifierCleDriveAuDemarrage(); return controlerAuDemarrage({ detenteur }); },
   });
   arreterReveils();
   await prisma.$disconnect().catch(() => undefined);

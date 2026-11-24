@@ -8,6 +8,7 @@ import { quotaVerdict } from "@/lib/drive/quota";
 import { userUsageBytes, physicalUsageBytes } from "@/lib/drive/usage";
 import { recordAudit } from "@/lib/audit";
 import { attendu } from "@/lib/journal";
+import { trousseauCourant } from "@/lib/storage/cle-drive";
 
 /**
  * TÉLÉVERSEMENT INSTANTANÉ — quand le contenu est DÉJÀ là, on n'envoie pas les octets.
@@ -59,7 +60,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 403 });
   }
 
-  const blob = await prisma.fileBlob.findUnique({ where: { sha256: hash }, select: { id: true, size: true } });
+  // Seul un blob de la clé ACTIVE se réemploie (audit Drive du 24/11, A2) : un blob d'avant ou d'une autre clé
+  // repasse par l'envoi normal, qui l'écrit lisible. Clé mal configurée : l'envoi normal le dira en clair.
+  let cleActive: string;
+  try { cleActive = trousseauCourant().active.id; } catch { return NextResponse.json({ known: false }); }
+  const blob = await prisma.fileBlob.findFirst({ where: { sha256: hash, keyId: cleActive }, select: { id: true, size: true } });
   if (!blob) return NextResponse.json({ known: false });
 
   // Le demandeur voit-il déjà une copie de ce contenu ? Sinon : pas d'oracle, envoi normal.

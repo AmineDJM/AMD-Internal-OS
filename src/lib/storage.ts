@@ -3,7 +3,6 @@ import path from "path";
 import { prisma } from "./prisma";
 import { putBlob, getBlob, releaseBlob } from "./drive-storage";
 import { refusTeleversement } from "./files/politique-televersement";
-import { sansBloquer } from "@/lib/journal";
 import { randomUUID } from "node:crypto";
 import type { Confidentiality, DocumentCategory, EntityType } from "@prisma/client";
 import { inscrireDocumentEcrit } from "@/modules/bibliotheque/api-inscription";
@@ -72,14 +71,21 @@ export async function readFileByKey(key: string): Promise<Buffer> {
   return readFile(chemin);
 }
 
+/**
+ * Retire la correspondance d'une clé et rend SA référence au blob — une seule fois, quoi qu'il arrive.
+ *
+ * Avant : lire, puis effacer (échec avalé), puis rendre. Deux suppressions simultanées (deux onglets, deux
+ * personnes) lisaient toutes deux la ligne et rendaient DEUX références pour un seul détenteur : le compteur
+ * tombait à zéro sous un fichier encore tenu ailleurs (audit Drive du 24/11, A6, cas E). L'effacement dit
+ * désormais s'il a eu lieu (le compte de `deleteMany`, conditionné au blob lu) : seul qui a réellement
+ * supprimé la ligne rend la référence. La ligne part AVANT : `releaseBlob` n'efface que ce qu'aucune colonne
+ * ne désigne plus.
+ */
 export async function deleteFileByKey(key: string): Promise<void> {
   const stored = await prisma.storedFile.findUnique({ where: { key }, select: { blobId: true } });
-  if (stored) {
-    // La référence part AVANT de rendre le blob : `releaseBlob` n'efface que ce qu'aucune
-    // colonne ne désigne plus, et cette ligne en est une.
-    await prisma.storedFile.delete({ where: { key } }).catch(sansBloquer("storage.deleteFileByKey.storedFile"));
-    await releaseBlob(stored.blobId);
-  }
+  if (!stored) return;
+  const { count } = await prisma.storedFile.deleteMany({ where: { key, blobId: stored.blobId } });
+  if (count === 1) await releaseBlob(stored.blobId);
 }
 
 /**

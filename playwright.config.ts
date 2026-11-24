@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { createHash } from "node:crypto";
 import { E2E } from "./e2e/global-setup";
 
 /**
@@ -53,6 +54,9 @@ export default defineConfig({
       // MÊME source que le seed (`E2E.authSecret`) : la clé de chiffrement des blobs Drive en
       // est dérivée, et deux valeurs différentes rendent les fichiers du seed illisibles.
       NEXTAUTH_SECRET: E2E.authSecret,
+      // `next start` tourne en PRODUCTION, où DRIVE_ENCRYPTION_KEY est obligatoire (audit Drive du 24/11, A2). Elle vaut
+      // la clé que le seed (hors production) dérive de ce même secret : les fichiers du seed restent lisibles.
+      DRIVE_ENCRYPTION_KEY: process.env.DRIVE_ENCRYPTION_KEY ?? createHash("sha256").update(E2E.authSecret).digest("hex"),
       // LA PLANCHE DE RENDU, le temps d'une revue. Les blocs de l'espace de travail n'existent
       // qu'au bout d'un vrai tour de conversation — donc d'un appel IA, que cette suite
       // s'interdit. Cette variable ouvre une route de démonstration qui, sans elle, rend 404 :

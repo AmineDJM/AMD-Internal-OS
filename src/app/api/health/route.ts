@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { incidentsRecents, journal, SEUIL_INCIDENT } from "@/lib/journal";
 import { verifierMigrations } from "@/lib/migrations-appliquees";
+import { etatCleDrivePourSante } from "@/lib/storage/cle-drive-empreinte";
 
 /**
  * SONDE DE SANTÉ — ce que Render doit interroger (`healthCheckPath`), au lieu de `/login`.
@@ -18,7 +19,11 @@ import { verifierMigrations } from "@/lib/migrations-appliquees";
  *     déploiement au lieu de servir du code sur un schéma en retard) ;
  *  3. les ERREURS RÉPÉTÉES de ce processus (journal unique, quinze dernières minutes) —
  *     `etat: "degrade"` quand un événement dépasse le seuil. Ce n'est PAS un 503 : redémarrer
- *     l'instance ne répare pas une requête qui échoue, et Render bouclerait sur des redémarrages.
+ *     l'instance ne répare pas une requête qui échoue, et Render bouclerait sur des redémarrages ;
+ *  4. la CLÉ DES FICHIERS (audit Drive du 24/11, A2) — `cleFichiers` : « ok », « absente » ou « invalide »
+ *     (DRIVE_ENCRYPTION_KEY de CE service), « divergente » (autre clé que la référence commune : ce service
+ *     refuse d'enregistrer des fichiers), « inconnue » (référence illisible). Tout sauf « ok » rend
+ *     `etat: "degrade"`, jamais un 503 : le reste de l'ERP sert, et un redémarrage ne corrigerait pas la variable.
  *
  * Publique (Render n'a pas de session) : elle ne dit que des états et des nombres — ni version,
  * ni hôte, ni message d'erreur, ni nom d'événement (ceux-là sont au journal et au Diagnostic).
@@ -64,12 +69,14 @@ export async function GET() {
 
   const incidents = incidentsRecents(FENETRE_INCIDENTS_MS);
   const repetes = incidents.filter((i) => i.compte >= SEUIL_INCIDENT).length;
+  const cleFichiers = await etatCleDrivePourSante();
   return NextResponse.json(
     {
       ok: true,
       base: "ok",
       migrations: migrations.etat,
-      etat: repetes > 0 ? "degrade" : "sain",
+      etat: repetes > 0 || cleFichiers !== "ok" ? "degrade" : "sain",
+      cleFichiers,
       incidents: { evenements: incidents.length, repetes, erreurs: incidents.reduce((s, i) => s + i.compte, 0) },
       ms: Date.now() - debut,
     },

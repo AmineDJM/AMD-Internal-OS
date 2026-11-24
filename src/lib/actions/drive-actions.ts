@@ -24,7 +24,7 @@ const DENIED: ActionResult = { ok: false, error: "Non autorisé." };
 
 /** IDs d'un nœud **et de tout son sous-arbre** (dossiers → enfants), pour cascader
  *  corbeille / restauration / suppression sur l'ensemble du dossier. */
-async function collectSubtree(rootId: string): Promise<string[]> {
+async function collectSubtree(rootId: string, client: Pick<typeof prisma, "driveNode"> = prisma): Promise<string[]> {
   const ids: string[] = [];
   const seen = new Set<string>();
   let frontier = [rootId];
@@ -33,7 +33,7 @@ async function collectSubtree(rootId: string): Promise<string[]> {
     if (batch.length === 0) break;
     batch.forEach((id) => seen.add(id));
     ids.push(...batch);
-    const children = await prisma.driveNode.findMany({ where: { parentId: { in: batch } }, select: { id: true } });
+    const children = await client.driveNode.findMany({ where: { parentId: { in: batch } }, select: { id: true } });
     frontier = children.map((c) => c.id);
   }
   return ids;
@@ -170,15 +170,6 @@ export async function moveNode(formData: FormData): Promise<ActionResult> {
   let targetSpaceId: string | null;
   if (targetId) {
     if ((await resolveDriveAccess(user, targetId)) !== "EDIT") return DENIED;
-    // empêcher de déplacer un dossier dans lui-même ou un descendant
-    let cur: string | null = targetId;
-    const seen = new Set<string>();
-    while (cur && !seen.has(cur)) {
-      if (cur === id) return { ok: false, error: "Déplacement invalide (dans son propre sous-dossier)." };
-      seen.add(cur);
-      const n: { parentId: string | null } | null = await prisma.driveNode.findUnique({ where: { id: cur }, select: { parentId: true } });
-      cur = n?.parentId ?? null;
-    }
     // UNE CIBLE EST UN DOSSIER VIVANT (audit du 27/10/2026, RH-DOCUMENTS-COMMS-06) : rangé sous un FICHIER ou sous un
     // dossier à la corbeille, l'élément n'apparaissait plus dans aucune liste — ni dans la corbeille.
     const t = await prisma.driveNode.findUnique({ where: { id: targetId }, select: { spaceId: true, type: true, isTrashed: true } });
@@ -198,11 +189,35 @@ export async function moveNode(formData: FormData): Promise<ActionResult> {
     return { ok: false, error: "Seul un gestionnaire de la catégorie peut en sortir cet élément." };
   }
 
-  // Maintient l'invariant « tout le sous-arbre porte le spaceId de sa catégorie » : le sous-arbre
-  // déplacé adopte la catégorie de destination (ou repasse en personnel si null).
-  const subtree = await collectSubtree(id);
-  await prisma.driveNode.updateMany({ where: { id: { in: subtree } }, data: { spaceId: targetSpaceId } });
-  await prisma.driveNode.update({ where: { id }, data: { parentId: targetId || null } });
+  // LE CONTRÔLE DE CYCLE ET L'ÉCRITURE, SOUS UN MÊME VERROU (audit Drive du 24/11, A9). Vérifié hors transaction,
+  // deux déplacements croisés (A dans B pendant que B va dans A) passaient chacun le contrôle, et formaient
+  // ensemble une boucle : les deux dossiers sortaient de toute arborescence. Le verrou est GLOBAL aux
+  // déplacements (un cycle peut naître entre deux branches quelconques) ; un déplacement est bref et rare.
+  const erreur = await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('drive-deplacement'))`;
+    if (targetId) {
+      // empêcher de déplacer un dossier dans lui-même ou un descendant — relu sous le verrou
+      let cur: string | null = targetId;
+      const seen = new Set<string>();
+      while (cur && !seen.has(cur)) {
+        if (cur === id) return "Déplacement invalide (dans son propre sous-dossier).";
+        seen.add(cur);
+        const n: { parentId: string | null } | null = await tx.driveNode.findUnique({ where: { id: cur }, select: { parentId: true } });
+        cur = n?.parentId ?? null;
+      }
+      const t = await tx.driveNode.findUnique({ where: { id: targetId }, select: { spaceId: true, type: true, isTrashed: true } });
+      if (!t || t.type !== "FOLDER" || t.isTrashed || (t.spaceId ?? null) !== targetSpaceId) {
+        return "La destination a changé pendant le déplacement : rouvrez le dossier et recommencez.";
+      }
+    }
+    // Maintient l'invariant « tout le sous-arbre porte le spaceId de sa catégorie » : le sous-arbre
+    // déplacé adopte la catégorie de destination (ou repasse en personnel si null).
+    const subtree = await collectSubtree(id, tx);
+    await tx.driveNode.updateMany({ where: { id: { in: subtree } }, data: { spaceId: targetSpaceId } });
+    await tx.driveNode.update({ where: { id }, data: { parentId: targetId || null } });
+    return null;
+  });
+  if (erreur) return { ok: false, error: erreur };
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "Drive", entityType: "DRIVE_NODE", entityId: id, summary: "Déplacé" });
   revalidatePath("/drive");
   return { ok: true };
