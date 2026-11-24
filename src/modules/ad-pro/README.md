@@ -28,6 +28,10 @@ ses pièces, ses cases, ses devis). Lit `referentiels` (double écriture des per
   lectures (fiche, « Chiffrer », « Acheter — BC n°k », lignes du bureau du secrétariat `lignesBureauPec{Chiffrage,Achat}`) :
   `infra/requetes/achats-pec.ts` ; BC : `infra/prise-en-charge/bc-pec.ts` ; immuabilité d'un BC signé :
   `infra/prise-en-charge/bc-immuable.ts`, par la porte étroite `api-bc-pec.ts` (lue par la fabrique).
+- **Registre des avantages aux professionnels de santé** (24/11/2026, Super Admin seul, `/admin/avantages`) : règles pures
+  `domaine/avantages.ts` (agrégation par professionnel / année / nature, concentration, non-rattachés, fusions) par `partage` ;
+  lecture `infra/requetes/avantages.ts` (`avantagesAdPro` : cases de prise en charge achetées / engagées, demandes qui désignent
+  des praticiens) par `api`. La garde de rôle et le matériel remis en visite : `src/lib/queries/avantages.ts`. Aucune table.
 - **Hors du module** (prochains lots) : le stock et le circuit du matériel promotionnel (`lib/promo/`,
   `lib/promo-material/`), le consulting (pôle partagé avec les RH), l'intégration des dépenses 2026
   (budget marketing), le ROI (intelligence terrain), les opérations d'Adam (`lib/agent/operations/adpro-*`).

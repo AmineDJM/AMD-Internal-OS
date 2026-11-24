@@ -5,12 +5,20 @@
  * Elle ne réexporte que `domaine/` : les natures de demande et leurs états (`unified`), les postes
  * (`postes` : ventilation, émission d'ordre), le centre de validation (`centre`), la clôture d'un
  * sponsoring, les fiches voyageurs / hébergements, la prise en charge (`prise-en-charge/`), l'état et
- * la portée de modification d'un événement (`evenements/`), la correction d'une demande (`edition`).
+ * la portée de modification d'un événement (`evenements/`), la correction d'une demande (`edition`), le registre des
+ * avantages aux professionnels de santé (`avantages`).
  * Aucune base, aucun Node, aucun React.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
 export { attachHint, canAttachToAdPro, isOwnBusiness } from "./domaine/attachments";
+// LE REGISTRE DES AVANTAGES AUX PROFESSIONNELS DE SANTÉ (Super Admin seul, 24/11/2026) — agrégation, concentration, fiche.
+export {
+  adresseRegistre, agregerRegistre, anneeDeLAvantage, type Avantage, CLE_NON_RATTACHES, concentrationDesAvantages, type ConcentrationAvantages,
+  cleDuProfessionnel, estNatureAvantage, type FicheAvantages, ficheDuProfessionnel, FILTRES_AVANTAGES_VIDES, filtrerAvantages, type FiltresAvantages,
+  LIBELLE_NATURE_AVANTAGE, LIBELLE_NON_RATTACHES, type LigneRegistreAvantages, lireFiltresAvantages, type NatureAvantage, NATURES_AVANTAGE, partPayee,
+  type ProfessionnelAvantages, type RegistreAvantages, resoudreFusions, resteAPayer, type TotalAvantages, TOUTES_ANNEES, type TrancheConcentration,
+} from "./domaine/avantages";
 export { barreDesEtapes } from "./domaine/barre-etapes";
 export { beneficiaireDuPaiement, gesteVisaPoste, memePrestataire } from "./domaine/bc-poste";
 export { estFormeBC, type FormeBC, type FormePorte, type LigneCentre, REFUS_BC_CENTRE_AD_PRO, REFUS_CENTRE_AD_PRO, siegeAuCentreAdPro, trierCentre } from "./domaine/centre";

@@ -58,6 +58,8 @@ export { demandePrevalidee, prendreLesCasesDuDevis, REFUS_NON_PREVALIDEE, refusE
 export { deposerFichiersSurLaPiece, retirerFichierDeLaPiece } from "./infra/prise-en-charge/pieces-db";
 export { ENVOI_FINANCES_CHAMP, ENVOI_FINANCES_RESUME, envoiAuxFinances } from "./infra/prise-en-charge/realisation";
 export { referentAInscrire } from "./infra/referent-de-la-gamme";
+// LE REGISTRE DES AVANTAGES AUX PROFESSIONNELS DE SANTÉ (Super Admin seul, 24/11/2026) — ce que l'Ad & Pro leur a accordé.
+export { avantagesAdPro } from "./infra/requetes/avantages";
 export { demandeAttendLeCentre, demandesAuCentreAdPro, demandeurDuVisa, peutResoumettreAuCentre, visasTranchesCentreAdPro, type VisaTranche } from "./infra/requetes/centre";
 export { decisionsRecentesCentreAdPro } from "./infra/requetes/centre-decides";
 export { type CongressDetail, type CongressListRow, getCongressDetail, getCongressList } from "./infra/requetes/congres";
