@@ -10,13 +10,14 @@ import { changerStatutCasPv, ouvrirEnquetePv } from "@/lib/actions/pharmacovigil
 import { STATUT_PV, type StatutPv } from "@/lib/pharmacovigilance/regles";
 
 /**
- * L'INSTRUCTION D'UN CAS (Direction, 06/10) — Regulatory change le statut (analyse, clôture avec sa note, réouverture)
- * et ouvre au besoin une ENQUÊTE APPROFONDIE en disant les informations complémentaires attendues du KAM.
+ * L'INSTRUCTION D'UN CAS (Direction, 06/10 ; circuit de déclaration, 24/11/2026) — Regulatory passe le cas en suivi, le
+ * clôt (avec sa note) ou le rouvre, et demande au besoin des informations complémentaires au KAM. Évaluer et déclarer ont
+ * leurs propres formulaires (`declaration-pv.tsx`).
  */
-export function InstructionCasPv({ caseId, status, suivants }: { caseId: string; status: StatutPv; suivants: StatutPv[] }) {
+export function InstructionCasPv({ caseId, status, suivants, declare }: { caseId: string; status: StatutPv; suivants: StatutPv[]; declare: boolean }) {
   const { enCours, rafraichir } = useRafraichir();
   const choix = suivants.filter((s) => s !== "ENQUETE");
-  const [vers, setVers] = React.useState<string>(choix[0] ?? "");
+  const [vers, setVers] = React.useState<string>(status === "CLOS" ? "ROUVRIR" : choix[0] ?? "");
   const [note, setNote] = React.useState("");
   const [infos, setInfos] = React.useState("");
   const [busy, setBusy] = React.useState<"statut" | "enquete" | null>(null);
@@ -43,11 +44,11 @@ export function InstructionCasPv({ caseId, status, suivants }: { caseId: string;
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-muted-foreground" htmlFor="pv-statut">Changer le statut</label>
           <Select id="pv-statut" value={vers} onChange={(e) => setVers(e.target.value)}>
-            {choix.map((s) => <option key={s} value={s}>{s === "EN_ANALYSE" && status === "CLOS" ? "Rouvrir (en analyse)" : STATUT_PV[s].label}</option>)}
+            {choix.map((s) => <option key={s} value={status === "CLOS" ? "ROUVRIR" : s}>{status === "CLOS" ? `Rouvrir (${STATUT_PV[s].label.toLowerCase()})` : STATUT_PV[s].label}</option>)}
           </Select>
           <Textarea
             value={note} onChange={(e) => setNote(e.target.value)} aria-label="Note"
-            placeholder={vers === "CLOS" ? "Note de clôture (obligatoire) : ce qui a été conclu…" : "Note (facultative)…"}
+            placeholder={vers === "CLOS" ? (declare ? "Note de clôture (obligatoire) : ce qui a été conclu…" : "Sans déclaration à l'autorité : dites pourquoi (doublon, non-cas…)") : "Note (facultative)…"}
             className="min-h-[60px]"
           />
           <Button size="sm" className="w-full sm:w-auto" disabled={!vers || bloque || (vers === "CLOS" && !note.trim())} onClick={() => void agir("statut", () => changerStatutCasPv(fd({ status: vers, note })))}>
@@ -59,7 +60,7 @@ export function InstructionCasPv({ caseId, status, suivants }: { caseId: string;
       {status !== "CLOS" && (
         <div className="space-y-1.5 border-t border-border pt-3">
           <label className="text-xs font-medium text-muted-foreground" htmlFor="pv-enquete">
-            {status === "ENQUETE" ? "Demander d'autres informations" : "Ouvrir une enquête approfondie"}
+            {status === "ENQUETE" || status === "SUIVI" ? "Demander d'autres informations" : status === "DECLARE" ? "Demander des informations de suivi" : "Demander des informations au KAM"}
           </label>
           <Textarea
             id="pv-enquete" value={infos} onChange={(e) => setInfos(e.target.value)} className="min-h-[80px]"
@@ -67,7 +68,7 @@ export function InstructionCasPv({ caseId, status, suivants }: { caseId: string;
           />
           <Button size="sm" variant="outline" className="w-full sm:w-auto" disabled={!infos.trim() || bloque} onClick={() => void agir("enquete", () => ouvrirEnquetePv(fd({ requestedInfo: infos })))}>
             {busy === "enquete" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
-            {status === "ENQUETE" ? "Envoyer la demande" : "Ouvrir l'enquête"}
+            Envoyer la demande
           </Button>
           <p className="text-xs text-muted-foreground">Le KAM est prévenu ; la demande s&apos;inscrit dans l&apos;échange.</p>
         </div>

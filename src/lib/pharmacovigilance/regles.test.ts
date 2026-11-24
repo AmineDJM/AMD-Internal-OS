@@ -3,36 +3,69 @@ import { buildRef } from "@/lib/refs";
 import { PERMISSIONS, defaultScope } from "@/lib/rbac";
 import { NAVIGATION } from "@/lib/labels";
 import {
-  PREFIXE_REFERENCE_PV, STATUTS_PV, lecteurDuCasPv, lireAgePv, peutJoindreAuCasPv, refusEnquetePv, refusTransitionPv, statutsSuivantsPv,
+  CONTEXTE_PV_VIERGE, PREFIXE_REFERENCE_PV, STATUTS_PV, STATUT_PV, estStatutPv, lecteurDuCasPv, lireAgePv, peutJoindreAuCasPv, refusEnquetePv,
+  refusTransitionPv, statutApresDemandeInfosPv, statutDeReouverturePv, statutsSuivantsPv, type ContexteCasPv,
 } from "./regles";
 
 /** PHARMACOVIGILANCE (Direction, 06/10) — les règles pures du module, et ses droits par défaut. */
 
-describe("statuts d'un cas", () => {
-  it("un cas reçu se prend en analyse, part en enquête ou se clôt — il ne revient jamais à « Reçu »", () => {
-    expect(statutsSuivantsPv("RECU")).toEqual(["EN_ANALYSE", "ENQUETE", "CLOS"]);
-    for (const s of STATUTS_PV) expect(statutsSuivantsPv(s)).not.toContain("RECU");
+describe("statuts d'un cas — le circuit de déclaration (24/11/2026)", () => {
+  const ctx = (o: Partial<ContexteCasPv> = {}): ContexteCasPv => ({ ...CONTEXTE_PV_VIERGE, ...o });
+
+  it("le circuit : Reçu, Enquête, Évalué, Déclaré, Suivi, Clos — « En analyse » n'en est plus une étape, mais reste lisible", () => {
+    expect([...STATUTS_PV]).toEqual(["RECU", "ENQUETE", "EVALUE", "DECLARE", "SUIVI", "CLOS"]);
+    expect(estStatutPv("EN_ANALYSE")).toBe(true);
+    expect(STATUT_PV.EN_ANALYSE.label).toBe("En analyse");
+    expect(STATUT_PV.DECLARE.label).toBe("Déclaré à l'autorité");
   });
 
-  it("un cas clos se rouvre en analyse, et seulement ainsi", () => {
-    expect(statutsSuivantsPv("CLOS")).toEqual(["EN_ANALYSE"]);
-    expect(refusTransitionPv("CLOS", "EN_ANALYSE", null)).toBeNull();
-    expect(refusTransitionPv("CLOS", "ENQUETE", null)).toMatch(/ne passe pas/);
+  it("le sélecteur ne propose que suivi (après déclaration), clôture et réouverture — jamais un retour à « Reçu »", () => {
+    expect(statutsSuivantsPv("RECU")).toEqual(["CLOS"]);
+    expect(statutsSuivantsPv("EVALUE")).toEqual(["CLOS"]);
+    expect(statutsSuivantsPv("DECLARE")).toEqual(["SUIVI", "CLOS"]);
+    expect(statutsSuivantsPv("SUIVI")).toEqual(["CLOS"]);
+    for (const s of STATUTS_PV) if (s !== "CLOS") expect(statutsSuivantsPv(s)).not.toContain("RECU");
+    expect(refusTransitionPv("RECU", "DECLARE", null)).toMatch(/ne passe pas/);
+  });
+
+  it("un cas clos se rouvre là où il en était : suivi s'il est déclaré, à déclarer s'il est évalué, sinon reçu", () => {
+    expect(statutDeReouverturePv({ declare: true, evalue: true })).toBe("SUIVI");
+    expect(statutDeReouverturePv({ declare: false, evalue: true })).toBe("EVALUE");
+    expect(statutDeReouverturePv({ declare: false, evalue: false })).toBe("RECU");
+    expect(statutsSuivantsPv("CLOS", ctx({ evalue: true }))).toEqual(["EVALUE"]);
+    expect(refusTransitionPv("CLOS", "EVALUE", null, ctx({ evalue: true }))).toBeNull();
+    expect(refusTransitionPv("CLOS", "SUIVI", null, ctx({ evalue: true }))).toMatch(/ne passe pas/);
   });
 
   it("clore exige une note de clôture", () => {
-    expect(refusTransitionPv("EN_ANALYSE", "CLOS", "  ")).toMatch(/note de clôture/);
-    expect(refusTransitionPv("EN_ANALYSE", "CLOS", "Imputabilité douteuse, déclaré au CNPM.")).toBeNull();
+    expect(refusTransitionPv("RECU", "CLOS", "  ")).toMatch(/note de clôture/);
+    expect(refusTransitionPv("RECU", "CLOS", "Doublon du cas PV-2026-003.")).toBeNull();
+  });
+
+  it("un cas évalué grave ne se clôt pas sans déclaration ; un cas non grave le peut, en disant pourquoi", () => {
+    expect(refusTransitionPv("EVALUE", "CLOS", "Fini.", ctx({ evalue: true, evalGrave: true }))).toMatch(/grave se déclare/);
+    expect(refusTransitionPv("EVALUE", "CLOS", "Non-cas.", ctx({ evalue: true, evalGrave: false }))).toBeNull();
+  });
+
+  it("un cas déclaré attend le visa du pharmacien responsable désigné avant sa clôture", () => {
+    expect(refusTransitionPv("DECLARE", "CLOS", "Conclu.", ctx({ declare: true, evalue: true, visaRequis: true }))).toMatch(/visa/);
+    expect(refusTransitionPv("DECLARE", "CLOS", "Conclu.", ctx({ declare: true, evalue: true, visaRequis: true, vise: true }))).toBeNull();
+    expect(refusTransitionPv("SUIVI", "CLOS", "Conclu.", ctx({ declare: true, evalue: true }))).toBeNull();
   });
 
   it("un statut identique est refusé, en le disant", () => {
-    expect(refusTransitionPv("EN_ANALYSE", "EN_ANALYSE", null)).toMatch(/déjà/);
+    expect(refusTransitionPv("DECLARE", "DECLARE", null)).toMatch(/déjà/);
   });
 
-  it("une enquête exige les informations demandées, et pas sur un cas clos", () => {
+  it("demander des informations : enquête avant l'évaluation, le cas évalué reste à déclarer, suivi après la déclaration", () => {
     expect(refusEnquetePv("RECU", "")).toMatch(/informations/);
     expect(refusEnquetePv("CLOS", "Numéro de lot ?")).toMatch(/clos/);
     expect(refusEnquetePv("ENQUETE", "Évolution à J7 ?")).toBeNull();
+    expect(statutApresDemandeInfosPv("RECU")).toBe("ENQUETE");
+    expect(statutApresDemandeInfosPv("EN_ANALYSE")).toBe("ENQUETE");
+    expect(statutApresDemandeInfosPv("EVALUE")).toBe("EVALUE");
+    expect(statutApresDemandeInfosPv("DECLARE")).toBe("SUIVI");
+    expect(statutApresDemandeInfosPv("SUIVI")).toBe("SUIVI");
   });
 });
 

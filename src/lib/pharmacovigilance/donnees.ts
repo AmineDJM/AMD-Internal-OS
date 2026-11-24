@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import type { SessionUser } from "@/lib/rbac";
 import { clauseCasPvVisibles } from "./acces";
 import { STATUTS_PV, estStatutPv, type StatutPv } from "./regles";
+import { etatEcheancePv } from "./declaration";
+import { lireReglagesPv } from "./reglages";
 
 /**
  * PHARMACOVIGILANCE — les lectures des écrans (Direction, 06/10) : la boîte de Regulatory, « Mes signalements » du KAM,
@@ -29,6 +31,8 @@ export interface LigneCasPv {
   severity: string | null;
   reporterId: string;
   reporterName: string;
+  /** Le délai de déclaration quand elle reste à faire : son libellé et son ton (rouge le jour J et au-delà). */
+  echeance: { libelle: string; ton: "neutral" | "warning" | "danger" } | null;
 }
 
 function dateOuNull(s: string | null | undefined, finDeJournee = false): Date | null {
@@ -40,7 +44,8 @@ function dateOuNull(s: string | null | undefined, finDeJournee = false): Date | 
 export async function listerCasPv(user: SessionUser, f: FiltresCasPv = {}): Promise<LigneCasPv[]> {
   const et: Prisma.PharmacovigilanceCaseWhereInput[] = [clauseCasPvVisibles(user)];
   if (f.seulementLesMiens) et.push({ reporterId: user.id });
-  if (estStatutPv(f.statut)) et.push({ status: f.statut });
+  // « Reçu » compte aussi l'ancienne étape « En analyse » (reprise par la migration du 24/11/2026).
+  if (estStatutPv(f.statut)) et.push({ status: f.statut === "RECU" ? { in: ["RECU", "EN_ANALYSE"] } : f.statut });
   const produit = (f.produit ?? "").trim();
   if (produit) et.push({ productLabel: { contains: produit, mode: "insensitive" } });
   const du = dateOuNull(f.du);
@@ -49,25 +54,40 @@ export async function listerCasPv(user: SessionUser, f: FiltresCasPv = {}): Prom
 
   const cas = await prisma.pharmacovigilanceCase.findMany({
     where: { AND: et },
-    select: { id: true, reference: true, status: true, productLabel: true, institutionName: true, occurredOn: true, createdAt: true, severity: true, reporterId: true },
+    select: {
+      id: true, reference: true, status: true, productLabel: true, institutionName: true, occurredOn: true, createdAt: true, severity: true, reporterId: true,
+      dateConnaissance: true, evalGrave: true, declareLe: true,
+    },
     orderBy: [{ createdAt: "desc" }],
     take: 500,
   });
+  const { delais } = await lireReglagesPv();
+  const maintenant = new Date();
   const noms = new Map((await prisma.user.findMany({
     where: { id: { in: [...new Set(cas.map((c) => c.reporterId))] } }, select: { id: true, name: true },
   })).map((u) => [u.id, u.name]));
-  return cas.map((c) => ({ ...c, status: c.status as StatutPv, severity: c.severity ?? null, reporterName: noms.get(c.reporterId) ?? "—" }));
+  return cas.map((c) => {
+    const e = etatEcheancePv(c, delais, maintenant);
+    return {
+      id: c.id, reference: c.reference, status: c.status as StatutPv, productLabel: c.productLabel, institutionName: c.institutionName,
+      occurredOn: c.occurredOn, createdAt: c.createdAt, severity: c.severity ?? null, reporterId: c.reporterId,
+      reporterName: noms.get(c.reporterId) ?? "—", echeance: e ? { libelle: e.libelle, ton: e.ton } : null,
+    };
+  });
 }
 
 /** Les compteurs par statut, sur tout ce que la personne lit (sans les filtres). */
-export async function compteursCasPv(user: SessionUser, seulementLesMiens = false): Promise<Record<StatutPv, number>> {
+export async function compteursCasPv(user: SessionUser, seulementLesMiens = false): Promise<Record<(typeof STATUTS_PV)[number], number>> {
   const groupes = await prisma.pharmacovigilanceCase.groupBy({
     by: ["status"],
     where: { AND: [clauseCasPvVisibles(user), ...(seulementLesMiens ? [{ reporterId: user.id }] : [])] },
     _count: { _all: true },
   });
-  const r = Object.fromEntries(STATUTS_PV.map((s) => [s, 0])) as Record<StatutPv, number>;
-  for (const g of groupes) if (estStatutPv(g.status)) r[g.status] = g._count._all;
+  const r = Object.fromEntries(STATUTS_PV.map((s) => [s, 0])) as Record<(typeof STATUTS_PV)[number], number>;
+  for (const g of groupes) {
+    const s = g.status === "EN_ANALYSE" ? "RECU" : g.status;
+    if (s in r) r[s as (typeof STATUTS_PV)[number]] += g._count._all;
+  }
   return r;
 }
 

@@ -31,6 +31,8 @@ export function ListeCasPv({ cas, base, avecDeclarant, lecteur }: {
               </p>
             </div>
             {c.severity && c.severity !== "NON_GRAVE" && <StatusBadge map={GRAVITE_PV} value={c.severity} dot={false} />}
+            {/* LE DÉLAI DE DÉCLARATION, pour qui instruit : rouge le jour J et au-delà. */}
+            {avecDeclarant && c.echeance && <StatusBadge map={{ x: { label: c.echeance.libelle, tone: c.echeance.ton } }} value="x" dot={false} />}
             <span className="text-xs text-muted-foreground">Survenu le {formatDate(c.occurredOn)}</span>
           </Link>
           {peutSupprimerLeCasPv(lecteur, c) && (

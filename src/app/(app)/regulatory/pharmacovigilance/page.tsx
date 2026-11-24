@@ -6,11 +6,14 @@ import { voitTousLesCasPv } from "@/lib/pharmacovigilance/acces";
 import { CHEMIN_PV_KAM } from "@/lib/chemins/rapports-terrain";
 import { compteursCasPv, listerCasPv } from "@/lib/pharmacovigilance/donnees";
 import { STATUTS_PV, STATUT_PV, estStatutPv } from "@/lib/pharmacovigilance/regles";
+import { lireReglagesPv } from "@/lib/pharmacovigilance/reglages";
+import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { ListeCasPv } from "./liste-cas";
+import { ReglagesPv } from "./reglages-pv";
 
 export const dynamic = "force-dynamic";
 
@@ -31,17 +34,24 @@ export default async function PharmacovigilancePage(props: { searchParams: Promi
     listerCasPv(user, { statut, produit, du, au }),
     compteursCasPv(user),
   ]);
-  const ouverts = compteurs.RECU + compteurs.EN_ANALYSE + compteurs.ENQUETE;
+  const aDeclarer = compteurs.RECU + compteurs.ENQUETE + compteurs.EVALUE;
+  const enRetard = cas.filter((c) => c.echeance?.ton === "danger").length;
   const filtre = Boolean(statut || produit || du || au);
+  // LES RÉGLAGES (Super Admin seul) : délais de déclaration et pharmacien responsable par société.
+  const superAdmin = user.role === "SUPER_ADMIN";
+  const reglages = superAdmin
+    ? await Promise.all([
+        lireReglagesPv(),
+        prisma.company.findMany({ where: { isActive: true }, select: { id: true, name: true, shortName: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
+        prisma.user.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+      ])
+    : null;
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        title="Pharmacovigilance"
-        description="Les cas signalés par les KAM depuis les Rapports terrain : analyse, enquête approfondie, échange et clôture."
-      />
+      <PageHeader title="Pharmacovigilance" />
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {STATUTS_PV.map((s) => (
           <Link
             key={s} href={statut === s ? "/regulatory/pharmacovigilance" : `/regulatory/pharmacovigilance?statut=${s}`}
@@ -52,7 +62,17 @@ export default async function PharmacovigilancePage(props: { searchParams: Promi
           </Link>
         ))}
       </div>
-      <p className="text-sm text-muted-foreground">{ouverts} cas ouvert{ouverts > 1 ? "s" : ""}.</p>
+      <p className="text-sm text-muted-foreground">
+        {aDeclarer} cas à déclarer à l&apos;autorité
+        {enRetard > 0 && <span className="font-medium text-destructive"> — {enRetard} au jour J ou en retard</span>}.
+      </p>
+      {reglages && (
+        <ReglagesPv
+          delais={reglages[0].delais} pharmaciens={reglages[0].pharmaciens}
+          societes={reglages[1].map((c) => ({ id: c.id, nom: c.shortName ?? c.name }))}
+          personnes={reglages[2].map((u) => ({ id: u.id, nom: u.name }))}
+        />
+      )}
 
       <form method="get" className="surface grid grid-cols-1 gap-3 p-3 sm:grid-cols-2 lg:grid-cols-5 lg:items-end">
         <label className="min-w-0 space-y-1 text-xs text-muted-foreground">

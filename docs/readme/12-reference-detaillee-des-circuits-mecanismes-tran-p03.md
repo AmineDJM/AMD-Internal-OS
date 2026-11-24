@@ -558,6 +558,24 @@ signalements selon `clauseCasPvVisibles`, et seulement pour qui signale ou reço
 (`medical/rapports/liste-rapports.tsx`) est un **tableau, au téléphone aussi** (date collée à gauche) ; une ligne ouvre
 le rapport dans une feuille latérale, d'où s'ouvre la fiche du compte rendu ou du cas.
 
+**Pharmacovigilance — déclaration à l'autorité (24/11/2026).** Circuit d'un cas (`PvCaseStatus`, règles pures
+`lib/pharmacovigilance/regles.ts` + `declaration.ts`) : **Reçu** (→ *Enquête approfondie* si Regulatory demande des
+informations au KAM) → **Évalué** (`evaluerCasPv` : grave / non grave, attendu / inattendu, imputabilité, date de
+connaissance corrigeable) → **Déclaré à l'autorité** (`declarerCasPv` : date d'envoi, référence, **pièce obligatoire**,
+accusé facultatif ; la déclaration est faite **hors plateforme**, aucune transmission électronique) → **Suivi**
+(informations complémentaires après déclaration) → **Clos**. L'ancienne étape « En analyse » est reprise en « Reçu » par la
+migration `20270248600000_pv_declaration_autorite` (trace dans l'échange). **Délai** : jour zéro = connaissance du cas (la
+visite quand le cas en part, sinon le signalement) + 15 j calendaires (grave) / 90 j (non grave) — réglables par le
+Super Admin (`PvReglage`, carte « Délais et pharmacien responsable » de `/regulatory/pharmacovigilance`) et **à confirmer
+par le pharmacien responsable / la réglementation algérienne**. Avant évaluation : gravité signalée, sinon le délai le plus
+court. **Alertes** (`lib/pharmacovigilance/alertes.ts`, tâche `pharmacovigilance.echeances`) à J-5, J-2, jour J puis
+dépassement, une fois par palier (`alertePalier`, verrou conditionnel), au Responsable réglementaire et au déclarant
+(qui a évalué le cas) ; mêmes lignes dans « Aujourd'hui » (`queries/action-center-pharmacovigilance.ts`). **Visa** :
+pharmacien responsable désigné par société dans les réglages (`viserCasPv`) — il entre dans l'échange à la déclaration ;
+un cas déclaré ne se clôt pas sans son visa ; un cas évalué grave ne se clôt pas sans déclaration. Le **DG** est informé
+une fois d'un cas grave (signalé grave/décès ou évalué grave, `dgInformeLe`). Un cas né de la détection IA garde sa
+**citation** (`citationIa`, figée au signalement).
+
 **Journée du KAM et plans (09/10)** : **Ma journée** (`medical/ma-journee/emploi-du-temps.tsx`) porte un appel à
 l'action « rapport terrain » sur chaque visite à rapporter, et le rapport de visite d'un décideur accueille le **besoin
 annuel du service** (voir Marketing cockpit). **Un plan de tournée en brouillon se supprime** (« Supprimer » puis
