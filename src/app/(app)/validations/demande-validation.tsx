@@ -137,7 +137,6 @@ function Formulaire(props: DemandeValidationProps & { onClose: () => void }) {
     <Sheet
       open onClose={props.onClose} width="lg"
       title="Demander une validation"
-      description="Choisissez qui valide : un validateur principal, et d'autres au besoin, dans l'ordre du circuit."
       footer={
         <div className="flex flex-wrap items-center justify-end gap-2">
           <Button type="button" variant="ghost" onClick={props.onClose}>Annuler</Button>

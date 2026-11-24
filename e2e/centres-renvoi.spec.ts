@@ -164,11 +164,14 @@ test("VALIDATIONS — le validateur RENVOIE pour correction : sans motif, le bou
   test.setTimeout(120_000);
   await login(page, EMAIL.validateur);
   await aller(page, "/validations");
-  await expect(page.getByText(VAL_TITRE).first()).toBeVisible();
-  await page.getByRole("button", { name: "Renvoyer pour correction" }).click();
-  const confirmer = page.getByRole("button", { name: "Renvoyer pour correction" });
+  // LE CENTRE, UN SEUL ÉCRAN (24/11/2026) : la ligne de la file ouvre la fiche ; le renvoi passe par « Demander une
+  // précision » et l'interrupteur « Lui renvoyer la demande pour correction » — la question devient le motif.
+  await page.getByRole("button", { name: VAL_TITRE }).first().click();
+  await page.getByRole("button", { name: /^Demander une précision/ }).click();
+  await page.getByRole("switch", { name: "Lui renvoyer la demande pour correction" }).click();
+  const confirmer = page.getByRole("button", { name: "Envoyer et renvoyer" });
   await expect(confirmer, "pas de renvoi sans motif : le demandeur ne saurait pas quoi corriger").toBeDisabled();
-  await page.getByPlaceholder("Ce qu'il faut corriger (obligatoire)…").fill(MOTIF_VAL);
+  await page.getByLabel("Votre question").fill(MOTIF_VAL);
   await expect(confirmer).toBeEnabled();
   await cliquerDecisif(confirmer);
   await expect.poll(async () => (await prisma.validationRequest.findUniqueOrThrow({ where: { id: valId } })).status, { timeout: 15_000 })
