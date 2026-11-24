@@ -43,6 +43,10 @@ export { type LienDepense, type PieceDepense, piecesDesEcritures } from "./infra
 
 // ── Requêtes : ce que montrent les écrans (une page ne lit pas Prisma) ───────────────────────
 export { chargerCentre, type EntiteDuCentre } from "./infra/requetes/centre-paiement";
+export {
+  type ApportContexte, type BriquesContexte, contexteDecisionDesOrdres, historiqueDuCentre, type LigneHistoriqueCentre,
+  type OrdrePourBrique,
+} from "./infra/requetes/contexte-decision";
 export { chargerOrdresDesFinances, HISTORIQUE_MAX } from "./infra/requetes/paiements-a-faire";
 export {
   chargerTresorerie, type CompteLu, getFinanceData, type LedgerRow, ORDRES_AUTORISES_NON_REGLES,

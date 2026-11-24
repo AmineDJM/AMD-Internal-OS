@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { ficheScopedWhere, getMyCompanies, myCompanyScope, companyLabel } from "@/lib/company";
 import { toNumber } from "@/lib/utils";
 import type { SessionUser } from "@/lib/rbac";
-import { awaitsCentre, sitsOnPaymentCentre, ORDRE_NON_ANNULE, type CentralStatus } from "../../domaine/authorization";
+import { awaitsCentre, awaitsRequester, sitsOnPaymentCentre, ORDRE_NON_ANNULE, type CentralStatus } from "../../domaine/authorization";
 import { ENTITE_SANS, choisirEntite } from "../../domaine/entite-centre";
 
 /**
@@ -55,6 +55,13 @@ export interface CentreCharge {
   nonAffiches: number;
   /** K7 (décision 0037) — pour l'EXPORT : toutes les lignes de l'entité choisie (sans la coupe d'affichage). */
   idsEntite: string[];
+  /**
+   * LA FILE « À DÉCIDER » (maquette du 24/11/2026) : les seuls ordres EN COURS — les décidés en sortent. Toute
+   * l'entité, sans coupe : une file d'attente coupée cacherait un paiement à décider.
+   */
+  idsEnAttente: string[];
+  /** L'HISTORIQUE (menu ⋯ « Déjà décidés ») : le reste de l'entité, au plus `LIMITE_LIGNES_CENTRE`. */
+  idsDecides: string[];
 }
 
 interface Ligne {
@@ -65,6 +72,8 @@ interface Ligne {
 }
 
 const cleDeLEntite = (companyId: string | null): string => companyId ?? ENTITE_SANS;
+/** EN COURS : le centre doit trancher, ou (dossier d'avant le 02/09/2026) le demandeur doit répondre. */
+const enCours = (s: CentralStatus): boolean => awaitsCentre(s) || awaitsRequester(s);
 
 export async function chargerCentre(
   user: SessionUser, demande: { entite?: string | null },
@@ -130,5 +139,7 @@ export async function chargerCentre(
     idsAffiches: deLEntite.slice(0, LIMITE_LIGNES_CENTRE).map((l) => l.id),
     nonAffiches: Math.max(0, deLEntite.length - LIMITE_LIGNES_CENTRE),
     idsEntite: deLEntite.map((l) => l.id),
+    idsEnAttente: deLEntite.filter((l) => enCours(l.centralStatus)).map((l) => l.id),
+    idsDecides: deLEntite.filter((l) => !enCours(l.centralStatus)).slice(0, LIMITE_LIGNES_CENTRE).map((l) => l.id),
   };
 }

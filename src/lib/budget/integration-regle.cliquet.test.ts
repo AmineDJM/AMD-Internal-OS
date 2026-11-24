@@ -50,6 +50,7 @@ const AUTO_CATEGORIE: Record<string, string> = {
   "src/modules/finances/domaine/settle-budget.ts": "ÉCRIVAIN au règlement : l'écriture née porte sa catégorie ; la règle la juge à la lecture, datée par son ordre",
   "src/modules/finances/actions-depenses.ts": "ÉCRIVAIN au règlement (même chemin que settle-budget)",
   "src/app/(app)/finances/paiements-a-faire/page.tsx": "AFFICHAGE de la catégorie prévue d'un ordre — pas un total",
+  "src/lib/queries/centre-contexte.ts": "AFFICHAGE : la ligne que le centre de paiement montre pour un ordre sans catégorie — le chiffre vient de consommationDesCategories",
 };
 
 function fichiers(dir: string): string[] {

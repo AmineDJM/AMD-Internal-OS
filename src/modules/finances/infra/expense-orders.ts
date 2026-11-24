@@ -120,6 +120,9 @@ const COMPANY_OF_SOURCE: Partial<Record<EntityType, (id: string) => Promise<{ co
   PROMO_MATERIAL: (id) => prisma.promoMaterial.findUnique({ where: { id }, select: { companyId: true } }),
   CONSULTING_CONTRACT: (id) => prisma.consultingContract.findUnique({ where: { id }, select: { companyId: true } }),
   EVENT: (id) => prisma.event.findUnique({ where: { id }, select: { companyId: true } }),
+  // LA DEMANDE AD & PRO « AUTRE » : ses postes émettent leurs ordres avec elle pour source (`actions-postes-paiement.ts`,
+  // `owner.parent`). Sans cette ligne, l'ordre retombait sur la société du demandeur — invisible à un siège cloisonné.
+  AD_PRO_OTHER: (id) => prisma.adProOtherRequest.findUnique({ where: { id }, select: { companyId: true } }),
   REGULATORY_PRODUCT: (id) => prisma.regulatoryProduct.findUnique({ where: { id }, select: { companyId: true } }),
   // LA PAIE D'UNE ENTITÉ (§118.176) : le virement porte l'entité dont on vire les salaires.
   PAYROLL: (id) => prisma.payrollWire.findUnique({ where: { id }, select: { companyId: true } }),

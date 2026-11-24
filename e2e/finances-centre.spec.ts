@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { E2E } from "./global-setup";
 import { cliquerDecisif } from "./decisif";
+import { ouvrirAuCentre } from "./centre";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -332,15 +333,14 @@ test("CENTRE : la paie s'autorise comme tout paiement — et le solde de trésor
   await aller(page, "/finances/paiements-a-faire");
   const avant = await autorisesARegler(page);
 
-  // L'entité se choisit EN HAUT (§118.211) : la paie de l'entité du décor se range dans « Autres ».
-  await aller(page, `/centre-de-paiement?entite=${companyId}&section=autres`);
-  const ligne = page.locator("li").filter({ hasText: LIBELLE_PAIE }).filter({ has: page.getByRole("button", { name: "Autoriser" }) }).first();
-  await expect(ligne).toBeVisible();
-  // L'origine s'ouvre : la paie de l'entité, là où se lit ce qui est saisi, envoyé, viré.
-  await expect(ligne.getByRole("link", { name: /Paie/ }).last()).toHaveAttribute("href", "/rh/paie");
-  await ligne.getByRole("button", { name: "Autoriser" }).click();
-  await cliquerDecisif(page.getByRole("dialog").getByRole("button", { name: "Autoriser le paiement" }));
-  await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 15_000 });
+  // L'entité se choisit EN HAUT ; la paie attend dans la file « À décider », sa fiche dit d'où elle vient.
+  await aller(page, `/centre-de-paiement?entite=${companyId}`);
+  const fiche = await ouvrirAuCentre(page, LIBELLE_PAIE);
+  // L'origine s'ouvre depuis le repli de la fiche : la paie de l'entité, là où se lit ce qui est saisi, envoyé, viré.
+  await fiche.locator("summary").filter({ hasText: /Fil des échanges/ }).click();
+  await expect(fiche.getByRole("link", { name: /demande d'origine/ })).toHaveAttribute("href", "/rh/paie");
+  await cliquerDecisif(fiche.getByRole("button", { name: "Autoriser le paiement" }));
+  await expect.poll(async () => (await prisma.expenseOrder.findFirstOrThrow({ where: { label: LIBELLE_PAIE }, select: { centralStatus: true } })).centralStatus, { timeout: 15_000 }).toBe("APPROVED");
 
   await aller(page, "/finances/paiements-a-faire");
   const apres = await autorisesARegler(page);

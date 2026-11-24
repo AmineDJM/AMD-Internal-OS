@@ -18,13 +18,16 @@ type Point = [fichier: string, aiguille: string, auMoins: number];
 
 const POINTS: Point[] = [
   // Centre de paiement, centre de validations, centre Ad & Pro
-  ["src/app/(app)/centre-de-paiement/centre-board.tsx", "CENTRAL_DECISION_LABEL[acting.decision]", 1],
+  ["src/app/(app)/centre-de-paiement/centre-board.tsx", "Autoriser le paiement", 1],
+  ["src/app/(app)/centre-de-paiement/centre-board.tsx", "Confirmer le refus", 1],
   ["src/app/(app)/validations/validation-decision.tsx", "{cfg.label}", 1],
   ["src/app/(app)/validations/[id]/withdraw.tsx", "Retirer ma demande", 1],
   ["src/app/(app)/validations/paiements/[id]/dossier.tsx", "Bon à payer", 1],
   ["src/app/(app)/validations/paiements/[id]/dossier.tsx", "Renvoyer au demandeur", 1],
   ["src/app/(app)/validations/paiements/[id]/dossier.tsx", "Retirer la demande", 2],
-  ["src/app/(app)/validations/paiements/[id]/dossier.tsx", "Refuser", 2],
+  // « Annuler la demande » (ex-« Refuser » des Finances : il annule l'ordre) ; « Refuser » reste celui d'une pièce.
+  ["src/app/(app)/validations/paiements/[id]/dossier.tsx", "Annuler la demande", 1],
+  ["src/app/(app)/validations/paiements/[id]/dossier.tsx", "Refuser", 1],
   ["src/app/(app)/centre-ad-pro/centre-board.tsx", "reexaminerVisaCentreAdPro", 1],
   ["src/app/(app)/centre-ad-pro/centre-board.tsx", 'decider("VALIDER")', 1],
   ["src/app/(app)/centre-ad-pro/centre-board.tsx", 'decider("RENVOYER")', 1],

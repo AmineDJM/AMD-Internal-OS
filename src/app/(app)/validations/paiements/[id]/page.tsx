@@ -20,6 +20,7 @@ import { entityHref } from "@/lib/entity-href";
 import { existingEntityIds } from "@/lib/entity-exists";
 import { PaymentDossier, type PieceView, type EventView } from "./dossier";
 import { getMyCompanies } from "@/lib/company";
+import { canAccessEntity } from "@/lib/entity-access";
 import { AskChief } from "@/components/shared/ask-chief";
 import { realtimeVoiceConfigured, canUseRealtimeVoice } from "@/lib/assistant/voice-realtime";
 
@@ -63,9 +64,14 @@ export default async function PaymentRequestPage(props: { params: Promise<{ id: 
   const isFinance = user.role === "FINANCE_BUDGET_MANAGER"
     || userCan(user, "FINANCES", "VALIDATE") || userCan(user, "FINANCES", "UPDATE") || hasGlobalView(user.role);
   const isRequester = req.requesterId === user.id || hasGlobalView(user.role);
+  // UN SIÈGE DU CENTRE DE PAIEMENT LIT LE DOSSIER QU'IL AUTORISE — y compris un siège NOMMÉ, sans droit Finances : il
+  // était renvoyé ailleurs, et autorisait sans pouvoir ouvrir les pièces. En LECTURE seulement (aucun geste des Finances
+  // ni du demandeur), et dans les sociétés qu'il voit — la même portée que la file du centre.
+  const siegeDuCentre = !isFinance && !isRequester && sitsOnPaymentCentre(user)
+    && (await canAccessEntity(user, "PAYMENT_REQUEST", req.id, "VIEW"));
   // Un dossier de paiement porte des montants et des factures : il n'est pas public. Seuls le
-  // demandeur, les Finances et le destinataire désigné y entrent.
-  if (!isFinance && !isRequester && req.recipientId !== user.id) redirect("/validations/paiements");
+  // demandeur, les Finances, le destinataire désigné et le centre de paiement y entrent.
+  if (!isFinance && !isRequester && req.recipientId !== user.id && !siegeDuCentre) redirect("/validations/paiements");
 
   const [docs, people, validations] = await Promise.all([
     prisma.document.findMany({

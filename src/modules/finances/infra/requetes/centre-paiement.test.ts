@@ -150,6 +150,14 @@ suite("le centre de paiement : une file par entité, par le chargeur", () => {
     expect(c).not.toHaveProperty("sectionChoisie");
   });
 
+  it("LA FILE « À DÉCIDER » ne garde que l'en attente — les décidés passent à l'historique (maquette du 24/11/2026)", async () => {
+    const c = await chargerCentre(siege, { entite: aId });
+    const attente = ["A-regulatory", "A-adpro", "A-rh", "A-sans-source", "A-du-demandeur"].map((k) => ids[k]);
+    expect([...c.idsEnAttente].sort()).toEqual([...attente].sort());
+    expect([...c.idsDecides].sort()).toEqual([ids["A-autorise"], ids["A-refuse"]].sort());
+    expect(c.idsEnAttente.length, "le compte de la file est celui du bilan").toBe(c.bilan.enAttente);
+  });
+
   it("LE FILTRE SOCIÉTÉ : chaque pastille ne liste QUE ses lignes", async () => {
     const a = await chargerCentre(sa, { entite: aId });
     expect([...a.idsAffiches].sort()).toEqual(DE_A.map((k) => ids[k]!).sort());
@@ -276,9 +284,26 @@ describe("l'écran lit la règle — points d'appel (§118.49)", () => {
     expect(board, "après une décision, les gestes restent fermés jusqu'à l'arrivée des nouvelles données").toMatch(/useAction\(\)/);
     expect(lire("src/components/shared/use-action.ts"), "le crochet attend le rafraîchissement").toMatch(/useRafraichir\(\)/);
     expect(board).not.toMatch(/router\.refresh\(\)/);
-    expect((board.match(/disabled=\{busy\}/g) ?? []).length, "Autoriser, Refuser et Répondre se ferment pendant le rafraîchissement").toBeGreaterThanOrEqual(3);
-    expect(board, "la double lecture montant/bénéficiaire reste envoyée").toMatch(/montantVu/);
-    expect(board).toMatch(/beneficiaireVu/);
-    expect(board, "l'origine de chaque paiement reste dite sur sa ligne").toMatch(/o\.sourceLabel/);
+    expect((board.match(/disabled=\{busy\b/g) ?? []).length, "Autoriser, Refuser, Confirmer et Répondre se ferment pendant le rafraîchissement").toBeGreaterThanOrEqual(4);
+    expect(board, "la double lecture montant/bénéficiaire reste envoyée").toMatch(/fd\.set\("montantVu", String\(f\.montant\)\)/);
+    expect(board).toMatch(/fd\.set\("beneficiaireVu", f\.beneficiaire \?\? ""\)/);
+    expect(board, "l'origine de chaque paiement reste dite sur sa ligne").toMatch(/f\.origine/);
+  });
+
+  it("LA MAQUETTE DU 24/11 : la file ne lit que l'en attente, la fiche son contexte en lot, l'historique est au menu ⋯", () => {
+    const page = lire("src/app/(app)/centre-de-paiement/page.tsx");
+    expect(page).toMatch(/contexteDuCentre\(\s*centre\.idsEnAttente/);
+    expect(page, "la file est triée par la règle pure").toMatch(/trierFile\(/);
+    expect(page).toMatch(/historiqueDuCentre\(\s*centre\.idsDecides/);
+    expect(page, "plus de compteurs qui répètent le montant en attente").not.toMatch(/CompteursCentre|KpiCard/);
+    expect(page, "plus de description d'en-tête").not.toMatch(/<PageHeader/);
+    expect(page, "la page ne lit plus Prisma : tout passe par les chargeurs").not.toMatch(/@\/lib\/prisma/);
+    const board = lire("src/app/(app)/centre-de-paiement/centre-board.tsx");
+    expect(board, "le champ mort du montant proposé n'est plus à l'écran").not.toMatch(/proposedAmount|Montant proposé/);
+    expect(board, "« Répondre et resoumettre » ne trône plus sur la file").not.toMatch(/Répondre et resoumettre/);
+    const fiche = lire("src/app/(app)/centre-de-paiement/fiche-decision.tsx");
+    expect(fiche, "les pièces s'ouvrent en aperçu, sans quitter le centre").toMatch(/<DocumentPreview/);
+    expect(fiche, "un seul lien par page : l'origine n'est pas offerte quand elle EST le dossier").toMatch(/f\.origineHref !== f\.dossierHref/);
+    expect(lire("src/app/(app)/centre-de-paiement/menu-centre.tsx")).toMatch(/Déjà décidés/);
   });
 });

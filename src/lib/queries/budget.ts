@@ -352,46 +352,22 @@ export async function getBudgetCategoryOptions(module?: string | string[], viewe
   return out;
 }
 
-/** Synthèse budgétaire d'une enveloppe sur une période (par défaut la période de l'enveloppe). */
-export async function getBudgetOverview(
-  viewer: SessionUser,
-  envelopeId: string | null,
-  fromArg?: Date | null,
-  toArg?: Date | null,
-  opts: OptionsPortee = {},
-): Promise<BudgetOverview | null> {
-  // Sélection de l'enveloppe à afficher :
-  //  • enveloppe explicitement demandée (sélecteur) → on la charge telle quelle ;
-  //  • vue PAR DÉFAUT (aucun `env`) → la plus récente enveloppe VISIBLE PAR LE SPECTATEUR,
-  //    et NON l'enveloppe globale la plus récente. Sinon un compte à qui l'on n'a ouvert
-  //    qu'une enveloppe « secondaire » (ex. Ad & Pro) tomberait sur l'enveloppe par défaut
-  //    (une autre, plus récente, qui lui est fermée) → `null` → écran « aucune enveloppe »,
-  //    alors même que l'enveloppe qui lui est ouverte figure bien dans le sélecteur. On
-  //    reprend l'ordre de `getEnvelopes` (actives d'abord, puis récence) pour que l'enveloppe
-  //    ouverte par défaut soit exactement la 1re du sélecteur.
-  let envelope;
-  if (envelopeId) {
-    envelope = await prisma.budgetEnvelope.findUnique({ where: { id: envelopeId }, include: { categories: { orderBy: { name: "asc" } } } });
-  }
-  // Budget d'un pôle (Marketing, Regulatory, Operations) : l'enveloppe mémorisée (cookie partagé avec Budgets) peut être
-  // une enveloppe d'une autre portée — on retombe alors sur la première enveloppe du pôle visible, au lieu d'un écran vide.
-  const dUnPole = opts.portee !== undefined && opts.portee !== "TOUT";
-  if (envelope && dUnPole && !(dansLaPortee(envelope, opts.portee) && envelopeVisible(viewer, envelope))) envelope = null;
-  if (!envelopeId || (!envelope && dUnPole)) {
-    const candidates = await prisma.budgetEnvelope.findMany({
-      orderBy: [{ isActive: "desc" }, { periodStart: "desc" }],
-      include: { categories: { orderBy: { name: "asc" } } },
-    });
-    envelope = candidates.find((e) => dansLaPortee(e, opts.portee) && envelopeVisible(viewer, e)) ?? null;
-  }
-  if (!envelope) return null;
-  // Accès : un non-gestionnaire ne peut ouvrir qu'une enveloppe qui lui est ouverte
-  // (garde-fou pour le cas d'une enveloppe explicitement demandée via `env`).
-  if (!envelopeVisible(viewer, envelope)) return null;
+/** Une enveloppe telle que la consommation la lit — ses catégories peuvent n'être qu'une partie des siennes. */
+export interface EnveloppeConsommee {
+  id: string;
+  periodStart: Date;
+  periodEnd: Date;
+  companyId: string | null;
+  categories: readonly { id: string; cle: string | null; businessUnitId: string | null }[];
+}
 
-  const from = fromArg ?? envelope.periodStart;
-  const to = toArg ?? envelope.periodEnd;
-
+/**
+ * LE CONSOMMÉ ET L'ENGAGÉ DES CATÉGORIES D'UNE ENVELOPPE, sur une période — le cœur de `getBudgetOverview`, sorti pour
+ * que d'autres écrans lisent le MÊME chiffre sans recalculer toute la synthèse (le centre de paiement : le disponible
+ * d'une ligne avant et après un paiement). Une seule règle : écritures (ou règle d'intégration), lignes budgétaires,
+ * moyens généraux, postes historiques, paie, engagements, frais de mission, BV acceptés.
+ */
+export async function consommationDesCategories(envelope: EnveloppeConsommee, from: Date, to: Date) {
   const catIds = envelope.categories.map((c) => c.id);
   // L'INTÉGRATION DES DÉPENSES RÉELLES (Ad & Pro 2026) : une enveloppe dont un lot est validé se lit par la règle du lot
   // (`budget/integration-regle.ts`) — postes historiques, ce qui naît après, jamais deux fois. Sans lot : `null`, et
@@ -488,6 +464,50 @@ export async function getBudgetOverview(
   for (const [catId, amount] of bvAcceptes.committed) {
     committedByCat.set(catId, (committedByCat.get(catId) ?? 0) + amount);
   }
+  return { consumedByCat, committedByCat, integ, ctxIntegration, reglages, generalMeans, paie, fraisMission, bvAcceptes, engagements };
+}
+
+/** Synthèse budgétaire d'une enveloppe sur une période (par défaut la période de l'enveloppe). */
+export async function getBudgetOverview(
+  viewer: SessionUser,
+  envelopeId: string | null,
+  fromArg?: Date | null,
+  toArg?: Date | null,
+  opts: OptionsPortee = {},
+): Promise<BudgetOverview | null> {
+  // Sélection de l'enveloppe à afficher :
+  //  • enveloppe explicitement demandée (sélecteur) → on la charge telle quelle ;
+  //  • vue PAR DÉFAUT (aucun `env`) → la plus récente enveloppe VISIBLE PAR LE SPECTATEUR,
+  //    et NON l'enveloppe globale la plus récente. Sinon un compte à qui l'on n'a ouvert
+  //    qu'une enveloppe « secondaire » (ex. Ad & Pro) tomberait sur l'enveloppe par défaut
+  //    (une autre, plus récente, qui lui est fermée) → `null` → écran « aucune enveloppe »,
+  //    alors même que l'enveloppe qui lui est ouverte figure bien dans le sélecteur. On
+  //    reprend l'ordre de `getEnvelopes` (actives d'abord, puis récence) pour que l'enveloppe
+  //    ouverte par défaut soit exactement la 1re du sélecteur.
+  let envelope;
+  if (envelopeId) {
+    envelope = await prisma.budgetEnvelope.findUnique({ where: { id: envelopeId }, include: { categories: { orderBy: { name: "asc" } } } });
+  }
+  // Budget d'un pôle (Marketing, Regulatory, Operations) : l'enveloppe mémorisée (cookie partagé avec Budgets) peut être
+  // une enveloppe d'une autre portée — on retombe alors sur la première enveloppe du pôle visible, au lieu d'un écran vide.
+  const dUnPole = opts.portee !== undefined && opts.portee !== "TOUT";
+  if (envelope && dUnPole && !(dansLaPortee(envelope, opts.portee) && envelopeVisible(viewer, envelope))) envelope = null;
+  if (!envelopeId || (!envelope && dUnPole)) {
+    const candidates = await prisma.budgetEnvelope.findMany({
+      orderBy: [{ isActive: "desc" }, { periodStart: "desc" }],
+      include: { categories: { orderBy: { name: "asc" } } },
+    });
+    envelope = candidates.find((e) => dansLaPortee(e, opts.portee) && envelopeVisible(viewer, e)) ?? null;
+  }
+  if (!envelope) return null;
+  // Accès : un non-gestionnaire ne peut ouvrir qu'une enveloppe qui lui est ouverte
+  // (garde-fou pour le cas d'une enveloppe explicitement demandée via `env`).
+  if (!envelopeVisible(viewer, envelope)) return null;
+
+  const from = fromArg ?? envelope.periodStart;
+  const to = toArg ?? envelope.periodEnd;
+
+  const { consumedByCat, committedByCat, integ, ctxIntegration, reglages, generalMeans, paie, fraisMission, bvAcceptes, engagements } = await consommationDesCategories(envelope, from, to);
 
   const categories: BudgetCategoryView[] = envelope.categories.map((c) => {
     const allocated = toNumber(c.allocated);

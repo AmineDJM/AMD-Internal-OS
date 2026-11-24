@@ -31,10 +31,12 @@ const iconBtn = "rounded-lg p-2.5 text-muted-foreground sm:p-2 transition-colors
  * — selon les droits reçus. Plus d'icônes entassées dans la liste : le nom seul suffit à tout ouvrir.
  */
 export function DocumentPreview({
-  id, name, hasFile, canEdit, canDelete, canRename, path, srcOverride, supprimer,
+  id, name, hasFile, canEdit, canDelete, canRename, path, srcOverride, supprimer, libelle,
 }: {
   id: string;
   name: string;
+  /** Le texte du lien qui ouvre l'aperçu, quand ce n'est pas le nom du fichier (« Voir » sur la fiche du centre de paiement). */
+  libelle?: React.ReactNode;
   hasFile: boolean;
   canEdit?: boolean;
   canDelete?: boolean;
@@ -117,9 +119,9 @@ export function DocumentPreview({
         type="button"
         onClick={() => setOpen(true)}
         title={name}
-        className="block w-full truncate py-1 text-left text-[0.8125rem] font-medium sm:py-0 text-foreground transition-colors hover:text-primary hover:underline"
+        className={libelle ? "font-semibold text-primary hover:underline" : "block w-full truncate py-1 text-left text-[0.8125rem] font-medium sm:py-0 text-foreground transition-colors hover:text-primary hover:underline"}
       >
-        {name}
+        {libelle ?? name}
       </button>
 
       {open && (

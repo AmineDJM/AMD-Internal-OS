@@ -1,466 +1,260 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { useAction } from "@/components/shared/use-action";
-import { ShieldCheck, ShieldX, MessageSquare, Coins, Loader2, Send, ChevronDown, ExternalLink, Paperclip, Pill } from "lucide-react";
 import { decidePayment, respondToPaymentCentre } from "@/modules/finances/actions-centre";
 import {
-  CENTRAL_STATUS_LABEL, CENTRAL_DECISION_LABEL, MOTIFS_REFUS_RAPIDES, awaitsCentre, awaitsRequester,
-  applyDecision, applyResubmission,
-  type CentralStatus, type CentralDecision, deadlineNatureLabel, deadlineNatureOf,
+  alerteCourte, applyDecision, applyResubmission, awaitsCentre, awaitsRequester, CENTRAL_STATUS_LABEL, MOTIFS_REFUS_RAPIDES,
+  type CentralDecision, type CentralStatus, type ContexteDecision,
 } from "@/modules/finances/partage";
 import { useRetours } from "@/components/ui/retours-porteur";
-import { statutAffiche } from "./decisions-locales";
-import { useDecisionsDuCentre } from "./decisions-du-centre";
 import { Button } from "@/components/ui/button";
-import { Sheet } from "@/components/ui/sheet";
 import { Input, Label, Textarea } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import type { BadgeTone } from "@/lib/labels";
-import { EmptyState } from "@/components/shared/empty-state";
-import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
-import { ItemAskPanel } from "@/modules/ad-pro/ecrans/item-ask-panel";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
-
-export interface CentreMessage {
-  id: string;
-  decision: string | null;
-  body: string;
-  author: string | null;
-  createdAt: string;
-}
-
-export interface CentreOrder {
-  id: string;
-  reference: string;
-  label: string;
-  beneficiary: string | null;
-  amount: number;
-  proposedAmount: number | null;
-  centralStatus: CentralStatus;
-  requestedBy: string | null;
-  companyLabel: string | null;
-  createdAt: string;
-  decidedBy: string | null;
-  decidedAt: string | null;
-  /** L'échéance DEMANDÉE par le demandeur — un souhait, formé sans voir la trésorerie. */
-  dueDate: string | null;
-  /**
-   * CE QUE CETTE ÉCHÉANCE PÈSE — `FIXED`, `IMPORTANT`, `MODERATE`. C'est ICI qu'elle compte le
-   * plus : le centre POSE la date que la comptabilité devra tenir, et poser une date en ignorant
-   * qu'un engagement ferme a été pris auprès du bénéficiaire, c'est arbitrer à l'aveugle.
-   */
-  deadlineNature: string | null;
-  /**
-   * LE DOSSIER DU PAIEMENT : son montant, ses pièces, son fil. Autoriser une sortie d'argent sans
-   * pouvoir ouvrir la facture, c'est autoriser une ligne de tableau. TOUT ordre en porte un
-   * désormais, quelle que soit sa provenance.
-   */
-  dossierHref: string | null;
-  /** LA DEMANDE D'ORIGINE — le sponsoring, le matériel promotionnel, le dossier réglementaire. */
-  sourceHref: string | null;
-  /** L'origine de la dépense en clair (« Demande administrative », « Avance sur salaire »…). */
-  sourceLabel: string | null;
-  /**
-   * LE PRODUIT D'OÙ VIENT LA DEMANDE — pour un BV de dossier réglementaire (« Demande du BV 25 % »
-   * cliquée sur l'étape du processus). Le centre arbitre entre des BV de plusieurs dossiers : sans
-   * le produit, il autorise « BV 25 % — REG-2026-014 » sans savoir de quel médicament il s'agit.
-   * `href` n'est posé que si la personne peut ouvrir le dossier.
-   */
-  produit: { reference: string; nom: string; dci: string; nature: string | null; href: string | null } | null;
-  /** Le commentaire du demandeur, écrit avec sa demande. */
-  note: string | null;
-  /**
-   * LA MARQUE « DOUBLON POSSIBLE » (Direction, 14/10/2026) : une facture de ce paiement ressemble à une facture déjà
-   * connue ailleurs — la phrase, avec la référence de l'autre pièce. Elle ne bloque rien : elle se vérifie avant
-   * d'autoriser. `null` sans marque.
-   */
-  doublonPossible?: string | null;
-  /** Les pièces jointes à l'ordre par le demandeur (proforma, courrier…). */
-  pieces: { id: string; name: string }[];
-  /**
-   * LES PIÈCES RÉCLAMÉES et pas encore closes (« Demander une pièce ») — ce qu'on attend, de qui, et si
-   * c'est déjà déposé. Sans elles, le geste ne laissait aucune trace sur la carte.
-   */
-  piecesDemandees: { id: string; label: string; a: string | null; deposee: boolean }[];
-  messages: CentreMessage[];
-  /** L'utilisateur courant est-il le demandeur ? Il peut alors répondre et resoumettre. */
-  isMine: boolean;
-}
-
-const TONE: Record<CentralStatus, BadgeTone> = {
-  NOT_REQUIRED: "neutral",
-  AWAITING: "warning",
-  CHANGES_REQUESTED: "info",
-  INFO_REQUESTED: "info",
-  APPROVED: "success",
-  REFUSED: "danger",
-};
+import { EmptyState } from "@/components/shared/empty-state";
+import { ItemAskPanel } from "@/modules/ad-pro/ecrans/item-ask-panel";
+import { cn, formatCurrency } from "@/lib/utils";
+import { statutAffiche, type DecisionsLocales } from "./decisions-locales";
+import { FicheDecision, phraseEcheance } from "./fiche-decision";
 
 /**
- * LE CENTRE DE PAIEMENT — ce que le PDG voit avant que l'argent sorte.
+ * LE CENTRE DE PAIEMENT — la file « À décider » à gauche, la fiche de décision à droite (maquette du 24/11/2026).
  *
- * Une file par entité : « autoriser un paiement d'Adventum » et « autoriser un paiement de
- * Pharmagène » sont deux gestes comptablement distincts. Toutes les origines (Regulatory, Ad & Pro,
- * RH…) partagent la file de leur entité ; la page choisit l'entité, ce composant montre CETTE file.
+ * La file ne montre que ce qui ATTEND le centre (les décidés passent au menu ⋯), une ligne par ordre : l'objet, le
+ * montant, l'origine et le bénéficiaire, l'échéance, et l'alerte en une phrase rouge. Au téléphone, la file d'abord ;
+ * toucher une ligne ouvre la fiche en plein écran, « Retour à la file » la referme.
  *
- * Deux issues, pas quatre (décision de la Direction, 02/09/2026) : le centre AUTORISE ou REFUSE, et
- * le montant se corrige dans la demande, avant d'arriver ici. Le demandeur répond dans le même fil.
- *
- * `useRafraichir` (§118.172) : après une décision, les gestes restent fermés tant que les nouvelles
- * données ne sont pas à l'écran — un second clic sur l'état d'avant autoriserait deux fois.
+ * DEUX ISSUES (Direction, 02/09/2026) : « Autoriser le paiement » et « Refuser », motif en un clic — c'est ce que lira
+ * le demandeur. L'écran renvoie ce qu'il AFFICHAIT (`montantVu`, `beneficiaireVu`, §118.191) : un montant ou un
+ * bénéficiaire corrigé pendant la lecture ne s'autorise pas sans avoir été vu. La décision passe par `useAction` (une
+ * coupure ne perd rien, les gestes restent fermés jusqu'à l'arrivée des nouvelles données, §118.172) ; confirmée,
+ * elle se montre AUSSITÔT sur la ligne (`decisions-locales.ts`) et la fiche suivante s'ouvre.
  */
-export function CentreBoard({
-  orders, canDecide, titre, total, nonAffiches,
-}: { orders: CentreOrder[]; canDecide: boolean; titre: string; total: number; nonAffiches: number }) {
-  // LA DÉCISION PASSE PAR `useAction` (audit 27/10/2026, FRONTEND-UX-01) : un appel qui LÈVE
-  // (connexion coupée, redéploiement) remplaçait la page entière par l'écran d'erreur — motif perdu,
-  // sans savoir si la décision était partie ; un appel qui ne revient jamais laissait `busy` à vrai —
-  // bouton qui tourne, feuille impossible à fermer (`onClose` exige `!busy`). Le crochet attrape,
-  // chronomètre, dit de vérifier avant de recommencer, et garde les gestes fermés jusqu'à l'arrivée
-  // des nouvelles données (§118.172) : `busy` couvre aussi le rafraîchissement.
+export function CentreBoard({ file, canDecide, initiale }: { file: ContexteDecision[]; canDecide: boolean; initiale: string | null }) {
   const { busy, err, setErr, run } = useAction();
-  // LA DÉCISION SE VOIT AUSSITÔT (recette sponsoring, 23/11/2026) : la carte prend l'état que le serveur
-  // vient de confirmer, sans attendre le retour de la page entière — qui pouvait laisser plusieurs
-  // secondes « En attente » et le bouton « Autoriser » sur un paiement déjà autorisé. Les compteurs du
-  // haut lisent les mêmes décisions (`decisions-du-centre.tsx`) ; la règle est pure (`decisions-locales.ts`).
-  const { decisions, noter } = useDecisionsDuCentre();
-  const statutDe = (o: CentreOrder): CentralStatus => statutAffiche(o.id, o.centralStatus, decisions);
   const retours = useRetours();
-  const [acting, setActing] = React.useState<{ order: CentreOrder; decision: CentralDecision } | null>(null);
-  const [replying, setReplying] = React.useState<CentreOrder | null>(null);
-  const [open, setOpen] = React.useState<string | null>(null);
-  // Le motif, CONTRÔLÉ : les motifs rapides (« Non prioritaire »…) s'y écrivent d'un clic, et l'on complète.
+  const [decisions, setDecisions] = React.useState<DecisionsLocales>({});
+  const statutDe = React.useCallback(
+    (f: ContexteDecision): CentralStatus => statutAffiche(f.id, f.centralStatus as CentralStatus, decisions),
+    [decisions],
+  );
+  const designe = initiale && file.some((f) => f.id === initiale) ? initiale : null;
+  const [choisi, setChoisi] = React.useState<string | null>(designe ?? file[0]?.id ?? null);
+  // Au téléphone, la fiche s'ouvre en plein écran au toucher (et d'emblée quand l'adresse désigne un ordre).
+  const [pleinEcran, setPleinEcran] = React.useState(Boolean(designe));
+  const [refusOuvert, setRefusOuvert] = React.useState(false);
   const [motif, setMotif] = React.useState("");
-  const ouvrir = (order: CentreOrder, decision: CentralDecision) => { setErr(null); setMotif(""); setActing({ order, decision }); };
+  const [echeance, setEcheance] = React.useState("");
+  const [note, setNote] = React.useState("");
+  const [reponse, setReponse] = React.useState("");
 
-  // UNE seule file : l'entité est déjà choisie par la page.
-  const groups: [string, CentreOrder[]][] = [[titre, orders]];
+  const courant = file.find((f) => f.id === choisi) ?? null;
+  // L'ordre choisi a quitté la file (décidé, les nouvelles données sont là) : la fiche passe au premier qui attend.
+  React.useEffect(() => {
+    if (courant || file.length === 0) return;
+    setChoisi(file.find((f) => awaitsCentre(statutDe(f)))?.id ?? file[0].id);
+  }, [courant, file, statutDe]);
+  // L'échéance proposée est celle que le demandeur a souhaitée ; le centre peut en imposer une autre.
+  React.useEffect(() => { setEcheance(courant?.echeance?.slice(0, 10) ?? ""); }, [courant?.id, courant?.echeance]);
 
-  if (orders.length === 0) {
+  const choisir = (id: string) => {
+    setChoisi(id);
+    setPleinEcran(true);
+    setRefusOuvert(false);
+    setMotif("");
+    setNote("");
+    setReponse("");
+    setErr(null);
+  };
+
+  const nbAttente = file.filter((f) => awaitsCentre(statutDe(f))).length;
+
+  async function decider(f: ContexteDecision, decision: Extract<CentralDecision, "APPROVE" | "REFUSE">) {
+    const fd = new FormData();
+    fd.set("id", f.id);
+    fd.set("decision", decision);
+    fd.set("body", decision === "REFUSE" ? motif.trim() : note.trim());
+    // CE QUE L'ÉCRAN AFFICHAIT (§118.191) : l'action compare, et dit l'écart avec les deux valeurs.
+    fd.set("montantVu", String(f.montant));
+    fd.set("beneficiaireVu", f.beneficiaire ?? "");
+    if (decision === "APPROVE" && echeance) fd.set("dueDate", echeance);
+    const depuis = f.centralStatus as CentralStatus;
+    await run(async () => {
+      const r = await decidePayment(fd);
+      const suivant = r.ok ? applyDecision(depuis, decision) : null;
+      if (suivant) setDecisions((avant) => ({ ...avant, [f.id]: { depuis, statut: suivant, montant: f.montant } }));
+      if (r.ok) retours.succes(r.message ?? "Décision enregistrée.");
+      return r;
+    }, () => {
+      setRefusOuvert(false);
+      setMotif("");
+      // LA FICHE SUIVANTE S'OUVRE — le temps de lire que la ligne est passée « Autorisé ».
+      const prochain = file.find((x) => x.id !== f.id && awaitsCentre(statutDe(x)));
+      window.setTimeout(() => { if (prochain) setChoisi(prochain.id); else setPleinEcran(false); }, 900);
+    });
+  }
+
+  async function repondre(f: ContexteDecision) {
+    const fd = new FormData();
+    fd.set("id", f.id);
+    fd.set("body", reponse);
+    const depuis = f.centralStatus as CentralStatus;
+    await run(async () => {
+      const r = await respondToPaymentCentre(fd);
+      const suivant = r.ok ? applyResubmission(depuis) : null;
+      if (suivant) setDecisions((avant) => ({ ...avant, [f.id]: { depuis, statut: suivant, montant: f.montant } }));
+      if (r.ok) retours.succes(r.message ?? "Réponse envoyée — le paiement retourne au centre.");
+      return r;
+    }, () => setReponse(""));
+  }
+
+  if (file.length === 0) {
     return (
       <EmptyState
         icon="ShieldCheck"
-        title="Aucun paiement pour cette entité"
-        description="Tout paiement de la société arrive ici avant d'atteindre les Finances, quel que soit son montant. Changez d'entité en haut pour voir les autres."
+        title="Rien à décider pour cette entité"
+        description="Les paiements déjà décidés sont dans le menu ⋯ de l'en-tête. Changez de société en haut pour voir les autres."
       />
     );
   }
 
+  const statutCourant = courant ? statutDe(courant) : null;
+  const peutDecider = Boolean(courant && canDecide && statutCourant && awaitsCentre(statutCourant));
+
   return (
-    <div className="space-y-5">
-      {groups.map(([company, list]) => {
-        const waiting = list.filter((o) => awaitsCentre(statutDe(o)));
-        // Le MONTANT en attente — nommé à part : il s'appelait `total` et masquait le nombre de paiements de
-        // l'entité (prop `total`), si bien que l'en-tête affichait « (4 sur 298 452) », un montant pris pour un compte.
-        const montantEnAttente = waiting.reduce((a, o) => a + o.amount, 0);
-        return (
-          <section key={company} className="surface space-y-3 p-3 sm:p-4">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="flex items-center gap-2 text-sm font-semibold">
-                <Coins className="h-4 w-4 text-primary" /> {company}
-                <span className="text-xs font-normal text-muted-foreground">({total > list.length ? `${list.length} sur ${total}` : list.length})</span>
-              </h2>
-              {waiting.length > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  <span className="font-semibold text-warning">{formatCurrency(montantEnAttente)}</span> en attente d&apos;autorisation
-                </p>
-              )}
-            </div>
+    <div className="flex flex-col items-start gap-4 lg:flex-row">
+      <section aria-labelledby="file-centre" className="w-full min-w-0 overflow-hidden rounded-xl border border-border bg-card lg:max-w-[440px] lg:flex-[1_1_380px]">
+        <h2 id="file-centre" className="px-4 pb-2.5 pt-4 text-base font-semibold">{canDecide ? "À décider" : "Mes paiements au centre"} · {nbAttente}</h2>
+        <ul>
+          {file.map((f) => {
+            const statut = statutDe(f);
+            const decide = !awaitsCentre(statut);
+            const actif = f.id === choisi;
+            const alerte = alerteCourte(f.alertes);
+            return (
+              <li key={f.id} className="border-t border-border">
+                <button
+                  type="button" onClick={() => choisir(f.id)} aria-current={actif ? "true" : undefined}
+                  className={cn(
+                    "flex w-full flex-col gap-1 px-4 py-3.5 text-left transition-colors hover:bg-secondary/60",
+                    actif && "bg-primary/10 shadow-[inset_3px_0_0_hsl(var(--primary))]",
+                    decide && "opacity-55",
+                  )}
+                >
+                  <span className="flex items-baseline justify-between gap-3">
+                    <span className="min-w-0 text-[15px] font-semibold [overflow-wrap:anywhere]">{f.objet}</span>
+                    <span className="whitespace-nowrap text-[15px] font-bold tabular-nums">{formatCurrency(f.montant)}</span>
+                  </span>
+                  <span className="flex justify-between gap-3 text-[13px] text-muted-foreground">
+                    <span className="min-w-0 [overflow-wrap:anywhere]">{f.origine}{f.beneficiaire ? ` · ${f.beneficiaire}` : ""}</span>
+                    <span className={cn("whitespace-nowrap", f.echeanceFixe && !decide && "font-semibold text-destructive")}>
+                      {decide || !canDecide ? CENTRAL_STATUS_LABEL[statut] : phraseEcheance(f, true) ?? ""}
+                    </span>
+                  </span>
+                  {alerte && !decide && <span className="text-[13px] font-semibold text-destructive">{alerte}</span>}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
 
-            {/* UNE CARTE PAR DEMANDE, et non une ligne de liste séparée d'un filet.
-                Autoriser une sortie d'argent se fait une demande à la fois : quand elles se
-                touchent, l'œil glisse d'un montant à l'autre et l'on clique « Autoriser » sur la
-                ligne d'à côté. L'espace ici n'est pas décoratif, il évite une erreur coûteuse.
-                On s'arrête à une bordure et un peu d'air — au-delà, la file cesse de se lire d'un
-                coup d'œil, ce qui est le second défaut de cet écran. */}
-            <ul className="space-y-2">
-              {list.map((o) => {
-                const isOpen = open === o.id;
-                const statut = statutDe(o);
-                return (
-                  <li key={o.id} className="rounded-xl border border-border bg-background p-3">
-                    <div className="flex flex-wrap items-start gap-2">
-                      <div className="min-w-0 flex-1">
-                        {/* LE TITRE EST LE LIEN. Un bouton « Ouvrir le dossier & ses pièces »
-                            posé à côté disait deux fois la même chose et allongeait une barre
-                            d'actions déjà chargée : ce qu'on veut lire, on clique dessus. */}
-                        <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
-                          {/* Au téléphone, le libellé se lit en entier (deux lignes) : on autorise ce qu'on lit. */}
-                          {o.dossierHref ? (
-                            <Link href={o.dossierHref} className="min-w-0 text-primary [overflow-wrap:anywhere] hover:underline sm:truncate" title="Ouvrir le dossier : pièces, demandes de pièces, discussion">
-                              {o.label}
-                            </Link>
-                          ) : (
-                            <span className="min-w-0 [overflow-wrap:anywhere] sm:truncate">{o.label}</span>
-                          )}
-                          <Badge tone={TONE[statut]}>{CENTRAL_STATUS_LABEL[statut]}</Badge>
-                        </p>
-                        <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">
-                          {o.reference} · {o.beneficiary ?? "bénéficiaire non précisé"} · demandé par {o.requestedBy ?? "—"} · {formatDateTime(o.createdAt)}
-                        </p>
-                        {o.produit && (
-                          <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs [overflow-wrap:anywhere]">
-                            <Pill className="h-3.5 w-3.5 shrink-0 text-primary" />
-                            {o.produit.nature && <Badge tone="info" dot={false}>{o.produit.nature}</Badge>}
-                            <span>
-                              Produit :{" "}
-                              {o.produit.href
-                                ? <Link href={o.produit.href} className="font-medium text-primary hover:underline">{o.produit.nom}</Link>
-                                : <span className="font-medium text-foreground">{o.produit.nom}</span>}
-                              {" · "}<span className="font-mono">{o.produit.reference}</span>
-                              {o.produit.dci && o.produit.dci !== o.produit.nom ? <> · {o.produit.dci}</> : null}
-                            </span>
-                          </p>
-                        )}
-                        {o.doublonPossible && (
-                          <p className="mt-1 rounded-md border border-warning/40 bg-warning/10 px-2 py-1 text-xs [overflow-wrap:anywhere]" data-doublon-possible>
-                            <span className="font-medium">Doublon possible — </span>{o.doublonPossible}
-                          </p>
-                        )}
-                        {o.note && (
-                          <p className="mt-1 whitespace-pre-wrap rounded-md bg-secondary/50 px-2 py-1 text-xs [overflow-wrap:anywhere]">
-                            <span className="font-medium">Commentaire du demandeur : </span>{o.note}
-                          </p>
-                        )}
-                        {o.pieces.length > 0 && (
-                          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-                            <Paperclip className="h-3 w-3 shrink-0 text-muted-foreground" />
-                            {o.pieces.map((p) => (
-                              <a key={p.id} href={`/api/documents/${p.id}`} target="_blank" rel="noreferrer" className="min-w-0 text-primary [overflow-wrap:anywhere] hover:underline">
-                                {p.name}
-                              </a>
-                            ))}
-                          </p>
-                        )}
-                        {o.piecesDemandees.length > 0 && (
-                          <ul className="mt-1 space-y-0.5 text-xs" data-pieces-demandees>
-                            {o.piecesDemandees.map((d) => (
-                              <li key={d.id} className="flex flex-wrap items-center gap-x-1.5 [overflow-wrap:anywhere]">
-                                <Badge tone={d.deposee ? "info" : "warning"} dot={false}>{d.deposee ? "Pièce déposée, à examiner" : "Pièce demandée"}</Badge>
-                                <Link href={`/pieces/${d.id}`} className="text-primary hover:underline">{d.label}</Link>
-                                {d.a && <span className="text-muted-foreground">— à {d.a}</span>}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                        {o.proposedAmount != null && (
-                          <p className="text-xs text-info tabular-nums">
-                            Montant proposé par le centre : {formatCurrency(o.proposedAmount)}
-                          </p>
-                        )}
-                      </div>
-                      <p className="shrink-0 whitespace-nowrap text-base font-semibold tabular-nums sm:text-sm">{formatCurrency(o.amount)}</p>
-                    </div>
-
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      {o.messages.length > 0 && (
-                        <button
-                          type="button" onClick={() => setOpen(isOpen ? null : o.id)}
-                          className="inline-flex min-h-9 items-center gap-1 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-secondary sm:min-h-0 sm:px-1.5 sm:py-0.5"
-                        >
-                          <MessageSquare className="h-3 w-3" /> {o.messages.length} échange{o.messages.length > 1 ? "s" : ""}
-                          <ChevronDown className={`h-3 w-3 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-                        </button>
-                      )}
-
-                      {/* LA DEMANDE D'ORIGINE, à côté du dossier — deux objets distincts : le
-                            dossier dit ce qui JUSTIFIE le paiement (facture, bon, discussion),
-                            l'origine dit ce qu'on ACHÈTE. */}
-                      {o.sourceHref && (
-                        <Link href={o.sourceHref} className="inline-flex min-h-9 min-w-0 items-center gap-1 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-secondary sm:min-h-0 sm:px-1.5 sm:py-0.5">
-                          <ExternalLink className="h-3 w-3" /> {o.sourceLabel ?? "Demande d'origine"}
-                        </Link>
-                      )}
-
-                      {/* Le bouton d'ouverture a disparu : c'est le TITRE qui ouvre, ci-dessus.
-                            Reste à DIRE quand il n'y a rien à ouvrir — un titre qui ne réagit pas
-                            au clic se lit comme une panne, on recommence, on abandonne. Et
-                            l'ORIGINE se lit toujours, même sans fiche à ouvrir : toutes les
-                            provenances partagent la même file, c'est elle qui les distingue. */}
-                      {!o.sourceHref && (o.sourceLabel || !o.dossierHref) && (
-                        <span className="text-xs text-muted-foreground">
-                          {o.dossierHref ? o.sourceLabel : o.sourceLabel ? `${o.sourceLabel} — pas de fiche à ouvrir` : "Pas de fiche à ouvrir"}
-                        </span>
-                      )}
-
-                      {canDecide && awaitsCentre(statut) && (
-                        <>
-                          {/* RÉCLAMER CE QUI MANQUE plutôt que refuser faute de pièce : la
-                              demande atterrit dans « Pièces demandées » de la personne, avec son
-                              fil — elle dépose sans qu'on lui ouvre le module. */}
-                          <ItemAskPanel
-                            entityType="EXPENSE_ORDER"
-                            entityId={o.id}
-                            link="/centre-de-paiement"
-                            subject={`${o.reference} — ${o.label}`}
-                            moduleLibelle={null}
-                            canAskValidation={false}
-                          />
-                          {/* Au téléphone, les deux issues prennent toute la largeur de la carte, côte à côte,
-                              à hauteur de pouce : on ne les cherche pas au bout d'une rangée. */}
-                          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
-                            <Button size="sm" disabled={busy} className="h-11 text-sm sm:h-8 sm:text-xs" onClick={() => ouvrir(o, "APPROVE")}>
-                              <ShieldCheck className="h-4 w-4" /> Autoriser
-                            </Button>
-                            <Button size="sm" variant="outline" disabled={busy} className="h-11 text-sm text-destructive hover:bg-destructive/10 sm:h-8 sm:text-xs" onClick={() => ouvrir(o, "REFUSE")}>
-                              <ShieldX className="h-4 w-4" /> Refuser
-                            </Button>
-                          </div>
-                        </>
-                      )}
-
-                      {/* LE DEMANDEUR RÉPOND — c'est ce qui rend les allers-retours possibles. */}
-                      {o.isMine && awaitsRequester(statut) && (
-                        <Button size="sm" disabled={busy} onClick={() => { setErr(null); setReplying(o); }}>
-                          <Send className="h-4 w-4" /> Répondre et resoumettre
-                        </Button>
-                      )}
-                    </div>
-
-                    {isOpen && (
-                      <ul className="mt-2 space-y-1.5 border-l-2 border-border pl-3">
-                        {o.messages.map((m) => (
-                          <li key={m.id} className="text-xs">
-                            <p className="text-muted-foreground">
-                              <span className="font-medium text-foreground">{m.author ?? "—"}</span>
-                              {m.decision && ` · ${CENTRAL_DECISION_LABEL[m.decision as CentralDecision] ?? m.decision}`}
-                              {" · "}{formatDateTime(m.createdAt)}
-                            </p>
-                            <p className="whitespace-pre-wrap">{m.body}</p>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-            {/* UNE COUPE SE DIT : le compte du titre est exact, la liste s'arrête aux plus récentes. */}
-            {nonAffiches > 0 && (
-              <p className="text-xs text-muted-foreground">
-                {nonAffiches} paiement{nonAffiches > 1 ? "s" : ""} plus ancien{nonAffiches > 1 ? "s" : ""} non affiché{nonAffiches > 1 ? "s" : ""} pour cette entité.
-              </p>
-            )}
-          </section>
-        );
-      })}
-
-      {acting && (
-        <Sheet
-          open onClose={() => !busy && setActing(null)} width="md"
-          title={CENTRAL_DECISION_LABEL[acting.decision]}
-          description={`${acting.order.reference} — ${acting.order.label} (${formatCurrency(acting.order.amount)})`}
+      {courant && (
+        <section
+          aria-labelledby="fiche-centre"
+          className={cn(
+            "min-w-0 bg-card p-4 sm:p-5 lg:static lg:block lg:flex-[999_1_560px] lg:rounded-xl lg:border lg:border-border",
+            pleinEcran ? "fixed inset-0 z-40 overflow-y-auto" : "hidden",
+          )}
         >
-          <form
-            action={async (fd) => {
-              fd.set("id", acting.order.id);
-              fd.set("decision", acting.decision);
-              // CE QUE L'ÉCRAN AFFICHAIT (§118.191) : un montant ou un bénéficiaire corrigé pendant la
-              // lecture ne s'autorise pas sans avoir été vu — l'action compare et le dit.
-              fd.set("montantVu", String(acting.order.amount));
-              fd.set("beneficiaireVu", acting.order.beneficiary ?? "");
-              const { order, decision } = acting;
-              await run(async () => {
-                const r = await decidePayment(fd);
-                // Confirmé par le serveur → la carte et les compteurs le montrent TOUT DE SUITE, et l'avis le dit.
-                const suivant = r.ok ? applyDecision(order.centralStatus, decision) : null;
-                if (suivant) noter(order.id, { depuis: order.centralStatus, statut: suivant, montant: order.amount });
-                if (r.ok) retours.succes(r.message ?? `${CENTRAL_DECISION_LABEL[decision]} : ${order.reference} — enregistré.`);
-                return r;
-              }, () => setActing(null));
-            }}
-            className="space-y-4"
-          >
-            {acting.decision === "APPROVE" && (
-              <div className="space-y-1.5">
-                <Label htmlFor="pc-due">Échéance imposée aux Finances</Label>
-                <Input id="pc-due" name="dueDate" type="date" defaultValue={acting.order.dueDate?.slice(0, 10) ?? ""} />
-                <p className="text-xs text-muted-foreground">
-                  {acting.order.dueDate
-                    ? <>Le demandeur a souhaité le <strong>{formatDate(acting.order.dueDate)}</strong>, échéance déclarée <strong>{deadlineNatureLabel(acting.order.deadlineNature).toLowerCase()}</strong>. Vous voyez la file entière : c&apos;est vous qui arbitrez.</>
-                    : <>Aucune échéance demandée. Laissez vide si rien ne presse — une date posée est une date que la comptabilité doit tenir.</>}
-                </p>
-                {deadlineNatureOf(acting.order.deadlineNature) === "FIXED" && acting.order.dueDate && (
-                  <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                    Le demandeur a déclaré cette échéance <strong>fixe et non négociable</strong> : elle a été engagée auprès du bénéficiaire. La déplacer a un coût que vous seul pouvez arbitrer.
-                  </p>
+          <button type="button" onClick={() => setPleinEcran(false)} className="mb-3 inline-flex min-h-10 items-center gap-1.5 text-sm font-semibold text-primary lg:hidden">
+            <ArrowLeft className="h-4 w-4" /> Retour à la file
+          </button>
+          <FicheDecision
+            f={courant}
+            decision={
+              <>
+                {statutCourant && !awaitsCentre(statutCourant) && (
+                  <div role="status" className={cn("rounded-[10px] px-3.5 py-3 font-semibold", statutCourant === "APPROVED" ? "bg-success/10 text-success" : statutCourant === "REFUSED" ? "bg-destructive/10 text-destructive" : "bg-secondary text-foreground")}>
+                    {statutCourant === "APPROVED" ? "Autorisé — le paiement part chez les Finances (Banque & paiements)."
+                      : statutCourant === "REFUSED" ? "Refusé — le demandeur est prévenu, avec votre motif."
+                      : CENTRAL_STATUS_LABEL[statutCourant]}
+                  </div>
                 )}
-              </div>
-            )}
-            <div className="space-y-1.5">
-              <Label htmlFor="pc-body">
-                {acting.decision === "APPROVE" ? "Note (facultative)" : "Motif"}
-                {acting.decision !== "APPROVE" && <span className="ml-0.5 text-destructive">*</span>}
-              </Label>
-              {/* LES MOTIFS EN UN CLIC — « Non prioritaire » d'abord. Un raccourci d'écriture : le texte
-                  reste libre, on complète ou l'on écrit le sien. */}
-              {acting.decision === "REFUSE" && (
-                <div className="flex flex-wrap gap-1.5">
-                  {MOTIFS_REFUS_RAPIDES.map((m) => (
-                    <button
-                      key={m} type="button"
-                      onClick={() => setMotif((prev) => (!prev.trim() ? m : prev.includes(m) ? prev : `${prev.trim()} — ${m}`))}
-                      className={`min-h-9 rounded-full border px-3 py-1 text-xs sm:min-h-0 ${motif.includes(m) ? "border-destructive/50 bg-destructive/10 text-destructive" : "border-border text-muted-foreground hover:bg-secondary"}`}
-                    >
-                      {m}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <Textarea
-                id="pc-body" name="body" rows={3}
-                value={motif} onChange={(e) => setMotif(e.target.value)}
-                required={acting.decision !== "APPROVE"}
-                placeholder={
-                  acting.decision === "REFUSE" ? "Pourquoi ce paiement ne doit pas partir…"
-                        : "À quelles conditions vous autorisez…"
-                }
-              />
-            </div>
-            {err && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => setActing(null)} disabled={busy}>Annuler</Button>
-              <BoutonDecisif type="submit" disabled={busy} className="h-11 w-full sm:h-10 sm:w-auto" variant={acting.decision === "REFUSE" ? "destructive" : "primary"}>
-                {busy && <Loader2 className="h-4 w-4 animate-spin" />} {CENTRAL_DECISION_LABEL[acting.decision]}
-              </BoutonDecisif>
-            </div>
-          </form>
-        </Sheet>
-      )}
-
-      {replying && (
-        <Sheet
-          open onClose={() => !busy && setReplying(null)} width="md"
-          title="Répondre au centre de paiement"
-          description={`${replying.reference} — ${replying.label}. Votre réponse renvoie le dossier au centre.`}
-        >
-          <form
-            action={async (fd) => {
-              fd.set("id", replying.id);
-              const order = replying;
-              await run(async () => {
-                const r = await respondToPaymentCentre(fd);
-                const suivant = r.ok ? applyResubmission(order.centralStatus) : null;
-                if (suivant) noter(order.id, { depuis: order.centralStatus, statut: suivant, montant: order.amount });
-                if (r.ok) retours.succes(r.message ?? "Réponse envoyée — le paiement retourne au centre.");
-                return r;
-              }, () => setReplying(null));
-            }}
-            className="space-y-4"
-          >
-            <div className="space-y-1.5">
-              <Label htmlFor="pc-reply">Votre réponse</Label>
-              <Textarea id="pc-reply" name="body" rows={4} required placeholder="Votre argumentation, ou le montant corrigé et ce qui le justifie…" />
-            </div>
-            {err && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => setReplying(null)} disabled={busy}>Annuler</Button>
-              <Button type="submit" className="w-full sm:w-auto" disabled={busy}>{busy && <Loader2 className="h-4 w-4 animate-spin" />} Envoyer</Button>
-            </div>
-          </form>
-        </Sheet>
+                {peutDecider && (
+                  <div className="flex flex-col gap-2.5 border-t border-border pt-4">
+                    {refusOuvert ? (
+                      <div className="flex flex-col gap-2">
+                        <p className="text-sm font-semibold">Motif du refus — c&apos;est ce que lira le demandeur</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {MOTIFS_REFUS_RAPIDES.map((m) => (
+                            <button
+                              key={m} type="button" onClick={() => setMotif(m)} aria-pressed={motif === m}
+                              className={cn("min-h-9 rounded-full border px-3 text-[13px]", motif === m ? "border-primary bg-primary/10 font-semibold text-primary" : "border-border hover:bg-secondary")}
+                            >{m}</button>
+                          ))}
+                        </div>
+                        <Textarea aria-label="Motif du refus" rows={2} value={motif} onChange={(e) => setMotif(e.target.value)} placeholder="Ou écrivez le vôtre…" />
+                      </div>
+                    ) : (
+                      <details className="text-sm">
+                        <summary className="cursor-pointer text-muted-foreground">Échéance imposée aux Finances, note</summary>
+                        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                          <div className="space-y-1">
+                            <Label htmlFor="pc-due">Échéance à tenir</Label>
+                            <Input id="pc-due" type="date" value={echeance} onChange={(e) => setEcheance(e.target.value)} />
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor="pc-note">Note (facultative)</Label>
+                            <Input id="pc-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="À quelles conditions vous autorisez…" />
+                          </div>
+                        </div>
+                      </details>
+                    )}
+                    {/* LA SÉPARATION DES TÂCHES DITE AVANT LE CLIC — le bouton reste fermé, et la phrase dit pourquoi. */}
+                    {courant.refusAutoriser && !refusOuvert && <p className="text-[13px] text-muted-foreground">{courant.refusAutoriser}</p>}
+                    {err && <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <Button type="button" variant="outline" className="h-11" disabled={busy} onClick={() => { setErr(null); setMotif(""); setRefusOuvert((o) => !o); }}>
+                        {refusOuvert ? "Annuler" : "Refuser"}
+                      </Button>
+                      {refusOuvert ? (
+                        <BoutonDecisif type="button" variant="destructive" className="h-11" disabled={busy || !motif.trim()} onClick={() => void decider(courant, "REFUSE")}>
+                          {busy && <Loader2 className="h-4 w-4 animate-spin" />} Confirmer le refus
+                        </BoutonDecisif>
+                      ) : (
+                        <BoutonDecisif type="button" className="h-11" disabled={busy || Boolean(courant.refusAutoriser)} title={courant.refusAutoriser ?? undefined} onClick={() => void decider(courant, "APPROVE")}>
+                          {busy && <Loader2 className="h-4 w-4 animate-spin" />} Autoriser le paiement
+                        </BoutonDecisif>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </>
+            }
+            repli={
+              <>
+                {/* RÉCLAMER CE QUI MANQUE plutôt que refuser faute de pièce : la demande arrive dans « Pièces demandées ». */}
+                {peutDecider && (
+                  <ItemAskPanel
+                    entityType="EXPENSE_ORDER" entityId={courant.id} link="/centre-de-paiement"
+                    subject={`${courant.reference} — ${courant.objet}`} moduleLibelle={null} canAskValidation={false}
+                  />
+                )}
+                {/* LES DOSSIERS D'AVANT LE 02/09/2026 (« révision », « argumentation ») : leur demandeur répond ici, et le
+                    paiement revient au centre. Le centre ne pose plus ces états. */}
+                {courant.estLeDemandeur && statutCourant && awaitsRequester(statutCourant) && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="pc-reponse">Répondre au centre</Label>
+                    <Textarea id="pc-reponse" rows={3} value={reponse} onChange={(e) => setReponse(e.target.value)} placeholder="Votre réponse, ou le montant corrigé et ce qui le justifie…" />
+                    <Button type="button" size="sm" disabled={busy || !reponse.trim()} onClick={() => void repondre(courant)}>Envoyer</Button>
+                  </div>
+                )}
+              </>
+            }
+          />
+        </section>
       )}
     </div>
   );
