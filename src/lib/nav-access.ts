@@ -147,9 +147,15 @@ export async function navigationFor(user: SessionUser): Promise<NavItem[]> {
   const moduleOuvert = (n: { module: string }): boolean =>
     modules.includes(n.module as (typeof modules)[number]);
 
+  // UNE SEULE ENTRÉE POUR LE CENTRE DE VALIDATIONS (Super Admin, 24/11/2026) : « Centre de validations » et « Demandes de
+  // validations » mènent au même écran (`/validations`). Qui siège au centre ne garde que la première ; les autres gardent
+  // « Demandes de validations », leur seule porte pour demander.
+  const siegeAuCentre = NAVIGATION.some((n) => n.module === "VALIDATION_CENTRE" && !n.masque && (!n.gate || gateOpen[n.gate]) && moduleOuvert(n));
+
   return NAVIGATION.reduce<NavItem[]>((acc, n) => {
     // MISE DE CÔTÉ (`masque`) : pour tout le monde, Super Admin compris — la route reste servie, l'entrée ne s'affiche plus.
     if (n.masque) return acc;
+    if (siegeAuCentre && n.module === "VALIDATIONS" && n.href === "/validations") return acc;
     if (n.gate && !gateOpen[n.gate]) return acc;
     // UN GROUPE SANS ÉCRAN (Finances, 24/11/2026) : il n'existe que par ses enfants ouverts, et mène au premier — le module
     // du parent seul ne l'ouvre pas, sinon l'entrée redirigerait vers un écran fermé.
