@@ -1,4 +1,4 @@
-import { test, expect, attendFusion } from "./banc";
+import { test, expect } from "./banc";
 import { fermer } from "./donnees";
 import { P } from "./comptes";
 
@@ -52,19 +52,3 @@ test("Rappels — ajouter, voir, marquer « Fait »", async ({ recette: r, page 
   });
 });
 
-test("Échéances intégrées — là où elles vivent, et dans « À faire »", attendFusion("echeances"), async ({ recette: r, page }) => {
-  await r.connecter("finances");
-  await r.controle("Chercher une page ou un onglet « Échéancier »", "N'existe pas (ni menu, ni onglet)", async () => {
-    await r.aller("/mon-espace");
-    await expect(page.getByRole("link", { name: /Échéancier/ })).toHaveCount(0);
-    await expect(page.getByRole("tab", { name: /Échéancier/ })).toHaveCount(0);
-  });
-  await r.controle("« À faire » des Finances avant le 20 du mois", "Une ligne « G50 — <mois> » (déclaration et paiement avant le 20) avec un bouton qui ouvre Impôts & cotisations", async () => {
-    await expect(page.getByText(/G50/).first()).toBeVisible();
-  });
-  await r.controle("RH : une fin de contrat / période d'essai dans 15 jours", "Ligne dans « À faire » de la RH, et l'échéance visible sur la fiche salarié", async () => {
-    await r.connecter("rh");
-    await r.aller("/mon-espace");
-    await expect(page.getByText(/contrat|essai/i).first()).toBeVisible();
-  });
-});

@@ -11,7 +11,6 @@ import { cliquerDecisif } from "../decisif";
  * le demandeur ne décide pas son propre paiement (séparation des tâches).
  */
 
-
 let A = { id: "", reference: "", libelle: "" };
 let B = { id: "", reference: "", libelle: "" };
 let C = { id: "", reference: "", libelle: "" };

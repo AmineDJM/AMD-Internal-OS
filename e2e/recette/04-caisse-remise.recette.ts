@@ -13,7 +13,6 @@ import { nomDe } from "./comptes";
  * caisse, celle des Moyens généraux.
  */
 
-
 let reference = "";
 test.beforeAll(async () => { await compteBancaire("CPA Caisse", 5_000_000); });
 test.afterAll(async () => { await fermer(); });

@@ -1,4 +1,4 @@
-import { test, expect, attendFusion } from "./banc";
+import { test, expect } from "./banc";
 import { decorVisite, fermer } from "./donnees";
 import { P } from "./comptes";
 
@@ -49,18 +49,3 @@ test("Responsable réglementaire / pharmacien — instruire le cas", async ({ re
   });
 });
 
-test("Déclaration à l'autorité, délai et visa", attendFusion("pvdecl"), async ({ recette: r, page }) => {
-  await r.connecter("pharmacienIM");
-  await r.aller("/regulatory/pharmacovigilance");
-  await r.etape("Ouvrir le cas, évaluer « Gravité », « Attendu », « Imputabilité »", "« À évaluer : gravité, caractère attendu, imputabilité. » puis l'échéance de déclaration calculée (« Connu le (jour zéro du délai) » + jours calendaires grave / non grave)", async () => {
-    await page.getByText(/Cardiolex/).first().click();
-    await expect(page.getByText(/Imputabilité/).first()).toBeVisible();
-  });
-  await r.etape("« Enregistrer la déclaration à l'autorité » : « Déclaré le », « Référence », « Pièce de la déclaration »", "La déclaration est tracée ; « Accusé de réception » attendu", async () => {
-    await page.getByRole("button", { name: "Enregistrer la déclaration à l'autorité" }).click();
-    await expect(page.getByText("Déclaré le").first()).toBeVisible();
-  });
-  await r.controle("« Visa du pharmacien responsable »", "Seul le pharmacien responsable vise ; le délégué ne voit pas le geste", async () => {
-    await expect(page.getByText("Visa du pharmacien responsable").first()).toBeVisible();
-  });
-});

@@ -68,7 +68,7 @@ l'écran** (demande de BV, remise de caisse, courrier, signalement PV, dépôt D
 - **Contrôle négatif** = refus de droit, séparation des tâches, absence de ce qui ne doit pas être là.
 - 📱 = version téléphone à vérifier (aucun défilement de côté, gestes accessibles au pouce).
 - Gravité d'un écart : **Bloquant** (argent, droits, perte de données), **Majeur** (geste impossible ou faux), **Mineur** (libellé, mise en page).
-- `@attend-fusion:<lot>` = parcours écrit d'après DECISIONS.md et les maquettes ; le lot n'est pas encore fusionné — ses sélecteurs seront ajustés à l'exécution.
+- `@attend-fusion:<lot>` = parcours écrit d'après DECISIONS.md et les maquettes ; le lot n'est pas encore fusionné — étapes décrites ici, script écrit au contrôle final (helper `attendFusion(...)` prêt dans `banc.ts`).
 
 ### 1.5 État des lots au moment de l'écriture (branche de base `2f75588`)
 
@@ -273,14 +273,14 @@ Banc : `10-aujourdhui-echeances.recette.ts` · **fusionné** + `@attend-fusion:e
 4. `@attend-fusion:echeances` : **aucune** page ni onglet « Échéancier » ; chaque échéance vit dans son module ET dans « À faire » (G50 avant le 20 chez les Finances, fin de contrat / période d'essai chez la RH, renouvellement d'enregistrement chez le Regulatory).
 
 ### P11 — Justificatif obligatoire
-Banc : `11-justificatif.recette.ts` · `@attend-fusion:justif`.
+Banc : à écrire au contrôle final · `@attend-fusion:justif`.
 1. Un ordre émis **sans pièce** (« Location véhicule séminaire », 75 000) naît « en attente de justificatif » : **absent** du centre de paiement **et** de la Banque.
 2. L'émetteur (assistante) voit dans « Aujourd'hui » la ligne « Joindre le justificatif » ; il dépose la facture → l'ordre entre **seul** au centre (« Pièces » : facture ✓ ouvrable).
 3. Chaque circuit exige sa pièce : paie (état de paie à l'envoi), caisse (bon de remise), information médicale (déclaration), PEC (facture obligatoire), Impôts (G50 / bordereau), BV (proforma / quittance).
 4. Un ordre né sous la règle sans justificatif accepté ne se règle pas ; les ordres d'avant ne sont pas bloqués mais signalés au centre.
 
 ### P12 — Comptabilité et « Composer une facture »
-Banc : `12-comptabilite.recette.ts` · `@attend-fusion:compta`.
+Banc : à écrire au contrôle final · `@attend-fusion:compta`.
 1. Comptable : « Comptabilité » → onglets « Dépenses · total », « Recettes · total », « Résultat » (par mois) ; pastilles des sociétés de la personne ; une ligne par écriture : date, « Payé à » / « Reçu de », objet, montant, compte, justificatif (✓ pièce / ✕ manquant), origine.
 2. **Une seule recherche** : écritures de toute période ET factures du registre Legal ; « Facture non payée » → « Créer la demande de paiement » ou « Rattacher à un paiement fait ».
 3. Panneau d'une écriture : aperçu de la pièce, « Chaîne » (demandé / autorisé / payé), budget imputé ; « Modifier l'écriture », « Contre-passer » (motif **obligatoire**, « Une écriture inverse de … sera créée. », « Confirmer la contre-passation »), « Joindre un justificatif », « Demander la pièce ».
@@ -291,7 +291,7 @@ Banc : `12-comptabilite.recette.ts` · `@attend-fusion:compta`.
 Négatif : le comptable n'a jamais « Marquer payé ».
 
 ### P13 — Impôts & cotisations (G50) et TVA
-Banc : `13-impots-tva.recette.ts` · `@attend-fusion:impots`, `@attend-fusion:tva`, `@attend-fusion:campagne`.
+Banc : à écrire au contrôle final · `@attend-fusion:impots`, `@attend-fusion:tva`, `@attend-fusion:campagne`.
 1. Finances : Legal › factures → colonnes HT / TVA / TTC (taux 19 %, 9 %, 0 %) ; un total incohérent (HT + TVA + timbre ≠ TTC) est refusé ; filtre « TVA à compléter » (rien n'est inventé pour les anciennes factures).
 2. « Impôts & cotisations » (`/finances/impots-cotisations`) → pastilles des sociétés ; « Échéances · <société> » par état ; « ⋯ » : « Calendrier des échéances », « Ajouter un paiement ponctuel ».
 3. Préparer la **G50** du mois → « Décomposition du montant — ligne par ligne » : **TVA à payer = collectée − déductible**, CALCULÉE depuis les factures (« Très, très important ») ; « Comment la plateforme remplit ces montants » ; un montant modifié se trace (« Qui a fait quoi ») ; « Revenir au montant proposé ».
@@ -308,7 +308,7 @@ Banc : `14-ad-pro.recette.ts` · fiche **fusionnée** ; `@attend-fusion:adprolis
 Négatif : le Directeur des opérations ne vise pas au centre Ad & Pro.
 
 ### P15 — Départ d'un salarié
-Banc : `15-rh-depart.recette.ts` · `@attend-fusion:rhdepart`.
+Banc : à écrire au contrôle final · `@attend-fusion:rhdepart`.
 1. RH crée un salarié → son **compte utilisateur** naît automatiquement (carte « Compte » sur la fiche).
 2. Fiche de « Sofiane Départ » › fin de contrat : « Dernier jour travaillé », « Motif », « Préavis (jours) », « Note pour les valideurs » ; « Enregistrer le brouillon » / « Envoyer en validation » ; rappel « Validation RH → supérieur hiérarchique → DG. »
 3. Superviseur (N+1) valide ; DG valide (triple validation). « Annuler la fin de contrat… » possible tant que non close.
@@ -316,14 +316,14 @@ Banc : `15-rh-depart.recette.ts` · `@attend-fusion:rhdepart`.
 Négatif : le délégué n'ouvre pas la fiche RH.
 
 ### P16 — Enregistrement d'un produit, validité 5 ans
-Banc : `16-enregistrement-5-ans.recette.ts` · `@attend-fusion:regenreg`.
+Banc : à écrire au contrôle final · `@attend-fusion:regenreg`.
 1. Dossier « Tensiolex 10 mg » : « Joindre la décision » et « Joindre l'attestation de prix ».
 2. Décision déposée → l'IA lit début et fin de validité ; sans fin : **fin = début + 5 ans** (début 01/01/2022 → fin 01/01/2027) ; « Confirmer ».
 3. Alerte de renouvellement planifiée (et ligne dans « À faire » à l'approche, P10).
 4. « Confirmer le prix » après l'attestation.
 
 ### P17 — Campagne budgétaire : recettes et dépenses
-Banc : `17-campagne-budgetaire.recette.ts` · `@attend-fusion:campagne`.
+Banc : à écrire au contrôle final · `@attend-fusion:campagne`.
 1. DG (ou Super Admin) : « Campagne budgétaire » → « Saisir une recette » (produit · client, montant HT, société) → la synthèse « Trésorerie — TVA à reverser » se met à jour (TVA nette = collectée − déductible).
 2. « Taux et calendrier » : « IBS par défaut (%) », « IRG moyen (%) », « CNAS (%) » — « Taux préréglés — à confirmer par le cabinet » ; « Enregistrer les taux » ; IBS = résultat × taux.
 3. Directeur des opérations : saisit les **dépenses** de son pôle ; « Saisir une recette » **absent**.
@@ -339,12 +339,12 @@ Banc : `18-pouvoirs-directeurs.recette.ts` · budget Opérations **fusionné** ;
 7. Historique des données IA conservé (pas de purge).
 
 ### P19 — Département Informatique et registre des avantages
-Banc : `19-informatique-avantages.recette.ts` · `@attend-fusion:informatique`, `@attend-fusion:avantages`.
+Banc : à écrire au contrôle final · `@attend-fusion:informatique`, `@attend-fusion:avantages`.
 1. Informatique : budget propre ; ligne « Intelligence artificielle » consommée chaque mois par le coût mesuré ; la facture du fournisseur réglée le mois venu **solde** le mesuré (pas de double consommation) ; « Abonnements », « Parc ».
 2. Registre des avantages par médecin (Super Admin **seul**, clair et détaillé) : par médecin, chaque avantage, date, montant, demande d'origine, total par année. DG, Direction Marketing, KAM → refus.
 
 ### P20 — Charges fixes et natures (audit des dépenses, FONT FOI)
-Banc : `20-charges-fixes-natures.recette.ts` · `@attend-fusion:chargesfixes`, `@attend-fusion:natures`.
+Banc : à écrire au contrôle final · `@attend-fusion:chargesfixes`, `@attend-fusion:natures`.
 1. « Informations de la société » (ex-« Coordonnées des entités ») avec « Locaux & charges fixes ».
 2. Budget de l'**Administration** : une enveloppe par société, tenue par les **Finances** ; les Moyens généraux y passent, par société ; chaque mois les Finances demandent le paiement des charges fixes.
 3. Demande de paiement : champ « nature » **obligatoire** ; « Dons et mécénat » séparé du sponsoring ; « Emprunts » disponible (vide).
@@ -383,9 +383,11 @@ Chaque rôle joue ses parcours dans cet ordre ; les numéros renvoient au §3. �
 | **Caissier / moyens généraux** | P00 · P04 (📱 en attente ; « Confirmer la réception » ; « En caisse ») | 7 |
 
 Total : **22 parcours** (P00–P21), **≈ 270 étapes et contrôles** dans le cahier (colonne « Étapes » : ordre de grandeur
-par rôle). Le banc en automatise **84 tests** dans 22 fichiers — **57 prêts** (lots fusionnés) et **27 `@attend-fusion`** —
-portant **203 étapes / contrôles écrits** (davantage à l'exécution : P00 boucle sur les 15 comptes et leurs adresses
-interdites). Décompte : `npx playwright test -c playwright.recette.config.ts --list [--grep @attend-fusion]`.
+par rôle). Le banc automatise les parcours des lots **fusionnés** : **57 tests** dans 14 fichiers, **120 étapes /
+contrôles écrits** (davantage à l'exécution : P00 boucle sur les 15 comptes et leurs adresses interdites). Les parcours
+`@attend-fusion` (P11, P12, P13, P15, P16, P17, P19, P20 et les parties en attente de P07, P08, P09, P10, P14, P18) ne
+sont décrits QUE dans ce cahier : leurs scripts seront écrits au contrôle final, sur l'application fusionnée, à partir
+des étapes ci-dessus (consigne de l'orchestrateur, 24/11). Décompte : `npx playwright test -c playwright.recette.config.ts --list`.
 
 ---
 

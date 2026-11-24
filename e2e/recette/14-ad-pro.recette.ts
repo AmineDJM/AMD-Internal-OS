@@ -1,4 +1,4 @@
-import { test, expect, attendFusion, graine } from "./banc";
+import { test, expect, graine } from "./banc";
 import { db, fermer } from "./donnees";
 import { P } from "./comptes";
 
@@ -37,43 +37,3 @@ test("Fiche Ad & Pro simplifiée — « À vous », « La demande », « Postes 
   });
 });
 
-test("Liste Ad & Pro — un tableau, des pastilles, « À vous » en tête", attendFusion("adprolist"), async ({ recette: r, page }) => {
-  await r.connecter("dirMarketing");
-  await r.etape("Ouvrir « Ad & Pro »", "En-tête « Ad & Pro » + « Nouvelle demande », sans phrase ; pastilles d'état (« À vous » en tête) ; recherche instantanée ; « Filtres »", async () => {
-    await r.aller("/ad-pro");
-    await expect(page.getByRole("heading", { name: "Ad & Pro" })).toBeVisible();
-    await expect(page.getByRole("button", { name: /Nouvelle demande/ }).or(page.getByRole("link", { name: /Nouvelle demande/ })).first()).toBeVisible();
-  });
-  await r.controle("Taper « Blida »", "La liste se réduit à la demande ; pastilles recomptées", async () => {
-    await page.getByRole("searchbox").or(page.getByPlaceholder(/Rechercher/)).first().fill("Blida");
-    await expect(page.getByText(/CHU de Blida/).first()).toBeVisible();
-  });
-  await r.controle("Téléphone", "Une carte par demande, sans défilement de côté", async () => {
-    const tel = await r.telephone("dirMarketing");
-    await r.aller("/ad-pro", tel);
-    return r.sansDebordement(tel);
-  });
-});
-
-test("Centre de validation Ad & Pro — valider le total, viser un BC, seuils", attendFusion("ctradpro"), async ({ recette: r, page }) => {
-  await r.connecter("dg");
-  await r.etape("Ouvrir « Centre de validation Ad & Pro »", "File « À décider · n » à gauche, fiche à droite ; pastilles des sociétés ; menu ⋯ « Déjà décidés · n », « Réglage des seuils »", async () => {
-    await r.aller("/centre-ad-pro");
-    await expect(page.getByRole("heading", { name: /Centre de validation Ad & Pro/ })).toBeVisible();
-  });
-  await r.controle("Fiche d'une demande au-dessus de 1 000 000 DZD", "« Valider le total » / « Refuser » (motif en un clic) / « Demander une précision » ; « Déjà validé » montre l'étape Direction des opérations", async () => {
-    await expect(page.getByText(/À décider/).first()).toBeVisible();
-  });
-  await r.controle("Fiche d'un BC (PEC v2)", "« Viser le BC » ; « Devis, accordé, BC » (écart en rouge)", async () => {
-    await expect(page.getByText(/Viser le BC|Valider le total|Rien à décider/).first()).toBeVisible();
-  });
-  await r.controle("⋯ › « Réglage des seuils »", "Demandes : 1 000 000 ; « Enregistrer » ; « Déjà décidés » permet « Réexaminer » un refus", async () => {
-    await page.getByRole("button", { name: /Réglage des seuils|⋯|Autres/ }).first().click();
-    await expect(page.getByText(/1[\s  ]000[\s  ]000/).first()).toBeVisible();
-  });
-  await r.controle("Directeur des opérations ouvre le centre Ad & Pro", "Il n'y décide pas (le visa est celui de la Direction générale)", async () => {
-    await r.connecter("dirOps");
-    await r.aller("/centre-ad-pro");
-    await expect(page.getByRole("button", { name: /Valider le total|Viser le BC/ })).toHaveCount(0);
-  });
-});

@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { test, expect, attendFusion } from "./banc";
+import { test, expect } from "./banc";
 import { db, decorVisite, fermer } from "./donnees";
 import { P } from "./comptes";
 
@@ -113,20 +113,3 @@ test("Détection IA d'un possible cas de PV dans le compte rendu", { tag: ["@ia-
     });
 });
 
-test("Interface délégué de la maquette VisiteDelegue", attendFusion("vmdelegue"), async ({ recette: r, page }) => {
-  await r.connecter("kam");
-  await r.aller("/medical/ma-journee");
-  await r.etape("Lire « Ma journée »", "« Comptes rendus en retard · n », « Visites du jour · dans l'ordre de la tournée », « À rattraper si vous avez un creux », « + Visite hors plan »", async () => {
-    await expect(page.getByText(/Visites du jour/).first()).toBeVisible();
-    await expect(page.getByText("À rattraper si vous avez un creux").first()).toBeVisible();
-  });
-  await r.controle("Sur une visite : « Fiche du médecin », « Itinéraire », « Reporter ou annuler (visite non tenue) », « Signaler un cas de pharmacovigilance »", "Les quatre gestes sont là", async () => {
-    for (const g of ["Fiche du médecin", "Itinéraire", "Signaler un cas de pharmacovigilance"]) await expect(page.getByText(g).first()).toBeVisible();
-  });
-  await r.controle("Après un compte rendu signalé « Possible PV — à déclarer » : « Ce n'est pas un cas »", "Le geste est tracé et visible du superviseur", async () => {
-    await expect(page.getByRole("button", { name: /Ce n.est pas un cas/ }).first()).toBeVisible();
-  });
-  await r.controle("Mon sac, Mes demandes, Mes signalements de pharmacovigilance", "Les blocs de la maquette sont présents", async () => {
-    await expect(page.getByText(/Mon sac|Mes demandes/).first()).toBeVisible();
-  });
-});

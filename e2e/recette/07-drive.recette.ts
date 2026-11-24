@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { test, expect, attendFusion } from "./banc";
+import { test, expect } from "./banc";
 import { db, fermer, gros, pdfDeTest } from "./donnees";
 import { P } from "./comptes";
 
@@ -83,22 +83,3 @@ test("Pièces confidentielles — une pièce RH ne se copie pas au Drive et ne s
   });
 });
 
-test("Drive simplifié — doublon au dépôt, corbeille unifiée, restauration d'une version", attendFusion("drvux"), async ({ recette: r, page }) => {
-  await r.connecter("assistante");
-  await r.aller("/drive");
-  await r.etape("Importer une seconde fois « Contrat agence.pdf »", "Question « existe déjà ici » : « Nouvelle version » / « Garder les deux »", async () => {
-    await page.locator("input[type='file']").first().setInputFiles({ ...pdfDeTest("Contrat agence v3"), name: DOC });
-    await expect(page.getByRole("button", { name: "Nouvelle version" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Garder les deux" })).toBeVisible();
-    await page.getByRole("button", { name: "Nouvelle version" }).click();
-  });
-  await r.controle("Historique › télécharger puis « Restaurer » la v1", "Une NOUVELLE version au contenu de la v1 (rien d'écrasé) ; auteur affiché", async () => {
-    await actions(page, DOC);
-    await page.getByText("Historique des versions").first().click();
-    await expect(page.getByRole("button", { name: /Restaurer/ }).first()).toBeVisible();
-  });
-  await r.controle("Ouvrir la Corbeille", "Corbeille unique « ce que j'ai supprimé » ; « Supprimé de : … » ; « Restaurer » groupé", async () => {
-    await r.aller("/drive?corbeille=1");
-    await expect(page.getByText(/Supprimé de/).first()).toBeVisible();
-  });
-});

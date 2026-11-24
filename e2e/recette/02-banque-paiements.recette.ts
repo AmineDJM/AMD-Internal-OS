@@ -9,7 +9,6 @@ import { compteBancaire, db, enveloppe, etatOrdre, fermer, imputer, ordre } from
  * payé » ; un ordre REFUSÉ ou non autorisé n'apparaît jamais ; un ordre ANNULÉ affiche « Annulé ».
  */
 
-
 const O = { aPayer: { id: "", reference: "", libelle: "" }, reporter: { id: "", reference: "", libelle: "" }, refuse: { id: "", reference: "", libelle: "" }, annule: { id: "", reference: "", libelle: "" } };
 const banque = (vue?: string) => `/finances/paiements-a-faire?entite=${graine().societeId}${vue ? `&vue=${vue}` : ""}`;
 

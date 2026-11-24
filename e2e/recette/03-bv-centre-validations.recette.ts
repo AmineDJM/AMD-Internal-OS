@@ -13,7 +13,6 @@ import { cliquerDecisif } from "../decisif";
  * entrée de menu « Centre de validations ».
  */
 
-
 let accepte = "";
 let refuse = "";
 
