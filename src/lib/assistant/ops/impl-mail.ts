@@ -48,6 +48,9 @@ const directionOf = (raw: string): "INCOMING" | "OUTGOING" | null => {
 };
 
 const MAIL_REVALIDATE = ["/courriers"];
+// Un courrier s'ouvre dans le panneau du registre (`lienCourrier`, `chemins/courriers.ts`) — écrit ici sans
+// importer, pour ne pas ajouter de passage de frontière Adam → ERP.
+const lienCourrier = (id: string) => `/courriers?courrier=${encodeURIComponent(id)}`;
 
 /**
  * LES CIBLES DU « RELIER À… » — la résolution seulement, jamais le flux.
@@ -198,7 +201,7 @@ export const MAIL_OPS_IMPL: Record<string, OpImpl> = {
         ],
         args: { fromType: "MAIL_ENTRY", fromId: entry.id, toType: cible.entityType, toId: cible.entityId },
         successMessage: `Courrier « ${entry.title} » relié à « ${cible.label} » — visible des deux côtés.`,
-        link: `/courriers/${entry.id}`, revalidate: MAIL_REVALIDATE,
+        link: lienCourrier(entry.id), revalidate: MAIL_REVALIDATE,
       };
     },
     execute: (args) => runFd(addEntityLink, args, "Le lien a été refusé."),
@@ -241,7 +244,7 @@ export const MAIL_OPS_IMPL: Record<string, OpImpl> = {
         ],
         args: { id: hits[0].id },
         successMessage: `Lien « ${hits[0].label} » retiré du courrier.`,
-        link: `/courriers/${entry.id}`, revalidate: MAIL_REVALIDATE,
+        link: lienCourrier(entry.id), revalidate: MAIL_REVALIDATE,
       };
     },
     execute: (args) => runFd(removeEntityLink, args, "Le retrait du lien a été refusé."),
@@ -280,7 +283,7 @@ export const MAIL_OPS_IMPL: Record<string, OpImpl> = {
       if (args.notes) fd.set("notes", args.notes);
       const r = await createMailEntry(undefined, fd);
       if (!r.ok) return { ok: false, error: r.error ?? "L'enregistrement du courrier a été refusé." };
-      return { ok: true, createdId: r.id, link: r.id ? `/courriers/${r.id}` : "/courriers", revalidate: MAIL_REVALIDATE };
+      return { ok: true, createdId: r.id, link: r.id ? lienCourrier(r.id) : "/courriers", revalidate: MAIL_REVALIDATE };
     },
   },
 
@@ -316,7 +319,7 @@ export const MAIL_OPS_IMPL: Record<string, OpImpl> = {
         ],
         args,
         successMessage: `Courrier « ${title} » corrigé (${changes.join(", ")}).`,
-        link: `/courriers/${entry.id}`,
+        link: lienCourrier(entry.id),
         revalidate: MAIL_REVALIDATE,
       };
     },
@@ -427,7 +430,7 @@ export const MAIL_OPS_IMPL: Record<string, OpImpl> = {
         reference: args.reference ?? undefined,
       });
       if (!r.ok) return { ok: false, error: r.error ?? "La déclaration en courrier a été refusée." };
-      return { ok: true, createdId: r.id, link: r.id ? `/courriers/${r.id}` : "/courriers", revalidate: MAIL_REVALIDATE };
+      return { ok: true, createdId: r.id, link: r.id ? lienCourrier(r.id) : "/courriers", revalidate: MAIL_REVALIDATE };
     },
   },
 };

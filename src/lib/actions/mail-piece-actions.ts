@@ -23,7 +23,8 @@ import { fdStr, type ActionResult } from "@/lib/actions/types";
  * référencée. Deux copies auraient divergé dès la première correction.
  */
 
-const path = (entryId: string) => `/courriers/${entryId}`;
+// Le courrier s'ouvre dans le panneau du registre : c'est le registre qu'on revalide.
+const PATH = "/courriers";
 
 /** Le pli est-il dans le périmètre de cette personne, avec le droit demandé ? */
 async function guard(entryId: string, action: "UPDATE" | "DELETE") {
@@ -104,7 +105,7 @@ export async function addMailPiece(formData: FormData): Promise<ActionResult> {
       // qu'on pose à ce registre six mois plus tard.
       summary: `Pièce « ${label} » ajoutée${recipient ? ` — destinataire : ${recipient}` : " (sans destinataire)"}`,
     });
-    revalidatePath(path(entryId));
+    revalidatePath(PATH);
     return { ok: true };
   });
 }
@@ -129,7 +130,7 @@ export async function updateMailPiece(formData: FormData): Promise<ActionResult>
       actorId: g.user.id, action: "UPDATE", module: "Courriers", entityType: "MAIL_ENTRY", entityId: piece.entryId,
       summary: `Pièce « ${piece.label}${label !== piece.label ? ` → ${label}` : ""} » corrigée${recipient ? ` — destinataire : ${recipient}` : ""}`,
     });
-    revalidatePath(path(piece.entryId));
+    revalidatePath(PATH);
     return { ok: true };
   });
 }
@@ -154,6 +155,6 @@ export async function deleteMailPiece(formData: FormData): Promise<ActionResult>
     actorId: g.user.id, action: "UPDATE", module: "Courriers", entityType: "MAIL_ENTRY", entityId: piece.entryId,
     summary: `Pièce « ${piece.label} » retirée du courrier (le fichier est conservé)`,
   });
-  revalidatePath(path(piece.entryId));
+  revalidatePath(PATH);
   return { ok: true };
 }

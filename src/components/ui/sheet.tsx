@@ -14,6 +14,8 @@ interface SheetProps {
   children: React.ReactNode;
   footer?: React.ReactNode;
   width?: "md" | "lg" | "xl";
+  /** Sur TÉLÉPHONE, la feuille prend tout l'écran : pour une fiche qu'on LIT (un courrier), pas un formulaire court. */
+  pleinEcranMobile?: boolean;
 }
 
 /**
@@ -24,7 +26,7 @@ interface SheetProps {
  * la gestuelle attendue d'une application mobile. Elle ne prend pas tout l'écran (95 % au plus)
  * pour qu'on voie ce qu'il y a derrière et qu'on comprenne qu'un simple appui à côté referme.
  */
-export function Sheet({ open, onClose, title, description, children, footer, width = "md" }: SheetProps) {
+export function Sheet({ open, onClose, title, description, children, footer, width = "md", pleinEcranMobile = false }: SheetProps) {
   // Le défilement de l'arrière-plan est figé pendant l'ouverture. Le verrou est COMPTÉ : une
   // feuille ouverte depuis un tiroir ne rend pas le défilement au tiroir en se refermant.
   useScrollLock(open);
@@ -78,7 +80,8 @@ export function Sheet({ open, onClose, title, description, children, footer, wid
       <div className="absolute inset-0 bg-black/40 animate-fade-in" onClick={onClose} />
       <div
         className={cn(
-          "absolute inset-x-0 bottom-0 flex max-h-[95dvh] flex-col overflow-hidden rounded-t-2xl bg-card shadow-2xl outline-none animate-slide-up",
+          "absolute inset-x-0 bottom-0 flex flex-col overflow-hidden bg-card shadow-2xl outline-none animate-slide-up",
+          pleinEcranMobile ? "top-0 h-[100dvh]" : "max-h-[95dvh] rounded-t-2xl",
           "sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-0 sm:h-full sm:max-h-none sm:w-full sm:rounded-none sm:animate-slide-in",
           width === "xl" ? "sm:max-w-4xl" : width === "lg" ? "sm:max-w-2xl" : "sm:max-w-lg",
         )}
@@ -89,7 +92,7 @@ export function Sheet({ open, onClose, title, description, children, footer, wid
         aria-label={title}
       >
         {/* Poignée : signale que la feuille se referme, et donne une zone de préhension. */}
-        <div className="flex justify-center pt-2 sm:hidden" aria-hidden>
+        <div className={cn("flex justify-center pt-2 sm:hidden", pleinEcranMobile && "hidden")} aria-hidden>
           <span className="h-1 w-10 rounded-full bg-border" />
         </div>
         <div className="flex items-start justify-between border-b border-border px-4 py-3 sm:px-5 sm:py-4">

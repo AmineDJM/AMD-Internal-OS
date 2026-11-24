@@ -5,7 +5,7 @@ import { useAutoOpen } from "./use-auto-open";
 import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
-import { Plus, Loader2, AlertCircle, Wand2, Sparkles } from "lucide-react";
+import { Plus, Loader2, AlertCircle, Wand2, Sparkles, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Select, Textarea, Label } from "@/components/ui/input";
@@ -161,6 +161,8 @@ interface CreateRecordButtonProps {
   analyze?: AnalyzePrefill;
   /** Nom du paramètre d'URL qui ouvre le formulaire à l'arrivée (ex. « new »). */
   autoOpenParam?: string;
+  /** Les champs secondaires, repliés sous « Plus de détails » (voir `RecordForm`). */
+  champsReplies?: readonly string[];
 }
 
 interface RecordFormProps {
@@ -187,6 +189,9 @@ interface RecordFormProps {
   formRef?: React.Ref<HTMLFormElement>;
   /** Un champ vient d'être touché par la personne. */
   onTouched?: (name: string) => void;
+  /** Les champs SECONDAIRES (par nom), rangés sous « Plus de détails » : le formulaire montre d'abord l'essentiel. */
+  champsReplies?: readonly string[];
+  libelleReplies?: string;
 }
 
 /** Poser des fichiers dans un `<input type="file">` — le navigateur l'admet par un `DataTransfer`. */
@@ -377,6 +382,8 @@ export function RecordForm({
   entete,
   formRef,
   onTouched,
+  champsReplies,
+  libelleReplies = "Plus de détails",
 }: RecordFormProps) {
   const router = useRouter();
   const { rafraichir } = useRafraichir();
@@ -512,6 +519,119 @@ export function RecordForm({
     }
   }, [state, router, redirectBase, rafraichir]);
 
+  const replies = new Set(champsReplies ?? []);
+  const rendreChamp = (field: FieldDef) => {
+    if (field.type === "hidden") return <input key={field.name} type="hidden" name={field.name} value={field.value} />;
+    const marque = marques?.[field.name];
+    const violet = Boolean(marque) && !touches.has(field.name);
+    return (
+    <div
+      key={field.name}
+      onChange={marque || onTouched ? () => toucher(field.name) : undefined}
+      className={cn(
+        "space-y-1.5", (field.full || field.type === "textarea") && "sm:col-span-2",
+        marque && "rounded-lg p-2 ring-1 ring-transparent transition-colors",
+        violet && "bg-luna-soft ring-luna/25",
+      )}
+    >
+      {field.type !== "checkbox" && field.type !== "drivepicker" && (() => {
+        const libelle = (
+          <Label htmlFor={field.name}>
+            {field.label}
+            {"required" in field && field.required && (
+              <span className="ml-0.5 text-destructive">*</span>
+            )}
+          </Label>
+        );
+        if (!marque) return libelle;
+        return (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {libelle}
+            {touches.has(field.name)
+              ? <span className="text-[11px] text-muted-foreground">modifié par vous</span>
+              : <PastilleMarque marque={marque} ouverte={preuveOuverte === field.name} onToggle={() => setPreuveOuverte((o) => (o === field.name ? null : field.name))} />}
+          </div>
+        );
+      })()}
+      {marque && preuveOuverte === field.name && !touches.has(field.name) && (
+        <p className="rounded-md bg-background px-2 py-1.5 text-xs text-muted-foreground">
+          <span className="font-medium text-foreground">{marque.source === "LUNA" ? "Proposé par Luna" : marque.source === "CALCUL" ? "Calculé" : "Lu par les règles"}{marque.ou ? ` · ${marque.ou}` : ""} — </span>
+          {marque.preuve}
+        </p>
+      )}
+      {field.type === "drivepicker" ? (
+        <DrivePickerField name={field.name} label={field.label} hint={field.hint} defaultValue={drivesInitiaux?.[field.name] ?? null} />
+      ) : field.type === "file" ? (
+        <>
+          <input
+            ref={(el) => { champsFichier.current[field.name] = el; }}
+            id={field.name}
+            type="file"
+            name={field.name}
+            multiple={field.multiple}
+            required={field.required}
+            accept={field.accept}
+            className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-sm file:font-medium"
+          />
+          {field.hint && <p className="text-xs text-muted-foreground">{field.hint}</p>}
+        </>
+      ) : field.type === "textarea" ? (
+        <Textarea id={field.name} name={field.name} required={field.required} placeholder={field.placeholder} defaultValue={dv(field) as string | undefined} />
+      ) : field.type === "select" ? (
+        <>
+          <Select id={field.name} name={field.name} required={field.required} defaultValue={dv(field) as string | undefined}>
+            {field.placeholder && <option value="">{field.placeholder}</option>}
+            {field.options.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </Select>
+          {field.hint && <p className="text-xs text-muted-foreground">{field.hint}</p>}
+        </>
+      ) : field.type === "checkbox" ? (
+        <>
+          {field.temoin && <input type="hidden" name={field.name} value="off" />}
+          <label className="flex items-center gap-2 py-1 text-sm">
+            <input type="checkbox" name={field.name} defaultChecked={field.defaultChecked} className="h-4 w-4 rounded border-input" />
+            {field.label}
+          </label>
+          {field.hint && <p className="text-xs text-muted-foreground">{field.hint}</p>}
+        </>
+      ) : field.type === "multiselect" ? (
+        <MultiSelectField field={field} />
+      ) : field.type === "parties" ? (
+        <>
+          {/* Un sélecteur de boutons n'émet pas de « change » : c'est le clic qui dit qu'on y a mis la main. */}
+          <div onClickCapture={marque || onTouched ? () => toucher(field.name) : undefined}>
+            <PartyPicker
+              name={field.name} options={field.options} defaultValue={field.defaultValue}
+              arity={field.arity} canCreate={field.canCreate} placeholder={field.placeholder}
+              propose={field.propose} signalerVidage={field.signalerVidage}
+            />
+          </div>
+          {field.hint && <p className="text-xs text-muted-foreground">{field.hint}</p>}
+        </>
+      ) : (
+        <>
+          <Input
+            id={field.name}
+            name={field.name}
+            type={field.type}
+            required={field.required}
+            placeholder={field.placeholder}
+            defaultValue={dv(field)}
+            step={field.type === "number" ? "any" : undefined}
+            inputMode={field.inputMode ?? (field.type === "number" ? "decimal" : undefined)}
+            autoComplete={field.autoComplete}
+          />
+          {"hint" in field && field.hint && <p className="text-xs text-muted-foreground">{field.hint}</p>}
+        </>
+      )}
+    </div>
+    );
+  };
+
   return (
     <>
       {analyze && (
@@ -543,118 +663,19 @@ export function RecordForm({
         className="space-y-4"
       >
         <div key={prefillVersion} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {fields.map((field) => {
-            if (field.type === "hidden") return <input key={field.name} type="hidden" name={field.name} value={field.value} />;
-            const marque = marques?.[field.name];
-            const violet = Boolean(marque) && !touches.has(field.name);
-            return (
-            <div
-              key={field.name}
-              onChange={marque || onTouched ? () => toucher(field.name) : undefined}
-              className={cn(
-                "space-y-1.5", (field.full || field.type === "textarea") && "sm:col-span-2",
-                marque && "rounded-lg p-2 ring-1 ring-transparent transition-colors",
-                violet && "bg-luna-soft ring-luna/25",
-              )}
-            >
-              {field.type !== "checkbox" && field.type !== "drivepicker" && (() => {
-                const libelle = (
-                  <Label htmlFor={field.name}>
-                    {field.label}
-                    {"required" in field && field.required && (
-                      <span className="ml-0.5 text-destructive">*</span>
-                    )}
-                  </Label>
-                );
-                if (!marque) return libelle;
-                return (
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {libelle}
-                    {touches.has(field.name)
-                      ? <span className="text-[11px] text-muted-foreground">modifié par vous</span>
-                      : <PastilleMarque marque={marque} ouverte={preuveOuverte === field.name} onToggle={() => setPreuveOuverte((o) => (o === field.name ? null : field.name))} />}
-                  </div>
-                );
-              })()}
-              {marque && preuveOuverte === field.name && !touches.has(field.name) && (
-                <p className="rounded-md bg-background px-2 py-1.5 text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">{marque.source === "LUNA" ? "Proposé par Luna" : marque.source === "CALCUL" ? "Calculé" : "Lu par les règles"}{marque.ou ? ` · ${marque.ou}` : ""} — </span>
-                  {marque.preuve}
-                </p>
-              )}
-              {field.type === "drivepicker" ? (
-                <DrivePickerField name={field.name} label={field.label} hint={field.hint} defaultValue={drivesInitiaux?.[field.name] ?? null} />
-              ) : field.type === "file" ? (
-                <>
-                  <input
-                    ref={(el) => { champsFichier.current[field.name] = el; }}
-                    id={field.name}
-                    type="file"
-                    name={field.name}
-                    multiple={field.multiple}
-                    required={field.required}
-                    accept={field.accept}
-                    className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-sm file:font-medium"
-                  />
-                  {field.hint && <p className="text-xs text-muted-foreground">{field.hint}</p>}
-                </>
-              ) : field.type === "textarea" ? (
-                <Textarea id={field.name} name={field.name} required={field.required} placeholder={field.placeholder} defaultValue={dv(field) as string | undefined} />
-              ) : field.type === "select" ? (
-                <>
-                  <Select id={field.name} name={field.name} required={field.required} defaultValue={dv(field) as string | undefined}>
-                    {field.placeholder && <option value="">{field.placeholder}</option>}
-                    {field.options.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </Select>
-                  {field.hint && <p className="text-xs text-muted-foreground">{field.hint}</p>}
-                </>
-              ) : field.type === "checkbox" ? (
-                <>
-                  {field.temoin && <input type="hidden" name={field.name} value="off" />}
-                  <label className="flex items-center gap-2 py-1 text-sm">
-                    <input type="checkbox" name={field.name} defaultChecked={field.defaultChecked} className="h-4 w-4 rounded border-input" />
-                    {field.label}
-                  </label>
-                  {field.hint && <p className="text-xs text-muted-foreground">{field.hint}</p>}
-                </>
-              ) : field.type === "multiselect" ? (
-                <MultiSelectField field={field} />
-              ) : field.type === "parties" ? (
-                <>
-                  {/* Un sélecteur de boutons n'émet pas de « change » : c'est le clic qui dit qu'on y a mis la main. */}
-                  <div onClickCapture={marque || onTouched ? () => toucher(field.name) : undefined}>
-                    <PartyPicker
-                      name={field.name} options={field.options} defaultValue={field.defaultValue}
-                      arity={field.arity} canCreate={field.canCreate} placeholder={field.placeholder}
-                      propose={field.propose} signalerVidage={field.signalerVidage}
-                    />
-                  </div>
-                  {field.hint && <p className="text-xs text-muted-foreground">{field.hint}</p>}
-                </>
-              ) : (
-                <>
-                  <Input
-                    id={field.name}
-                    name={field.name}
-                    type={field.type}
-                    required={field.required}
-                    placeholder={field.placeholder}
-                    defaultValue={dv(field)}
-                    step={field.type === "number" ? "any" : undefined}
-                    inputMode={field.inputMode ?? (field.type === "number" ? "decimal" : undefined)}
-                    autoComplete={field.autoComplete}
-                  />
-                  {"hint" in field && field.hint && <p className="text-xs text-muted-foreground">{field.hint}</p>}
-                </>
-              )}
-            </div>
-            );
-          })}
+          {fields.filter((f) => !replies.has(f.name)).map(rendreChamp)}
         </div>
+        {/* LES CHAMPS SECONDAIRES, repliés : ils partent avec le formulaire même fermés. */}
+        {fields.some((f) => replies.has(f.name)) && (
+          <details key={`r${prefillVersion}`} className="group rounded-lg border border-border">
+            <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm font-medium [&::-webkit-details-marker]:hidden">
+              <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-90" aria-hidden /> {libelleReplies}
+            </summary>
+            <div className="grid grid-cols-1 gap-3 px-3 pb-3 sm:grid-cols-2">
+              {fields.filter((f) => replies.has(f.name)).map(rendreChamp)}
+            </div>
+          </details>
+        )}
 
         {state?.error && (
           <div className="flex items-start gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -703,6 +724,7 @@ export function CreateRecordButton({
   width = "lg",
   analyze,
   autoOpenParam,
+  champsReplies,
 }: CreateRecordButtonProps) {
   const [open, setOpen] = React.useState(false);
 
@@ -722,6 +744,7 @@ export function CreateRecordButton({
           action={action}
           redirectBase={redirectBase}
           analyze={analyze}
+          champsReplies={champsReplies}
           onDone={() => setOpen(false)}
           onCancel={() => setOpen(false)}
         />

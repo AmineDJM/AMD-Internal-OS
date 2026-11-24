@@ -7,10 +7,11 @@ import { prisma } from "@/lib/prisma";
 import { getCompanyScope, companyIdForNew, companyScopedWhere } from "@/lib/company";
 import { clauseCourriersVisibles } from "@/lib/queries/visibilite-listes";
 import { PageHeader } from "@/components/shared/page-header";
-import { KpiCard } from "@/components/shared/kpi-card";
 import { CreateRecordButton } from "@/components/shared/create-record-button";
 import { createMailEntry } from "@/lib/actions/mail-register-actions";
-import { mailFields } from "./mail-fields";
+import { mailFields, champsRepliesCourrier } from "./mail-fields";
+import { chargerFicheCourrier } from "@/lib/mail-register/fiche";
+import { FicheCourrierPanneau } from "./fiche-courrier";
 import { MailTable, type MailRow } from "./mail-table";
 import { getMyCompanies, companyLabel } from "@/lib/company";
 import { MailPartnersManager } from "./mail-partners";
@@ -32,12 +33,12 @@ export const metadata = { title: "Courriers — AMD Internal OS" };
  * ARRIVE, puis l'ACCUSÉ revient. Aucune n'est obligatoire — exiger une date qu'on n'a pas encore
  * ferait inventer une information.
  *
- * Le tableau sert à RETROUVER ; c'est la fiche (`/courriers/<id>`) qui porte le travail : les
- * pièces jointes (scan du pli, accusé signé), la modification, et le journal qui garde qui a
- * corrigé quoi. Enregistrer un courrier ouvre donc directement sa fiche — on vient presque
- * toujours d'un scan à joindre.
+ * Le tableau sert à RETROUVER ; le travail sur un pli (documents, correction, journal) se fait dans
+ * son PANNEAU, ouvert par-dessus le tableau quand l'adresse porte `?courrier=<id>` — un lien partagé
+ * ou une notification l'ouvrent directement. Il n'y a plus de page par courrier : `/courriers/<id>`
+ * renvoie ici. Enregistrer un courrier ouvre son panneau — on vient presque toujours d'un scan.
  */
-export default async function CourriersPage(props: { searchParams?: Promise<{ dossier?: string }> }) {
+export default async function CourriersPage(props: { searchParams?: Promise<{ dossier?: string; courrier?: string }> }) {
   const searchParams = await props.searchParams;
   const user = await requireModule("MAIL_REGISTER");
   const canCreate = userCan(user, "MAIL_REGISTER", "CREATE");
@@ -154,25 +155,24 @@ export default async function CourriersPage(props: { searchParams?: Promise<{ do
     attachments: attachmentCount.get(m.id) ?? 0,
   }));
 
-  const incoming = rows.filter((r) => r.direction === "INCOMING").length;
-  const outgoing = rows.filter((r) => r.direction === "OUTGOING").length;
-  const noAck = rows.filter((r) => !r.acknowledgedAt).length;
+  // LE COURRIER OUVERT DANS LE PANNEAU — l'identifiant vient de l'adresse, il ne vaut rien tant que
+  // la clause de visibilité du registre ne l'a pas retrouvé (`chargerFicheCourrier`) : un pli hors
+  // périmètre n'ouvre rien, comme l'ancienne page répondait 404.
+  const courrierId = searchParams?.courrier ?? null;
+  const fiche = courrierId ? await chargerFicheCourrier(user, courrierId) : null;
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        title="Courriers"
-        description="Le carnet des plis entrants et sortants : objet, parties, départ, arrivée et accusé de réception. Filtrable — on y cherche toujours une pièce précise. Chaque courrier ouvre sa fiche : pièces jointes, modification, journal."
-      >
+      <PageHeader title="Courriers">
         {/* LA LISTE DES PARTENAIRES, tenue depuis le module — pas depuis l'Administration :
             c'est l'assistante qui l'alimente en enregistrant ses plis, et l'envoyer ailleurs
             pour ajouter un nom qu'elle a sous les yeux, c'est garantir que la liste ne vivra pas. */}
         {canEdit && <MailPartnersManager partners={partnerRows} />}
         {canCreate && (
           <CreateRecordButton
-            label="Nouveau courrier" title="Enregistrer un courrier" width="lg"
-            description="Seul l'objet est obligatoire : l'arrivée et l'accusé se posent plus tard, en un clic depuis le tableau."
+            label="Enregistrer un courrier" title="Enregistrer un courrier" width="lg"
             action={createMailEntry}
+            champsReplies={champsRepliesCourrier(companyOpts.length)}
             fields={mailFields(
               { ...(openFolderId ? { folderId: openFolderId } : {}), ...(entiteParDefaut ? { companyId: entiteParDefaut } : {}) },
               "create", companyOpts, partnerOpts, routing.departments, routing.people, folderOptions,
@@ -189,12 +189,11 @@ export default async function CourriersPage(props: { searchParams?: Promise<{ do
         </p>
       )}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <KpiCard label="Courriers" value={rows.length} icon="Mails" />
-        <KpiCard label="Entrants" value={incoming} icon="Inbox" tone="info" />
-        <KpiCard label="Sortants" value={outgoing} icon="Send" tone="info" />
-        <KpiCard label="Sans accusé" value={noAck} icon="Hourglass" tone={noAck > 0 ? "warning" : "default"} />
-      </div>
+      {courrierId && !fiche && (
+        <p className="rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm text-muted-foreground">
+          Ce courrier n&apos;est pas dans votre vue : supprimé, ou d&apos;une autre entité — choisissez « Toutes les entités » en haut de l&apos;écran, ou demandez l&apos;accès à un administrateur.
+        </p>
+      )}
 
       <MailFolderBar
         folders={folders}
@@ -203,7 +202,9 @@ export default async function CourriersPage(props: { searchParams?: Promise<{ do
         canManage={canEdit}
       />
 
-      <MailTable rows={rows} canEdit={canEdit} />
+      <MailTable rows={rows} canEdit={canEdit} canCreate={canCreate} dossier={searchParams?.dossier ?? null} selection={fiche?.entry.id ?? null} />
+
+      {fiche && <FicheCourrierPanneau fiche={fiche} dossier={searchParams?.dossier ?? null} />}
     </div>
   );
 }

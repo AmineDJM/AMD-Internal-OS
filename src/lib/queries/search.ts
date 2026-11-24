@@ -16,6 +16,7 @@ import {
   clauseEcrituresVisibles, clauseEvenementsVisibles, clauseMarchesPchVisibles, clauseMessagesVisibles,
   clauseSalariesVisibles, clauseSponsoringsVisibles, clauseVentesVisibles, perimetreLegal,
 } from "@/lib/queries/visibilite-listes";
+import { lienCourrier } from "@/lib/chemins/courriers";
 
 export interface SearchResult {
   id: string;
@@ -191,7 +192,7 @@ export async function globalSearch(user: SessionUser, q: string, perGroup = 6): 
   for (const r of pchOrders) out.push({ id: r.id, group: "Marchés PCH", title: `BC ${r.reference ?? "s/n"}`, subtitle: [r.tender.reference, r.products].filter(Boolean).join(" · "), href: `/pch/${r.tenderId}`, icon: "ReceiptText" });
   // La demande où la pièce est rangée se lit dans le sous-titre : on sait à quel événement est ce BC.
   for (const r of legalDocs) out.push({ id: r.id, group: "Legal", title: r.title, subtitle: [r.reference ?? natureLegale(r.kind), r.folder?.name].filter(Boolean).join(" · "), href: `/legal/${r.id}`, icon: "Scale" });
-  for (const r of mailEntries) out.push({ id: r.id, group: "Courriers", title: r.title, subtitle: r.reference ?? "", href: `/courriers/${r.id}`, icon: "Mails" });
+  for (const r of mailEntries) out.push({ id: r.id, group: "Courriers", title: r.title, subtitle: r.reference ?? "", href: lienCourrier(r.id), icon: "Mails" });
   out.push(...(await rechercheReliee(user, match, take)));
   return out;
 }

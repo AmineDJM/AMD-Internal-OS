@@ -105,6 +105,10 @@ export function mailFields(
     // Le départ porte l'HEURE : c'est ce qui départage deux plis du même jour.
     { type: "datetime-local", name: "sentAt", label: "Départ (date et heure)", defaultValue: v("sentAt") },
     { type: "date", name: "receivedAt", label: "Arrivée", defaultValue: v("receivedAt") },
+    // LES DOCUMENTS DU PLI, DÈS L'ENREGISTREMENT — plusieurs d'un coup (le pli, ses annexes, l'accusé).
+    ...(mode === "create"
+      ? ([{ type: "file", name: "attachment", label: "Documents", multiple: true, full: true }] as FieldDef[])
+      : []),
     { type: "date", name: "acknowledgedAt", label: "Accusé de réception", defaultValue: v("acknowledgedAt") },
     { type: "text", name: "carrier", label: "Porteur (poste, coursier, e-mail…)", defaultValue: v("carrier") },
     // LE DOSSIER DE CLASSEMENT, s'il y en a un. Facultatif : un pli s'enregistre vite et se range
@@ -116,21 +120,22 @@ export function mailFields(
         }] as FieldDef[])
       : []),
     { type: "textarea", name: "notes", label: "Notes", full: true, defaultValue: v("notes") },
-    // LE PLI SCANNÉ, DÈS L'ENREGISTREMENT — c'est le moment où on l'a en main. Ou bien on
-    // téléverse le scan, ou bien on désigne le fichier qui est DÉJÀ dans le Drive, qui n'est
-    // alors pas recopié mais référencé. La fiche porte ensuite ses propres blocs pour les deux.
+    // LE DRIVE, à la création : le fichier y RESTE, le courrier le référence sans le dupliquer.
     ...(mode === "create"
-      ? ([
-          {
-            type: "file", name: "attachment", label: "Pièces jointes", multiple: true, full: true,
-            hint: "Le scan du pli, l'accusé de réception… rattachés au courrier dès sa création.",
-          },
-          {
-            type: "drivepicker", name: "driveNodeId", label: "…ou un dossier / fichier du Drive", full: true,
-            hint: "Le fichier RESTE dans le Drive : le courrier le référence, il ne le duplique pas.",
-          },
-        ] as FieldDef[])
+      ? ([{ type: "drivepicker", name: "driveNodeId", label: "Fichier du Drive", full: true }] as FieldDef[])
       : []),
+  ];
+}
+
+/**
+ * LES CHAMPS SECONDAIRES, repliés sous « Plus de détails » : le formulaire montre d'abord l'objet,
+ * le sens, les correspondants, les dates et les documents. L'entité reste en vue quand on a le choix
+ * entre plusieurs — c'est un pré-choix qu'il faut voir pour ne pas classer sur la mauvaise société.
+ */
+export function champsRepliesCourrier(nbEntites: number): string[] {
+  return [
+    "reference", ...(nbEntites > 1 ? [] : ["companyId"]), "partnerId", "departmentId", "concernedUserId",
+    "acknowledgedAt", "carrier", "folderId", "notes", "driveNodeId",
   ];
 }
 

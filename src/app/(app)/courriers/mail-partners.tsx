@@ -66,7 +66,6 @@ export function MailPartnersManager({ partners }: { partners: MailPartnerRow[] }
       <Sheet
         open={open} onClose={() => setOpen(false)} width="md"
         title="Partenaires du registre"
-        description="Fournisseurs, administrations, clients, prestataires — ce que vos courriers concernent à l'extérieur. Cette liste n'appartient qu'aux Courriers."
       >
         <div className="space-y-3">
           <div className="flex justify-end">
@@ -77,8 +76,7 @@ export function MailPartnersManager({ partners }: { partners: MailPartnerRow[] }
 
           {partners.length === 0 ? (
             <p className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
-              Aucun partenaire. Ajoutez-en un : il apparaîtra dans le menu « Partenaire concerné »
-              du formulaire de courrier.
+              Aucun partenaire. « Nouveau partenaire » pour en ajouter un.
             </p>
           ) : (
             <ul className="divide-y divide-border rounded-lg border border-border">

@@ -12,6 +12,7 @@ import { getAccess } from "@/lib/rbac";
 import { companyScopedWhere, platformScope } from "@/lib/company";
 import { canAccessEntity } from "@/lib/entity-access";
 import { createMailEntry } from "@/lib/actions/mail-register-actions";
+import { chargerFicheCourrier } from "@/lib/mail-register/fiche";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
@@ -109,12 +110,10 @@ suite("Un courrier enregistré s'ouvre — liste et fiche disent la même chose"
     });
     expect(dansLaListe.map((x) => x.id)).toContain(r.id);
 
-    // LA FICHE, avec la MÊME requête que `app/(app)/courriers/[id]/page.tsx`.
-    const surLaFiche = await prisma.mailEntry.findFirst({
-      where: await companyScopedWhere(userId, { id: r.id! }),
-      select: { id: true },
-    });
-    expect(surLaFiche, "le courrier est dans la liste mais sa fiche répond 404").not.toBeNull();
+    // LA FICHE — désormais le PANNEAU du registre (`?courrier=<id>`), chargé par `chargerFicheCourrier`.
+    const surLaFiche = await chargerFicheCourrier(ACTOR!, r.id!);
+    expect(surLaFiche, "le courrier est dans la liste mais son panneau ne s'ouvre pas").not.toBeNull();
+    expect(surLaFiche!.entry.id).toBe(r.id);
   });
 
   it("ET SES PIÈCES JOINTES SUIVENT — un scan déposé reste atteignable", async () => {
@@ -137,6 +136,8 @@ suite("Un courrier enregistré s'ouvre — liste et fiche disent la même chose"
     });
     expect(vu).toBeNull();
     expect(await canAccessEntity(ACTOR!, "MAIL_ENTRY", voisin.id, "VIEW")).toBe(false);
+    // Le PANNEAU applique la même porte : un identifiant deviné, posé dans `?courrier=`, n'ouvre rien.
+    expect(await chargerFicheCourrier(ACTOR!, voisin.id)).toBeNull();
   });
 
   it("le filtre STRICT et le filtre de LISTE ne divergent que sur les lignes sans entité", async () => {

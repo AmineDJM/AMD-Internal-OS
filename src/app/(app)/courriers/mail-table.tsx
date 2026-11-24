@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { FilterX, Check, Paperclip } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +11,7 @@ import { MAIL_DIRECTION } from "@/lib/labels";
 import { setMailDate } from "@/lib/actions/mail-register-actions";
 import { PartagerButton } from "@/components/shared/partager-button";
 import { useAction } from "@/components/shared/use-action";
+import { lienCourrier } from "@/lib/chemins/courriers";
 
 /**
  * LE CARNET DE COURRIERS — un tableau qu'on FILTRE, parce qu'on y cherche toujours une pièce
@@ -19,8 +21,8 @@ import { useAction } from "@/components/shared/use-action";
  * ligne : elles se constatent des jours après la saisie, et rouvrir un formulaire complet pour
  * cocher une date, personne ne le fait. Ce qu'on ne peut pas remplir en un geste reste vide.
  *
- * Tout le reste — joindre le scan, corriger un champ, relire le journal — se fait sur la FICHE,
- * qu'on ouvre en cliquant l'objet.
+ * Tout le reste — joindre le scan, corriger un champ, relire le journal — se fait dans le PANNEAU du
+ * courrier, ouvert par un clic sur la ligne (`?courrier=<id>`) par-dessus le tableau.
  */
 
 export interface MailRow {
@@ -79,7 +81,20 @@ function DateCell({ id, field, value, canEdit }: {
 
 const EMPTY_FILTERS = { title: "", reference: "", direction: "", party: "", concerns: "", sentMonth: "", receivedMonth: "", ack: "" };
 
-export function MailTable({ rows, canEdit }: { rows: MailRow[]; canEdit: boolean }) {
+/** Un clic sur ces éléments fait leur propre geste : il n'ouvre pas le courrier. */
+const INTERACTIF = "a,button,input,select,textarea,label,[role=dialog]";
+
+export function MailTable({ rows, canEdit, canCreate, dossier, selection }: {
+  rows: MailRow[];
+  canEdit: boolean;
+  canCreate: boolean;
+  /** Le dossier ouvert : il reste ouvert derrière le panneau. */
+  dossier: string | null;
+  /** Le courrier ouvert dans le panneau, surligné dans le tableau. */
+  selection: string | null;
+}) {
+  const router = useRouter();
+  const ouvrir = (id: string) => router.push(lienCourrier(id, dossier), { scroll: false });
   const [f, setF] = React.useState({ ...EMPTY_FILTERS });
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setF((p) => ({ ...p, [k]: e.target.value }));
@@ -172,15 +187,24 @@ export function MailTable({ rows, canEdit }: { rows: MailRow[]; canEdit: boolean
           </thead>
           <tbody className="divide-y divide-border">
             {shown.length === 0 ? (
-              <tr><td colSpan={13} className="px-3 py-8 text-center text-sm text-muted-foreground">Aucun courrier ne correspond à ces filtres.</td></tr>
+              <tr><td colSpan={13} className="px-3 py-8 text-center text-sm text-muted-foreground">
+                {rows.length === 0
+                  ? `Aucun courrier ici.${canCreate ? " « Enregistrer un courrier » pour commencer." : ""}`
+                  : "Aucun courrier ne correspond à ces filtres — « Réinitialiser » pour tout revoir."}
+              </td></tr>
             ) : shown.map((r) => {
               const dir = MAIL_DIRECTION[r.direction];
               return (
-                <tr key={r.id} className="hover:bg-secondary/30">
+                <tr
+                  key={r.id}
+                  onClick={(e) => { if (!(e.target as HTMLElement).closest(INTERACTIF)) ouvrir(r.id); }}
+                  aria-selected={r.id === selection}
+                  className={cn("cursor-pointer hover:bg-secondary/30", r.id === selection && "bg-primary/5")}
+                >
                   <td className="sticky left-0 z-10 bg-card px-3 py-2 font-mono text-xs text-muted-foreground">{r.reference || "—"}</td>
                   <td className="px-3 py-2"><Badge tone={dir?.tone ?? "neutral"} dot={false}>{dir?.label ?? r.direction}</Badge></td>
                   <td className="px-3 py-2 font-medium">
-                    <Link href={`/courriers/${r.id}`} className="hover:underline">{r.title}</Link>
+                    <Link href={lienCourrier(r.id, dossier)} scroll={false} className="hover:underline">{r.title}</Link>
                   </td>
                   <td className="px-3 py-2 text-muted-foreground">{r.sender || "—"}</td>
                   <td className="px-3 py-2 text-muted-foreground">{r.recipient || "—"}</td>
@@ -207,7 +231,7 @@ export function MailTable({ rows, canEdit }: { rows: MailRow[]; canEdit: boolean
                   <td className="px-3 py-2">
                     <span className="flex items-center gap-2">
                       {r.attachments > 0 ? (
-                        <Link href={`/courriers/${r.id}`} title={`${r.attachments} pièce(s) jointe(s)`}
+                        <Link href={lienCourrier(r.id, dossier)} scroll={false} title={`${r.attachments} pièce(s) jointe(s)`}
                           className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
                           <Paperclip className="h-3.5 w-3.5" /> {r.attachments}
                         </Link>
@@ -220,7 +244,7 @@ export function MailTable({ rows, canEdit }: { rows: MailRow[]; canEdit: boolean
                         iconOnly variant="ghost"
                         refType="MAIL_ENTRY" refId={r.id}
                         refLabel={r.reference ? `${r.reference} — ${r.title}` : r.title}
-                        href={`/courriers/${r.id}`}
+                        href={lienCourrier(r.id)}
                       />
                     </span>
                   </td>

@@ -188,7 +188,8 @@ export function linkHref(
     case "PCH_ORDER": return ctx?.orderTenderId ? `/pch/${ctx.orderTenderId}` : null;
     case "INVOICE": return `/legal/${id}`;
     case "REGULATORY_PRODUCT": return `/regulatory/${id}`;
-    case "MAIL_ENTRY": return `/courriers/${id}`;
+    // Un courrier s'ouvre dans le panneau du registre (`lienCourrier`, `chemins/courriers.ts`).
+    case "MAIL_ENTRY": return `/courriers?courrier=${encodeURIComponent(id)}`;
   }
 }
 

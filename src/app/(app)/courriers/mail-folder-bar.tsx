@@ -119,7 +119,7 @@ export function MailFolderBar({
       <div className="flex flex-wrap gap-2">
         {shown.length === 0 && !openFolder ? (
           <p className="text-xs text-muted-foreground">
-            Aucun dossier. {canManage ? "Créez « Fournisseurs », « ANPP », « Baux 2026 »… — un pli s'enregistre vite, il se range ensuite." : "Le registre n'a pas encore classé les courriers."}
+            Aucun dossier.{canManage ? " « Nouveau dossier » pour en créer un." : ""}
           </p>
         ) : (
           shown.map((f) => (
@@ -205,7 +205,6 @@ function MailFolderSheet({
   return (
     <Sheet
       open onClose={() => !busy && onClose()} width="md" title={title}
-      description="Un dossier range, il n'autorise pas : le cloisonnement par entité reste la seule règle d'accès."
     >
       <form action={onSubmit} className="space-y-4">
         <div className="space-y-1.5">

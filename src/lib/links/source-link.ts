@@ -1,5 +1,6 @@
 import type { EntityType } from "@prisma/client";
 import { ENTITY_TYPE_LABELS } from "@/lib/labels";
+import { lienCourrier } from "@/lib/chemins/courriers";
 
 /**
  * D'OÙ VIENT UN ENGAGEMENT — le lien entre une pièce et ce qui l'a fait naître.
@@ -32,7 +33,7 @@ export const LINKABLE_SOURCES: Partial<Record<EntityType, (id: string) => string
   REGULATORY_PRODUCT: (id) => `/regulatory/${id}`,
   DOSSIER: (id) => `/dossiers/${id}`,
   BD_PROJECT: (id) => `/business-development/projets/${id}`,
-  MAIL_ENTRY: (id) => `/courriers/${id}`,
+  MAIL_ENTRY: (id) => lienCourrier(id),
   LEGAL_DOCUMENT: (id) => `/legal/${id}`,
 };
 

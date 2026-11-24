@@ -31,6 +31,8 @@ type Regle = {
 
 /** Une valeur lue par `URLSearchParams` (déjà décodée) remise dans un chemin. */
 const enc = (s: string) => encodeURIComponent(s);
+/** Un segment de chemin (encore encodé) devenu valeur de paramètre — tel quel s'il est mal formé. */
+const decoder = (s: string) => { try { return decodeURIComponent(s); } catch { return s; } };
 
 /**
  * LES ANCIENNES ROUTES → leurs équivalents actuels. L'ordre compte : la première règle qui
@@ -86,6 +88,11 @@ const REGLES: Regle[] = [
   // « Retours & réclamations » a été retiré (10/2026) : ses notifications n'ont plus d'écran — l'espace
   // personnel plutôt qu'un 404.
   { motif: /^\/retours-reclamations(\/.*)?$/, cible: () => "/mon-espace", sansContexte: true },
+
+  // ── Registres ──
+  // Un courrier n'a plus de page (24/11/2026) : il s'ouvre dans le panneau du registre. La page
+  // d'escale `/courriers/<id>` redirige déjà ; la réécriture évite le second saut.
+  { motif: /^\/courriers\/([^/]+)$/, cible: (m) => ({ chemin: "/courriers", params: { courrier: decoder(m[1]) } }) },
 
   // ── Divers ──
   { motif: /^\/office$/, cible: () => "/drive" },
