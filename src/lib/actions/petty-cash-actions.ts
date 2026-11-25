@@ -154,7 +154,7 @@ export async function allotPettyCash(formData: FormData): Promise<ActionResult> 
     data: { departmentId, period, amount, holderId: holder, note: fdStr(formData, "note"), createdById: user.id },
     select: { id: true },
   });
-  let ordre: { id: string; reference: string };
+  let ordre: { id: string; reference: string; centralStatus: string };
   try {
     ordre = await createExpenseOrder(ordreDeRemise({ departement: department, periode: periodLabel(period), amount, holderName, createdById: user.id, nature: "REMISE", bonDeRemise: fichierJoint(formData, "bonDeRemise") }));
   } catch (e) {
@@ -164,11 +164,14 @@ export async function allotPettyCash(formData: FormData): Promise<ActionResult> 
     return { ok: false, error: "La remise n'a pas pu partir au centre de paiement — rien n'a été enregistré, réessayez." };
   }
   await prisma.pettyCashAllotment.update({ where: { id: remise.id }, data: { expenseOrderId: ordre.id } });
+  // SANS BON DE REMISE, L'ORDRE N'ENTRE PAS AU CENTRE (justificatif obligatoire, 24/11/2026) : il attend sa pièce
+  // (`AWAITING_PROOF`). Dire « envoyée au centre » serait faux — la phrase dit ce qui manque, et où le joindre.
+  const sansBon = ordre.centralStatus === "AWAITING_PROOF";
 
   await recordAudit({
     actorId: user.id, action: "CREATE", module: "Budgets",
     entityType: "BUDGET", entityId: departmentId,
-    summary: `Caisse d'avance — ${department.name} : ${premiere ? "" : "nouvelle "}remise de ${amount} DZD (${periodLabel(period)}) envoyée au centre de paiement (${ordre.reference})`,
+    summary: `Caisse d'avance — ${department.name} : ${premiere ? "" : "nouvelle "}remise de ${amount} DZD (${periodLabel(period)}) ${sansBon ? "enregistrée, en attente de son bon de remise" : "envoyée au centre de paiement"} (${ordre.reference})`,
   });
   // LE CAISSIER APPREND CE QUI L'ATTEND — pas « confirmez la réception » d'une somme qui n'est
   // pas partie : il sera prévenu une seconde fois quand les Finances l'auront payée, et c'est alors
@@ -176,11 +179,14 @@ export async function allotPettyCash(formData: FormData): Promise<ActionResult> 
   await notifyUser({
     userId: holder, type: "GENERIC",
     title: premiere ? "Caisse d'avance annoncée" : "Nouvelle remise en caisse d'avance annoncée",
-    body: `${amount} DZD demandés au centre de paiement le ${new Date().toLocaleDateString("fr-FR")} — une fois autorisés puis payés par les Finances, vous confirmerez leur réception : ils compteront alors dans la caisse.`,
+    body: `${amount} DZD ${sansBon ? "annoncés (la remise attend son bon de remise avant le centre de paiement)" : "demandés au centre de paiement"} le ${new Date().toLocaleDateString("fr-FR")} — une fois autorisés puis payés par les Finances, vous confirmerez leur réception : ils compteront alors dans la caisse.`,
     link: lienRemiseCaisse(remise.id),
   });
   revalidatePath(PATH);
   revalidatePath("/centre-de-paiement");
+  if (sansBon) {
+    return { ok: true, message: `Remise de ${amount.toLocaleString("fr-FR")} DZD enregistrée (${ordre.reference}), mais PAS encore envoyée au centre de paiement : il manque le bon de remise. Joignez-le au dossier de paiement (lien « Joindre le bon de remise » ci-dessous) — elle partira alors seule au centre.` };
+  }
   return { ok: true, message: `Remise de ${amount.toLocaleString("fr-FR")} DZD envoyée au centre de paiement (${ordre.reference}) : autorisée, elle passera aux Finances ; payée, elle comptera dans la caisse dès que le caissier en confirme la réception.` };
 }); }
 
@@ -542,6 +548,8 @@ export async function decidePettyCashTopUp(formData: FormData): Promise<ActionRe
   if (pris.count === 0) return { ok: false, error: "Cette demande vient d'être tranchée." };
 
   let reference: string | null = null;
+  // Sans bon de remise, la rallonge accordée attend sa pièce AVANT le centre (`AWAITING_PROOF`) : les phrases le disent.
+  let sansBon = false;
   if (decision === "APPROVED" && granted > 0) {
     // ── LA RALLONGE PASSE PAR LE CENTRE DE PAIEMENT (§118.202) ─────────────────────────────
     //
@@ -551,7 +559,7 @@ export async function decidePettyCashTopUp(formData: FormData): Promise<ActionRe
     // au livre ici : c'est le règlement de l'ordre qui le fait, là où l'argent quitte la banque.
     const holder = req.allotment.holderId ?? req.requestedById;
     const holderName = holder ? (await prisma.user.findUnique({ where: { id: holder }, select: { name: true } }))?.name ?? null : null;
-    let ordre: { id: string; reference: string } | null = null;
+    let ordre: { id: string; reference: string; centralStatus: string } | null = null;
     if (holder) {
       const remise = await prisma.pettyCashAllotment.create({
         data: { departmentId: req.allotment.departmentId, period: req.allotment.period, amount: granted, holderId: holder, note: note ?? "Rallonge accordée sur demande", createdById: user.id },
@@ -578,14 +586,16 @@ export async function decidePettyCashTopUp(formData: FormData): Promise<ActionRe
       return { ok: false, error: "La rallonge n'a pas pu partir au centre de paiement — la demande reste à trancher, réessayez." };
     }
     reference = ordre.reference;
+    sansBon = ordre.centralStatus === "AWAITING_PROOF";
   }
+  const ouEnEst = sansBon ? "en attente du bon de remise (pas encore au centre de paiement)" : "envoyés au centre de paiement";
 
   if (req.requestedById) {
     await notifyUser({
       userId: req.requestedById, type: "GENERIC",
       title: decision === "APPROVED" ? "Rallonge accordée" : "Rallonge refusée",
       body: decision === "APPROVED"
-        ? `${granted} DZD accordés, envoyés au centre de paiement${reference ? ` (${reference})` : ""} : autorisés puis payés par les Finances, ils compteront dans la caisse quand vous en confirmerez la réception${note ? ` — ${note}` : ""}`
+        ? `${granted} DZD accordés, ${ouEnEst}${reference ? ` (${reference})` : ""} : autorisés puis payés par les Finances, ils compteront dans la caisse quand vous en confirmerez la réception${note ? ` — ${note}` : ""}`
         : `Demande refusée${note ? ` — ${note}` : ""}`,
       link: lienRallongeCaisse(id),
     });
@@ -593,10 +603,13 @@ export async function decidePettyCashTopUp(formData: FormData): Promise<ActionRe
   await recordAudit({
     actorId: user.id, action: decision === "APPROVED" ? "VALIDATE" : "REFUSE", module: "Budgets",
     entityType: "BUDGET", entityId: req.allotment.departmentId,
-    summary: `Rallonge de caisse ${decision === "APPROVED" ? `accordée (${granted} DZD${reference ? `, envoyée au centre de paiement : ${reference}` : ""})` : "refusée"} — ${req.allotment.department.name}`,
+    summary: `Rallonge de caisse ${decision === "APPROVED" ? `accordée (${granted} DZD${reference ? `, ${sansBon ? "en attente du bon de remise" : "envoyée au centre de paiement"} : ${reference}` : ""})` : "refusée"} — ${req.allotment.department.name}`,
   });
   revalidatePath(PATH);
   revalidatePath("/centre-de-paiement");
+  if (reference && sansBon) {
+    return { ok: true, message: `Rallonge accordée (${reference}), mais PAS encore envoyée au centre de paiement : il manque le bon de remise. Joignez-le au dossier de paiement — elle partira alors seule au centre.` };
+  }
   return { ok: true, message: reference ? `Rallonge accordée et envoyée au centre de paiement (${reference}) : autorisée, elle passera aux Finances ; payée, elle comptera dans la caisse dès que le caissier en confirme la réception.` : undefined };
 }); }
 

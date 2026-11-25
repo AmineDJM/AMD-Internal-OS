@@ -506,7 +506,8 @@ export function refusDecisionN1NoteFrais(
   req: { type: string; status: string; managerGate: string | null; missionAssignmentId: string | null },
   estN1: boolean, decision: "VALIDER" | "REFUSER", motif: string | null,
 ): string | null {
-  if (req.type !== "EXPENSE_REPORT" || !req.missionAssignmentId) return "Cette demande n'est pas une note de frais de mission.";
+  // TOUTE note de frais monte N+1 → RH (Super Admin, 24/11/2026), qu'elle vienne d'une mission ou de « Mon espace ».
+  if (req.type !== "EXPENSE_REPORT") return "Cette demande n'est pas une note de frais.";
   if (req.managerGate !== "PENDING" || req.status !== "PENDING") return "Cette note de frais n'attend plus la décision du N+1.";
   if (!estN1) return "Seul le N+1 de la personne valide sa note de frais.";
   if (decision === "REFUSER" && !(motif ?? "").trim()) return "Dites pourquoi vous refusez : la personne doit savoir quoi faire.";

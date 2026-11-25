@@ -78,7 +78,8 @@ export function ExpenseClaimButton({ libelle }: { libelle?: string } = {}) {
         open={open}
         onClose={() => !busy && setOpen(false)}
         title="Ajouter une note de frais"
-        description="Le mois concerné, le montant avancé, le motif, et le justificatif scanné. Les RH la traitent depuis votre dossier."
+        // LE CIRCUIT SE DIT AVANT L'ENVOI (Super Admin, 24/11/2026) : supérieur hiérarchique, puis RH — pas l'assistante.
+        description="Le mois concerné, le montant avancé, le motif, et le justificatif scanné. Elle passe par votre supérieur hiérarchique, puis les RH la traitent."
         width="md"
       >
         <form action={submit} className="space-y-4">

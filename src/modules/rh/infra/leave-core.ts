@@ -48,6 +48,15 @@ export const HR_TYPE_TO_LEAVE: Partial<Record<HrRequestType, LeaveType>> = {
 };
 
 /** Ce type de demande RH est-il en réalité un congé / une absence ? */
+/**
+ * LE N+1 D'UN SALARIÉ, en compte applicatif — la même résolution que le congé (`getManagerOf` : manager explicite, sinon
+ * responsable du département…). `null` sans N+1, ou quand le N+1 serait la personne elle-même. Ne fait jamais échouer.
+ */
+export async function superieurHierarchiqueDe(employeeId: string, demandeurUserId: string): Promise<string | null> {
+  const n1 = await getManagerOf(employeeId).catch(sansBloquer("leave-core.superieurHierarchiqueDe.getManagerOf", null));
+  return n1?.userId && n1.userId !== demandeurUserId ? n1.userId : null;
+}
+
 export function hrTypeIsLeave(type: HrRequestType): boolean {
   return type in HR_TYPE_TO_LEAVE;
 }

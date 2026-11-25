@@ -266,3 +266,61 @@ suite("Note de frais : un montant, une pièce, quinze minutes, et les RH", () =>
     expect(r.error).toMatch(/déjà traitée/i);
   });
 });
+
+/**
+ * LE CIRCUIT : SUPÉRIEUR HIÉRARCHIQUE, PUIS RH (Super Admin, 24/11/2026) — « les notes de frais ne relèvent pas de l'assistante
+ * de direction : elles vont aux RH en passant par le supérieur hiérarchique ». Une note déposée depuis « Mon espace » (hors
+ * mission) attend son N+1 (`managerGate`), qui la valide par le même geste que la note d'une mission (`deciderOrdreMissionN1`).
+ */
+suite("Note de frais : le supérieur hiérarchique, puis les RH", () => {
+  const T = `${TAG}n1_`;
+  let salarieId = "";
+  let chefId = "";
+  let employeId = "";
+  let chefEmployeId = "";
+  let noteId = "";
+
+  beforeAll(async () => {
+    const [u, chef] = await Promise.all([
+      prisma.user.create({ data: { name: `${T}salarie`, email: `${T}s@t.dz`, role: "MEDICAL_DELEGATE", passwordHash: "x" }, select: { id: true } }),
+      prisma.user.create({ data: { name: `${T}chef`, email: `${T}c@t.dz`, role: "MEDICAL_PROMOTION_MANAGER", passwordHash: "x" }, select: { id: true } }),
+    ]);
+    salarieId = u.id; chefId = chef.id;
+    chefEmployeId = (await prisma.employee.create({ data: { fullName: `${T}chef`, userId: chefId, isActive: true }, select: { id: true } })).id;
+    employeId = (await prisma.employee.create({ data: { fullName: `${T}salarie`, userId: salarieId, isActive: true, managerId: chefEmployeId }, select: { id: true } })).id;
+  }, 120_000);
+
+  afterAll(async () => {
+    await retirerDocumentsEtContenu({ where: { entityType: "HR_REQUEST", entityId: noteId } }).catch(() => {});
+    await prisma.hrDocumentRequest.deleteMany({ where: { employeeId: employeId } }).catch(() => {});
+    await prisma.employee.updateMany({ where: { id: employeId }, data: { managerId: null } }).catch(() => {});
+    await prisma.employee.deleteMany({ where: { id: { in: [employeId, chefEmployeId] } } }).catch(() => {});
+    await prisma.notification.deleteMany({ where: { userId: { in: [salarieId, chefId] } } }).catch(() => {});
+    await prisma.auditLog.deleteMany({ where: { actorId: { in: [salarieId, chefId] } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: T } } }).catch(() => {});
+  }, 120_000);
+
+  it("déposée, elle attend le N+1 — pas les RH — et la phrase le dit", async () => {
+    ACTOR = await actorFor(salarieId, "MEDICAL_DELEGATE");
+    const r = await requestHrDocument(fd({ type: "EXPENSE_REPORT", expenseMonth: moisCourant(), expenseAmount: "3100", details: "Parking CHU" }, [recu()]));
+    expect(r.ok, r.error).toBe(true);
+    expect(r.message).toMatch(/supérieur hiérarchique, puis les RH/);
+    noteId = r.id!;
+    const note = await prisma.hrDocumentRequest.findUniqueOrThrow({ where: { id: noteId } });
+    expect([note.managerGate, note.managerUserId]).toEqual(["PENDING", chefId]);
+    expect(await prisma.notification.count({ where: { userId: chefId, title: "Note de frais à valider (votre équipe)" } })).toBe(1);
+    // Le N+1 la trouve dans sa file (Tâches, Mes missions, centre d'actions) — le même filtre partout.
+    const { ordresMissionAValider } = await import("@/lib/queries/missions");
+    const file = await ordresMissionAValider(chefId);
+    expect(file.find((o) => o.requestId === noteId)).toMatchObject({ nature: "NF", missionId: null, montant: 3100 });
+  });
+
+  it("le N+1 la valide : elle part aux RH", async () => {
+    const { deciderOrdreMissionN1 } = await import("@/lib/actions/mission-actions");
+    ACTOR = await actorFor(chefId, "MEDICAL_PROMOTION_MANAGER");
+    const r = await deciderOrdreMissionN1(fd({ requestId: noteId, decision: "VALIDER" }));
+    expect(r.ok, r.error).toBe(true);
+    const note = await prisma.hrDocumentRequest.findUniqueOrThrow({ where: { id: noteId } });
+    expect([note.managerGate, note.status]).toEqual(["APPROVED", "PENDING"]);
+  });
+});

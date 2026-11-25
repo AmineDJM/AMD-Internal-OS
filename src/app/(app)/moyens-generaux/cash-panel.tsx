@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { actionFailureMessage } from "@/lib/action-outcome";
 import {
@@ -158,6 +159,10 @@ export function CashPanel({ view, people }: { view: GeneralMeansView; people: { 
                 Ils compteront dans la caisse une fois payés par les Finances et leur réception confirmée.
               </span>
               <Badge tone="warning" dot={false}>{libelleRemise(r.centre, r.status).label}</Badge>
+              {/* SANS BON DE REMISE, PAS DE CENTRE (justificatif obligatoire, 24/11/2026) : le remède, d'un clic. */}
+              {r.centre === "SANS_BON" && r.dossierHref && (
+                <Link href={r.dossierHref} className="text-sm font-medium text-primary hover:underline">Joindre le bon de remise</Link>
+              )}
             </div>
           ))}
 

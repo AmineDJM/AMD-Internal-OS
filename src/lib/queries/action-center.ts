@@ -430,7 +430,7 @@ export async function getActionCenter(user: SessionUser) {
   const [omAValider, invitationsMission] = await Promise.all([
     prisma.hrDocumentRequest.findMany({
       where: MARCHE_N1_MISSIONS(user.id),
-      select: { id: true, type: true, createdAt: true, details: true, employee: { select: { fullName: true } } },
+      select: { id: true, type: true, createdAt: true, details: true, missionAssignmentId: true, employee: { select: { fullName: true } } },
       orderBy: { createdAt: "asc" }, take: 30,
     }).catch(sansBloquer("action-center.getActionCenter.hrDocumentRequest", [])),
     prisma.missionAssignment.findMany({
@@ -441,7 +441,7 @@ export async function getActionCenter(user: SessionUser) {
   ]);
   for (const o of omAValider) {
     items.push({
-      key: `om-n1-${o.id}`, objet: `HR_REQUEST:${o.id}`, title: `${o.type === "EXPENSE_REPORT" ? "Note de frais de mission" : "Ordre de mission"} — ${o.employee.fullName}`, subtitle: o.details ?? "",
+      key: `om-n1-${o.id}`, objet: `HR_REQUEST:${o.id}`, title: `${o.type === "EXPENSE_REPORT" ? (o.missionAssignmentId ? "Note de frais de mission" : "Note de frais") : "Ordre de mission"} — ${o.employee.fullName}`, subtitle: o.details ?? "",
       module: "Missions", href: LIEN_MISSIONS_A_VALIDER, kind: "validation", priority: null,
       deadline: null, depuis: o.createdAt.toISOString(), owner: "", statusLabel: "À valider (N+1)", statusTone: "warning",
     });

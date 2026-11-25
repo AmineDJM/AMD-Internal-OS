@@ -400,7 +400,7 @@ export async function deciderOrdreMissionN1(formData: FormData): Promise<ActionR
     ? refusDecisionN1NoteFrais({ type: req.type, status: req.status, managerGate: req.managerGate ?? null, missionAssignmentId: req.missionAssignmentId }, estN1, decision, motif)
     : refusDecisionN1({ type: req.type, status: req.status as HrStatut, managerGate: (req.managerGate ?? null) as GateN1 | null }, estN1, decision, motif);
   if (refus) return { ok: false, error: refus };
-  const quoi = noteFrais ? "Note de frais de mission" : "Ordre de mission";
+  const quoi = noteFrais ? (req.missionAssignmentId ? "Note de frais de mission" : "Note de frais") : "Ordre de mission";
 
   const pris = await prisma.hrDocumentRequest.updateMany({
     where: { id, managerGate: "PENDING", status: "PENDING" },
@@ -422,12 +422,13 @@ export async function deciderOrdreMissionN1(formData: FormData): Promise<ActionR
       userId: req.employee.userId, type: "GENERIC",
       title: `${quoi} ${decision === "VALIDER" ? "validé(e)" : "refusé(e)"} par votre N+1`,
       body: decision === "VALIDER" ? "Elle part aux RH." : noteFrais ? `Motif : ${motif} — corrigez vos dépenses et clôturez de nouveau.` : `Motif : ${motif}`,
-      link: req.missionAssignmentId ? lienMission(req.missionAssignmentId, noteFrais ? "frais" : undefined) : MES_MISSIONS,
+      // Une note de frais hors mission se suit dans « Mon dossier RH », pas dans « Mes missions ».
+      link: req.missionAssignmentId ? lienMission(req.missionAssignmentId, noteFrais ? "frais" : undefined) : noteFrais ? "/mon-dossier" : MES_MISSIONS,
     }).catch(sansBloquer("mission-actions.deciderOrdreMissionN1.notifyUser"));
   }
   if (decision === "VALIDER") {
     await notifyRoles(rolesWithModule("HR_REQUESTS", "UPDATE"), {
-      type: "GENERIC", title: noteFrais ? "Note de frais de mission à traiter" : "Ordre de mission à établir",
+      type: "GENERIC", title: noteFrais ? `${quoi} à traiter` : "Ordre de mission à établir",
       body: `${req.employee.fullName} — validé par le N+1`, link: `/rh/demandes?demande=${id}`,
     }).catch(sansBloquer("mission-actions.deciderOrdreMissionN1.notifyRoles"));
   }

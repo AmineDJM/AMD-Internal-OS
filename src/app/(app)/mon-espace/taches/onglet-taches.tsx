@@ -217,7 +217,7 @@ function LigneOrdreMissionN1({ ordre: o }: { ordre: OrdreAValiderDTO }) {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <span className="block break-words font-medium">
-            <span className={cn("mr-2 rounded-full px-2 py-0.5 text-[0.6875rem] font-medium", TON_PILL.info)}>{o.nature === "NF" ? "Note de frais de mission à valider" : "Ordre de mission à valider"}</span>
+            <span className={cn("mr-2 rounded-full px-2 py-0.5 text-[0.6875rem] font-medium", TON_PILL.info)}>{o.nature === "NF" ? (o.missionId ? "Note de frais de mission à valider" : "Note de frais à valider") : "Ordre de mission à valider"}</span>
             {o.employeeName} — {o.missionId && o.nature === "NF" ? <Link href={lienMission(o.missionId, "frais")} className="hover:underline">{o.mission}</Link> : o.mission}
           </span>
           <span className="block text-xs text-muted-foreground">{sousTitre}</span>
