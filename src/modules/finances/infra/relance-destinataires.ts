@@ -1,8 +1,8 @@
 import { prisma } from "@/lib/prisma";
-import { notifyRoles, notifyUser } from "@/lib/notify";
-import { CHEMIN_CENTRE_DE_PAIEMENT, lienCentreDePaiement } from "@/lib/chemins/finances";
+import { notifyModule, notifyRoles, notifyUser } from "@/lib/notify";
+import { CHEMIN_CENTRE_DE_PAIEMENT, CHEMIN_MES_DEMANDES_DE_PAIEMENT, CHEMIN_PAIEMENTS_A_FAIRE, lienCentreDePaiement } from "@/lib/chemins/finances";
 import type { EtatPaiement } from "../domaine/relance-paiement";
-import { CENTRAL_AUTH_THRESHOLD_DZD, isHighValue, ROLES_CENTRE_DE_PAIEMENT } from "../domaine/authorization";
+import { CENTRAL_AUTH_THRESHOLD_DZD, isHighValue } from "../domaine/authorization";
 import { ENTITE_SANS } from "../domaine/entite-centre";
 import { phraseJustificatifAttendu, regleDeJustificatif, titreJoindreJustificatif } from "../domaine/justificatif";
 
@@ -19,24 +19,25 @@ import { phraseJustificatifAttendu, regleDeJustificatif, titreJoindreJustificati
 export async function prevenirQuiALaMain(i: {
   etat: EtatPaiement; title: string; body: string; dossierId: string | null; recipientId: string | null; demandeurId: string | null; acteurId: string;
 }): Promise<string> {
-  const lienDossier = i.dossierId ? `/validations/paiements/${i.dossierId}` : CHEMIN_CENTRE_DE_PAIEMENT;
+  // Sans dossier, chacun vers SON écran — jamais le centre, qui n'ouvre qu'à la Direction générale (25/11/2026).
+  const dossier = i.dossierId ? `/validations/paiements/${i.dossierId}` : null;
   if (i.etat === "CENTRE") {
-    await notifyRoles([...ROLES_CENTRE_DE_PAIEMENT], { type: "VALIDATION_REQUIRED", title: i.title, body: i.body, link: CHEMIN_CENTRE_DE_PAIEMENT });
+    await notifyModule("PAYMENT_CENTRE", { type: "VALIDATION_REQUIRED", title: i.title, body: i.body, link: CHEMIN_CENTRE_DE_PAIEMENT });
     return "le centre de paiement est prévenu";
   }
   if (i.etat === "DEMANDEUR") {
-    if (i.demandeurId && i.demandeurId !== i.acteurId) await notifyUser({ userId: i.demandeurId, type: "VALIDATION_REQUIRED", title: i.title, body: i.body, link: lienDossier });
+    if (i.demandeurId && i.demandeurId !== i.acteurId) await notifyUser({ userId: i.demandeurId, type: "VALIDATION_REQUIRED", title: i.title, body: i.body, link: dossier ?? CHEMIN_MES_DEMANDES_DE_PAIEMENT });
     return "le demandeur est prévenu";
   }
-  if (i.recipientId) await notifyUser({ userId: i.recipientId, type: "VALIDATION_REQUIRED", title: i.title, body: i.body, link: lienDossier });
-  await notifyRoles(["FINANCE_BUDGET_MANAGER"], { type: "VALIDATION_REQUIRED", title: i.title, body: i.body, link: lienDossier });
+  if (i.recipientId) await notifyUser({ userId: i.recipientId, type: "VALIDATION_REQUIRED", title: i.title, body: i.body, link: dossier ?? CHEMIN_MES_DEMANDES_DE_PAIEMENT });
+  await notifyRoles(["FINANCE_BUDGET_MANAGER"], { type: "VALIDATION_REQUIRED", title: i.title, body: i.body, link: dossier ?? CHEMIN_PAIEMENTS_A_FAIRE });
   return "les Finances sont prévenues";
 }
 
 /** L'ANNONCE AU CENTRE — un ordre y entre : à sa naissance justifiée, ou à sa pièce jointe. Les Finances, elles, n'en savent rien. */
 export async function annoncerAuCentre(o: { reference: string; label: string; amount: number; companyId: string | null }): Promise<void> {
   const money = `${o.amount.toLocaleString("fr-FR")} DZD`;
-  await notifyRoles([...ROLES_CENTRE_DE_PAIEMENT], {
+  await notifyModule("PAYMENT_CENTRE", {
     type: "VALIDATION_REQUIRED",
     title: "Autorisation de paiement demandée",
     body: `${o.reference} — ${o.label} (${money}${isHighValue(o.amount) ? `, au-dessus de ${CENTRAL_AUTH_THRESHOLD_DZD.toLocaleString("fr-FR")} DZD` : ""})`,

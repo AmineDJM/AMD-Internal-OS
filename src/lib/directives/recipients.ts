@@ -5,6 +5,7 @@ import { anyRoleFilter } from "@/lib/rbac";
 import { getAppSettings } from "@/lib/settings";
 import { saveFile, validateUpload } from "@/lib/storage";
 import { rejouerNotifications } from "@/lib/notifications/ecrire";
+import { admettreLignes } from "@/lib/notifications/admission";
 import { sendPushToUser } from "@/lib/push";
 import type { DirectiveAudience, DirectiveScope } from "./audience";
 import { sansBloquer } from "@/lib/journal";
@@ -109,9 +110,10 @@ export async function sendDirective(directive: {
    * L'écriture, elle, reste ici : sortie du corps, elle disparaîtrait de ce que la dérivation
    * des contrats sait dire de cette action (§118.137).
    */
-  const lignes = ids.map((userId) => ({
+  // La directive est ADRESSÉE à chacun (il en est le destinataire, sa page le reconnaît) : la règle nominative.
+  const lignes = await admettreLignes(ids.map((userId) => ({
     userId, type: "ASSIGNMENT" as const, title, body, link, popup: directive.popup,
-  }));
+  })), "nominatif", "directives.sendDirective");
   let ecrites = lignes.length;
   try {
     await prisma.notification.createMany({ data: lignes });
@@ -121,7 +123,7 @@ export async function sendDirective(directive: {
 
   // Push (PWA) — best-effort, comme partout ailleurs : un appareil injoignable ne doit pas
   // faire échouer la diffusion aux autres.
-  await Promise.all(ids.map((userId) =>
+  await Promise.all(lignes.map(({ userId }) =>
     sendPushToUser(userId, { title, body, url: link }).catch(sansBloquer("recipients.sendDirective.sendPushToUser")),
   ));
   return ecrites;

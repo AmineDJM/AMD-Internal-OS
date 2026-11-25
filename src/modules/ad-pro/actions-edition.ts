@@ -13,7 +13,7 @@ import {
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { montantDzd } from "@/lib/utils";
 import { canAccessEntity } from "@/lib/entity-access";
-import { notifyRoles } from "@/lib/notify";
+import { notifyModule } from "@/lib/notify";
 import { lienLigneCentreAdPro } from "@/lib/chemins/ad-pro";
 import { ajusterVisaAuMontant, phraseGesteVisa } from "@/modules/ad-pro/api";
 import { MODULE_DU_POLE, CHEMIN_LISTE_POLE, poleDe } from "@/lib/lecteurs/consulting";
@@ -240,7 +240,7 @@ export async function updateAdProRequest(formData: FormData): Promise<ActionResu
     phraseCentre = phraseGesteVisa(visa.geste, visa.etat);
     if (visa.geste === "OUVERTE" || visa.geste === "ROUVERTE") {
       // Le CENTRE est prévenu, comme à la soumission : c'est lui qui a la main désormais.
-      await notifyRoles(["GENERAL_MANAGER", "SUPER_ADMIN"], {
+      await notifyModule("AD_PRO_CENTRE", {
         type: "VALIDATION_REQUIRED", title: "Centre Ad & Pro — montant corrigé au-dessus du seuil",
         body: `${String(before.reference ?? "")} — ${String(before.title ?? "")}`, link: lienLigneCentreAdPro(id),
       });

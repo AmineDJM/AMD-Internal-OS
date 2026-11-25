@@ -10,7 +10,7 @@ import { userCan, hasGlobalView } from "@/lib/rbac";
 import { bonDeVersementRattache } from "@/lib/medical-info";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
-import { notifyUser, notifyRoles } from "@/lib/notify";
+import { notifyUser, notifyRoles, notifyModule } from "@/lib/notify";
 import { createWithRetry, enSerie } from "@/lib/refs";
 import { moneyEntityOf, getMyCompanies, adventumCompanyId } from "@/lib/company";
 import {
@@ -21,7 +21,7 @@ import {
   type PaymentMove, canSubmitDossier, canNudge, nudgeKindOf, nudgeMessage, NUDGE_LABEL, isCompanionDossier,
   canDecideFromDossier, deadlineNatureOf, etatDuPaiement, prevenirQuiALaMain,
   confronterMontantAuxFactures, refusEcartMontant, noteEcartAssume, phraseEcartMontant, PHRASE_MONTANT_NON_LU,
-  peutSupprimerUneDemandePaiement, ROLES_CENTRE_DE_PAIEMENT, lireQuestion, prevenirFinancesDeLaReponse,
+  peutSupprimerUneDemandePaiement, lireQuestion, prevenirFinancesDeLaReponse,
   preparerOrdreDeLaDemande, prevoirLaRetenue, netApresCorrection, refusNatureDemande,
 } from "@/modules/finances/api";
 import { persistUploadedDocument } from "@/lib/documents";
@@ -910,7 +910,7 @@ export async function nudgePaymentRequest(formData: FormData): Promise<ActionRes
       etat: etatDuPaiement({ ordre, demande: req }), title, body: message, dossierId: id,
       recipientId: req.recipientId, demandeurId: req.requesterId, acteurId: user.id,
     });
-    if (kind === "URGENT") await notifyRoles([...ROLES_CENTRE_DE_PAIEMENT], { type: "VALIDATION_REQUIRED", title, body: message, link: `${PATH}/${id}` });
+    if (kind === "URGENT") await notifyModule("PAYMENT_CENTRE", { type: "VALIDATION_REQUIRED", title, body: message, link: `${PATH}/${id}` });
     await recordAudit({
       actorId: user.id, action: "UPDATE", module: "Demandes de paiement",
       entityType: "PAYMENT_REQUEST", entityId: id, summary: message,

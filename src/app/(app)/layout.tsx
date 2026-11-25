@@ -38,6 +38,7 @@ import { NavDepthTracker } from "@/components/shared/nav-depth-tracker";
 import { NavProgress } from "@/components/layout/nav-progress";
 import { PrimitivesUI } from "@/components/ui/primitives-ui";
 import { sansBloquer } from "@/lib/journal";
+import { clauseNotificationsOuvrables } from "@/lib/notifications/admission";
 
 export default async function AppLayout({
   children,
@@ -47,6 +48,9 @@ export default async function AppLayout({
   const user = await requireUser();
   if (user.mustChangePassword) redirect("/change-password");
   const canMessage = userCan(user, "MESSAGING", "VIEW");
+  // LES NOTIFICATIONS QU'ELLE PEUT ENCORE OUVRIR (25/11/2026) : un module retiré depuis emporte ses notifications du
+  // compteur et des badges — sans rien effacer (`clauseNotificationsOuvrables`).
+  const ouvrables = clauseNotificationsOuvrables(user);
   // UN SEUL ALLER-RETOUR pour tout ce que la coque lit (audit performance PERF-10) : ces lectures ne
   // dépendent que de `user` — les attendre l'une après l'autre coûtait six allers-retours par rendu,
   // y compris celui qui suit chaque action serveur qui revalide.
@@ -59,7 +63,7 @@ export default async function AppLayout({
     // ici ; il a été sorti pour que le bureau d'Adam, qui n'a PAS cette coque, puisse offrir la
     // même liste sans la recopier — deux copies auraient divergé à la première garde ajoutée.
     navigationFor(user),
-    prisma.notification.count({ where: { userId: user.id, isRead: false } }),
+    prisma.notification.count({ where: { AND: [{ userId: user.id, isRead: false }, ouvrables] } }),
     canMessage ? getTotalUnread(user.id) : Promise.resolve(0),
     // Pastille « score d'adoption » de l'utilisateur courant (snapshot mis en cache).
     getAdoptionBadge(user.id, user.role).catch(sansBloquer("(app)-layout.AppLayout.getAdoptionBadge", null)),
@@ -68,7 +72,7 @@ export default async function AppLayout({
     // entité qui ne la regarde pas.
     getMyCompanies(user.id).catch(sansBloquer("(app)-layout.AppLayout.getMyCompanies", [])),
     // Notifications non lues (leur lien) → badge par module dans le menu.
-    prisma.notification.findMany({ where: { userId: user.id, isRead: false, link: { not: null } }, select: { link: true }, take: 500 }),
+    prisma.notification.findMany({ where: { AND: [{ userId: user.id, isRead: false, link: { not: null } }, ouvrables] }, select: { link: true }, take: 500 }),
     // Portée VALIDÉE contre les droits : le cookie est une demande, pas une autorisation.
     myCompanyScope(user.id),
     // Mode test : la personne voit des nouveautés non encore validées en production.

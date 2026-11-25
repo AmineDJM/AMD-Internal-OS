@@ -99,6 +99,9 @@ export const EXECUTEURS: Readonly<Record<string, () => Promise<ExecuteurEffetSor
     return {
       executer: async (charge) => {
         const c = charge as { userId: string; payload: { title: string; body?: string; url?: string; tag?: string } };
+        // POUSSÉE DIFFÉRÉE : les droits ont pu changer depuis le geste — un lien qui ne lui est plus ouvrable ne part pas.
+        const { lienOuvrablePour } = await import("@/lib/notifications/admission");
+        if (!(await lienOuvrablePour(c.userId, c.payload.url))) return;
         await sendPushToUser(c.userId, c.payload);
       },
       sansCompensation: "la notification poussée s'est affichée sur l'appareil du destinataire : elle ne se reprend pas (sa notification dans l'ERP, elle, est retirée par l'annulation du geste si elle n'a pas été lue)",

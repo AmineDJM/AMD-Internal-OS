@@ -1,7 +1,7 @@
 import type { Prisma, UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getAppSettings } from "@/lib/settings";
-import { notifyRoles, notifyUser } from "@/lib/notify";
+import { notifyRoles, notifyUser, notifyModule } from "@/lib/notify";
 import { recordAudit } from "@/lib/audit";
 import { hasRole } from "@/lib/rbac";
 import { PARENT_COLONNE, type AdProParent } from "../domaine/postes";
@@ -208,7 +208,7 @@ export async function signalerPorteDgSiBesoin(parent: AdProParent, parentId: str
       update: { signaleMontant: p.total, signaleLe: new Date() },
     });
     const d = await demandeurEtNom(parent, parentId);
-    await notifyRoles(["GENERAL_MANAGER", "SUPER_ADMIN"], {
+    await notifyModule("AD_PRO_CENTRE", {
       type: "ASSIGNMENT",
       title: "Ad & Pro — total à valider (Directeur Général)",
       body: `${d?.nom ?? "Demande"} — ${p.phrase ?? ""}`.slice(0, 280),

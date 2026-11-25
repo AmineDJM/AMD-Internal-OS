@@ -11,8 +11,9 @@ import { ENTITE_SANS, choisirEntite } from "../../domaine/entite-centre";
  *
  * ── CE QUE CE MODULE DÉCIDE, ET CE QU'IL NE DÉCIDE PAS ──────────────────────────────────────
  *
- * Il ne décide RIEN du droit : les ordres lus sont ceux que l'écran lisait déjà — tout le centre
- * pour qui y siège, ses propres demandes sinon — dans les sociétés auxquelles la personne a droit
+ * Il ne décide RIEN du droit : les ordres lus sont ceux du centre, pour qui y siège — et RIEN pour qui n'y siège pas, pas
+ * même ses propres demandes (25/11/2026 : le demandeur suit les siennes depuis « Mes demandes de paiement » ; la page l'y
+ * renvoie, le chargeur ne lui rend rien au cas où un autre lecteur l'appellerait) — dans les sociétés auxquelles la personne a droit
  * (`ficheScopedWhere`), les ordres sans société compris (§118.154 : une ligne sans entité n'est le
  * secret de personne, et la cacher la rendrait impossible à rattacher). Il ne fait que REGROUPER
  * par entité : toutes les origines (Regulatory, Ad & Pro, RH…) partagent la même file (Super
@@ -86,7 +87,8 @@ export async function chargerCentre(
       { centralStatus: { notIn: [...HORS_DU_CENTRE] } },
       // Une demande retirée annule son ordre : il quitte le centre — liste, compteurs, bilan (`ORDRE_NON_ANNULE`).
       ORDRE_NON_ANNULE,
-      ...(canDecide ? [] : [{ requestedById: user.id }]),
+      // Qui n'y siège pas ne lit AUCUN ordre du centre (25/11/2026) — `id: { in: [] }` : une clause qui ne rend rien.
+      ...(canDecide ? [] : [{ id: { in: [] as string[] } }]),
     ],
   };
   const where = await ficheScopedWhere(user.id, base);

@@ -40,7 +40,7 @@ export default async function MonEspacePage() {
   const [jour, rappels, manager, solde, onglets] = await Promise.all([
     chargerAujourdhui(user, { maintenant }),
     // TOUS LES RAPPELS (recette du 23/11/2026) : les siens, ceux de l'assistant ; l'encart n'en montre que les actifs.
-    listerMesRappels(user.id),
+    listerMesRappels(user),
     // Le responsable hiérarchique — nommé dans le formulaire de formation : il ne se choisit pas.
     getManagerOfUser(user.id).catch(sansBloquer("mon-espace-page.MonEspacePage.getManagerOfUser", null)),
     getMyLeaveBalance(user.id).catch(sansBloquer("mon-espace-page.MonEspacePage.getMyLeaveBalance", null)),

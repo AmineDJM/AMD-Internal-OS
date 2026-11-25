@@ -195,12 +195,15 @@ suite("le centre de paiement : une file par entité, par le chargeur", () => {
     expect(sa2.idsAffiches).toContain(ids["sans-entite"]);
   });
 
-  it("le demandeur non siège ne lit QUE ses demandes : pas de décision, pas de ligne des autres", async () => {
+  it("le demandeur non siège ne lit RIEN du centre, pas même sa demande : il la suit depuis « Mes demandes de paiement » (25/11/2026)", async () => {
     const c = await chargerCentre(demandeur, { entite: aId });
     expect(c.canDecide).toBe(false);
-    expect(c.aucunOrdre).toBe(false);
-    expect(c.idsAffiches).toEqual([ids["A-du-demandeur"]]);
-    expect(pastille(c, aId)!.total).toBe(1);
+    expect(c.aucunOrdre).toBe(true);
+    expect([c.idsAffiches, c.idsEnAttente, c.idsEntite]).toEqual([[], [], []]);
+    expect(pastille(c, aId)!.total).toBe(0);
+    // L'export du centre non plus : c'est un geste du centre.
+    const r = await exporterOrdresCentre(demandeur as never, { entite: aId });
+    expect(r.ok).toBe(false);
   });
 
   it("qui ne siège pas et n'a rien demandé reçoit « aucun ordre » — l'écran dit la règle au lieu d'un tableau vide", async () => {

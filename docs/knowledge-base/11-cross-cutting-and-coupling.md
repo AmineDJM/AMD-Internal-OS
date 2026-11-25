@@ -81,6 +81,12 @@ This chapter covers the "nervous system" of the ERP: the mechanisms that every b
 
 ### 4.1 Notifications (in-app plus push)
 
+- **Admission — one gate (Super Admin, 25/11/2026)** [V]: no notification of a module reaches someone who cannot open it.
+  - The link decides the module: `src/lib/notifications/porte-du-lien.ts` (pure) reads the menu (`NAVIGATION`, same walk as `moduleForPath`) plus a short `ROUTES_HORS_MENU` table. Four kinds: `siege` (payment centre, validation centre, Ad & Pro centre, Adam, Brain — strict), `ecran` (bare module screen — strict), `fiche` (a page under a screen, or a screen opened on a row — the **requester exception**: allowed when addressed by name), `libre` (no link / open page / unknown link — allowed, unknown is logged).
+  - Every writer filters before writing (`src/lib/notifications/admission.ts`: `admettreDestinataires`, `admettreLignes`, `lienAdmis`) — `notifyUser` (nominative), `notifyRoles`/`broadcastNotification` (collective), the direct `createMany` of tasks and directives, the undo rectification. Seat rules: `sitsOnPaymentCentre`, `ouvreLeCentreDeValidations`, `siegeAuCentreAdPro`, Adam predicates; otherwise `userCan(module, "VIEW")`. Removals are logged (`notification.destinataires-retires`). Ratchet: `porte-du-lien.test.ts`.
+  - `notifyModule(module, input)` notifies **the people who have the module** (role defaults + console grants, then the seat rule) instead of a hard-coded role list; used for the payment centre and the Ad & Pro centre.
+  - Reading: `clauseNotificationsOuvrables(user)` (layout count and badges, `/notifications`, action centre « Aujourd'hui », reminders, Adam inbox) and `clauseOuvrablesDe` (poll, cached 60 s) hide notifications whose link is no longer openable — nothing is deleted. Deferred push re-checks the link (`effets/executeurs.ts`).
+
 - `notifyUser(input)` (`src/lib/notify.ts:19-28`) [V]:
   - Writes one `Notification` row inside a try/catch that only logs.
   - **Then always awaits** `sendPushToUser`, even when the row write failed.

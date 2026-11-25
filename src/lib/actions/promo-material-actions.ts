@@ -8,7 +8,7 @@ import { ecrireAuFil, businessUnitDuDemandeur } from "@/modules/ad-pro/api";
 import { prisma } from "@/lib/prisma";
 import { canAccessEntity } from "@/lib/entity-access";
 import { recordAudit } from "@/lib/audit";
-import { notifyRoles, notifyUser } from "@/lib/notify";
+import { notifyRoles, notifyUser, notifyModule } from "@/lib/notify";
 import { lienLigneCentreAdPro } from "@/lib/chemins/ad-pro";
 import { createExpenseOrder, annulerOrdreNonRegle } from "@/modules/finances/api";
 import { persistUploadedDocument } from "@/lib/documents";
@@ -501,7 +501,7 @@ export async function submitBcForFinance(formData: FormData): Promise<ActionResu
   // TOUT BC NÉ D'AD & PRO AU-DESSUS DU SEUIL PASSE PAR LE CENTRE DE VALIDATION AD & PRO
   // (§118.148) : ce sont ses sièges qui sont prévenus, et le centre liste le dossier tant qu'il
   // attend.
-  await notifyRoles(["GENERAL_MANAGER", "SUPER_ADMIN"], {
+  await notifyModule("AD_PRO_CENTRE", {
     type: "VALIDATION_REQUIRED", title: "Matériel promotionnel — bon de commande à valider",
     body: `${pm.reference} — ${pm.title}`, link: lienLigneCentreAdPro(id),
   });
@@ -526,7 +526,7 @@ export async function remindFinance(formData: FormData): Promise<ActionResult> {
   // elle s'écrit, elle aussi, sur la marche lue.
   const relance = await prisma.promoMaterial.updateMany({ where: surLaMarcheLue(pm), data: { financeReminderAt: new Date(), financeReminderCount: { increment: 1 } } });
   if (relance.count === 0) return { ok: false, error: ETAT_CHANGE };
-  await notifyRoles(["GENERAL_MANAGER", "SUPER_ADMIN"], {
+  await notifyModule("AD_PRO_CENTRE", {
     type: "VALIDATION_REQUIRED", title: "⏰ Relance — bon de commande à valider (matériel promotionnel)",
     body: `${pm.reference} — ${pm.title}`, link: lienLigneCentreAdPro(id),
   });

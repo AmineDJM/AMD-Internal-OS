@@ -11,7 +11,7 @@ import {
   commentaireDeRelance, etatDuPaiement, messageDeRelance, refusDeRelance, QUI_A_LA_MAIN, prevenirQuiALaMain,
 } from "@/modules/finances/api";
 import { verifierJetonRelance } from "@/lib/factures/jeton-relance";
-import { CHEMIN_CENTRE_DE_PAIEMENT } from "@/lib/chemins/finances";
+import { CHEMIN_CENTRE_DE_PAIEMENT, CHEMIN_MES_DEMANDES_DE_PAIEMENT } from "@/lib/chemins/finances";
 import { actionReversible } from "@/lib/effets/reversible";
 
 /**
@@ -117,7 +117,7 @@ export async function relancerPaiement(formData: FormData): Promise<ActionResult
       });
       // LE DEMANDEUR SAIT QU'ON ATTEND SON PAIEMENT : relancé par un tiers, il en est informé.
       if (!parLeDemandeur && demandeurId && etat !== "DEMANDEUR") {
-        await notifyUser({ userId: demandeurId, type: "GENERIC", title: "Votre paiement a été relancé", body: message, link: lu.dossier ? `/validations/paiements/${lu.dossier.id}` : CHEMIN_CENTRE_DE_PAIEMENT });
+        await notifyUser({ userId: demandeurId, type: "GENERIC", title: "Votre paiement a été relancé", body: message, link: lu.dossier ? `/validations/paiements/${lu.dossier.id}` : CHEMIN_MES_DEMANDES_DE_PAIEMENT });
       }
       await recordAudit({
         actorId: user.id, action: "UPDATE", module: "Demandes de paiement",

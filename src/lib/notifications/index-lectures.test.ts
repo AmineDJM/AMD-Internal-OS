@@ -52,8 +52,10 @@ function demande(appel: string | null, filtres: RegExp, tri: RegExp): boolean {
   return filtres.test(compact) && tri.test(compact);
 }
 
-const FILTRE_NON_LUES = /where: \{ userId: user\.id, isRead: false \}/;
-const FILTRE_TOUTES = /where: \{ userId: user\.id \}/;
+// La personne et « non lue » d'abord ; la clause des liens encore ouvrables (25/11/2026, `clauseNotificationsOuvrables`)
+// s'y ajoute en `AND` — elle ne porte que sur `link`, l'index sert toujours l'égalité et le tri.
+const FILTRE_NON_LUES = /where: \{ (?:AND: \[\{ )?userId: user\.id, isRead: false \}/;
+const FILTRE_TOUTES = /where: \{ (?:AND: \[\{ )?userId: user\.id \}/;
 const TRI_RECENTES_D_ABORD = /orderBy: \{ createdAt: "desc" \}/;
 
 let dbOk = false;

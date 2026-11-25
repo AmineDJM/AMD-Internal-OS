@@ -7,7 +7,7 @@ import { getMyCompanies } from "@/lib/company";
 import { PAYMENT_REQUEST_STATUS, PAYMENT_URGENCY } from "@/lib/labels";
 import { chargerCentre, fileAInstruire, instruitLesDemandes, myPaymentRequests } from "@/modules/finances/api";
 import {
-  CENTRAL_STATUS_LABEL, deadlineLabel, deadlineNatureLabel, isCompanionDossier, sortByPriority,
+  CENTRAL_STATUS_LABEL, deadlineLabel, deadlineNatureLabel, isCompanionDossier, PAYMENT_CENTRE_REFUSAL, sitsOnPaymentCentre, sortByPriority,
 } from "@/modules/finances/partage";
 import { cleParLibelle, libellesDe } from "./filtres";
 import { exporte, MIME_XLSX, refusExport, type ResultatExport } from "./types";
@@ -20,7 +20,7 @@ import { exporte, MIME_XLSX, refusExport, type ResultatExport } from "./types";
  *     qui instruit (`instruitLesDemandes`), la file à instruire (`fileAInstruire`) — les mêmes fonctions que la page,
  *     dans le même ordre (échéance réelle, `sortByPriority`).
  *   • LES ORDRES DU CENTRE DE PAIEMENT — ce que montre `/centre-de-paiement` : la portée du chargeur (`chargerCentre` :
- *     tout le centre pour qui y siège, ses propres demandes sinon, dans les sociétés de la personne), l'entité
+ *     tout le centre pour qui y siège, dans les sociétés de la personne ; RIEN pour qui n'y siège pas — 25/11/2026), l'entité
  *     choisie comme à l'écran, toutes origines confondues — sans la coupe d'affichage (300 lignes).
  *
  * Partagés par les routes des boutons et par l'Assistant IA (lot K7, décision 0037) : même portée, mêmes droits, audit.
@@ -98,6 +98,8 @@ export interface OptionsExportCentre {
 }
 
 export async function exporterOrdresCentre(user: CurrentUser, o: OptionsExportCentre = {}): Promise<ResultatExport> {
+  // L'export du centre est un geste DU centre : qui n'y siège pas n'exporte rien, pas même ses propres ordres (25/11/2026).
+  if (!sitsOnPaymentCentre(user)) return refusExport(403, PAYMENT_CENTRE_REFUSAL);
   // L'ENTITÉ par son nom (l'assistant) : résolue parmi les sociétés de la personne, puis VALIDÉE par le chargeur.
   const mesSocietes = await getMyCompanies(user.id);
   const q = (o.entite ?? "").trim().toLowerCase();

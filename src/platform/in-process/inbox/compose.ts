@@ -16,6 +16,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireModule } from "@/lib/session";
 import { userCan, type SessionUser } from "@/lib/rbac";
+import { clauseNotificationsOuvrables } from "@/lib/notifications/admission";
 import { getActionCenter, PREFIXE_CONGE, PREFIXE_DEMANDE_ADMIN } from "@/lib/queries/action-center";
 import { getPendingValidations } from "@/lib/queries/validations";
 import { approbationsEnAttente } from "@/lib/missions/approval/gate";
@@ -93,7 +94,7 @@ export async function composerInbox(user: SessionUser): Promise<VueInbox> {
       select: { id: true, title: true, updatedAt: true, steps: { where: { status: "WAITING" }, select: { key: true, title: true, input: true }, take: 3 } },
     })),
     file("notifications", () => prisma.notification.findMany({
-      where: { userId: user.id, isRead: false },
+      where: { AND: [{ userId: user.id, isRead: false }, clauseNotificationsOuvrables(user)] },
       orderBy: [{ popup: "desc" }, { createdAt: "desc" }], take: 8,
       select: { id: true, title: true, body: true, link: true, type: true, popup: true, createdAt: true },
     })),

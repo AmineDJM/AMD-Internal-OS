@@ -16,7 +16,7 @@ import { RappelRapide } from "../rappel-rapide";
 export default async function MesRappelsPage() {
   const user = await requireModule("WORKSPACE");
   const maintenant = new Date();
-  const [rappels, tabs] = await Promise.all([listerMesRappels(user.id), ongletsEspace(user)]);
+  const [rappels, tabs] = await Promise.all([listerMesRappels(user), ongletsEspace(user)]);
 
   return (
     <div className="space-y-5">

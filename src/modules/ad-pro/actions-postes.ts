@@ -9,7 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { reporterLesPostesDeclares, signalerPostesALaDeclaration, ouvrirDeclarationSiPostesValides, posteCompteDansLaDeclaration } from "@/lib/workflow/engine";
 import { toNumber } from "@/lib/utils";
 import { moneyEntityOf } from "@/lib/company";
-import { notifyUser, notifyRoles } from "@/lib/notify";
+import { notifyUser, notifyRoles, notifyModule } from "@/lib/notify";
 import { canSubmitItem, canRequestPurchaseOrder, canRemoveItem, budgetKindLocked, ITEM_KINDS, ITEM_KIND_LABELS, PIECE_SECRETARIAT, NATURES_PIECE_SECRETARIAT, peutDemanderPiece, titrePiece, TITRE_BC_A_ETABLIR, type NaturePieceSecretariat, siegeAuCentreAdPro, REFUS_BC_CENTRE_AD_PRO, lireRepartition, ecrireRepartition, sansBonDeCommande, LIBELLE_JUSTIFICATIF_DIRECT, nomComplet, porteDesVoyageurs, refusChangementNatureFiches, gesteVisaPoste, memePrestataire, opsFranchiALaSoumission, libelleTemps } from "@/modules/ad-pro/partage";
 import { createWithRetry, referenceDeSerie } from "@/lib/refs";
 import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
@@ -843,7 +843,7 @@ export async function requestAdProItemOrder(_prev: ActionResult | undefined, for
   const posee = await prisma.adProItem.updateMany({ where, data });
   if (posee.count === 0) return { ok: false, error: REFUS_MARCHE_PRISE };
   if (!sousLeSeuil) {
-    await notifyRoles(["GENERAL_MANAGER", "SUPER_ADMIN"], notificationDuCentreBC({ id: item.id, ref: demande.ref, label: item.label, montantAccorde: montantAccorde as number })).catch(sansBloquer("ad-pro-item-actions.requestAdProItemOrder.notifyRoles"));
+    await notifyModule("AD_PRO_CENTRE", notificationDuCentreBC({ id: item.id, ref: demande.ref, label: item.label, montantAccorde: montantAccorde as number })).catch(sansBloquer("ad-pro-item-actions.requestAdProItemOrder.notifyRoles"));
   }
   await envoyerDemandeBC({ item, owner, ref: demande.ref, montant: montantAccorde, assistante, demandeurId: user.id, note });
   await audit(user, owner.parent, owner.id, "UPDATE", sousLeSeuil
