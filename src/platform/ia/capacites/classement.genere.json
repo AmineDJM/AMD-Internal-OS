@@ -5015,16 +5015,6 @@
   "annulation": "retour",
   "appelable": true
  },
- "doublons-factures-actions:marquerExamenDoublon": {
-  "risque": "R1",
-  "familles": [
-   "BUDGETS",
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
  "drive-actions:convertNodeToPdf": {
   "risque": "R1",
   "familles": [

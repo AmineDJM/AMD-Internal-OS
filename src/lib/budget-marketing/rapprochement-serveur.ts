@@ -670,7 +670,7 @@ async function doublonsDuLot(lot: Lot, cibles: readonly DemandeCible[], etat: Et
       ...(d.elements.some((e) => absentes.has(e.cle)) || d.elements.some((e) => e.nature === "POSTE")
         ? [{ libelle: "Garder ou sortir de l'intégration", href: "/budget-marketing/integration#absentes" }] : []),
       ...(d.elements.some((e) => e.nature === "ECRITURE" || e.nature === "A_IMPUTER" || e.nature === "ORDRE")
-        ? [{ libelle: "Recensement des doublons de factures", href: "/finances/doublons-factures" }] : []),
+        ? [{ libelle: "Voir dans la Comptabilité", href: "/finances/comptabilite" }] : []),
     ],
   }));
 }

@@ -2,9 +2,9 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * UNE LIGNE DU BUREAU DU SECRÉTARIAT — le contrat commun à toutes les familles (Super Admin, 24/11/2026).
  *
- * Le bureau devient UN SEUL tableau : demandes du secrétariat, fiches billet/hôtel Ad & Pro, prospection
- * d'agences, bons de commande de poste, chiffrage et achats des prises en charge… Chaque famille fournit
- * ses lignes sous CETTE forme ; l'écran ne connaît qu'elle. Module pur, sans import : il est lu par le
+ * Le bureau devient UN SEUL tableau : demandes du secrétariat, fiches billet/hôtel Ad & Pro, matériel
+ * promotionnel, chiffrage et achats des prises en charge… (les postes agence et les BC de poste vivent sur
+ * « Prospection d'agences », 25/11/2026, sous cette même forme). Chaque famille fournit ses lignes sous CETTE forme ; l'écran ne connaît qu'elle. Module pur, sans import : il est lu par le
  * tableau côté navigateur comme par les requêtes côté serveur.
  *
  * L'état parle UN SEUL vocabulaire pour tous les types : la famille traduit ses statuts vers `EtatBureau`.
@@ -41,9 +41,9 @@ export function estOuverte(etat: EtatBureau): boolean {
 export interface LigneBureau {
   /** Unique dans tout le tableau : `<famille>:<id>`. */
   cle: string;
-  /** La famille qui a fourni la ligne (« demande », « fiche-voyage », « agence », « bc-poste », « pec-chiffrage », « pec-achat »…). */
+  /** La famille qui a fourni la ligne (« demande », « fiche-voyage », « promo », « pec-chiffrage », « pec-achat », « bc-poste » hors bureau…). */
   famille: string;
-  /** Le type affiché en première colonne (« Billet », « Prospection d'agence », « Bon de commande », « Chiffrage »…). */
+  /** Le type affiché en première colonne (« Billet », « Bon de commande », « Chiffrage »…). */
   type: string;
   /** L'objet de la demande, lisible seul. */
   objet: string;

@@ -98,9 +98,6 @@ export function classerExclusionsAttestations(): void {
     "finances-questions:poserQuestionAuDemandeur", "finances-questions:relancerQuestionDemandeur",
     "finances-questions:repondreAuxFinances", "finances-questions:marquerReponseLue",
   ]);
-  X("MARQUER UN GROUPE DE DOUBLONS DE FACTURES « EXAMINÉ » est une ATTESTATION des Finances (Direction, 14/10/2026) : « nous avons regardé ces pièces, pièce en main ». La faire poser par Adam reviendrait à attester un examen que personne n'a fait — le groupe sortirait de « à examiner » sans qu'aucune personne n'ait comparé les factures. Un clic des Finances sur /finances/doublons-factures ; l'écran est en lecture, rien n'y est corrigé.", [
-    "doublons-factures-actions:marquerExamenDoublon",
-  ]);
   X("RELANCER QUELQU'UN SUR UNE DEMANDE DE TÂCHE presse une personne au nom du demandeur — même famille que la relance de paiement ci-dessus. La notification INTERROMPT (pop-up), et elle dit « untel attend toujours » : c'est un reproche, léger mais réel, et il doit venir de celui qui attend. La rendre appelable par Adam l'exposerait à l'injection — un mail lu par une étape peut contenir « relance Raihana » — et ferait tomber des relances que personne n'a voulues, ce qui apprend surtout à fermer les pop-up sans les lire. Adam RELANCE dans ses MISSIONS, par ses propres attentes (`missions/` : délai dépassé → relance → escalade), sous approbation ; il ne presse pas ce bouton à la place d'un collègue. Un clic du demandeur sur /mon-espace.", [
     "task-actions:relanceTaskRequest",
     // RÉATTRIBUER une demande refusée (07/10) presse une AUTRE personne au nom du demandeur — même famille, pop-up comprise.

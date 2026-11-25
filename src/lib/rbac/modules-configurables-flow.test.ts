@@ -108,13 +108,13 @@ suite("modules configurables — la migration, le menu et les centres", () => {
     expect(destinations(await navigationFor(a)).filter((d) => d.startsWith("/finances"))).toEqual([]);
   });
 
-  it("un accès personnalisé de FINANCES est recopié à l'identique ; la vue globale garde « examiner » les doublons", async () => {
+  it("un accès personnalisé de FINANCES est recopié à l'identique ; « Doublons de factures », supprimé, ne s'ouvre plus", async () => {
     const a = await acteur(u.dirLecture);
     expect(userCan(a, "FINANCES_BANQUE", "VIEW")).toBe(true);
     expect(userCan(a, "FINANCES_BANQUE", "UPDATE"), "lecture seule hier, lecture seule aujourd'hui").toBe(false);
     expect(userCan(a, "FINANCES_COMPTABILITE", "EXPORT")).toBe(true);
-    // Hier : la Direction examinait par la vue globale même sans « Modifier » sur FINANCES.
-    expect(userCan(a, "FINANCES_DOUBLONS", "UPDATE")).toBe(true);
+    // La migration a posé sa ligne FINANCES_DOUBLONS ; le module est retiré du service (25/11/2026) : elle est ignorée.
+    expect(userCan(a, "FINANCES_DOUBLONS", "VIEW")).toBe(false);
   });
 
   it("la paie reste ouverte à qui MODIFIAIT les RH par la console, sans rôle qui l'ouvre", async () => {
@@ -133,7 +133,7 @@ suite("modules configurables — la migration, le menu et les centres", () => {
     expect(siegeAuCentreAdPro(pm)).toBe(true);
   });
 
-  it("BLOQUÉ sur Doublons de factures : il ne voit plus Doublons, il voit toujours Banque & paiements et la Comptabilité", async () => {
+  it("« Doublons de factures » SUPPRIMÉ (25/11/2026) : avec ou sans ligne en base, le menu Finances garde ses trois autres écrans", async () => {
     const a = await acteur(u.fbmSansDoublons);
     const finances = (await navigationFor(a)).find((i) => i.label === "Finances");
     expect(finances?.children?.map((c) => c.href)).toEqual(["/finances/paiements-a-faire", "/finances/comptabilite", "/finances/impots-cotisations"]);

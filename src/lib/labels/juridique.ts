@@ -49,6 +49,9 @@ export const LEGAL_DOC_STATUS: Record<string, Display> = {
   EXPIRED: { label: "Échu", tone: "danger" },
   RENEWED: { label: "Renouvelé", tone: "info" },
   CANCELLED: { label: "Annulé", tone: "neutral" },
+  // UN ENGAGEMENT PONCTUEL ARRIVÉ À SA FIN (≤ 31 jours, `lifecycle.statutLegalAffiche`) — EXPIRED en base, « Terminé » à l'écran :
+  // il a eu lieu, rien n'est à renouveler (Super Admin, 25/11/2026).
+  TERMINE: { label: "Terminé", tone: "neutral" },
 };
 
 /** L'urgence d'une échéance — même échelle que le module pur `legal/lifecycle`. */

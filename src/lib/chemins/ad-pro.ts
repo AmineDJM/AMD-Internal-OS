@@ -40,21 +40,16 @@ export function lienPosteAdPro(type: ParentAdPro, parentId: string, itemId: stri
 }
 
 /**
- * « SUIVI DES AGENCES » (`/agences`) — la vue de suivi du parcours agence pour la Direction Marketing et le Super Admin.
- *
- * L'ASSISTANTE DE DIRECTION n'y travaille plus (Super Admin, 24/11/2026) : ses postes sont des lignes du BUREAU DU
- * SECRÉTARIAT (`CHEMIN_BUREAU`), et chacune ouvre la page du poste (`/agences/<id>`), qui reste sa fiche. Elle n'a pas
- * les modules Ad & Pro : ce qu'on lui écrit sur un poste mène à cette page, jamais à la fiche de la demande.
+ * « PROSPECTION D'AGENCES » (`/agences`) — LA page de l'assistante de direction (Direction, 23/11/2026) : ses postes, puis ce
+ * qui l'attend ailleurs (BC de poste, devis, matériel promotionnel). Un MODULE À PART du bureau du secrétariat (Super Admin,
+ * 25/11/2026 : « comme avant ») ; la Direction Marketing et le Super Admin y suivent tout le parcours agence. Elle n'a pas les
+ * modules Ad & Pro : tout ce qu'on lui écrit sur un poste mène ICI, jamais à la fiche de la demande.
  */
 export const CHEMIN_AGENCES = "/agences";
-/** Le nom de la page de suivi, tel que le menu le porte — et la « source » des lignes du parcours agence qui y mènent. */
-export const LIBELLE_AGENCES = "Suivi des agences";
+/** Le nom de la page, tel que le menu le porte — et la « source » des lignes du parcours agence qui y mènent. */
+export const LIBELLE_AGENCES = "Prospection d'agences";
 
-/** LE BUREAU DU SECRÉTARIAT — la page de travail de l'assistante, et la source de ses lignes du parcours agence. */
-export const CHEMIN_BUREAU = "/demandes";
-export const LIBELLE_BUREAU = "Bureau du secrétariat";
-
-/** UN poste confié à l'assistante, sur sa page (`/agences/<id>`) — sans la demande autour : la fiche de sa ligne au bureau. */
+/** UN poste confié à l'assistante, sur sa page (`/agences/<id>`) — sans la demande autour. */
 export function lienPosteAssistante(itemId: string): string {
   return `${CHEMIN_AGENCES}/${itemId}`;
 }

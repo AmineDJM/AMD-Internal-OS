@@ -278,8 +278,8 @@ export const MODULES_TERRAIN_ET_ADMINISTRATION: readonly ModulePlateforme[] = [
     liens: [{ vers: "finances", pourquoi: "Ce qui est autorisé y est réglé" }],
   },
   {
-    id: "finances", nom: "Finances", route: "/finances/paiements-a-faire", domaine: "argent", rbac: ["FINANCES_BANQUE", "FINANCES_COMPTABILITE", "FINANCES_DOUBLONS", "FINANCES_IMPOTS"],
-    resume: "Trois sous-modules, chacun sa clé réglée dans la console : Banque & paiements (solde, file de décaissement), Comptabilité (livre, comptes ancrés) et Doublons de factures (recensement).",
+    id: "finances", nom: "Finances", route: "/finances/paiements-a-faire", domaine: "argent", rbac: ["FINANCES_BANQUE", "FINANCES_COMPTABILITE", "FINANCES_IMPOTS"],
+    resume: "Trois sous-modules, chacun sa clé réglée dans la console : Banque & paiements (solde, file de décaissement), Comptabilité (livre, comptes ancrés, doublons « ressemble à ») et Impôts & cotisations.",
     pourQui: "Responsable Finance / Budget (le comptable), Direction.",
     gestes: [
       { label: "Régler un ordre", qui: "Comptable", effet: "Facture obligatoire ; crée la sortie de trésorerie et l'impute à la catégorie budgétaire du module d'origine." },

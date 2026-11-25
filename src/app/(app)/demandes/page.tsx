@@ -10,13 +10,13 @@ import { toNumber } from "@/lib/utils";
 import { NewRequestButton } from "./new-request";
 import { SuppliesManager } from "./supplies-manager";
 import { TableauBureau } from "./tableau-bureau";
-import { AncrePosteVersSaPage } from "../agences/ancre-poste";
 
 /**
  * LE BUREAU DU SECRÉTARIAT — UN SEUL TABLEAU (maquette validée le 24/11/2026).
  *
  * Toutes les familles de demandes en une liste (`lignesDuBureau`) : demandes du secrétariat, fiches billet et hôtel,
- * prospection d'agences, bons de commande de poste, matériel promotionnel, devis de prise en charge. En tête : le titre,
+ * matériel promotionnel, devis et achats de prise en charge. Les postes agence et les BC de poste n'y sont plus : ils vivent
+ * sur « Prospection d'agences », module à part (Super Admin, 25/11/2026). En tête : le titre,
  * « + Nouvelle demande », et « ⋯ » (catalogue fournitures, corbeille — pour qui gère le bureau). Plus d'onglets, de
  * tuiles, de filtres ni de phrase d'explication : chaque ligne ouvre SA fiche.
  *
@@ -38,8 +38,6 @@ export default async function DemandesPage(props: { searchParams: Promise<{ ongl
       ? prisma.officeSupplyArticle.findMany({ select: { id: true, name: true, category: true, unit: true, reference: true, estimatedPrice: true, supplierHint: true, active: true, notes: true }, orderBy: [{ active: "desc" }, { name: "asc" }] })
       : Promise.resolve([] as { id: string; name: string; category: string | null; unit: string | null; reference: string | null; estimatedPrice: unknown; supplierHint: string | null; active: boolean; notes: string | null }[]),
   ]);
-  // Les postes agence du bureau : un ancien lien « …#poste-<id> » (redirigé ici) ouvre leur page.
-  const postes = bureau.lignes.filter((l) => l.famille === "agence").map((l) => l.cle.slice("agence:".length));
   const catalogRows = supplyCatalog.map((a) => ({ ...a, estimatedPrice: a.estimatedPrice != null ? toNumber(a.estimatedPrice) : null }));
 
   return (
@@ -70,7 +68,6 @@ export default async function DemandesPage(props: { searchParams: Promise<{ ongl
       )}
 
       <TableauBureau lignes={bureau.lignes} maintenant={Date.now()} />
-      {postes.length > 0 && <AncrePosteVersSaPage postes={postes} />}
     </div>
   );
 }

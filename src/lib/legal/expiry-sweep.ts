@@ -3,7 +3,7 @@ import { notifyUser } from "@/lib/notify";
 import { anyRoleFilter, rolesWithModule } from "@/lib/rbac";
 import { recordAudit } from "@/lib/audit";
 import { predicatEntitePermise } from "@/lib/company";
-import { expiryLevel, daysLeft, shouldRemind, expiryMessage, REMIND_SOON_DAYS } from "./lifecycle";
+import { expiryLevel, daysLeft, shouldRemind, expiryMessage, effectiveStatus, estTermine, REMIND_SOON_DAYS } from "./lifecycle";
 import { sansBloquer } from "@/lib/journal";
 
 /**
@@ -19,6 +19,9 @@ import { sansBloquer } from "@/lib/journal";
  *     ici on l'écrit, pour que les filtres et les compteurs disent la même chose) ;
  *  2. il PRÉVIENT, à l'entrée dans une zone d'urgence et pas tous les jours — c'est `shouldRemind`
  *     qui tranche, et `lastRemindedAt` qui s'en souvient.
+ *
+ * UN ENGAGEMENT PONCTUEL TERMINÉ (≤ 31 jours, fin passée — `estTermine`, 25/11/2026) est aligné en EXPIRED comme
+ * les autres, mais ne reçoit AUCUN rappel : `expiryLevel` le dit « NONE », il n'y a rien à renouveler.
  *
  * QUI est prévenu : ceux qui peuvent AGIR (droit d'écriture sur le module Legal) et celui qui a
  * enregistré le document. Prévenir tout le monde reviendrait à ne prévenir personne.
@@ -41,13 +44,14 @@ export interface LegalSweepResult {
 
 const STATUTS_BALAYES = ["ACTIVE", "EXPIRED"] as const;
 const CHAMPS = {
-  id: true, title: true, reference: true, status: true, endDate: true,
+  id: true, title: true, reference: true, status: true, startDate: true, endDate: true,
   lastRemindedAt: true, createdById: true, companyId: true,
   readers: { select: { userId: true } },
 } as const;
 
 type DocBalaye = {
-  id: string; title: string; reference: string | null; status: "ACTIVE" | "EXPIRED" | "RENEWED" | "CANCELLED"; endDate: Date | null;
+  id: string; title: string; reference: string | null; status: "ACTIVE" | "EXPIRED" | "RENEWED" | "CANCELLED";
+  startDate: Date | null; endDate: Date | null;
   lastRemindedAt: Date | null; createdById: string | null; companyId: string | null; readers: { userId: string }[];
 };
 
@@ -129,8 +133,8 @@ async function traiterDocument(doc: DocBalaye, now: Date, destinataires: Destina
   const level = expiryLevel(doc, now);
   const remind = shouldRemind(doc, now);
 
-  // 1. ALIGNEMENT DU STATUT — le terme est passé, la base doit le dire.
-  if (level === "OVERDUE" && doc.status === "ACTIVE") {
+  // 1. ALIGNEMENT DU STATUT — le terme est passé (échu, ou ponctuel terminé), la base doit le dire.
+  if (effectiveStatus(doc, now) === "EXPIRED" && doc.status === "ACTIVE") {
     const claimed = await prisma.legalDocument.updateMany({
       where: { id: doc.id, status: "ACTIVE" },
       data: { status: "EXPIRED" },
@@ -140,7 +144,9 @@ async function traiterDocument(doc: DocBalaye, now: Date, destinataires: Destina
       await recordAudit({
         action: "UPDATE", module: "Legal", entityId: doc.id,
         field: "status", oldValue: "ACTIVE", newValue: "EXPIRED",
-        summary: `« ${doc.title} » est arrivé à terme — statut aligné automatiquement`,
+        summary: estTermine(doc, now)
+          ? `« ${doc.title} » est terminé (engagement ponctuel) — statut aligné automatiquement, sans rappel`
+          : `« ${doc.title} » est arrivé à terme — statut aligné automatiquement`,
       });
     }
   }

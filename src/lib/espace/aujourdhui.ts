@@ -1,5 +1,5 @@
 import { joursCivilsDepuis } from "@/lib/calendar-tz";
-import { CHEMIN_AGENCES, CHEMIN_BUREAU, LIBELLE_AGENCES, LIBELLE_BUREAU } from "@/lib/chemins/ad-pro";
+import { CHEMIN_AGENCES, LIBELLE_AGENCES } from "@/lib/chemins/ad-pro";
 import { estModuleVisite, MODULE_AUDIT_VISITE } from "@/lib/medical/module-visite";
 
 /**
@@ -421,7 +421,7 @@ function echeanceDansDe(e: ElementFile, now: Date, retard: number | null): numbe
   return Math.max(0, joursCivilsDepuis(now, d));
 }
 
-/** Le lien qui ouvre le lot : l'écran de la nature, filtré quand l'écran sait l'être — le bureau ou le « Suivi des agences » pour le parcours agence. */
+/** Le lien qui ouvre le lot : l'écran de la nature, filtré quand l'écran sait l'être — « Prospection d'agences » pour qui l'ouvre. */
 function gesteDuLot(nature: NatureLot, lignes: LigneLot[], module: string, liste: string | null): Geste {
   const def = NATURES[nature];
   if (nature === "paiement") {
@@ -436,7 +436,7 @@ function gesteDuLot(nature: NatureLot, lignes: LigneLot[], module: string, liste
     return { libelle, href: ids.length ? `/finances/paiements-a-faire?focus=${ids.join(",")}#ord-${ids[0]}` : "/finances/paiements-a-faire" };
   }
   if (lignes.length === 1) return { libelle: def.verbe, href: lignes[0].geste.href };
-  const pageAgence = nature === "agence" ? (module === LIBELLE_AGENCES ? CHEMIN_AGENCES : module === LIBELLE_BUREAU ? CHEMIN_BUREAU : null) : null;
+  const pageAgence = nature === "agence" && module === LIBELLE_AGENCES ? CHEMIN_AGENCES : null;
   return { libelle: `${def.verbe} — tout voir`, href: (pageAgence ?? def.liste ?? liste) ?? lignes[0].geste.href };
 }
 

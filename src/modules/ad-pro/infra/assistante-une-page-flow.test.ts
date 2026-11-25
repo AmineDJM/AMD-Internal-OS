@@ -24,26 +24,28 @@ import { formulaireDuComposeur } from "@/lib/bons-de-commande/composeur-test-out
 import { etatDuBC } from "@/lib/bons-de-commande/etat";
 import { getActionCenter } from "@/lib/queries/action-center";
 import { regrouperFile } from "@/lib/espace/aujourdhui";
-import { CHEMIN_BUREAU, LIBELLE_BUREAU, lienPosteAdPro, lienPosteAssistante } from "@/lib/chemins/ad-pro";
+import { CHEMIN_AGENCES, LIBELLE_AGENCES, lienPosteAdPro, lienPosteAssistante } from "@/lib/chemins/ad-pro";
 import { ajouterDevisPoste, modifierBcDuPoste } from "../actions-postes-paiement";
 import { addAdProComment } from "../actions-discussion";
 import { fileAgences, posteDeLAssistante, tachesAgence } from "./requetes/file-agences";
-import { lignesProspectionAgences } from "@/lib/queries/bureau-familles";
+import { autresTachesAssistante } from "@/lib/queries/autres-taches-assistante";
+import { lignesDuBureau } from "@/lib/queries/bureau";
+import { navigationFor } from "@/lib/nav-access";
 import { lienDuPostePour, requireModuleOuAgences, versLesAgences } from "./porte-assistante";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * L'ASSISTANTE DE DIRECTION, SANS AD & PRO, SUR UNE SEULE PAGE (Direction, 23/11/2026) — « retirer la page Ad & Pro à
- * l'assistante et mettre tout ce qu'elle y faisait dans Prospection d'agences » ; depuis le 24/11/2026, cette page est son
- * BUREAU DU SECRÉTARIAT (un seul tableau), et chaque poste y est une ligne qui ouvre SA page (`/agences/<id>`).
+ * l'assistante et mettre tout ce qu'elle y faisait dans Prospection d'agences » ; un module À PART du bureau du secrétariat,
+ * rétabli par le Super Admin le 25/11/2026 après une journée fusionné dedans.
  *
  * Une assistante dont la console a BLOQUÉ les sept modules Ad & Pro (l'état voulu après la mise en production), par les VRAIES
  * actions, base locale :
- *   • ses postes qui l'attendent sont des lignes de son bureau, le lien vers SA page ; Mon espace y mène ;
+ *   • elle liste ses postes sur « Prospection d'agences » — un geste par ligne, le lien vers SA page ; Mon espace y mène ;
  *   • elle dépose le devis d'une agence ;
  *   • les Finances renvoient le BC : elle est prévenue sur SA page, et le corrige — à cette étape-là seulement ;
  *   • elle ouvre les pièces de SES postes (devis, BC, fichiers du poste) sans Legal — et pas celles des autres ;
- *   • un message sur le poste la prévient vers SA page ; une ancienne fiche de demande la renvoie à son bureau.
+ *   • un message sur le poste la prévient vers SA page ; une ancienne fiche de demande la renvoie à « Prospection d'agences ».
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
@@ -72,7 +74,7 @@ async function redirigeVers(f: () => Promise<unknown>): Promise<string | null> {
   }
 }
 
-suite("L'assistante de direction sans Ad & Pro : tout sur son bureau (base réelle)", () => {
+suite("L'assistante de direction sans Ad & Pro : tout sur « Prospection d'agences » (base réelle)", () => {
   const u = { sa: "", dm: "", kam: "", ast: "", ast2: "" };
   let eventId = "", societe = "", p1 = "", p2 = "", bc = "", devis = "", fichierPoste = "";
 
@@ -177,12 +179,16 @@ suite("L'assistante de direction sans Ad & Pro : tout sur son bureau (base réel
     const l2 = lignes.find((l) => l.itemId === p2);
     expect(l2).toMatchObject({ etape: "BC_CHEZ_FINANCES", aMoi: false, geste: null, lien: lienPosteAssistante(p2) });
     expect(l2?.attente).toBe("BC à signer et cacheter — chez les Finances.");
-    // AU BUREAU DU SECRÉTARIAT (24/11/2026) : seul le poste qui l'attend y entre (« Prospection d'agence »), vers SA page ;
-    // celui chez les Finances n'y est pas. La Direction Marketing suit les agences sur sa page, pas au bureau.
-    const auBureau = await lignesProspectionAgences(su(await acteur(u.ast, "DIRECTION_ASSISTANT")));
-    expect(auBureau.find((l) => l.cle === `agence:${p1}`)).toMatchObject({ type: "Prospection d'agence", etat: "EN_COURS", href: lienPosteAssistante(p1) });
-    expect(auBureau.some((l) => l.cle === `agence:${p2}`)).toBe(false);
-    expect(await lignesProspectionAgences(su(await acteur(u.dm, "PRODUCT_MANAGER")))).toEqual([]);
+    // Ses autres tâches sont SA page à elle seule : la Direction Marketing n'en reçoit aucune.
+    expect(Array.isArray(await autresTachesAssistante(su(await acteur(u.ast, "DIRECTION_ASSISTANT"))))).toBe(true);
+    expect(await autresTachesAssistante(su(await acteur(u.dm, "PRODUCT_MANAGER")))).toEqual([]);
+    // UN MODULE À PART (Super Admin, 25/11/2026) : son bureau du secrétariat ne montre plus ses postes — pas de double affichage.
+    const { lignes: auBureau } = await lignesDuBureau(su(await acteur(u.ast, "DIRECTION_ASSISTANT")));
+    expect(auBureau.filter((l) => l.href === lienPosteAssistante(p1) || l.href === lienPosteAssistante(p2))).toEqual([]);
+    // L'entrée « Prospection d'agences » lui revient : la clé de la console, par défaut à elle.
+    const hrefs = (items: { href: string; children?: unknown[] }[]): string[] =>
+      items.flatMap((i) => [i.href, ...hrefs((i.children ?? []) as { href: string; children?: unknown[] }[])]);
+    expect(hrefs(await navigationFor(su(await acteur(u.ast, "DIRECTION_ASSISTANT"))))).toContain(CHEMIN_AGENCES);
   });
 
   it("ELLE DÉPOSE LE DEVIS D'UNE AGENCE sur son poste — sans Ad & Pro", async () => {
@@ -266,26 +272,26 @@ suite("L'assistante de direction sans Ad & Pro : tout sur son bureau (base réel
     expect(aLaDm?.link).toBe(lienPosteAdPro("EVENT", eventId, p1));
   });
 
-  it("MON ESPACE : ses gestes du parcours agence se rangent sous son bureau, et « tout voir » y mène", async () => {
+  it("MON ESPACE : ses gestes du parcours agence se rangent sous « Prospection d'agences », et « tout voir » y mène", async () => {
     // Le BC corrigé repart à la signature ; renvoyé une seconde fois, il revient chez elle : deux gestes l'attendent.
     ACTOR = await acteur(u.sa, "SUPER_ADMIN");
     expect((await renvoyerBonDeCommande(fd({ id: bc, note: "Cachet manquant." }))).ok).toBe(true);
     const ast = su(await acteur(u.ast, "DIRECTION_ASSISTANT"));
     const taches = (await tachesAgence(ast)).filter((t) => t.key === `agence-${p1}` || t.key === `agence-${p2}`);
     expect(taches.map((t) => t.href).sort()).toEqual([lienPosteAssistante(p1), lienPosteAssistante(p2)].sort());
-    expect(new Set(taches.map((t) => t.module))).toEqual(new Set([LIBELLE_BUREAU]));
+    expect(new Set(taches.map((t) => t.module))).toEqual(new Set([LIBELLE_AGENCES]));
     const lot = regrouperFile((await getActionCenter(ast)).items, new Date()).find((l) => l.nature === "agence");
     expect(lot?.n).toBeGreaterThanOrEqual(2);
-    expect(lot?.geste.href).toBe(CHEMIN_BUREAU);
+    expect(lot?.geste.href).toBe(CHEMIN_AGENCES);
   }, 60_000);
 
-  it("LES ANCIENS LIENS : une page de demande la renvoie à son bureau ; « Se rattache à » mène à SA page", async () => {
+  it("LES ANCIENS LIENS : une page de demande la renvoie à « Prospection d'agences » ; « Se rattache à » mène à SA page", async () => {
     const ast = await acteur(u.ast, "DIRECTION_ASSISTANT");
     const dm = await acteur(u.dm, "PRODUCT_MANAGER");
     for (const m of MODULES_AD_PRO) expect(versLesAgences(su(ast), m), m).toBe(true);
     expect(versLesAgences(su(dm), "EVENTS"), "toute autre personne garde sa porte").toBe(false);
     ACTOR = ast;
-    expect(await redirigeVers(() => requireModuleOuAgences("EVENTS"))).toBe(CHEMIN_BUREAU);
+    expect(await redirigeVers(() => requireModuleOuAgences("EVENTS"))).toBe(CHEMIN_AGENCES);
     ACTOR = dm;
     expect(await redirigeVers(() => requireModuleOuAgences("EVENTS"))).toBeNull();
     // Le lien d'une demande de pièce vers un poste : SA page pour l'assistante du poste, la fiche pour qui l'ouvre, rien sinon.

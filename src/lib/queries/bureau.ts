@@ -1,9 +1,7 @@
 import type { SessionUser } from "@/lib/rbac";
 import { trierLignesBureau, type LigneBureau } from "@/lib/secretariat/ligne-bureau";
 import { journal } from "@/lib/journal";
-import {
-  lignesBcDePoste, lignesDemandesSecretariat, lignesDevisPriseEnCharge, lignesFichesVoyage, lignesMaterielPromo, lignesProspectionAgences,
-} from "@/lib/queries/bureau-familles";
+import { lignesDemandesSecretariat, lignesDevisPriseEnCharge, lignesFichesVoyage, lignesMaterielPromo } from "@/lib/queries/bureau-familles";
 import { lignesBureauPecAchat, lignesBureauPecChiffrage } from "@/modules/ad-pro/api";
 
 /**
@@ -34,12 +32,15 @@ export const FAMILLES_PRISE_EN_CHARGE: FamilleBureau[] = [
   { cle: "pec-achat", libelle: "les achats de prise en charge", lignes: lignesBureauPecAchat },
 ];
 
-/** L'ORDRE COMPTE pour les doublons : une demande « BC à établir » ou un poste agence passent avant la demande de pièce du même poste. */
+/**
+ * L'ORDRE COMPTE pour les doublons : la première famille qui montre un objet le garde.
+ *
+ * NI LES POSTES AGENCE NI LES BC DE POSTE (Super Admin, 25/11/2026) : « Prospection d'agences » redevient un module à part,
+ * la page de l'assistante (`/agences`) — ses postes et ses BC de poste n'y figurent qu'une fois, pas aussi ici.
+ */
 export const FAMILLES_BUREAU: FamilleBureau[] = [
   { cle: "demande", libelle: "les demandes du secrétariat", lignes: lignesDemandesSecretariat },
   { cle: "fiche-voyage", libelle: "les fiches billet et hôtel", lignes: lignesFichesVoyage },
-  { cle: "agence", libelle: "la prospection d'agences", lignes: lignesProspectionAgences },
-  { cle: "bc-poste", libelle: "les bons de commande de poste", lignes: lignesBcDePoste },
   { cle: "promo", libelle: "le matériel promotionnel", lignes: lignesMaterielPromo },
   { cle: "devis-pec", libelle: "les devis de prise en charge", lignes: lignesDevisPriseEnCharge },
   ...FAMILLES_PRISE_EN_CHARGE,

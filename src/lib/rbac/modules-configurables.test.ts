@@ -57,8 +57,7 @@ function hier(u: SessionUser): Record<string, boolean> {
     "/finances/comptabilite › saisir": userCan(u, "FINANCES", "CREATE"),
     "/finances/comptabilite › modifier": userCan(u, "FINANCES", "UPDATE"),
     "/finances/comptabilite › supprimer": userCan(u, "FINANCES", "DELETE"),
-    "/finances/doublons-factures": userCan(u, "FINANCES", "VIEW"),
-    "/finances/doublons-factures › examiner": userCan(u, "FINANCES", "VIEW") && (userCan(u, "FINANCES", "UPDATE") || ["SUPER_ADMIN", "DIRECTION"].includes(u.role)),
+    // « Doublons de factures » est supprimé (Super Admin, 25/11/2026) : sa route n'est plus comparée — voir plus bas.
     // Impôts & cotisations (24/11/2026) : un écran neuf, ouvert par défaut à qui tenait FINANCES, avec ses gestes.
     "/finances/impots-cotisations": userCan(u, "FINANCES", "VIEW"),
     "/finances/impots-cotisations › préparer, envoyer": userCan(u, "FINANCES", "UPDATE"),
@@ -85,8 +84,6 @@ function aujourdhui(u: SessionUser): Record<string, boolean> {
     "/finances/comptabilite › saisir": userCan(u, "FINANCES_COMPTABILITE", "CREATE"),
     "/finances/comptabilite › modifier": userCan(u, "FINANCES_COMPTABILITE", "UPDATE"),
     "/finances/comptabilite › supprimer": userCan(u, "FINANCES_COMPTABILITE", "DELETE"),
-    "/finances/doublons-factures": userCan(u, "FINANCES_DOUBLONS", "VIEW"),
-    "/finances/doublons-factures › examiner": userCan(u, "FINANCES_DOUBLONS", "UPDATE"),
     "/finances/impots-cotisations": userCan(u, "FINANCES_IMPOTS", "VIEW"),
     "/finances/impots-cotisations › préparer, envoyer": userCan(u, "FINANCES_IMPOTS", "UPDATE"),
     "/finances/impots-cotisations › paiement ponctuel": userCan(u, "FINANCES_IMPOTS", "CREATE"),
@@ -142,7 +139,7 @@ describe("l'état par défaut de chaque rôle est IDENTIQUE avant et après (24/
 describe("chaque écran a sa clé, réglable dans la console", () => {
   it("les nouvelles clés existent, sont nommées comme le menu, et aucun module retiré n'en fait partie", () => {
     const attendus: Record<string, string> = {
-      FINANCES_BANQUE: "Banque & paiements", FINANCES_COMPTABILITE: "Comptabilité", FINANCES_DOUBLONS: "Doublons de factures",
+      FINANCES_BANQUE: "Banque & paiements", FINANCES_COMPTABILITE: "Comptabilité",
       FINANCES_IMPOTS: "Impôts & cotisations",
       PROSPECTION_AGENCES: "Prospection d'agences", CONTROLES_CONFORMITE: "Contrôles de conformité", PAIE: "Paie", CORBEILLE: "Corbeille",
     };
@@ -153,13 +150,15 @@ describe("chaque écran a sa clé, réglable dans la console", () => {
     }
   });
 
-  it("BLOQUÉ sur Doublons de factures : la personne ne les voit plus, et voit toujours Banque & paiements et la Comptabilité", () => {
-    const bloque: LigneAccesAttribue = {
-      module: "FINANCES_DOUBLONS", canView: false, canCreate: false, canUpdate: false, canDelete: false, canValidate: false,
-      canExport: false, canUpload: false, scope: "ASSIGNED", sections: [],
+  it("« DOUBLONS DE FACTURES » SUPPRIMÉ (25/11/2026) : la clé est retirée du service — personne ne l'a, pas même par un accès posé en base", () => {
+    expect(isRetiredModule("FINANCES_DOUBLONS")).toBe(true);
+    const accorde: LigneAccesAttribue = {
+      module: "FINANCES_DOUBLONS", canView: true, canCreate: false, canUpdate: true, canDelete: false, canValidate: false,
+      canExport: false, canUpload: false, scope: "ALL", sections: [],
     };
-    const u = personne("FINANCE_BUDGET_MANAGER", null, [bloque]);
+    const u = personne("FINANCE_BUDGET_MANAGER", null, [accorde]);
     expect(userCan(u, "FINANCES_DOUBLONS", "VIEW")).toBe(false);
+    expect(userCan(personne("SUPER_ADMIN", null), "FINANCES_DOUBLONS", "VIEW")).toBe(false);
     expect(userCan(u, "FINANCES_BANQUE", "UPDATE")).toBe(true);
     expect(userCan(u, "FINANCES_COMPTABILITE", "VIEW")).toBe(true);
     expect(userCan(u, "FINANCES_IMPOTS", "UPDATE")).toBe(true);

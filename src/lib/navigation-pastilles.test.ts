@@ -23,12 +23,12 @@ const entree = (label: string): NavItem => {
 describe("pastillesDesEntrees — chaque module compté une fois", () => {
   it("PRÉMISSE : Legal et son sous-menu portent le MÊME module — sinon le cas ne mesure rien", () => {
     // Les Finances ne sont plus le cas : leurs trois écrans ont chacun leur clé depuis le 24/11/2026 (Banque & paiements,
-    // Comptabilité, Doublons de factures) — c'est Legal › Informations de la société qui répète le module de son parent.
+    // Comptabilité, Impôts & cotisations) — c'est Legal › Informations de la société qui répète le module de son parent.
     const legal = entree("Legal");
     const modules = legal.children?.map((c) => c.module) ?? [];
     expect(modules.length).toBeGreaterThanOrEqual(1);
     expect(new Set(modules)).toEqual(new Set(["LEGAL"]));
-    expect(new Set(entree("Finances").children?.map((c) => c.module))).toEqual(new Set(["FINANCES_BANQUE", "FINANCES_COMPTABILITE", "FINANCES_DOUBLONS", "FINANCES_IMPOTS"]));
+    expect(new Set(entree("Finances").children?.map((c) => c.module))).toEqual(new Set(["FINANCES_BANQUE", "FINANCES_COMPTABILITE", "FINANCES_IMPOTS"]));
   });
 
   it("le parent porte la pastille ; ses sous-menus du même module n'en portent aucune", () => {

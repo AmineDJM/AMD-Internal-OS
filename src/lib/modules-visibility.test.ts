@@ -62,8 +62,9 @@ describe("visibleModules — masquer retire du menu, pour tout le monde sauf le 
 });
 
 describe("les modules RETIRÉS du service — pour tout le monde, Super Admin compris", () => {
-  it("TROIS MODULES SONT RETIRÉS, décidés dans le code et non par un réglage", () => {
-    expect([...RETIRED_MODULES]).toEqual(["SALES", "LOGISTICS", "BUSINESS_DEVELOPMENT"]);
+  it("QUATRE MODULES SONT RETIRÉS, décidés dans le code et non par un réglage", () => {
+    // « Doublons de factures » (FINANCES_DOUBLONS) s'y ajoute le 25/11/2026 : l'écran part, la détection reste.
+    expect([...RETIRED_MODULES]).toEqual(["SALES", "LOGISTICS", "BUSINESS_DEVELOPMENT", "FINANCES_DOUBLONS"]);
     for (const m of RETIRED_MODULES) expect(isRetired(m), m).toBe(true);
     expect(isRetired("REGULATORY")).toBe(false);
     // PCH et l'Explorateur produits RESTENT : ce sont des modules voisins, pas les mêmes.
