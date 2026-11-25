@@ -10,7 +10,7 @@ import { KpiCard } from "@/components/shared/kpi-card";
 import { NouveauDocumentLegal } from "./nouveau-document-legal";
 import { toNumber } from "@/lib/utils";
 import { createLegalDocument } from "@/lib/actions/legal-actions";
-import { effectiveStatus, expiryLevel, daysLeft } from "@/lib/legal/lifecycle";
+import { statutLegalAffiche, expiryLevel, daysLeft } from "@/lib/legal/lifecycle";
 import { legalFields } from "./legal-fields";
 import { peutDaterLeReglement } from "@/modules/finances/partage";
 import { LegalTable, type LegalRow } from "./legal-table";
@@ -159,8 +159,9 @@ export default async function LegalPage(
     startDate: d.startDate?.toISOString() ?? null,
     endDate: d.endDate?.toISOString() ?? null,
     // Le statut AFFICHÉ tient compte du calendrier : un terme passé se voit sans qu'on ait
-    // rouvert la fiche. On ne le réécrit pas en base à la lecture — ce serait une écriture furtive.
-    status: effectiveStatus(d, today),
+    // rouvert la fiche. On ne le réécrit pas en base à la lecture — ce serait une écriture furtive. Un engagement
+    // ponctuel arrivé à sa fin se lit « Terminé », hors des échus et des échéances dépassées (25/11/2026).
+    status: statutLegalAffiche(d, today),
     expiry: expiryLevel(d, today),
     daysLeft: daysLeft(d, today),
     amount: d.amount !== null ? toNumber(d.amount) : null,

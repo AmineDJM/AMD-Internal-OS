@@ -11,6 +11,10 @@
  *      concerne plus personne : la suite vit ailleurs (le renouvellement) ou nulle part.
  *   3. LE RAPPEL EST GRADUÉ. À trois mois on prévoit, à un mois on agit, le jour même c'est
  *      urgent, après c'est un problème. Un seuil unique ne sait dire que « bientôt ».
+ *   4. UN ENGAGEMENT PONCTUEL SE TERMINE, IL N'ÉCHOIT PAS (Super Admin, 25/11/2026). Une convention
+ *      d'orateur d'un jour, une prestation d'une semaine : sa date de fin passée, il est « Terminé »
+ *      (gris), sans rappel, sans ligne dans « Aujourd'hui », sans « dépassée » — il n'y a rien à
+ *      renouveler. Seuls les engagements DURABLES alertent (avant leur fin, puis l'oubli).
  *
  * Module PUR — testé, sans base ni date « maintenant » implicite : `today` est toujours passé en
  * paramètre, sinon les tests dépendraient du jour où on les lance.
@@ -38,18 +42,46 @@ export interface LegalDocLike {
   status: LegalStatus;
   /** `null` = SANS ÉCHÉANCE — le document ne se périme pas. */
   endDate: Date | null;
+  /**
+   * Le début — il dit la DURÉE, donc si l'engagement est ponctuel (`estPonctuel`). Absent ou `null` : durée inconnue,
+   * l'engagement est traité comme durable (on ne tait pas une alerte faute de date).
+   */
+  startDate?: Date | null;
+}
+
+/** Au-delà de cette durée (fin − début, en jours), un engagement est DURABLE ; jusque-là, PONCTUEL. */
+export const DUREE_PONCTUELLE_MAX_JOURS = 31;
+
+/**
+ * UN ENGAGEMENT PONCTUEL — début et fin connus, au plus `DUREE_PONCTUELLE_MAX_JOURS` d'écart (une convention d'un jour :
+ * début = fin). Sans début, on ne sait pas : durable.
+ */
+export function estPonctuel(doc: Pick<LegalDocLike, "startDate" | "endDate">): boolean {
+  if (!doc.startDate || !doc.endDate) return false;
+  const duree = daysBetween(doc.startDate, doc.endDate);
+  return duree >= 0 && duree <= DUREE_PONCTUELLE_MAX_JOURS;
+}
+
+/**
+ * TERMINÉ — un engagement ponctuel dont la date de fin est passée, ni annulé ni renouvelé. Il ne rappelle plus rien et ne
+ * compte pas parmi les échus : il a simplement eu lieu.
+ */
+export function estTermine(doc: LegalDocLike, today: Date): boolean {
+  if (!doc.endDate || doc.status === "CANCELLED" || doc.status === "RENEWED") return false;
+  return estPonctuel(doc) && daysBetween(today, doc.endDate) < 0;
 }
 
 /**
  * À quel point l'échéance presse-t-elle, aujourd'hui ?
  *
- * `NONE` couvre les deux cas où il n'y a rien à dire : pas de date de fin, ou document déjà
- * sorti du jeu (annulé, renouvelé). Les distinguer ici n'apporterait rien — dans les deux cas,
- * on ne rappelle pas.
+ * `NONE` couvre les cas où il n'y a rien à dire : pas de date de fin, document déjà sorti du jeu
+ * (annulé, renouvelé), ou engagement ponctuel terminé (`estTermine`). Les distinguer ici
+ * n'apporterait rien — dans tous les cas, on ne rappelle pas.
  */
 export function expiryLevel(doc: LegalDocLike, today: Date): ExpiryLevel {
   if (!doc.endDate) return "NONE";
   if (doc.status === "CANCELLED" || doc.status === "RENEWED") return "NONE";
+  if (estTermine(doc, today)) return "NONE";
   const days = daysBetween(today, doc.endDate);
   if (days < 0) return "OVERDUE";
   if (days <= REMIND_IMMINENT_DAYS) return "IMMINENT";
@@ -67,11 +99,19 @@ export function daysLeft(doc: LegalDocLike, today: Date): number | null {
  *
  * Un contrat dont le terme est passé est expiré, même si personne n'a rouvert la fiche pour le
  * dire. On ne l'écrit pas en base à la lecture (ce serait une écriture furtive) : on le CALCULE,
- * et un balayage périodique aligne la base quand il passe.
+ * et un balayage périodique aligne la base quand il passe. Un engagement ponctuel terminé est EXPIRED en base aussi :
+ * c'est son AFFICHAGE qui diffère (`statutLegalAffiche`).
  */
 export function effectiveStatus(doc: LegalDocLike, today: Date): LegalStatus {
   if (doc.status === "CANCELLED" || doc.status === "RENEWED") return doc.status;
-  return expiryLevel(doc, today) === "OVERDUE" ? "EXPIRED" : doc.status;
+  return expiryLevel(doc, today) === "OVERDUE" || estTermine(doc, today) ? "EXPIRED" : doc.status;
+}
+
+/** Le statut tel que l'écran le montre : celui du calendrier, et « Terminé » (gris) pour un ponctuel arrivé à sa fin. */
+export type StatutLegalAffiche = LegalStatus | "TERMINE";
+
+export function statutLegalAffiche(doc: LegalDocLike, today: Date): StatutLegalAffiche {
+  return estTermine(doc, today) ? "TERMINE" : effectiveStatus(doc, today);
 }
 
 /**

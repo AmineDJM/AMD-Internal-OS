@@ -19,7 +19,7 @@ import { DocumentUpload } from "@/components/documents/document-upload";
 import { DocumentList, type DocItem } from "@/components/documents/document-list";
 import { LEGAL_DOC_STATUS, LEGAL_EXPIRY_LEVEL, AUDIT_ACTION, natureLegale } from "@/lib/labels";
 import { formatCurrency, formatDate, formatDateTime, toNumber } from "@/lib/utils";
-import { effectiveStatus, expiryLevel, daysLeft } from "@/lib/legal/lifecycle";
+import { statutLegalAffiche, expiryLevel, daysLeft } from "@/lib/legal/lifecycle";
 import { sourceHref, sourceCaption } from "@/lib/links/source-link";
 import { legalFields, dateInput } from "../legal-fields";
 import { buildFolderTree, flattenFolders, folderPath, indentedLabel } from "@/lib/legal/folders";
@@ -208,7 +208,8 @@ export default async function LegalDocumentPage(
   const linkViews = await linkedViews(self, await linksOf(self));
 
   const today = new Date();
-  const status = effectiveStatus(doc, today);
+  // « Terminé » (gris) pour un engagement ponctuel arrivé à sa fin : ni « Échu » ni « dépassée » (25/11/2026).
+  const status = statutLegalAffiche(doc, today);
   const expiry = expiryLevel(doc, today);
   const left = daysLeft(doc, today);
   const st = LEGAL_DOC_STATUS[status];

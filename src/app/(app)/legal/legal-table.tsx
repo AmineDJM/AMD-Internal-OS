@@ -378,7 +378,7 @@ export function LegalTable({
                             {busy === `p:${r.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Undo2 className="h-3.5 w-3.5" />} À régler
                           </Button>
                         )}
-                        {(r.status === "ACTIVE" || r.status === "EXPIRED") && (
+                        {(r.status === "ACTIVE" || r.status === "EXPIRED" || r.status === "TERMINE") && (
                           <>
                             {/* Une facture ne se RENOUVELLE pas : on n'en réémet pas une pour la
                                 période suivante, on en reçoit une autre. L'annulation, elle,

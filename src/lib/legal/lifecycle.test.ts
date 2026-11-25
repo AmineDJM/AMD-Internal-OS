@@ -3,6 +3,7 @@ import {
   daysBetween, expiryLevel, daysLeft, effectiveStatus, shouldRemind, expiryMessage,
   canRenew, canCancel, proposeRenewalDates, validateDates,
   REMIND_SOON_DAYS, REMIND_IMMINENT_DAYS,
+  DUREE_PONCTUELLE_MAX_JOURS, estPonctuel, estTermine, statutLegalAffiche,
 } from "./lifecycle";
 
 const D = (s: string) => new Date(`${s}T00:00:00.000Z`);
@@ -149,5 +150,53 @@ describe("expiryMessage — ce que dit le rappel, seul sur un écran verrouillé
 
   it("un titre vide ne produit pas un message amputé", () => {
     expect(expiryMessage("IMMINENT", 5, "   ")?.body).toContain("Document sans titre");
+  });
+});
+
+describe("UN ENGAGEMENT PONCTUEL SE TERMINE, IL N'ÉCHOIT PAS (Super Admin, 25/11/2026)", () => {
+  // Le cas réel : « Convention Orateur », contrat, début = fin = 14/09/2026, affiché « Échu » en rouge et remonté en alerte.
+  const convention = { status: "ACTIVE" as const, startDate: D("2026-09-14"), endDate: D("2026-09-14"), lastRemindedAt: null };
+  const LE_25_11 = D("2026-11-25");
+
+  it("ponctuel : début et fin connus, au plus 31 jours d'écart ; sans début, on ne sait pas — durable", () => {
+    expect(DUREE_PONCTUELLE_MAX_JOURS).toBe(31);
+    expect(estPonctuel(convention)).toBe(true);
+    expect(estPonctuel({ startDate: D("2026-09-01"), endDate: D("2026-10-02") })).toBe(true); // 31 jours
+    expect(estPonctuel({ startDate: D("2026-09-01"), endDate: D("2026-10-03") })).toBe(false); // 32 jours
+    expect(estPonctuel({ startDate: null, endDate: D("2026-09-14") })).toBe(false);
+    expect(estPonctuel({ endDate: D("2026-09-14") })).toBe(false);
+    expect(estPonctuel({ startDate: D("2026-09-14"), endDate: null })).toBe(false);
+  });
+
+  it("sa fin passée : « Terminé » à l'écran, EXPIRED en base, AUCUN niveau d'échéance, aucun rappel", () => {
+    expect(estTermine(convention, LE_25_11)).toBe(true);
+    expect(statutLegalAffiche(convention, LE_25_11)).toBe("TERMINE");
+    expect(effectiveStatus(convention, LE_25_11)).toBe("EXPIRED");
+    expect(expiryLevel(convention, LE_25_11)).toBe("NONE");
+    expect(shouldRemind(convention, LE_25_11)).toBe(false);
+    // Déjà en base EXPIRED (aligné hier, avant la règle) : toujours « Terminé », toujours muet.
+    expect(statutLegalAffiche({ ...convention, status: "EXPIRED" }, LE_25_11)).toBe("TERMINE");
+    expect(shouldRemind({ ...convention, status: "EXPIRED" }, LE_25_11)).toBe(false);
+  });
+
+  it("le jour même et avant, il n'est pas terminé : il garde son échéance comme les autres", () => {
+    expect(estTermine(convention, D("2026-09-14"))).toBe(false);
+    expect(expiryLevel(convention, D("2026-09-14"))).toBe("IMMINENT");
+    expect(statutLegalAffiche(convention, D("2026-09-10"))).toBe("ACTIVE");
+  });
+
+  it("annulé ou renouvelé : ni « Terminé », ni échu — son statut", () => {
+    expect(statutLegalAffiche({ ...convention, status: "CANCELLED" }, LE_25_11)).toBe("CANCELLED");
+    expect(statutLegalAffiche({ ...convention, status: "RENEWED" }, LE_25_11)).toBe("RENEWED");
+  });
+
+  it("un engagement DURABLE garde l'alerte : dépassé, il est « Échu » et rappelé", () => {
+    const bail = { status: "ACTIVE" as const, startDate: D("2025-11-01"), endDate: D("2026-11-01"), lastRemindedAt: null };
+    expect(estTermine(bail, LE_25_11)).toBe(false);
+    expect(expiryLevel(bail, LE_25_11)).toBe("OVERDUE");
+    expect(statutLegalAffiche(bail, LE_25_11)).toBe("EXPIRED");
+    expect(shouldRemind(bail, LE_25_11)).toBe(true);
+    // Sans date de début (durée inconnue) : durable, l'alerte reste.
+    expect(expiryLevel({ status: "ACTIVE", endDate: D("2026-09-14") }, LE_25_11)).toBe("OVERDUE");
   });
 });

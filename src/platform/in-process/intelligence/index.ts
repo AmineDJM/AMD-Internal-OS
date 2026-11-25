@@ -155,7 +155,7 @@ export async function signauxLegal(user: SessionUser, opts: { horizonJours?: num
     const href = `/legal/${d.id}`;
     const clauses = parDoc.get(d.id) ?? [];
     const jours = d.endDate ? joursSignes(now, d.endDate) : null;
-    const niveau = expiryLevel({ status: d.status as LegalStatus, endDate: d.endDate }, now);
+    const niveau = expiryLevel({ status: d.status as LegalStatus, startDate: d.startDate, endDate: d.endDate }, now);
     const gEch = GRAVITE_ECHEANCE[niveau];
     const obligations = clauses.length ? obligationsDe(clauses, { endDate: d.endDate, titre: d.title }) : [];
     const denonciation = obligations.find((o) => o.cle === "denonciation");
