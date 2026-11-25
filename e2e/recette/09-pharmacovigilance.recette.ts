@@ -17,22 +17,31 @@ test("Délégué — signaler un cas de pharmacovigilance", async ({ recette: r,
       await r.aller("/medical/rapports/pharmacovigilance/nouveau");
       for (const t of ["Produit concerné", "Date de survenue", "Hôpital / établissement", "Gravité"]) await expect(page.getByText(t).first()).toBeVisible();
     });
-  await r.controle("Envoyer sans produit ni date", "Refus : les champs marqués * sont obligatoires", async () => {
-    await page.getByRole("button", { name: /Envoyer|Signaler|Enregistrer/ }).last().click();
-    await expect(page.getByText(/obligatoire|requis|renseign/i).first()).toBeVisible();
+  await r.controle("Envoyer sans produit ni établissement", "Refus du formulaire : rien ne part ; le navigateur désigne le premier champ * manquant (« Produit concerné »)", async () => {
+    await page.getByRole("button", { name: "Signaler à Regulatory" }).click();
+    await expect(page).toHaveURL(/nouveau/);
+    const produit = page.locator("select[name='promoProductId']");
+    expect(await produit.evaluate((s: HTMLSelectElement) => s.validity.valueMissing)).toBe(true);
+    expect(await page.locator("select[name='institutionId']").evaluate((s: HTMLSelectElement) => s.validity.valueMissing)).toBe(true);
+    expect(await produit.evaluate((s) => s === document.activeElement), "le curseur est posé sur le premier champ manquant").toBe(true);
   });
   await r.etape("Remplir : produit « Cardiolex 5 mg », date du jour, établissement « CHU Mustapha », gravité « Grave », description ; envoyer",
     "Le cas est créé, rattaché ; le pharmacien et le Regulatory sont prévenus", async () => {
       await page.getByLabel("Rechercher un produit").fill("Cardiolex");
-      await page.getByText(`${P} Cardiolex 5 mg`).first().click();
+      const produit = page.locator("select[name='promoProductId']");
+      const option = (await produit.locator("option").allTextContents()).find((t) => t.includes("Cardiolex 5 mg"));
+      expect(option, "le produit de la gamme est proposé").toBeTruthy();
+      await produit.selectOption({ label: option! });
       await page.locator("input[name='occurredOn']").fill(new Date().toISOString().slice(0, 10));
-      const etab = page.getByLabel("Rechercher un établissement");
-      await etab.fill("CHU");
-      const autre = page.getByText("Autre établissement (saisir le nom)");
-      if (await autre.isVisible().catch(() => false)) { await autre.click(); await page.getByLabel("Nom de l'établissement").fill(`${P} CHU Mustapha`); }
+      await page.locator("select[name='institutionId']").selectOption({ label: "Autre établissement (saisir le nom)" });
+      await page.getByLabel("Nom de l'établissement").fill(`${P} CHU Mustapha`);
+      const gravite = page.locator("select[name='severity']");
+      const grave = (await gravite.locator("option").allTextContents()).find((t) => /^Grave/i.test(t.trim()));
+      if (grave) await gravite.selectOption({ label: grave });
       await page.locator("textarea[name='description']").fill(`${P} Vertiges et hypotension 2 h après la 2e prise ; arrêt du traitement, amélioration en 24 h.`);
-      await page.getByRole("button", { name: /Envoyer|Signaler|Enregistrer/ }).last().click();
+      await page.getByRole("button", { name: "Signaler à Regulatory" }).click();
       await expect(page).not.toHaveURL(/nouveau$/);
+      return new URL(page.url()).pathname;
     });
 });
 

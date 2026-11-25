@@ -1,4 +1,5 @@
 import { test, expect, graine } from "./banc";
+import { cliquerDecisif } from "../decisif";
 import { compteBancaire, db, enveloppe, etatOrdre, fermer, imputer, ordre } from "./donnees";
 
 /**
@@ -75,9 +76,9 @@ test("Finances — « Reporter » puis « Lever le report »", async ({ recette:
   await r.connecter("finances");
   await r.aller(banque());
   await r.etape("Sur la ligne « ReguPharm » : ⋯ › « Reporter »", "Panneau « Reporter le paiement » : « Reporter au », « Motif (visible par le demandeur) »", async () => {
-    const ligne = page.locator("tr, li").filter({ hasText: "ReguPharm" }).first();
-    await ligne.getByLabel("Actions sur la ligne").click();
-    await page.getByRole("menuitem", { name: /Reporter/ }).or(page.getByRole("button", { name: "Reporter" })).first().click();
+    // Le « ⋯ » de la ligne s'appelle « Autres actions sur <bénéficiaire> » ; son menu, « Actions sur la ligne ».
+    await page.getByRole("button", { name: /Autres actions sur .*ReguPharm/ }).first().click();
+    await page.getByRole("menu", { name: "Actions sur la ligne" }).getByRole("menuitem", { name: "Reporter" }).click();
     await expect(page.getByText("Reporter au")).toBeVisible();
   });
   await r.etape("Choisir une date à J+10, motif « attente du visa », valider", "La ligne passe dans « Reportés » ; en base : deferredUntil posé", async () => {
@@ -108,11 +109,12 @@ test("Finances — « Payer » puis « Marquer payé » ; l'annulé dit « Annul
   await r.etape("Choisir le compte « BNA Hydra », mode virement, puis « Marquer payé »",
     "La ligne quitte « À payer » et apparaît dans « Payés » avec « Payé le … » ; en base : PAID", async () => {
       const panneau = page.getByRole("dialog").last();
-      const compte = panneau.locator("select").first();
-      const options = await compte.locator("option").allTextContents();
-      const bna = options.find((o) => o.includes("BNA Hydra"));
-      if (bna) await compte.selectOption({ label: bna });
-      await panneau.getByRole("button", { name: "Marquer payé" }).click();
+      // Plusieurs comptes : on choisit « BNA Hydra » ; un seul : il est affiché, sans choix à faire.
+      const bna = panneau.getByRole("button", { name: /BNA Hydra/ });
+      if (await bna.count()) await bna.first().click();
+      await expect(panneau.getByText(/BNA Hydra/).first()).toBeVisible();
+      // « Marquer payé » est un bouton DÉCISIF : deux clics.
+      await cliquerDecisif(panneau.getByRole("button", { name: "Marquer payé" }));
       await expect.poll(async () => (await etatOrdre(O.aPayer.id)).status, { timeout: 15_000 }).toBe("PAID");
       await r.aller(banque("payes"));
       await expect(page.locator("tr, li").filter({ hasText: "Froid Service" }).first()).toContainText(/Payé le/);

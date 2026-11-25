@@ -28,12 +28,23 @@ export interface OrdreDeTest {
   statutCentre?: string;
   societe?: "test" | "fermee";
   sourceType?: string | null;
+  /**
+   * Le BC SIGNÉ que l'ordre honore (registre Legal, rattaché à l'ordre) : il pose le jalon « BC » de la frise « Les montants,
+   * du début à la fin » au centre, et sa ligne « Déjà validé ». L'ordre exige alors sa facture avant le règlement.
+   */
+  bcSigne?: number;
 }
 
 /**
  * Un ordre de dépense déjà émis — l'amont d'un parcours qui commence au centre de paiement ou à la Banque.
  * IDEMPOTENT : un ordre du même libellé déjà posé pendant ce run est RETROUVÉ, pas recréé (un ouvrier relancé
  * après un échec rejoue `beforeAll` ; il doit retrouver le décor, décisions comprises).
+ *
+ * Comme l'émetteur de l'application (`createExpenseOrder` › `openCompanionDossier`), l'ordre naît AVEC SON DOSSIER
+ * COMPAGNON : c'est le fil où les Finances échangent avec le demandeur (« Écrire au demandeur »). Sans lui, la Banque dit
+ * « Ce paiement n'a pas de dossier » — la lacune honnête d'un ordre ancien, pas ce que la recette éprouve. Il reste un
+ * ordre « d'avant la règle du justificatif » (`justificatifExige` faux) : la recette lit « Aucun justificatif joint…
+ * Demandez-le au demandeur » et l'alerte de la pièce manquante.
  */
 export async function ordre(o: OrdreDeTest): Promise<{ id: string; reference: string; libelle: string }> {
   const g = graine();
@@ -41,14 +52,32 @@ export async function ordre(o: OrdreDeTest): Promise<{ id: string; reference: st
   const deja = await db().expenseOrder.findFirst({ where: { label: libelle }, select: { id: true, reference: true } });
   if (deja) return { id: deja.id, reference: deja.reference, libelle };
   const ref = reference();
+  const companyId = o.societe === "fermee" ? g.societeFermeeId : g.societeId;
+  const demandeurId = g.comptes[o.demandeur];
   const cree = await db().expenseOrder.create({
     data: {
       reference: ref, label: libelle, amount: o.montant, category: "AUTRE", beneficiary: o.beneficiaire ?? null,
-      companyId: o.societe === "fermee" ? g.societeFermeeId : g.societeId,
-      centralStatus: o.statutCentre ?? "AWAITING", requestedById: g.comptes[o.demandeur],
-      sourceType: (o.sourceType ?? null) as never,
+      companyId, centralStatus: o.statutCentre ?? "AWAITING", requestedById: demandeurId,
+      sourceType: (o.sourceType ?? null) as never, requiresInvoice: o.bcSigne != null,
     },
   });
+  const dossier = await db().paymentRequest.create({
+    data: {
+      reference: `${P}PAY-${ref}`, title: libelle, amount: o.montant, payee: o.beneficiaire ?? libelle, companyId,
+      status: "SUBMITTED", submittedAt: new Date(), requesterId: demandeurId, expenseOrderId: cree.id, origin: "EXPENSE_ORDER",
+    },
+  });
+  await db().paymentRequestEvent.create({
+    data: { requestId: dossier.id, actorId: demandeurId, kind: "SUBMIT", message: "Dossier ouvert automatiquement avec l'ordre de dépense." },
+  });
+  if (o.bcSigne != null) {
+    await db().legalDocument.create({
+      data: {
+        companyId, reference: `${P}BC-${ref}`, title: `${P} BC — ${o.libelle}`, kind: "PURCHASE_ORDER", counterparty: o.beneficiaire ?? null,
+        amount: o.bcSigne, signedAt: new Date(), expenseOrderId: cree.id,
+      },
+    });
+  }
   return { id: cree.id, reference: ref, libelle };
 }
 
@@ -148,9 +177,16 @@ export async function decorVisite(cle: CleCompte): Promise<{ produit: string; me
   const g = graine();
   const produit = `${P} Cardiolex 5 mg`;
   const message = `${P} Contrôle tensionnel en une prise par jour`;
-  if (!(await db().promoProduct.findFirst({ where: { name: produit } }))) {
-    await db().promoProduct.create({ data: { name: produit, businessUnitId: g.buId } });
-  }
+  // LE PRODUIT DE LA GAMME EST UN PRODUIT CANONIQUE : un produit promu sans fiche produit (`productId`) ne peut figurer
+  // dans aucun rapport (`produitsDeLaBu` › « sansCanonique ») — le formulaire ne le propose pas.
+  const canonique = await db().product.upsert({
+    where: { code: `${P}CARDIOLEX-5` },
+    create: { code: `${P}CARDIOLEX-5`, canonicalName: produit, dci: `${P} CARDIOLEX`, dosage: "5", dosageUnit: "mg", identityKey: `${P}cardiolex|5|mg`, companyId: g.societeId },
+    update: {},
+  });
+  const promu = await db().promoProduct.findFirst({ where: { name: produit } });
+  if (!promu) await db().promoProduct.create({ data: { name: produit, businessUnitId: g.buId, productId: canonique.id } });
+  else if (!promu.productId) await db().promoProduct.update({ where: { id: promu.id }, data: { productId: canonique.id } });
   if (!(await db().promoMessage.findFirst({ where: { title: message } }))) {
     await db().promoMessage.create({ data: { title: message, businessUnitId: g.buId } });
   }
@@ -161,6 +197,24 @@ export async function decorVisite(cle: CleCompte): Promise<{ produit: string; me
     }
   }
   return { produit, message, medecins };
+}
+
+/**
+ * Une visite PRÉVUE aujourd'hui (demandée par la Direction) chez ce médecin du panel — l'amont d'un compte rendu à faire :
+ * c'est sur une visite prévue que produits, message et compte rendu sont TOUS TROIS obligatoires (une visite hors plan
+ * naît sans produit ni message exigés, §118.166). Idempotente : une visite prévue du jour déjà posée est retrouvée.
+ */
+export async function visitePrevue(cle: CleCompte, medecin: string): Promise<string> {
+  const g = graine();
+  const doc = await db().medicalDoctor.findFirstOrThrow({ where: { name: medecin }, select: { id: true } });
+  const debut = new Date(); debut.setHours(0, 0, 0, 0);
+  const deja = await db().medicalVisit.findFirst({ where: { doctorId: doc.id, delegateId: g.comptes[cle], date: { gte: debut } }, select: { id: true } });
+  if (deja) return deja.id;
+  const quand = new Date(); quand.setHours(10, 0, 0, 0);
+  return (await db().medicalVisit.create({
+    data: { date: quand, doctorId: doc.id, delegateId: g.comptes[cle], status: "PLANNED", origin: "DIRECTION", objective: `${P} Présenter Cardiolex`, createdById: g.comptes.superviseur },
+    select: { id: true },
+  })).id;
 }
 
 const slugFichier = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "");

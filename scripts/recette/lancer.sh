@@ -72,7 +72,8 @@ echo "▶ Migrations sur $BASE"
 npx prisma migrate deploy >/dev/null
 
 SERVEUR_PID=""
-arreter() { if [[ -n "$SERVEUR_PID" ]]; then kill "$SERVEUR_PID" 2>/dev/null || true; wait "$SERVEUR_PID" 2>/dev/null || true; fi; }
+# `npx` lance `next start` comme ENFANT : tuer npx seul laissait le serveur tourner (et tenir sa mémoire) après la recette.
+arreter() { if [[ -n "$SERVEUR_PID" ]]; then pkill -TERM -P "$SERVEUR_PID" 2>/dev/null || true; kill "$SERVEUR_PID" 2>/dev/null || true; wait "$SERVEUR_PID" 2>/dev/null || true; fi; }
 trap arreter EXIT
 
 if [[ -n "$URL_EXISTANTE" ]]; then

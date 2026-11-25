@@ -69,8 +69,11 @@ test("Responsable réglementaire — demander l'autorisation du BV 25 % depuis l
 
 test("DG — accepter le BV au Centre de validations ; le budget Regulatory est engagé", async ({ recette: r, page }) => {
   await r.connecter("dg");
-  await r.controle("Lire le menu", "UNE seule entrée « Centre de validations »", async () => {
-    await expect(page.locator("[data-app-sidebar]").getByRole("link", { name: /Centre de validations/ })).toHaveCount(1);
+  await r.controle("Lire le menu (pôles dépliés)", "UNE seule entrée « Centre de validations » ; plus de « Demandes de validations » en double", async () => {
+    await r.deplierMenu();
+    const menu = page.locator("[data-app-sidebar]");
+    await expect(menu.getByRole("link", { name: /Centre de validations/ })).toHaveCount(1);
+    await expect(menu.getByRole("link", { name: /Demandes de validations/ })).toHaveCount(0);
   });
   await r.etape("Ouvrir le Centre de validations", "« À décider · n » ; la demande « BV 25 % — Cardiolex » est dans la file", async () => {
     await r.aller("/centre-de-validations");

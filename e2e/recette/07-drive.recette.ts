@@ -13,10 +13,25 @@ const DOC = `${P} Contrat agence.pdf`;
 
 test.afterAll(async () => { await fermer(); });
 
-/** Le menu d'actions d'un élément : clic droit sur sa ligne (comme une personne). */
-async function actions(page: Page, nom: string) {
-  await page.getByText(nom).first().click({ button: "right" });
+/**
+ * « Importer » › « Fichiers ou ZIP » › choisir › « Importer » — le geste d'une personne. Le premier champ fichier de la page
+ * est celui du DOSSIER (`webkitdirectory`, « Importer › Dossier ») : on passe par la feuille « Importer un document ».
+ */
+async function importer(page: Page, fichier: { name: string; mimeType: string; buffer: Buffer }) {
+  await page.getByRole("button", { name: /^Importer/ }).first().click();
+  await page.getByRole("button", { name: /Fichiers ou ZIP/ }).click();
+  const feuille = page.getByRole("dialog", { name: "Importer un document" });
+  await feuille.locator("input[type='file']").setInputFiles(fichier);
+  await feuille.getByRole("button", { name: "Importer", exact: true }).click();
 }
+
+/** Le menu d'actions d'un élément : le « ⋯ » (« Plus d'actions ») au bout de sa ligne. */
+async function actions(page: Page, nom: string) {
+  await page.locator("tr").filter({ hasText: nom }).first().getByTitle("Plus d'actions").click();
+}
+
+/** Une entrée du menu ⋯ ouvert. */
+const entree = (page: Page, libelle: string) => page.getByRole("button", { name: libelle, exact: true }).last();
 
 test("Dépôt de plus de 10 Mo — le fichier arrive entier", async ({ recette: r, page }) => {
   await r.connecter("assistante");
@@ -25,7 +40,7 @@ test("Dépôt de plus de 10 Mo — le fichier arrive entier", async ({ recette: 
     await expect(page.getByRole("button", { name: /Importer/ }).first()).toBeVisible();
   });
   await r.etape("« Importer » un fichier de 12 Mo", "Le fichier apparaît dans la liste ; en base, sa taille est exactement 12 582 912 octets (rien de tronqué)", async () => {
-    await page.locator("input[type='file']").first().setInputFiles(gros(GROS, 12));
+    await importer(page, gros(GROS, 12));
     await expect(page.getByText(GROS).first()).toBeVisible({ timeout: 120_000 });
     const n = await db().driveNode.findFirst({ where: { name: GROS }, select: { size: true } });
     expect(Number(n?.size ?? 0)).toBe(12 * 1024 * 1024);
@@ -37,15 +52,15 @@ test("Versions — déposer une nouvelle version, relire l'historique", async ({
   await r.connecter("assistante");
   await r.aller("/drive");
   await r.etape("Importer « Contrat agence.pdf »", "Le document apparaît", async () => {
-    await page.locator("input[type='file']").first().setInputFiles({ ...pdfDeTest("Contrat agence v1"), name: DOC });
+    await importer(page, { ...pdfDeTest("Contrat agence v1"), name: DOC });
     await expect(page.getByText(DOC).first()).toBeVisible({ timeout: 60_000 });
   });
-  await r.etape("Clic droit › « Nouvelle version », choisir la v2", "Historique : 2 versions, la plus récente marquée « actuelle »", async () => {
+  await r.etape("« ⋯ » › « Nouvelle version », choisir la v2", "Historique : 2 versions, la plus récente marquée « actuelle »", async () => {
     await actions(page, DOC);
-    const [chooser] = await Promise.all([page.waitForEvent("filechooser"), page.getByRole("menuitem", { name: "Nouvelle version" }).or(page.getByText("Nouvelle version")).first().click()]);
+    const [chooser] = await Promise.all([page.waitForEvent("filechooser"), entree(page, "Nouvelle version").click()]);
     await chooser.setFiles({ ...pdfDeTest("Contrat agence v2"), name: DOC });
     await actions(page, DOC);
-    await page.getByText("Historique des versions").first().click();
+    await entree(page, "Historique des versions").click();
     await expect(page.getByText("actuelle").first()).toBeVisible();
   });
 });
@@ -53,18 +68,17 @@ test("Versions — déposer une nouvelle version, relire l'historique", async ({
 test("Corbeille — mettre à la corbeille, restaurer", async ({ recette: r, page }) => {
   await r.connecter("assistante");
   await r.aller("/drive");
-  await r.etape("Clic droit sur « Contrat agence.pdf » › « Mettre à la corbeille »", "« Il reste restaurable depuis la Corbeille. » ; le fichier quitte la liste", async () => {
+  await r.etape("« ⋯ » de « Contrat agence.pdf » › « Mettre à la corbeille » (confirmer)", "« Il reste restaurable depuis la Corbeille. » ; le fichier quitte la liste", async () => {
     await actions(page, DOC);
-    await page.getByText("Mettre à la corbeille").first().click();
-    const confirmer = page.getByRole("button", { name: /Confirmer|Mettre à la corbeille/ }).last();
-    if (await confirmer.isVisible().catch(() => false)) await confirmer.click();
+    await entree(page, "Mettre à la corbeille").click();
+    await page.getByRole("alertdialog", { name: "Confirmation" }).getByRole("button", { name: "Mettre à la corbeille" }).click();
     await expect(page.getByText(DOC)).toHaveCount(0, { timeout: 15_000 });
   });
-  await r.etape("Ouvrir « Corbeille », clic droit › « Restaurer »", "Le fichier revient dans « Mes fichiers »", async () => {
+  await r.etape("Ouvrir « Corbeille », « ⋯ » › « Restaurer »", "Le fichier revient dans « Mes fichiers »", async () => {
     await page.getByRole("link", { name: "Corbeille" }).or(page.getByRole("button", { name: "Corbeille" })).first().click();
     await expect(page.getByText(DOC).first()).toBeVisible();
     await actions(page, DOC);
-    await page.getByText("Restaurer").first().click();
+    await entree(page, "Restaurer").click();
     await r.aller("/drive");
     await expect(page.getByText(DOC).first()).toBeVisible();
   });

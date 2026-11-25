@@ -18,7 +18,8 @@ let D = { id: "", reference: "", libelle: "" };
 const centre = () => `/centre-de-paiement?entite=${graine().societeId}`;
 
 test.beforeAll(async () => {
-  A = await ordre({ libelle: "Impression des dépliants Cardio", montant: 185_000, demandeur: "assistante", beneficiaire: "__recette__ Imprimerie El Djazair" });
+  // A honore un BC signé de 185 000 : la frise « Les montants » (BC → À payer) et l'alerte « Sans facture » (exigée au règlement).
+  A = await ordre({ libelle: "Impression des dépliants Cardio", montant: 185_000, demandeur: "assistante", beneficiaire: "__recette__ Imprimerie El Djazair", bcSigne: 185_000 });
   B = await ordre({ libelle: "Location salle comité de direction", montant: 96_000, demandeur: "dg", beneficiaire: "__recette__ Hôtel Aurassi" });
   C = await ordre({ libelle: "Abonnement revue doublon", montant: 42_000, demandeur: "assistante", beneficiaire: "__recette__ Éditions Santé" });
   D = await ordre({ libelle: "Fournitures de bureau novembre", montant: 23_500, demandeur: "assistante", beneficiaire: "__recette__ Papeterie Centrale" });
@@ -46,14 +47,17 @@ test("Super Admin — la file « À décider », la fiche de décision, « Autor
     }, { cible: ficheDuCentre(page) });
 
   await r.controle("Lire les alertes de la fiche",
-    "Alerte en rouge « sans facture » / justificatif manquant (l'ordre de test n'a aucune pièce)", async () => {
-      await expect(ficheDuCentre(page)).toContainText(/facture|justificatif|pièce/i);
+    "Alerte en rouge « Sans facture » (le BC est signé, la facture n'est pas encore jointe) ; « Déjà validé » cite le BC signé", async () => {
+      await expect(ficheDuCentre(page).locator("[data-alertes]")).toContainText("Sans facture");
+      await expect(ficheDuCentre(page)).toContainText(/BC n°[\s\S]*signé le/);
     }, { cible: ficheDuCentre(page) });
 
   await r.etape("Cliquer « Autoriser le paiement » (bouton décisif : deux clics)",
-    "Bandeau « Autorisé — le paiement part chez les Finances (Banque & paiements). » ; en base : APPROVED", async () => {
+    "Bandeau « Autorisé — le paiement part chez les Finances (Banque & paiements). », la ligne passe « Autorisé » et la fiche suivante s'ouvre ; en base : APPROVED", async () => {
       await cliquerDecisif(ficheDuCentre(page).getByRole("button", { name: "Autoriser le paiement" }));
-      await expect(ficheDuCentre(page).getByRole("status")).toContainText("Autorisé — le paiement part chez les Finances");
+      // Le bandeau ne reste que 0,9 s : la fiche SUIVANTE s'ouvre d'elle-même et l'ordre décidé sort de la file. Ce qui
+      // demeure, c'est la phrase de retour du geste : « Paiement autorisé : … passe aux Finances, qui le régleront. »
+      await expect(page.getByText(/Paiement autorisé : .* passe aux Finances/).first()).toBeVisible();
       await expect.poll(async () => (await etatOrdre(A.id)).centralStatus, { timeout: 15_000 }).toBe("APPROVED");
       return "centralStatus = APPROVED";
     }, { cible: ficheDuCentre(page) });
@@ -63,9 +67,11 @@ test("Super Admin — la file « À décider », la fiche de décision, « Autor
     await expect(ligneDuCentre(page, A.libelle)).toHaveCount(0);
   });
 
-  await r.controle("Ouvrir « ⋯ » (Autres : déjà décidés, exporter)", "L'ordre autorisé figure dans « Déjà décidés »", async () => {
+  await r.controle("Ouvrir « ⋯ » (Autres : déjà décidés, exporter) › « Déjà décidés · n »", "L'ordre autorisé figure dans « Déjà décidés », marqué autorisé", async () => {
     await page.getByLabel("Autres : déjà décidés, exporter").click();
-    await expect(page.getByText(A.libelle).first()).toBeVisible();
+    await page.getByRole("menuitem", { name: /Déjà décidés · \d+/ }).click();
+    const liste = page.getByRole("dialog", { name: "Déjà décidés" });
+    await expect(liste.locator("li").filter({ hasText: A.libelle })).toBeVisible();
   });
 });
 
@@ -86,7 +92,8 @@ test("Super Admin — « Refuser » avec un motif en un clic", async ({ recette:
       await fiche.locator("button[aria-pressed]").first().click();
       await expect(fiche.getByLabel("Motif du refus")).not.toHaveValue("");
       await cliquerDecisif(fiche.getByRole("button", { name: "Confirmer le refus" }));
-      await expect(fiche.getByRole("status")).toContainText("Refusé — le demandeur est prévenu");
+      // Même course que l'autorisation : le bandeau cède la place à la fiche suivante ; la phrase de retour demeure.
+      await expect(page.getByText(/Paiement refusé : .*Le demandeur est prévenu/).first()).toBeVisible();
       await expect.poll(async () => (await etatOrdre(C.id)).centralStatus, { timeout: 15_000 }).toBe("REFUSED");
       return "centralStatus = REFUSED";
     }, { cible: ficheDuCentre(page) });

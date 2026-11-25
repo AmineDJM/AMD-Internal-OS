@@ -1,5 +1,5 @@
 import { test, expect, graine } from "./banc";
-import { compteBancaire, db, fermer } from "./donnees";
+import { compteBancaire, db, fermer, pdfDeTest } from "./donnees";
 import { ficheDuCentre, ouvrirAuCentre } from "../centre";
 import { cliquerDecisif } from "../decisif";
 import { nomDe } from "./comptes";
@@ -29,11 +29,30 @@ test("Super Admin — remettre une somme en caisse : elle part au centre de paie
     if (await bouton.isVisible().catch(() => false)) await bouton.click();
     await expect(page.getByText("Remettre une somme en caisse")).toBeVisible();
   });
-  await r.etape("Saisir 24 000, choisir le caissier, « Envoyer au centre de paiement »",
+  // JUSTIFICATIF OBLIGATOIRE (24/11/2026) : sans bon de remise, la remise n'entre PAS au centre — l'écran doit le dire.
+  await r.controle("Saisir 5 000 SANS bon de remise, « Envoyer au centre de paiement »",
+    "La remise est enregistrée mais l'écran dit qu'elle attend son BON DE REMISE et n'est pas encore au centre de paiement", async () => {
+      const form = page.locator("form").filter({ hasText: "Remettre une somme en caisse" });
+      await form.locator("input[name='amount']").fill("5000");
+      await form.locator("select[name='holderId']").selectOption({ label: nomDe("caissier") });
+      await form.getByRole("button", { name: "Envoyer au centre de paiement" }).click();
+      await expect(page.getByText(/Remise de 5[\s  ]000 DZD enregistrée .*bon de remise/).first()).toBeVisible({ timeout: 20_000 });
+      const rm = await remise();
+      expect(rm?.expenseOrder?.centralStatus, "sans justificatif, l'ordre attend AVANT le centre").toBe("AWAITING_PROOF");
+      await r.aller("/moyens-generaux");
+      await expect(page.getByText(/attend son bon de remise/i).first()).toBeVisible();
+      await expect(page.getByRole("link", { name: "Joindre le bon de remise" }).first()).toBeVisible();
+      return `ordre ${rm?.expenseOrder?.reference} : ${rm?.expenseOrder?.centralStatus}`;
+    });
+  await r.etape("Saisir 24 000, choisir le caissier, joindre le bon de remise, « Envoyer au centre de paiement »",
     "« Remise de 24 000 DZD envoyée au centre de paiement (OD-…) : autorisée, elle passera aux Finances ; payée, elle comptera dans la caisse dès que le caissier en confirme la réception. »", async () => {
+      await r.aller("/moyens-generaux");
+      const ouvrir = page.getByRole("button", { name: "Remettre une somme" });
+      if (await ouvrir.isVisible().catch(() => false)) await ouvrir.click();
       const form = page.locator("form").filter({ hasText: "Remettre une somme en caisse" });
       await form.locator("input[name='amount']").fill("24000");
       await form.locator("select[name='holderId']").selectOption({ label: nomDe("caissier") });
+      await form.locator("input[name='bonDeRemise']").setInputFiles(pdfDeTest("Bon de remise caisse 24000"));
       await form.getByRole("button", { name: "Envoyer au centre de paiement" }).click();
       await expect(page.getByText(/Remise de 24[\s  ]000 DZD envoyée au centre de paiement \(/)).toBeVisible({ timeout: 20_000 });
       const rm = await remise();
@@ -67,7 +86,8 @@ test("Centre puis Finances — autoriser, puis payer SANS budget", async ({ rece
     await ligne.getByRole("button", { name: "Payer", exact: true }).click();
     const panneau = page.getByRole("dialog").last();
     await expect(panneau.getByText(/^Budget/)).toHaveCount(0);
-    await panneau.getByRole("button", { name: "Marquer payé" }).click();
+    // « Marquer payé » est un bouton DÉCISIF : deux clics.
+    await cliquerDecisif(panneau.getByRole("button", { name: "Marquer payé" }));
     await expect.poll(async () => String((await remise())?.expenseOrder?.status), { timeout: 15_000 }).toBe("PAID");
   });
 });
@@ -79,7 +99,8 @@ test("Caissier — confirmer la réception : la somme entre dans la caisse", asy
     await expect(page.getByRole("button", { name: /Confirmer la réception/ }).first()).toBeVisible();
   });
   await r.etape("Cliquer « Confirmer la réception »", "« En caisse » compte désormais 24 000 DZD ; la remise est confirmée", async () => {
-    await page.getByRole("button", { name: /Confirmer la réception/ }).first().click();
+    // « Confirmer la réception » est un bouton DÉCISIF : deux clics.
+    await cliquerDecisif(page.getByRole("button", { name: /Confirmer la réception/ }).first());
     await expect.poll(async () => (await remise())?.status, { timeout: 15_000 }).not.toBe("ALLOTTED");
     await r.aller("/moyens-generaux");
     await expect(page.getByText(/24[\s  ]000/).first()).toBeVisible();
