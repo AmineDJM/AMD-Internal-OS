@@ -114,10 +114,8 @@ export async function navigationFor(user: SessionUser): Promise<NavItem[]> {
     recettes: await voitDesRecettes(user).catch(sansBloquer("nav-access.navigationFor.voitDesRecettes", false)),
     // LE PARCOURS AGENCE (15/11/2026) : « Ma signature » pour qui signe des bons de commande en ligne. La file
     // « Prospection d'agences » et les « Contrôles de conformité » ont chacun leur clé (24/11/2026) : l'entrée suit le
-    // module, réglé dans la console, et non plus une liste de rôles.
-    // « Suivi des agences » (24/11/2026) : la clé PROSPECTION_AGENCES ouvre l'écran ; l'assistante seule y est renvoyée vers
-    // son bureau (ses postes y sont des lignes), l'entrée lui est donc masquée — elle garde la clé, que lit la file du bureau.
-    agences: !hasRole(user, "DIRECTION_ASSISTANT") || hasRole(user, "PRODUCT_MANAGER") || hasRole(user, "SUPER_ADMIN"),
+    // module, réglé dans la console, et non plus une liste de rôles — l'assistante de direction comprise : « Prospection
+    // d'agences » est de nouveau SON module, à part du bureau du secrétariat (Super Admin, 25/11/2026).
     signatureEnLigne: hasRole(user, "PRODUCT_MANAGER") || hasRole(user, "SUPER_ADMIN") || userCan(user, "PURCHASE_ORDERS", "UPDATE"),
   };
 

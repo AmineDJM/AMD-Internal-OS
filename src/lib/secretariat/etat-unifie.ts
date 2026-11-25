@@ -56,45 +56,6 @@ export function etatFicheVoyage(etat: string): EtatBureau {
   }
 }
 
-// ─────────────────────────── La prospection d'agences ───────────────────────────
-
-/** Les étapes de la file du parcours agence (`etapeDeLaFile`) — reprises en chaînes, ce module n'importe rien. */
-export type EtapeFileAgence =
-  | "DEVIS_A_DEPOSER" | "CHOIX" | "BC_A_PREPARER" | "BC_A_FINALISER" | "BC_SOUMIS" | "BC_CHEZ_DG" | "BC_CHEZ_FINANCES" | "BC_A_CORRIGER"
-  | "BC_REFUSE_DG" | "EXECUTION" | "CONFORMITE" | "RECEPTION_FAITE" | "REFUSE";
-
-/** Les étapes où le poste attend L'ASSISTANTE — les seules qui entrent au bureau. */
-export const ETAPES_AGENCE_AU_BUREAU: readonly EtapeFileAgence[] = ["DEVIS_A_DEPOSER", "BC_A_FINALISER", "BC_A_CORRIGER"];
-
-/** Le type affiché d'une ligne agence : la prospection (devis), ou le bon de commande à finaliser / corriger. */
-export function typeLigneAgence(etape: EtapeFileAgence): "Prospection d'agence" | "Bon de commande" {
-  return etape === "DEVIS_A_DEPOSER" ? "Prospection d'agence" : "Bon de commande";
-}
-
-/**
- * UN POSTE PAYÉ PAR UNE AGENCE, à son étape de file. Ce que l'assistante fait (devis, BC à finaliser ou à corriger) :
- * en cours ; ce que la Direction Marketing tient (choix, préparation, exécution, BC refusé par le DG) : chez le
- * demandeur ; le centre, le DG, les Finances, l'information médicale : en validation ; réceptionné : terminé.
- */
-export function etatPosteAgence(etape: EtapeFileAgence | string): EtatBureau {
-  switch (etape) {
-    case "DEVIS_A_DEPOSER":
-    case "BC_A_FINALISER":
-    case "BC_A_CORRIGER": return "EN_COURS";
-    case "CHOIX":
-    case "BC_A_PREPARER":
-    case "BC_REFUSE_DG":
-    case "EXECUTION": return "CHEZ_LE_DEMANDEUR";
-    case "BC_SOUMIS":
-    case "BC_CHEZ_DG":
-    case "BC_CHEZ_FINANCES":
-    case "CONFORMITE": return "EN_VALIDATION";
-    case "RECEPTION_FAITE": return "TERMINEE";
-    case "REFUSE": return "ANNULEE";
-    default: return "EN_COURS";
-  }
-}
-
 // ─────────────────────────── Le BC d'un poste (demande de pièce) ───────────────────────────
 
 /**

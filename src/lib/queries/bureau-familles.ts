@@ -9,30 +9,24 @@ import { chezQuiDeLaDemande } from "@/lib/secretariat/bureau";
 import { periodeCourte } from "@/lib/secretariat/tableau-bureau";
 import type { LigneBureau } from "@/lib/secretariat/ligne-bureau";
 import {
-  ETAPES_AGENCE_AU_BUREAU, etatDemandeDePiece, etatDemandeSecretariat, etatDevisPriseEnCharge, etatFicheVoyage, etatMaterielPromo,
-  etatPosteAgence, typeLigneAgence, type EtapeFileAgence,
+  etatDemandeDePiece, etatDemandeSecretariat, etatDevisPriseEnCharge, etatFicheVoyage, etatMaterielPromo,
 } from "@/lib/secretariat/etat-unifie";
 import { NATURE_LIBELLE } from "@/lib/reservation-fiche/etat";
-import { lienPosteAssistante } from "@/lib/chemins/ad-pro";
 import { estDemandeBcAEtablir } from "@/modules/ad-pro/partage";
-import { fileAgences, peutSaisirLesDevis, type EtapeFile } from "@/modules/ad-pro/api";
+import { peutSaisirLesDevis } from "@/modules/ad-pro/api";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * LES FAMILLES DU BUREAU DU SECRÉTARIAT (Super Admin, 24/11/2026) — chacune lit SA source existante et la
- * traduit en `LigneBureau` ; rien n'est recalculé à côté (l'état par `etat-unifie.ts`, l'étape d'un poste agence
- * par `etapeDeLaFile(etapeAgence(…))` et `pasAgence`, la visibilité des demandes par `clauseDemandesSecretariatVisibles`,
- * celle des fiches par `clauseFichesVisibles`). Assemblées par `lignesDuBureau` (`queries/bureau.ts`).
+ * traduit en `LigneBureau` ; rien n'est recalculé à côté (l'état par `etat-unifie.ts`, la visibilité des demandes par
+ * `clauseDemandesSecretariatVisibles`, celle des fiches par `clauseFichesVisibles`). Assemblées par `lignesDuBureau` (`queries/bureau.ts`).
  *
  * « Un demandeur ordinaire ne voit que ses demandes » : ses demandes au secrétariat et les fiches de voyage qu'il a
- * envoyées. Le TRAVAIL de l'assistante (postes agence, BC de poste, matériel promotionnel, devis de prise en charge)
- * n'entre qu'au bureau de qui le traite — l'assistante de direction et le Super Admin (`voitBureauAdPro`).
+ * envoyées. Le TRAVAIL de l'assistante (matériel promotionnel, devis de prise en charge) n'entre qu'au bureau de qui le
+ * traite — l'assistante de direction et le Super Admin (`voitBureauAdPro`). Les postes agence et les BC de poste vivent sur
+ * « Prospection d'agences », module à part (25/11/2026).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
-
-// L'étape de la file (`EtapeFile`) et sa copie en chaînes du module pur doivent rester identiques.
-const memesEtapes: [EtapeFile] extends [EtapeFileAgence] ? ([EtapeFileAgence] extends [EtapeFile] ? true : never) : never = true;
-void memesEtapes;
 
 const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
 
@@ -116,52 +110,20 @@ export async function lignesFichesVoyage(user: SessionUser): Promise<LigneBureau
   });
 }
 
-// ─────────────────────────── (c) La prospection d'agences ───────────────────────────
-
-/**
- * LES POSTES PAYÉS PAR UNE AGENCE, à l'étape où ils attendent l'assistante — la file « Prospection d'agences »
- * (`fileAgences`, qui lit l'étape par `etapeDeLaFile(etapeAgence(…))` et la main par `pasAgence`). L'assistante y voit
- * SES postes ; le Super Admin, tous. La ligne ouvre la page du poste (`/agences/<id>`).
- */
-export async function lignesProspectionAgences(user: SessionUser): Promise<LigneBureau[]> {
-  if (!voitBureauAdPro(user)) return [];
-  const file = (await fileAgences(user)) ?? [];
-  return file
-    .filter((l) => (ETAPES_AGENCE_AU_BUREAU as readonly string[]).includes(l.etape))
-    .map((l) => ({
-      cle: `agence:${l.itemId}`, famille: "agence", type: typeLigneAgence(l.etape),
-      objet: `${l.label} — ${l.nature}`, reference: l.ref, demandeur: "Direction Marketing", dates: null,
-      etat: etatPosteAgence(l.etape),
-      chezQui: l.aMoi ? `Vous${l.geste ? ` · ${l.geste.toLowerCase()}` : ""}` : l.assistante ?? "Assistante",
-      echeance: null, depuis: l.depuis, href: lienPosteAssistante(l.itemId),
-      recherche: [l.cahierDesCharges, l.assistante].filter(Boolean).join(" "),
-      cleMetier: l.etape === "DEVIS_A_DEPOSER" ? `poste:${l.itemId}:agence` : `poste:${l.itemId}:bc`,
-    }));
-}
-
 // ─────────────────────────── (d) Le BC d'un poste (demande de pièce) ───────────────────────────
 
-/** Les demandes de pièce closes restent six mois au bureau (« Voir plus de terminées »). */
-const RETENUE_CLOSES_MS = 183 * 24 * 3600 * 1000;
-
 /**
- * LES BC DE POSTE DEMANDÉS À L'ASSISTANTE (§118.204) — ouverts, et clos depuis moins de six mois. Un poste déjà au
- * bureau par la prospection d'agences ou par l'ancienne demande « Bon de commande à établir » n'y paraît qu'une fois
- * (`cleMetier`).
+ * LES BC DE POSTE QUE L'ASSISTANTE DOIT DÉPOSER (§118.204) — à établir, ou refusés et à redéposer. Ce n'est plus une famille
+ * du bureau (Super Admin, 25/11/2026) : ils se lisent dans « Vos autres tâches » de « Prospection d'agences », sous la même
+ * forme de ligne.
  */
 export async function lignesBcDePoste(user: SessionUser): Promise<LigneBureau[]> {
   if (!voitBureauAdPro(user)) return [];
   const toutes = user.role === "SUPER_ADMIN";
   const pieces = await prisma.documentRequest.findMany({
-    where: {
-      entityType: "AD_PRO_ITEM", kind: "PURCHASE_ORDER", ...(toutes ? {} : { askedToId: user.id }),
-      OR: [
-        { status: { in: ["PENDING", "DECLINED", "SUBMITTED"] } },
-        { status: { in: ["ACCEPTED", "CANCELLED"] }, updatedAt: { gte: new Date(Date.now() - RETENUE_CLOSES_MS) } },
-      ],
-    },
+    where: { entityType: "AD_PRO_ITEM", kind: "PURCHASE_ORDER", status: { in: ["PENDING", "DECLINED"] }, ...(toutes ? {} : { askedToId: user.id }) },
     select: {
-      id: true, reference: true, label: true, entityId: true, createdAt: true, updatedAt: true, closedAt: true, dueDate: true, status: true,
+      id: true, reference: true, label: true, entityId: true, createdAt: true, dueDate: true, status: true,
       askedBy: { select: { name: true } }, askedTo: { select: { name: true } },
     },
     orderBy: { createdAt: "asc" }, take: 300,
@@ -171,13 +133,12 @@ export async function lignesBcDePoste(user: SessionUser): Promise<LigneBureau[]>
     : new Map<string, string>();
   return pieces.map((p) => {
     const etat = etatDemandeDePiece(String(p.status));
-    const chezQui = p.status === "SUBMITTED" ? `${pourMoi(user, p.askedBy.name)} · vérification`
-      : p.status === "PENDING" || p.status === "DECLINED" ? `${pourMoi(user, p.askedTo.name)}${p.status === "DECLINED" ? " · à redéposer" : ""}` : null;
+    const chezQui = `${pourMoi(user, p.askedTo.name)}${p.status === "DECLINED" ? " · à redéposer" : ""}`;
     return {
       cle: `bc-poste:${p.id}`, famille: "bc-poste", type: "Bon de commande",
       objet: postes.get(p.entityId) ? `${p.label} — ${postes.get(p.entityId)}` : p.label, reference: p.reference,
       demandeur: p.askedBy.name, dates: null, etat, chezQui, echeance: iso(p.dueDate), depuis: p.createdAt.toISOString(),
-      href: `/pieces/${p.id}`, termineeLe: iso(p.closedAt ?? p.updatedAt), recherche: p.askedTo.name, cleMetier: `poste:${p.entityId}:bc`,
+      href: `/pieces/${p.id}`, recherche: p.askedTo.name, cleMetier: `poste:${p.entityId}:bc`,
     };
   });
 }

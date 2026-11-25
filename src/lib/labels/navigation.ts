@@ -28,7 +28,7 @@ export interface NavItem {
    * envoyé qu'au Super Admin (`peutPiloterMissionsAdam`, §118.136) — le module WORKSPACE est à
    * tout le monde, la règle n'est pas un module.
    */
-  gate?: "regEnrollment" | "pipeline" | "myTeam" | "adamMissions" | "adam" | "corbeilleOps" | "pharmacovigilance" | "recettes" | "signatureEnLigne" | "agences";
+  gate?: "regEnrollment" | "pipeline" | "myTeam" | "adamMissions" | "adam" | "corbeilleOps" | "pharmacovigilance" | "recettes" | "signatureEnLigne";
   /**
    * Entrée fusionnée : plusieurs sous-modules présentés en onglets sur la page.
    * L'entrée est visible si l'utilisateur a accès à **au moins un** onglet, et son
@@ -268,7 +268,7 @@ export const NAVIGATION: NavItem[] = [
   // LES BAT À CONTRÔLER (parcours agence, 15/11/2026) — la file de l'information médicale, avant impression.
   { module: "CONTROLES_CONFORMITE", label: "Contrôles de conformité", href: "/information-medicale/conformite", icon: "FileCheck2", group: "Pôles", pole: "REGULATORY" },
   // LA PROSPECTION D'AGENCES (parcours agence, 15/11/2026) — la file de l'assistante de direction ; la Direction Marketing y suit tout.
-  { module: "PROSPECTION_AGENCES", label: "Suivi des agences", href: "/agences", icon: "Building2", group: "Pôles", pole: "MARKETING", gate: "agences" },
+  { module: "PROSPECTION_AGENCES", label: "Prospection d'agences", href: "/agences", icon: "Building2", group: "Pôles", pole: "MARKETING" },
   // PHARMACOVIGILANCE (Direction, 06/10) — la boîte de réception des cas signalés par les KAM. GARDE
   // `pharmacovigilance` : l'entrée ne s'affiche qu'à qui reçoit les cas (portée TOUT) ; le KAM, qui ne lit que ses
   // signalements, les retrouve dans les Rapports terrain — il n'a rien à faire dans le pôle Regulatory.

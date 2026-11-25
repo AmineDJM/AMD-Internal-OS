@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  ETAPES_AGENCE_AU_BUREAU, etatDemandeDePiece, etatDemandeSecretariat, etatDevisPriseEnCharge, etatFicheVoyage, etatMaterielPromo,
-  etatPosteAgence, typeLigneAgence,
+  etatDemandeDePiece, etatDemandeSecretariat, etatDevisPriseEnCharge, etatFicheVoyage, etatMaterielPromo,
 } from "./etat-unifie";
 import { ETATS_BUREAU } from "./ligne-bureau";
-import { LIBELLE_ETAPE_FILE } from "@/modules/ad-pro/api";
 
 /**
  * UN SEUL VOCABULAIRE D'ÉTAT (24/11/2026) — chaque statut de chaque famille, une fois. Un statut inconnu se lit « En cours »
@@ -42,24 +40,6 @@ describe("etat-unifie — les fiches billet / hôtel", () => {
   });
 });
 
-describe("etat-unifie — la prospection d'agences", () => {
-  it("TOUTES les étapes de la file ont un état — la liste des étapes est celle du module", () => {
-    const attendu: Record<string, string> = {
-      DEVIS_A_DEPOSER: "EN_COURS", CHOIX: "CHEZ_LE_DEMANDEUR", BC_A_PREPARER: "CHEZ_LE_DEMANDEUR", BC_A_FINALISER: "EN_COURS",
-      BC_SOUMIS: "EN_VALIDATION", BC_CHEZ_DG: "EN_VALIDATION", BC_CHEZ_FINANCES: "EN_VALIDATION", BC_A_CORRIGER: "EN_COURS",
-      BC_REFUSE_DG: "CHEZ_LE_DEMANDEUR", EXECUTION: "CHEZ_LE_DEMANDEUR", CONFORMITE: "EN_VALIDATION", RECEPTION_FAITE: "TERMINEE", REFUSE: "ANNULEE",
-    };
-    expect(Object.keys(LIBELLE_ETAPE_FILE).sort()).toEqual(Object.keys(attendu).sort());
-    for (const [etape, etat] of Object.entries(attendu)) expect(etatPosteAgence(etape), etape).toBe(etat);
-  });
-  it("seules les étapes de l'assistante entrent au bureau ; la prospection et le BC ont chacun leur type", () => {
-    expect([...ETAPES_AGENCE_AU_BUREAU]).toEqual(["DEVIS_A_DEPOSER", "BC_A_FINALISER", "BC_A_CORRIGER"]);
-    expect(typeLigneAgence("DEVIS_A_DEPOSER")).toBe("Prospection d'agence");
-    expect(typeLigneAgence("BC_A_FINALISER")).toBe("Bon de commande");
-    expect(typeLigneAgence("BC_A_CORRIGER")).toBe("Bon de commande");
-  });
-});
-
 describe("etat-unifie — BC de poste, matériel promotionnel, devis de prise en charge", () => {
   it("la demande de pièce", () => {
     expect(etatDemandeDePiece("PENDING")).toBe("A_PRENDRE");
@@ -75,7 +55,7 @@ describe("etat-unifie — BC de poste, matériel promotionnel, devis de prise en
     expect(etatDevisPriseEnCharge(0)).toBe("TERMINEE");
   });
   it("un statut inconnu se lit « En cours » : la ligne ne disparaît pas", () => {
-    for (const f of [etatFicheVoyage, etatPosteAgence, etatDemandeDePiece]) expect(f("STATUT_FUTUR")).toBe("EN_COURS");
+    for (const f of [etatFicheVoyage, etatDemandeDePiece]) expect(f("STATUT_FUTUR")).toBe("EN_COURS");
     expect(etatDemandeSecretariat({ statut: "STATUT_FUTUR" })).toBe("EN_COURS");
     expect(ETATS_BUREAU).toContain("EN_COURS");
   });

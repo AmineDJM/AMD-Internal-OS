@@ -12,6 +12,7 @@ import { createRequest } from "@/lib/actions/admin-request-actions";
 import { TITRE_BC_A_ETABLIR } from "@/modules/ad-pro/partage";
 import { FAMILLES_BUREAU, lignesDuBureau, sansDoublon } from "./bureau";
 import { clauseFichesVisibles, ficheDuBureau } from "./reservations-fiches";
+import { autresTachesAssistante } from "./autres-taches-assistante";
 import type { LigneBureau } from "@/lib/secretariat/ligne-bureau";
 
 let dbOk = false;
@@ -46,8 +47,9 @@ describe("le bureau — une ligne par objet métier (PUR)", () => {
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * LE BUREAU DU SECRÉTARIAT, UN SEUL TABLEAU (Super Admin, 24/11/2026) — `lignesDuBureau`, sur la base :
  *   • un demandeur ordinaire ne voit que SES demandes (et la fiche de voyage qu'il a envoyée) — aucun travail de l'assistante ;
- *   • l'assistante voit la fiche (à prendre, chez elle), le poste agence qui l'attend, le BC de poste ;
- *   • un BC demandé deux fois (ancienne demande « BC à établir » ET demande de pièce) n'a qu'UNE ligne ;
+ *   • l'assistante voit la fiche (à prendre, chez elle) et l'ancienne demande « BC à établir » ; le poste agence qui
+ *     l'attend et la demande de pièce du BC N'Y SONT PAS : ils vivent sur « Prospection d'agences », module à part
+ *     (Super Admin, 25/11/2026) — une seule fois, pas aussi au bureau ;
  *   • une famille en panne n'éteint pas les autres, et la page le sait ;
  *   • la page d'une fiche suit la MÊME clause que sa ligne.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -131,17 +133,21 @@ suite("Bureau du secrétariat — lignesDuBureau (base réelle)", () => {
     expect(lignes.filter((l) => ["agence", "bc-poste", "promo", "devis-pec"].includes(l.famille))).toEqual([]);
   }, 120_000);
 
-  it("L'ASSISTANTE voit la fiche à prendre, le poste agence qui l'attend, et le BC de poste — UNE seule ligne pour ce BC", async () => {
-    const { lignes, pannes } = await lignesDuBureau(await acteur(astId));
+  it("L'ASSISTANTE voit la fiche à prendre et la demande « BC à établir » — ni le poste agence ni le BC de poste (module à part)", async () => {
+    const ast = await acteur(astId);
+    const { lignes, pannes } = await lignesDuBureau(ast);
     expect(pannes).toEqual([]);
     expect(lignes.find((l) => l.cle === `fiche-voyage:${ficheId}`)).toMatchObject({ etat: "A_PRENDRE", chezQui: "Vous", href: `/demandes/fiches/${ficheId}` });
-    expect(lignes.find((l) => l.cle === `agence:${posteAgence}`)).toMatchObject({
-      type: "Prospection d'agence", etat: "EN_COURS", href: `/agences/${posteAgence}`, demandeur: "Direction Marketing",
-    });
+    expect(lignes.filter((l) => l.famille === "agence" || l.famille === "bc-poste"), "plus de double affichage").toEqual([]);
+    expect(lignes.some((l) => l.href === `/agences/${posteAgence}`)).toBe(false);
     const bc = lignes.filter((l) => l.cleMetier === `poste:${posteBc}:bc`);
     expect(bc, "aucun doublon BC").toHaveLength(1);
     expect(bc[0]).toMatchObject({ cle: `demande:${bcAEtablir}`, type: "Bon de commande" });
-    expect(lignes.some((l) => l.cle === `bc-poste:${pieceBc}`)).toBe(false);
+    // La demande de pièce du BC se lit sur « Prospection d'agences », dans « Vos autres tâches » — et nulle part au bureau.
+    const autres = await autresTachesAssistante(ast);
+    expect(autres.find((g) => g.cle === "BC")?.lignes.find((t) => t.cle === `bc-poste:${pieceBc}`)).toMatchObject({ geste: "Établir le BC", href: `/pieces/${pieceBc}` });
+    expect(autres.find((g) => g.cle === "VOYAGES")?.lignes[0]).toMatchObject({ href: "/demandes", geste: "Ouvrir le bureau" });
+    expect(await autresTachesAssistante(await acteur(pmId)), "sa page à elle seule").toEqual([]);
     // Les deux demandes du secrétariat lui sont ouvertes : elle tient le bureau.
     expect(lignes.some((l) => l.cle === `demande:${maDemande}`) && lignes.some((l) => l.cle === `demande:${autreDemande}`)).toBe(true);
   }, 120_000);

@@ -6,12 +6,12 @@ import { LIBELLE_ETAPE_FILE, type LigneFileAgence } from "@/modules/ad-pro/api";
 
 /**
  * UNE FILE DU PARCOURS AGENCE — d'abord ce qui est À VOUS, puis le reste, chaque ligne avec son étape en clair et un seul lien.
- * Utilisée par « Suivi des agences » (Direction Marketing, Super Admin) et « Contrôles de conformité » (information médicale).
+ * Utilisée par « Prospection d'agences » (assistante, Direction Marketing) et « Contrôles de conformité » (information médicale).
  *
- * La file « Suivi des agences » porte le GESTE de la ligne (« Déposer les devis des agences »…) et, quand ce n'est pas à
+ * La file « Prospection d'agences » porte le GESTE de la ligne (« Déposer les devis des agences »…) et, quand ce n'est pas à
  * vous, CHEZ QUI en est le poste — la phrase même de la carte. Une ligne qui ne les porte pas (conformité) garde l'étape et
- * l'action de la page. `entre` : ce qui se lit entre les deux blocs ; `aides` : une phrase
- * sous chaque titre.
+ * l'action de la page. `entre` : ce qui se lit entre les deux blocs (les autres tâches de l'assistante) ; `aides` : une
+ * phrase sous chaque titre.
  */
 export function ListeAgences({ lignes, vide, action, entre = null, aides }: {
   lignes: LigneFileAgence[]; vide: string; action: string; entre?: ReactNode; aides?: { aMoi: string; autres: string };

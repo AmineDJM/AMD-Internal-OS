@@ -3,7 +3,7 @@ import { userCan, type SessionUser } from "@/lib/rbac";
 import { hasRole } from "@/lib/rbac/roles";
 import { ITEM_KIND_LABELS } from "../../domaine/postes";
 import { PARENTS, parentOf, loadItem } from "../postes/commun";
-import { LIBELLE_AGENCES, LIBELLE_BUREAU, lienBatInfoMed, lienPosteAdPro, lienPosteAssistante } from "@/lib/chemins/ad-pro";
+import { LIBELLE_AGENCES, lienBatInfoMed, lienPosteAdPro, lienPosteAssistante } from "@/lib/chemins/ad-pro";
 import { sitsOnPaymentCentre } from "@/modules/finances/partage";
 import { etapeAgence, pasAgence, type AgenceVue, type EtapeAgence, type FaitsPosteAgence } from "../../domaine/parcours-agence";
 import { toutEstFacture } from "../../domaine/poste-etapes";
@@ -121,8 +121,8 @@ type Demandeur = { id: string; role: string; secondaryRole: string | null };
 
 /**
  * LES DEMANDES PORTEUSES ET LEURS DEMANDEURS, EN LOT — la file et « Aujourd'hui » lisaient chaque demande, puis son
- * demandeur, l'un après l'autre dans la boucle (une requête par demande, deux fois). Le bureau du secrétariat lit
- * désormais cette file à chaque ouverture : on lance les lectures ENSEMBLE (Prisma regroupe les `findUnique` d'un
+ * demandeur, l'un après l'autre dans la boucle (une requête par demande, deux fois). « Aujourd'hui » lit cette file à
+ * chaque ouverture : on lance les lectures ENSEMBLE (Prisma regroupe les `findUnique` d'un
  * même tour en une requête par table) et les demandeurs en UNE requête.
  */
 async function parentsEtDemandeurs(owners: readonly ({ parent: keyof typeof PARENTS; id: string } | null)[]): Promise<{
@@ -215,7 +215,7 @@ export async function posteDeLAssistante(user: SessionUser, itemId: string) {
 /** Une tâche du parcours agence pour « Aujourd'hui » — la même forme que les autres lignes de la file (`ActionItem`). */
 export interface TacheAgence {
   key: string; objet: string; title: string; subtitle: string; href: string; depuis: string; statusLabel: string;
-  /** La page de qui tient la file — le bureau de l'assistante, le « Suivi des agences » de la Direction Marketing : son lot y mène (« tout voir »). */
+  /** « Prospection d'agences » pour qui ouvre cette page (assistante, Direction Marketing) : son lot y mène (« tout voir »). */
   module: string;
 }
 
@@ -242,9 +242,9 @@ export async function tachesAgence(user: SessionUser): Promise<TacheAgence[]> {
   if (!marketingRole && !assistanteRole && !infoMed && !centre && !finances && !paiement) return [];
   // Seule l'assistante ne voit que SES postes ; les autres rôles tiennent une étape de tous les postes « agence » en cours.
   const seulementSiens = assistanteRole && !marketingRole && !infoMed && !centre && !finances && !paiement;
-  // Son lot mène à la page où elle retrouve tout son parcours : le Bureau du secrétariat pour l'assistante (24/11/2026),
-  // le « Suivi des agences » pour la Direction Marketing (la porte de `fileAgences`), Ad & Pro sinon.
-  const module = marketingRole ? LIBELLE_AGENCES : assistanteRole ? LIBELLE_BUREAU : "Ad & Pro";
+  // Qui ouvre « Prospection d'agences » (la porte de `fileAgences`, la clé de la console) y retrouve tout son parcours :
+  // son lot y mène — l'assistante comme la Direction Marketing (module à part du bureau, 25/11/2026).
+  const module = userCan(user, "PROSPECTION_AGENCES", "VIEW") ? LIBELLE_AGENCES : "Ad & Pro";
 
   const items = await prisma.adProItem.findMany({
     where: {
