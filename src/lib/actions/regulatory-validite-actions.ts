@@ -51,6 +51,7 @@ async function garderLaProposition(productId: string, maj: (l: LecturesEnregistr
     const p = await prisma.regulatoryProduct.findUnique({ where: { id: productId }, select: { registrationReading: true, updatedAt: true } });
     if (!p) return false;
     const suivant = maj(lecturesDuDossier(p.registrationReading));
+    // porte d'écriture : appelée après `canAccessEntity(…, "REGULATORY_PRODUCT", productId, …)` par chaque action.
     const ecrit = await prisma.regulatoryProduct.updateMany({
       where: { id: productId, updatedAt: p.updatedAt },
       data: { registrationReading: suivant as unknown as Prisma.InputJsonValue },

@@ -30,6 +30,8 @@ export const BASES_PERSONNES_ARGENT: BaseDef[] = [
       LeaveEscalation: "Relance d'une demande de congé",
       Training: "Formation",
       TrainingParticipant: "Participant à une formation",
+      DepartSalarie: "Départ d'un salarié",
+      DepartSalarieTache: "Tâche du départ d'un salarié",
     },
     plusSensibles: {
       Employee: { niveau: "secret", pourquoi: "IBAN, NIN, n° CNAS, date de naissance, salaires (base, brut, net, coût employeur)" },
@@ -114,6 +116,12 @@ export const BASES_PERSONNES_ARGENT: BaseDef[] = [
       DocumentRequest: "Demande de pièce justificative",
       ChargeFixeSociete: "Charge fixe des locaux d'une société (loyer, électricité…), saisie dans Informations de la société",
       EcheanceChargeFixe: "Échéance de charge fixe demandée au paiement (source de l'ordre FIXED_CHARGE)",
+      ChargeFixeSociete: "Charge fixe des locaux d'une société",
+      EcheanceChargeFixe: "Échéance d'une charge fixe",
+      ObligationFiscale: "Obligation fiscale ou sociale (calendrier)",
+      EcheanceFiscale: "Échéance fiscale ou sociale à payer",
+      RetenueSource: "Retenue à la source d'un paiement",
+      TauxRetenueSource: "Taux de retenue à la source",
     },
     plusSensibles: {
       TreasuryAccount: { niveau: "secret", pourquoi: "banque et RIB des comptes de la société" },
@@ -154,6 +162,8 @@ export const BASES_PERSONNES_ARGENT: BaseDef[] = [
       PettyCashTopUpRequest: "Demande de réapprovisionnement de caisse",
       PettyCashAllotment: "Dotation de caisse d'avance",
       CoutRepartitionBu: "Répartition d'un coût entre business units",
+      BudgetCampaignRevenue: "Recette prévue par la campagne budgétaire",
+      BudgetCampaignTaxLine: "Impôt prévu par la campagne budgétaire",
     },
   },
   {
@@ -181,6 +191,8 @@ export const BASES_PERSONNES_ARGENT: BaseDef[] = [
       MailEntry: "Courrier enregistré (arrivée / départ)",
       MailEntryPiece: "Pièce d'un courrier",
       MailEntryFolder: "Classeur du registre des courriers",
+      SignatureBC: "Signature d'un bon de commande",
+      SignatureVisuelle: "Signature visuelle d'une personne",
     },
   },
   {

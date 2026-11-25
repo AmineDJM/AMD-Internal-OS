@@ -39,6 +39,7 @@ export async function choisirNatureDemande(formData: FormData): Promise<ActionRe
   if (nature === req.natureDepense) return { ok: true, id, message: "Rien n'a changé." };
 
   // Conditionnelle sur ce qui a été lu (§118.151) : un ordre né entre-temps fige la nature.
+  // porte d'écriture : le demandeur de CETTE demande, relu plus haut (`isRequester`).
   const ecrit = await prisma.paymentRequest.updateMany({ where: { id, expenseOrderId: null, natureDepense: req.natureDepense }, data: { natureDepense: nature } });
   if (ecrit.count === 0) return { ok: false, error: "Ce dossier vient de changer (transmis ou modifié) : rechargez la page." };
   const phrase = `Nature de la dépense : ${libelleNatureDepense(nature)}${req.natureDepense ? ` (avant : ${libelleNatureDepense(req.natureDepense)})` : ""}.`;

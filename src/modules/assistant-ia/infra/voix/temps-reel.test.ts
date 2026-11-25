@@ -39,8 +39,9 @@ let sansAssistant: CurrentUser;
 const cleAvant = process.env.OPENAI_API_KEY;
 const reponse = (message: string) => ({ texte: JSON.stringify({ message, components: [] }) });
 
+/** Adam est réservé au Super Admin (24/11/2026) : le compte « ouvert » l'est, l'autre non — et il est refusé. */
 async function compte(nom: string, assistant: boolean): Promise<CurrentUser> {
-  const u = await prisma.user.create({ data: { name: `${TAG}${nom}`, email: `${TAG}${nom}@t.dz`, passwordHash: "x", role: "MEDICAL_DELEGATE" } });
+  const u = await prisma.user.create({ data: { name: `${TAG}${nom}`, email: `${TAG}${nom}@t.dz`, passwordHash: "x", role: assistant ? "SUPER_ADMIN" : "MEDICAL_DELEGATE" } });
   if (assistant) await prisma.userAccess.create({ data: { userId: u.id, module: "ASSISTANT_IA", canView: true, scope: "ASSIGNED" } });
   const access = await getAccess(u.id, u.role);
   return { id: u.id, name: u.name, email: u.email, role: access.role ?? u.role, secondaryRole: access.secondaryRole, access, mustChangePassword: false } as CurrentUser;

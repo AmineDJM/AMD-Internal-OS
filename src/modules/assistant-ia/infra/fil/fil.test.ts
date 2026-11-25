@@ -25,8 +25,9 @@ const TAG = `__iafil_${Date.now().toString(36)}_`;
 let assistante: CurrentUser;
 let sansAcces: CurrentUser;
 
+/** Adam est réservé au Super Admin (24/11/2026) : le compte « ouvert » l'est, l'autre non — et il est refusé. */
 async function compte(nom: string, ouvrir: boolean): Promise<CurrentUser> {
-  const u = await prisma.user.create({ data: { name: `${TAG}${nom}`, email: `${TAG}${nom}@t.dz`, passwordHash: "x", role: "DIRECTION_ASSISTANT" } });
+  const u = await prisma.user.create({ data: { name: `${TAG}${nom}`, email: `${TAG}${nom}@t.dz`, passwordHash: "x", role: ouvrir ? "SUPER_ADMIN" : "DIRECTION_ASSISTANT" } });
   if (ouvrir) await prisma.userAccess.create({ data: { userId: u.id, module: "ASSISTANT_IA", canView: true, scope: "ASSIGNED" } });
   const access = await getAccess(u.id, u.role);
   return { id: u.id, name: u.name, email: u.email, role: access.role ?? u.role, secondaryRole: access.secondaryRole, access, mustChangePassword: false } as CurrentUser;

@@ -66,8 +66,9 @@ suite("Mes notes — privé, rien d'écrit sans acceptation (vraie base)", () =>
   let pageId = "";
 
   beforeAll(async () => {
-    assia = await personne("assia", "DIRECTION_ASSISTANT");
-    karim = await personne("karim", "SALES_USER");
+    // Adam est réservé au Super Admin (24/11/2026) : les deux personnes du banc le sont — leurs notes restent privées.
+    assia = await personne("assia", "SUPER_ADMIN");
+    karim = await personne("karim", "SUPER_ADMIN");
     admin = await personne("admin", "SUPER_ADMIN");
     const [p] = await listerPages(assia.id);
     pageId = p.id;

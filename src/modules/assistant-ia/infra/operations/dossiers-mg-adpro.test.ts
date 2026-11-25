@@ -16,6 +16,13 @@ import type { CurrentUser } from "@/lib/session";
  */
 
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
+// UNE SEULE CAISSE D'AVANCE, celle du service des moyens généraux (Super Admin, 24/11/2026) : réglage global injecté dans
+// ce processus (§118.132) — le département du banc est ce service ; la base partagée garde son réglage.
+let SERVICE_MG: string | null = null;
+vi.mock("@/lib/settings", async (importOriginal) => {
+  const vrai = await importOriginal<typeof import("@/lib/settings")>();
+  return { ...vrai, getAppSettings: async () => ({ ...(await vrai.getAppSettings()), generalMeansDepartmentId: SERVICE_MG }) };
+});
 let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR, getCurrentUserPourEcrire: async () => ACTOR }));
 
@@ -200,6 +207,7 @@ suite("T3 — dossiers, moyens généraux et fiches Ad & Pro, exécutés puis an
   it("caisse d'avance (« moyens généraux ») : solde, justificatifs manquants, dépense AVEC ticket, réception, rallonge — puis annulées", async () => {
     // La caisse de l'assistante : reçu 50 000, dépensé 42 000 (dont 4 500 sans pièce), 15 000 à confirmer.
     const dep = await prisma.department.create({ data: { name: `Administration ${TAG}`, code: `${TAG}MG`.toUpperCase() } as never, select: { id: true } });
+    SERVICE_MG = dep.id;
     const a1 = await prisma.pettyCashAllotment.create({ data: { departmentId: dep.id, period: "2026-10", amount: 50_000, status: "RECEIVED", receivedAt: new Date(), holderId: ASSISTANTE.id } });
     await prisma.pettyCashAllotment.create({ data: { departmentId: dep.id, period: "2026-11", amount: 15_000, status: "ALLOTTED", holderId: ASSISTANTE.id } });
     const annee = new Date().getFullYear();

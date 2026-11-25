@@ -45,7 +45,7 @@ describe("le plafond par tour compte la boucle, pas le message de la personne", 
 
 suite("un texte long n'est jamais coupé", () => {
   beforeAll(async () => {
-    const u = await prisma.user.create({ data: { name: `${TAG}moi`, email: `${TAG}moi@t.dz`, passwordHash: "x", role: "DIRECTION_ASSISTANT" } });
+    const u = await prisma.user.create({ data: { name: `${TAG}moi`, email: `${TAG}moi@t.dz`, passwordHash: "x", role: "SUPER_ADMIN" } });
     await prisma.userAccess.create({ data: { userId: u.id, module: "ASSISTANT_IA", canView: true, scope: "ASSIGNED" } });
     const access = await getAccess(u.id, u.role);
     moi = { id: u.id, name: u.name, email: u.email, role: access.role ?? u.role, secondaryRole: access.secondaryRole, access, mustChangePassword: false } as CurrentUser;

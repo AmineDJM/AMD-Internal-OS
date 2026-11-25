@@ -298,6 +298,9 @@ export const GESTES_DE_FICHE: Readonly<Record<string, readonly string[]>> = {
   "hr-actions:createEmployee": ["userId"],
   "hr-actions:updateEmployee": ["userId"],
   "hr-actions:setEmployeeActive": [],
+  // L'intégration d'un recrutement crée la fiche, et la fiche crée son compte (Super Admin, 24/11/2026 : « à la création
+  // du salarié, son compte utilisateur est créé automatiquement ») — le même « compte suit la fiche » que `createEmployee`.
+  "recruitment-actions:onboardRecruitment": [],
 };
 
 /** Le refus générique, vu par l'Assistant IA : le même, sauf les gestes de fiche (sans leurs champs retenus). */

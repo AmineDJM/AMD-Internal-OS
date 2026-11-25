@@ -14,6 +14,7 @@ import { PanneauImport } from "./panneau-import";
 import { PanneauControles } from "./panneau-controles";
 import { ResultatCompta } from "./resultat-compta";
 import { dateCourte } from "./format";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
 
 export interface DroitsCompta { creer: boolean; modifier: boolean; supprimer: boolean; demanderPaiement: boolean }
 
@@ -36,6 +37,8 @@ export function EcranComptabilite({ d, droits, composer, comptesTresorerie, enti
   entites: { value: string; label: string }[];
 }) {
   const router = useRouter();
+  // Relancer les contrôles : le rafraîchissement suivi, dans une transition (`useRafraichir`).
+  const { rafraichir } = useRafraichir();
   const [local, setLocal] = React.useState<PanneauLocal>(null);
   const [menu, setMenu] = React.useState(false);
   const [menuCompte, setMenuCompte] = React.useState(false);
@@ -289,7 +292,7 @@ export function EcranComptabilite({ d, droits, composer, comptesTresorerie, enti
               ) : local === "import" ? (
                 <PanneauImport comptes={d.comptes} onFermer={() => setLocal(null)} onVoirSansJustif={() => aller({ vue: "dep", sans: "1", q: null, compte: null })} />
               ) : local === "controles" ? (
-                <PanneauControles controles={d.controles} onFermer={() => setLocal(null)} onOuvrir={ouvrirEcriture} onRelancer={() => router.refresh()} />
+                <PanneauControles controles={d.controles} onFermer={() => setLocal(null)} onOuvrir={ouvrirEcriture} onRelancer={rafraichir} />
               ) : d.ecriture ? (
                 <PanneauEcriture key={d.ecriture.id} e={d.ecriture} droits={droits} comptes={d.comptes} onFermer={fermerPanneau} />
               ) : d.facture ? (

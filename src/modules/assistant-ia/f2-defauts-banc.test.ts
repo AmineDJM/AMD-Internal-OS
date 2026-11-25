@@ -14,7 +14,7 @@ vi.mock("@/lib/session", async (original) => ({ ...(await original<typeof import
 
 import { prisma } from "@/lib/prisma";
 import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
-import { getAccess } from "@/lib/rbac";
+import { getAccess, peutUtiliserAssistantIA } from "@/lib/rbac";
 import { outilsV1, type PropositionPreparee } from "./infra/outils-v1";
 import { accesAssistantIa } from "./infra/role-config";
 import { familleOuverte, famillesAJuger, gestePourSoi } from "./domaine/acces-regles";
@@ -72,7 +72,7 @@ suite("F2 · TR-RH-01/02/04/06 — son congé, son absence, son avance, son atte
   let ficheAutre: { id: string };
 
   beforeAll(async () => {
-    radia = await compte("Radia", "SALES_USER");
+    radia = await compte("Radia", "SUPER_ADMIN"); // Adam : Super Admin seulement (24/11/2026)
     ficheRadia = await prisma.employee.create({ data: { fullName: `Radia KEBIR ${TAG}`, userId: radia.id, isActive: true } });
     ficheAutre = await prisma.employee.create({ data: { fullName: `Assia ABDELAZIZ ${TAG}`, isActive: true } });
   });
@@ -92,9 +92,12 @@ suite("F2 · TR-RH-01/02/04/06 — son congé, son absence, son avance, son atte
     return o;
   };
 
-  it("les familles RH restent FERMÉES pour elle (rien n'est rouvert sur autrui)", async () => {
-    const acces = await accesAssistantIa(radia);
-    expect(familleOuverte(acces, "FICHES")).toBe(false);
+  it("une employée ORDINAIRE n'a pas Adam du tout — réservé au Super Admin (24/11/2026) ; rien ne le lui rouvre", async () => {
+    // Le banc travaille désormais avec un Super Admin (le seul à qui Adam s'ouvre) ; une employée ordinaire, même avec
+    // le module accordé par la console, est refusée — ses familles RH ne sont donc jamais ouvertes par Adam.
+    const ordinaire = await compte("Ordinaire", "SALES_USER");
+    expect(peutUtiliserAssistantIA(ordinaire)).toBe(false);
+    const acces = await accesAssistantIa(ordinaire);
     expect(familleOuverte(acces, "SALAIRES")).toBe(false);
     expect(familleOuverte(acces, "CONTRATS_RH")).toBe(false);
   });
@@ -138,9 +141,7 @@ suite("F2 · TR-RH-01/02/04/06 — son congé, son absence, son avance, son atte
     expect(r.ok, JSON.stringify(r)).toBe(true);
     const avance = await prisma.salaryAdvance.findFirstOrThrow({ where: { employeeId: ficheRadia.id } });
     expect(Number(avance.amount)).toBe(30000);
-    // L'avance d'autrui : refusée.
-    const autre: PropositionPreparee[] = [];
-    expect(JSON.parse(await (await outil("hr__requestAdvance", autre)).run({ amount: 30000, employeeId: `Assia ABDELAZIZ ${TAG}` }, radia)).statut).not.toBe("EN_ATTENTE_DE_CONFIRMATION");
+    // L'avance d'autrui n'est plus éprouvée ici : la seule personne à qui Adam s'ouvre (le Super Admin) a les droits RH.
   });
 
   it("TR-RH-04 : son attestation de travail — l'action de l'ERP, sans mois de note de frais exigé ; confirmée, la demande RH est à SON nom", async () => {
@@ -181,7 +182,7 @@ suite("F2 · TR-VX-02 — « combien de jours de congé il me reste ? » à la v
     process.env.OPENAI_API_KEY = "cle-de-banc";
     remplacerLecteurInterrupteurIaPourTests(async () => false);
     remplacerModelesPourTests([modeleFactice([{ texte: JSON.stringify({ message: "Il vous reste 30 jours de congé.", components: [] }) }]).modele as never]);
-    u = await compte("Voix", "SALES_USER");
+    u = await compte("Voix", "SUPER_ADMIN");
     await enregistrerSessionVoix(u.id, S, null);
   });
   afterAll(async () => {
@@ -237,7 +238,7 @@ describe("F2 · MI-01/DOC-11 — le compilateur de plan résout les lectures du 
 suite("F2 · MI-01 — le plan du banc, relu par la persona réelle d'un KAM (base réelle)", () => {
   let kam: CurrentUser;
   beforeAll(async () => {
-    kam = await compte("Kam", "BUSINESS_DEVELOPMENT_MANAGER");
+    kam = await compte("Kam", "SUPER_ADMIN"); // Adam : Super Admin seulement (24/11/2026)
     for (const module of ["SPONSORING", "EVENTS", "AD_PRO_OTHER", "VALIDATIONS"]) {
       await prisma.userAccess.create({ data: { userId: kam.id, module: module as never, canView: true, canCreate: true, scope: "ASSIGNED" } }).catch(() => {});
     }
@@ -269,7 +270,7 @@ suite("F2 · MG-10 — le fil REPREND une demande dont le modèle n'a pas répon
   beforeAll(async () => {
     process.env.OPENAI_API_KEY = "cle-de-banc";
     remplacerLecteurInterrupteurIaPourTests(async () => false);
-    u = await compte("Reprise", "SALES_USER");
+    u = await compte("Reprise", "SUPER_ADMIN");
   });
   afterAll(async () => {
     if (cle === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = cle;
@@ -411,7 +412,7 @@ suite("F2 · TR-LM-04 — un article hors catalogue est proposé en saisie libre
   let yanis: CurrentUser;
   const marque = `F2${Date.now().toString(36)}`;
   beforeAll(async () => {
-    yanis = await compte("Yanis", "MEDICAL_DELEGATE");
+    yanis = await compte("Yanis", "SUPER_ADMIN"); // Adam : Super Admin seulement (24/11/2026)
     await prisma.userAccess.create({ data: { userId: yanis.id, module: "PROMO_MATERIAL", canView: true, canCreate: true, scope: "ASSIGNED" } });
     yanis = { ...yanis, access: await getAccess(yanis.id, yanis.role) } as CurrentUser;
     await prisma.promoCatalogueArticle.create({ data: { reference: `CAT-${marque}`, nom: `Stylos ${marque}`, famille: "CONSOMMABLE", actif: true } });

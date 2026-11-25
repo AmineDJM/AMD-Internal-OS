@@ -113,7 +113,8 @@ export async function catalogueRecettes(societes: readonly string[], annee: numb
       where: { isActive: true, OR: [{ companyId: { in: [...societes] } }, { companyId: null }] },
       select: {
         id: true, canonicalName: true, companyId: true,
-        promoProfiles: { where: { businessUnitId: { not: null } }, select: { businessUnitId: true }, take: 1 },
+        // Sans `take` imbriqué (LIMIT en mémoire, `prisma-take-imbrique.test.ts`) : un produit n'a que quelques profils.
+        promoProfiles: { where: { businessUnitId: { not: null } }, select: { businessUnitId: true }, orderBy: { id: "asc" } },
         prixSaisis: { where: { kind: "PRIX_HOPITAL" }, select: { amountDzd: true, validFrom: true, createdAt: true, setById: true, note: true } },
       },
       orderBy: { canonicalName: "asc" },

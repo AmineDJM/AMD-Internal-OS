@@ -78,7 +78,7 @@ async function lireDemandes(refs: readonly { type: NatureDemande; id: string }[]
     ids("EVENT").length ? prisma.event.findMany({ where: { id: { in: ids("EVENT") } }, select: { ...s, name: true } }).catch(sansBloquer("centre-ad-pro-contexte.event", [])) : [],
     ids("AD_PRO_OTHER").length ? prisma.adProOtherRequest.findMany({ where: { id: { in: ids("AD_PRO_OTHER") } }, select: { ...s, reference: true, title: true } }).catch(sansBloquer("centre-ad-pro-contexte.adProOther", [])) : [],
     ids("PROMO_MATERIAL").length ? prisma.promoMaterial.findMany({ where: { id: { in: ids("PROMO_MATERIAL") } }, select: { ...s, reference: true, title: true, budgetCategoryId: true } }).catch(sansBloquer("centre-ad-pro-contexte.promoMaterial", [])) : [],
-    ids("CONSULTING_CONTRACT").length ? prisma.consultingContract.findMany({ where: { id: { in: ids("CONSULTING_CONTRACT") } }, select: { ...s, reference: true, title: true } }).catch(sansBloquer("centre-ad-pro-contexte.consulting", [])) : [],
+    ids("CONSULTING_CONTRACT").length ? prisma.consultingContract.findMany({ where: { id: { in: ids("CONSULTING_CONTRACT") }, pole: "AD_PRO" }, select: { ...s, reference: true, title: true } }).catch(sansBloquer("centre-ad-pro-contexte.consulting", [])) : [],
   ]);
   const out = new Map<string, DemandeLue>();
   const ref = (r: string | null, n: string) => (r ? `${r} — ${n}` : n);

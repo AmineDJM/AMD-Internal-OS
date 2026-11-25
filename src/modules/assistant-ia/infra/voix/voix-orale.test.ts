@@ -114,7 +114,8 @@ suite("la carte à l'oral, contre la base", () => {
   beforeAll(async () => {
     process.env.OPENAI_API_KEY = "cle-de-banc";
     remplacerLecteurInterrupteurIaPourTests(async () => false);
-    kam = await compte("MEDICAL_DELEGATE", "kam");
+    // Adam est réservé au Super Admin (24/11/2026) : la personne qui parle à la voix l'est.
+    kam = await compte("SUPER_ADMIN", "kam");
     direction = await compte("SUPER_ADMIN", "direction");
     ACTEUR = kam;
   });

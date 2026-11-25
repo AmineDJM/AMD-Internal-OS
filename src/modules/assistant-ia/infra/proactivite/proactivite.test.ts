@@ -61,8 +61,8 @@ const signaux = (u: CurrentUser, veilleur?: string) => prisma.assistantSignal.fi
 
 suite("Assistant IA — proactivité sous mandat (J12)", () => {
   beforeAll(async () => {
-    assistante = await compte("assistante", "DIRECTION_ASSISTANT", ["ASSISTANT_IA", "VALIDATIONS", "SPONSORING", "BUDGETS"]);
-    directeur = await compte("directeur", "DIRECTION", ["ASSISTANT_IA", "VALIDATIONS"]);
+    assistante = await compte("assistante", "SUPER_ADMIN", ["ASSISTANT_IA", "VALIDATIONS", "SPONSORING", "BUDGETS"]);
+    directeur = await compte("directeur", "SUPER_ADMIN", ["ASSISTANT_IA", "VALIDATIONS"]);
     curieux = await compte("curieux", "VIEWER", ["ASSISTANT_IA"]);
     await demandeDeValidation("Achat de toner", 6);
     spoId = (await prisma.sponsoringRequest.create({ data: { reference: `${TAG}SPO-1`, institution: `${TAG}CHU Oran`, type: "Congrès", requesterId: assistante.id, createdById: assistante.id, status: "AWAITING_FINAL" } })).id;

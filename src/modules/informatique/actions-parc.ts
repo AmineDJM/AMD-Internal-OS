@@ -108,6 +108,7 @@ export async function modifierMateriel(formData: FormData): Promise<ActionResult
     if (!Object.keys(lu.data).length) return { ok: false, error: "Aucun champ à modifier." };
     const refus = await affectationValide(avant.companyId, lu.data.employeeId as string | null | undefined, lu.data.departmentId as string | null | undefined);
     if (refus) return { ok: false, error: refus };
+    // porte d'écriture : la société de la fiche, relue plus haut (`societePermise`).
     await prisma.materielInformatique.update({ where: { id: avant.id }, data: lu.data as object });
     await recordAudit({ actorId: user.id, action: "UPDATE", module: MODULE_AUDIT, entityId: avant.id, summary: `Matériel « ${avant.reference} » modifié (${Object.keys(lu.data).join(", ")})` });
     revalidatePath(PATH);

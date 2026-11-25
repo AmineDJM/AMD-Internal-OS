@@ -53,7 +53,8 @@ export function montreOnglets(source: string, depuis = "", lire: Lecteur = () =>
   const code = sansCommentaires(source);
   if (/<ModuleTabs\b/.test(code)) return true;
   if (/\bredirect\(/.test(code) && !/return\s*\(?\s*</.test(code)) return true;
-  for (const m of code.matchAll(/from\s+"(\.{1,2}\/[^"]+)"/g)) {
+  // Les imports relatifs, et les barres d'onglets PARTAGÉES (`@/components/shared/onglets-*`, ex. `OngletsAdam`).
+  for (const m of code.matchAll(/from\s+"(\.{1,2}\/[^"]+|@\/components\/shared\/onglets-[^"]+)"/g)) {
     const local = lire(m[1], depuis);
     if (!local || vus.has(local.fichier)) continue;
     vus.add(local.fichier);
@@ -64,7 +65,9 @@ export function montreOnglets(source: string, depuis = "", lire: Lecteur = () =>
 
 const lireSurDisque: Lecteur = (specifier, depuis) => {
   for (const ext of [".tsx", ".ts", "/index.tsx"]) {
-    const fichier = path.resolve(path.dirname(depuis), specifier + ext);
+    const fichier = specifier.startsWith("@/")
+      ? path.join(process.cwd(), "src", specifier.slice(2) + ext)
+      : path.resolve(path.dirname(depuis), specifier + ext);
     if (existsSync(fichier)) return { fichier, source: readFileSync(fichier, "utf8") };
   }
   return null;

@@ -1,5 +1,5 @@
 {
- "schemaModeles": 534,
+ "schemaModeles": 549,
  "bases": [
   {
    "cle": "personnel",
@@ -56,7 +56,7 @@
      "Assistant : FICHES suit les droits ; CONTRATS_RH fermée par défaut, ouverte nominativement (avenant `DELEGATION`, droit daté)"
     ]
    },
-   "nombreTables": 8,
+   "nombreTables": 10,
    "tables": [
     {
      "modele": "Employee",
@@ -66,6 +66,7 @@
      "ecritePar": [
       "assistant-actions",
       "custom-field-actions",
+      "depart-salarie-actions",
       "department-actions",
       "finance-actions",
       "hr-actions",
@@ -73,7 +74,8 @@
       "org-actions",
       "org-coherence-actions",
       "payroll-hr-actions",
-      "recruitment-actions"
+      "recruitment-actions",
+      "validation-actions"
      ]
     },
     {
@@ -82,6 +84,7 @@
      "sensibilite": "secret",
      "pourquoi": "contrats et fiches de paie en pièce jointe",
      "ecritePar": [
+      "depart-salarie-actions",
       "hr-document-actions",
       "payroll-hr-actions"
      ]
@@ -137,6 +140,23 @@
      "sensibilite": "confidentiel",
      "ecritePar": [
       "training-actions"
+     ]
+    },
+    {
+     "modele": "DepartSalarie",
+     "libelle": "Départ d'un salarié",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "depart-salarie-actions",
+      "validation-actions"
+     ]
+    },
+    {
+     "modele": "DepartSalarieTache",
+     "libelle": "Tâche du départ d'un salarié",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "depart-salarie-actions"
      ]
     }
    ]
@@ -340,6 +360,10 @@
       "libelle": "Doublons de factures"
      },
      {
+      "cle": "FINANCES_IMPOTS",
+      "libelle": "Impôts & cotisations"
+     },
+     {
       "cle": "PAYMENT_CENTRE",
       "libelle": "Centre de paiement"
      }
@@ -366,7 +390,7 @@
      "Périmètre d'entité (`UserCompanyAccess`) ; accès ligne à ligne (`RowGrant`, FINANCE_TRANSACTION / EXPENSE_ORDER)"
     ]
    },
-   "nombreTables": 12,
+   "nombreTables": 18,
    "tables": [
     {
      "modele": "PaymentRequest",
@@ -374,6 +398,8 @@
      "sensibilite": "confidentiel",
      "ecritePar": [
       "expense-actions",
+      "finances-natures",
+      "impots-cotisations-actions",
       "medical-info-actions",
       "payment-request-actions",
       "payment-request-pieces-actions"
@@ -384,7 +410,21 @@
      "libelle": "Pièce d'une demande de paiement",
      "sensibilite": "confidentiel",
      "ecritePar": [
-      "payment-request-actions"
+      "ad-pro-item-actions",
+      "admin-request-actions",
+      "budget-depense-poste-actions",
+      "care-actions",
+      "congress-request-actions",
+      "finances-questions",
+      "hr-actions",
+      "legal-actions",
+      "medical-info-actions",
+      "payment-request-actions",
+      "payroll-hr-actions",
+      "petty-cash-actions",
+      "promo-execution-actions",
+      "promo-material-actions",
+      "validation-actions"
      ]
     },
     {
@@ -395,6 +435,7 @@
       "ad-pro-item-actions",
       "budget-depense-poste-actions",
       "expense-actions",
+      "finances-questions",
       "invoice-actions",
       "legal-actions",
       "payment-request-actions",
@@ -416,6 +457,7 @@
       "custom-field-actions",
       "expense-actions",
       "hr-actions",
+      "impots-cotisations-actions",
       "invoice-actions",
       "legal-actions",
       "medical-info-actions",
@@ -437,6 +479,7 @@
       "budget-depense-poste-actions",
       "budget-envelope-actions",
       "budget-pole-actions",
+      "comptabilite-actions",
       "custom-field-actions",
       "expense-actions",
       "finance-actions",
@@ -494,6 +537,22 @@
      ]
     },
     {
+     "modele": "ObligationFiscale",
+     "libelle": "Obligation fiscale ou sociale (calendrier)",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "impots-cotisations-actions"
+     ]
+    },
+    {
+     "modele": "EcheanceFiscale",
+     "libelle": "Échéance fiscale ou sociale à payer",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "impots-cotisations-actions"
+     ]
+    },
+    {
      "modele": "PaymentThreshold",
      "libelle": "Seuil de signature d'un paiement",
      "sensibilite": "confidentiel",
@@ -507,6 +566,36 @@
       "document-request-actions",
       "hr-document-actions",
       "reservation-fiche-actions"
+     ]
+    },
+    {
+     "modele": "ChargeFixeSociete",
+     "libelle": "Charge fixe des locaux d'une société",
+     "sensibilite": "confidentiel",
+     "pourquoi": "bénéficiaires, RIB et montants des loyers et charges de la société",
+     "ecritePar": []
+    },
+    {
+     "modele": "EcheanceChargeFixe",
+     "libelle": "Échéance d'une charge fixe",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "RetenueSource",
+     "libelle": "Retenue à la source d'un paiement",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "expense-actions",
+      "payment-request-actions"
+     ]
+    },
+    {
+     "modele": "TauxRetenueSource",
+     "libelle": "Taux de retenue à la source",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "finances-natures"
      ]
     }
    ]
@@ -570,7 +659,7 @@
      "Périmètre d'entité (`UserCompanyAccess`)"
     ]
    },
-   "nombreTables": 19,
+   "nombreTables": 21,
    "tables": [
     {
      "modele": "BudgetLine",
@@ -599,6 +688,7 @@
       "budget-campagne-actions",
       "budget-envelope-actions",
       "budget-pole-actions",
+      "charges-fixes-actions",
       "integration-adpro-actions",
       "natures-moyens-generaux-actions"
      ]
@@ -610,6 +700,7 @@
      "ecritePar": [
       "budget-envelope-actions",
       "budget-pole-actions",
+      "expense-actions",
       "informatique-cout-ia-actions",
       "mission-actions"
      ]
@@ -619,7 +710,8 @@
      "libelle": "Campagne budgétaire",
      "sensibilite": "confidentiel",
      "ecritePar": [
-      "budget-campagne-actions"
+      "budget-campagne-actions",
+      "budget-campagne-recettes-actions"
      ]
     },
     {
@@ -643,7 +735,8 @@
      "libelle": "Ligne d'une proposition de budget",
      "sensibilite": "confidentiel",
      "ecritePar": [
-      "budget-campagne-actions"
+      "budget-campagne-actions",
+      "budget-campagne-recettes-actions"
      ]
     },
     {
@@ -739,6 +832,22 @@
      "ecritePar": [
       "repartition-couts-actions"
      ]
+    },
+    {
+     "modele": "BudgetCampaignRevenue",
+     "libelle": "Recette prévue par la campagne budgétaire",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "budget-campagne-recettes-actions"
+     ]
+    },
+    {
+     "modele": "BudgetCampaignTaxLine",
+     "libelle": "Impôt prévu par la campagne budgétaire",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "budget-campagne-recettes-actions"
+     ]
     }
    ]
   },
@@ -790,7 +899,7 @@
      "Périmètre d'entité (`UserCompanyAccess`)"
     ]
    },
-   "nombreTables": 8,
+   "nombreTables": 12,
    "tables": [
     {
      "modele": "LegalDocument",
@@ -828,6 +937,18 @@
      "ecritePar": [
       "legal-actions"
      ]
+    },
+    {
+     "modele": "FactureTva",
+     "libelle": "TVA d'une facture ou d'un avoir (HT, TVA, TTC) — source de la TVA de la G50",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "FactureTvaTaux",
+     "libelle": "Détail par taux (19 %, 9 %, 0 %) de la TVA d'une facture",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
     },
     {
      "modele": "BcBrouillonVersion",
@@ -868,6 +989,23 @@
      "sensibilite": "confidentiel",
      "ecritePar": [
       "mail-folder-actions"
+     ]
+    },
+    {
+     "modele": "SignatureBC",
+     "libelle": "Signature d'un bon de commande",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "bc-signature-actions",
+      "care-actions"
+     ]
+    },
+    {
+     "modele": "SignatureVisuelle",
+     "libelle": "Signature visuelle d'une personne",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "bc-signature-actions"
      ]
     }
    ]
@@ -1324,7 +1462,7 @@
      "Portée du module et accès ligne à ligne (`RowGrant`, SPONSORING / CONGRESS_*)"
     ]
    },
-   "nombreTables": 36,
+   "nombreTables": 41,
    "tables": [
     {
      "modele": "AdProItem",
@@ -1654,6 +1792,47 @@
      "ecritePar": [
       "mission-actions"
      ]
+    },
+    {
+     "modele": "AdProExecutionPoste",
+     "libelle": "Exécution d'un poste Ad & Pro",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "ad-pro-agence-actions",
+      "ad-pro-execution-actions",
+      "ad-pro-item-actions"
+     ]
+    },
+    {
+     "modele": "CareChiffrage",
+     "libelle": "Demande de chiffrage d'une prise en charge",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "care-actions"
+     ]
+    },
+    {
+     "modele": "CarePrixHistorique",
+     "libelle": "Historique des prix d'une prise en charge",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "CarePecBc",
+     "libelle": "Bon de commande d'une prise en charge",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "care-actions"
+     ]
+    },
+    {
+     "modele": "CarePecBcLigne",
+     "libelle": "Ligne du bon de commande d'une prise en charge",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "care-actions",
+      "reservation-fiche-actions"
+     ]
     }
    ]
   },
@@ -1932,6 +2111,7 @@
       "product-range-actions",
       "produit-canonique-actions",
       "regulatory-actions",
+      "regulatory-validite-actions",
       "sales-planning-actions",
       "supplier-actions",
       "validation-actions"
@@ -2278,7 +2458,8 @@
      "sensibilite": "restreint",
      "pourquoi": "prix et conditions commerciales",
      "ecritePar": [
-      "prix-produit-actions"
+      "prix-produit-actions",
+      "regulatory-validite-actions"
      ]
     },
     {
@@ -2477,7 +2658,7 @@
      "Business units attribuées (lignes d'appel d'offres par BU)"
     ]
    },
-   "nombreTables": 20,
+   "nombreTables": 23,
    "tables": [
     {
      "modele": "PchTender",
@@ -2639,6 +2820,24 @@
     {
      "modele": "Reclamation",
      "libelle": "Réclamation",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "MarcheImport",
+     "libelle": "Import de données de marché",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "NomenclatureLigne",
+     "libelle": "Ligne de la nomenclature des médicaments",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "IqviaLigne",
+     "libelle": "Ligne de données IQVIA",
      "sensibilite": "restreint",
      "ecritePar": []
     }
@@ -2898,7 +3097,8 @@
       "medical-directory-crud-actions",
       "relecture-visite-actions",
       "tour-plan-actions",
-      "tour-visit-actions"
+      "tour-visit-actions",
+      "visite-pv-ecart-actions"
      ]
     },
     {
@@ -3207,7 +3407,8 @@
      "libelle": "Relation entre praticiens",
      "sensibilite": "restreint",
      "ecritePar": [
-      "intelligence-terrain-actions"
+      "intelligence-terrain-actions",
+      "medical-directory-crud-actions"
      ]
     },
     {
@@ -3277,7 +3478,7 @@
      "Participants nommés d'un cas (`PharmacovigilanceParticipant`) ; pharmacien responsable (rôle `MEDICAL_INFO_PHARMACIST`)"
     ]
    },
-   "nombreTables": 5,
+   "nombreTables": 6,
    "tables": [
     {
      "modele": "MedicalInfoDeclaration",
@@ -3317,6 +3518,14 @@
     {
      "modele": "PharmacovigilanceParticipant",
      "libelle": "Participant à un cas de pharmacovigilance",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "pharmacovigilance-actions"
+     ]
+    },
+    {
+     "modele": "PvReglage",
+     "libelle": "Réglage de la pharmacovigilance (délais, pharmaciens)",
      "sensibilite": "confidentiel",
      "ecritePar": [
       "pharmacovigilance-actions"
@@ -3392,7 +3601,7 @@
      "Une pièce rattachée à un sujet (RH, paie…) hérite des droits de ce sujet"
     ]
    },
-   "nombreTables": 27,
+   "nombreTables": 28,
    "tables": [
     {
      "modele": "DriveSpace",
@@ -3473,7 +3682,7 @@
       "care-actions",
       "database-admin-actions",
       "department-budget-actions",
-      "document-actions",
+      "impots-cotisations-actions",
       "medical-info-actions",
       "petty-cash-actions",
       "regulatory-actions"
@@ -3496,6 +3705,7 @@
       "ad-pro-other-actions",
       "ad-pro-pieces-actions",
       "ad-pro-postes-fichier-actions",
+      "ad-pro-suppression-definitive-actions",
       "ad-pro-transfer-actions",
       "admin-delete-actions",
       "admin-request-actions",
@@ -3506,6 +3716,7 @@
       "candidatures-site-actions",
       "care-actions",
       "comment-actions",
+      "comptabilite-actions",
       "congress-request-actions",
       "consulting-actions",
       "database-admin-actions",
@@ -3513,16 +3724,21 @@
       "directive-actions",
       "document-actions",
       "drive-actions",
+      "drive-space-actions",
       "event-actions",
       "expense-actions",
       "field-report-actions",
+      "finance-actions",
+      "finances-questions",
       "hr-actions",
+      "impots-cotisations-actions",
       "integration-adpro-actions",
       "invoice-actions",
       "legal-actions",
       "medical-actions",
       "medical-info-actions",
       "payment-request-actions",
+      "payroll-hr-actions",
       "pch-actions",
       "pch-tender-line-actions",
       "petty-cash-actions",
@@ -3532,6 +3748,7 @@
       "promo-material-actions",
       "regulatory-actions",
       "regulatory-ctd-actions",
+      "regulatory-validite-actions",
       "reservation-fiche-actions",
       "secretariat-devis-actions",
       "sponsoring-actions",
@@ -3539,6 +3756,15 @@
       "task-actions",
       "validation-actions",
       "workflow-actions"
+     ]
+    },
+    {
+     "modele": "DocumentVersion",
+     "libelle": "Version d'un document",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "admin-delete-actions",
+      "database-admin-actions"
      ]
     },
     {
@@ -3925,13 +4151,16 @@
       "adventum-actions",
       "bc-signature-actions",
       "budget-actions",
+      "budget-pole-actions",
       "calendar-actions",
       "care-actions",
       "coaching-actions",
+      "comptabilite-actions",
       "conge-discussion-actions",
       "congress-request-actions",
       "consulting-actions",
       "demande-stocks-actions",
+      "depart-salarie-actions",
       "department-budget-actions",
       "directive-actions",
       "document-request-actions",
@@ -3942,6 +4171,7 @@
       "feedback-actions",
       "field-report-actions",
       "finance-actions",
+      "finances-questions",
       "hr-actions",
       "hr-document-actions",
       "kpi-actions",
@@ -3975,7 +4205,8 @@
       "tour-visit-actions",
       "training-actions",
       "validation-actions",
-      "visite-medicale-actions"
+      "visite-medicale-actions",
+      "visite-pv-ecart-actions"
      ]
     }
    ]
@@ -4073,6 +4304,7 @@
      "ecritePar": [
       "assistant-actions",
       "custom-field-actions",
+      "depart-salarie-actions",
       "meeting-actions",
       "stock-snapshot-actions",
       "task-actions"
@@ -4125,6 +4357,7 @@
      "sensibilite": "restreint",
      "ecritePar": [
       "ad-pro-item-actions",
+      "depart-salarie-actions",
       "dossier-actions",
       "reservation-fiche-actions"
      ]
@@ -4163,6 +4396,7 @@
       "ad-pro-item-actions",
       "ad-pro-rattacher-legal",
       "admin-request-actions",
+      "depart-salarie-actions",
       "legal-actions",
       "medical-info-actions",
       "promo-devis-actions",
@@ -4187,6 +4421,7 @@
      "libelle": "Étape de validation",
      "sensibilite": "restreint",
      "ecritePar": [
+      "depart-salarie-actions",
       "validation-actions"
      ]
     },
@@ -4481,7 +4716,7 @@
      "KPI : chacun ses indicateurs (`KpiAssignment`), le responsable son équipe"
     ]
    },
-   "nombreTables": 20,
+   "nombreTables": 21,
    "tables": [
     {
      "modele": "KpiDefinition",
@@ -4634,6 +4869,15 @@
      "ecritePar": [
       "assistant-actions"
      ]
+    },
+    {
+     "modele": "SignalDate",
+     "libelle": "Signal daté (historique des indicateurs)",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "budget-campagne-actions",
+      "kpi-actions"
+     ]
     }
    ]
   },
@@ -4740,7 +4984,7 @@
      "Mots de passe hachés, jetons de connexion chiffrés ; jamais exposés à l'assistant"
     ]
    },
-   "nombreTables": 19,
+   "nombreTables": 20,
    "tables": [
     {
      "modele": "User",
@@ -4751,12 +4995,14 @@
       "admin-actions",
       "adoption-actions",
       "auth-actions",
+      "depart-salarie-actions",
       "department-actions",
       "feature-actions",
       "hr-actions",
       "messaging-actions",
       "onboarding-actions",
-      "org-coherence-actions"
+      "org-coherence-actions",
+      "recruitment-actions"
      ]
     },
     {
@@ -4899,6 +5145,14 @@
      "sensibilite": "secret",
      "ecritePar": [
       "site-web-actions"
+     ]
+    },
+    {
+     "modele": "SecondFacteur",
+     "libelle": "Second facteur d'une personne (signature renforcée)",
+     "sensibilite": "secret",
+     "ecritePar": [
+      "bc-signature-actions"
      ]
     }
    ]
@@ -5637,6 +5891,7 @@
       "ad-pro-medecins-actions",
       "ad-pro-pieces-actions",
       "ad-pro-rattacher-legal",
+      "ad-pro-suppression-definitive-actions",
       "ad-pro-transfer-actions",
       "adam-settings-actions",
       "admin-actions",
@@ -5656,10 +5911,12 @@
       "bibliotheque-actions",
       "budget-actions",
       "budget-campagne-actions",
+      "budget-campagne-recettes-actions",
       "budget-envelope-actions",
       "budget-pole-actions",
       "calendar-actions",
       "care-actions",
+      "charges-fixes-actions",
       "coaching-actions",
       "coffre-actions",
       "comment-actions",
@@ -5667,6 +5924,7 @@
       "company-actions",
       "company-contact-actions",
       "company-identity-actions",
+      "comptabilite-actions",
       "congress-request-actions",
       "consommation-actions",
       "consulting-actions",
@@ -5693,12 +5951,15 @@
       "feedback-actions",
       "field-report-actions",
       "finance-actions",
+      "finances-natures",
+      "finances-questions",
       "force-de-vente-actions",
       "fournisseurs-annuaire-actions",
       "general-means-service-actions",
       "hr-actions",
       "hr-document-actions",
       "impersonation-actions",
+      "impots-cotisations-actions",
       "informatique-abonnements-actions",
       "informatique-parc-actions",
       "integration-adpro-actions",
@@ -5764,6 +6025,7 @@
       "regulatory-drive-actions",
       "regulatory-reminder-actions",
       "regulatory-timeline-actions",
+      "regulatory-validite-actions",
       "relance-paiement-actions",
       "relecture-visite-actions",
       "reminder-actions",
@@ -5789,6 +6051,7 @@
       "validation-actions",
       "ventes-pch-actions",
       "visite-medicale-actions",
+      "visite-pv-ecart-actions",
       "workflow-actions"
      ]
     },
@@ -5816,7 +6079,9 @@
       "ad-pro-pieces-actions",
       "admin-delete-actions",
       "bd-project-actions",
+      "document-actions",
       "drive-actions",
+      "drive-space-actions",
       "event-actions",
       "field-report-actions",
       "medical-actions",
@@ -5980,13 +6245,16 @@
       "ad-pro-item-actions",
       "ad-pro-other-actions",
       "ad-pro-pieces-actions",
+      "ad-pro-suppression-definitive-actions",
       "admin-delete-actions",
       "admin-request-actions",
       "bd-project-actions",
       "comment-actions",
       "conge-discussion-actions",
       "consulting-actions",
+      "document-actions",
       "drive-actions",
+      "drive-space-actions",
       "event-actions",
       "field-report-actions",
       "hr-document-actions",

@@ -39,6 +39,7 @@ export const BASES_TECHNIQUES: BaseDef[] = [
       GoogleConnection: "Connexion Google (jetons)",
       GmailIngestionState: "État de lecture d'une boîte Gmail",
       SiteWebCle: "Clé de publication du site web",
+      SecondFacteur: "Second facteur d'une personne (signature renforcée)",
     },
   },
   {

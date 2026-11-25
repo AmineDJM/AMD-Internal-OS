@@ -348,7 +348,8 @@ describe("les fiches Ad & Pro n'ont plus de dépôt générique — et gardent l
       // Sur les prises en charge (audit n° 18), la carte des détails est montée par la VUE DÉTAILLÉE : la page
       // lui passe les pièces par `piecesJointes={{ … }}`.
       // 07/10 : sur les prises en charge, la carte des détails est « La prise en charge » (`CartePriseEnCharge`), qui la monte.
-      expect(src, `${f} : les pièces générales de la demande n'ont plus d'emplacement`).toMatch(/<CarteDetailsDemande|piecesJointes=\{\{|<CartePriseEnCharge[\s\S]*?pieces=\{\{/);
+      // 24/11 : la fiche simplifiée range les pièces de la demande dans « Plus d'informations » (`SectionPieces`).
+      expect(src, `${f} : les pièces générales de la demande n'ont plus d'emplacement`).toMatch(/<CarteDetailsDemande|piecesJointes=\{\{|<CartePriseEnCharge[\s\S]*?pieces=\{\{|<SectionPieces[\s\S]*?pieces=\{\{/);
     }
   });
 

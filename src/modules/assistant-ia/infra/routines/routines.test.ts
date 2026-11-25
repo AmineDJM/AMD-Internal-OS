@@ -39,8 +39,8 @@ const BRIEFING = { titre: `${TAG}Briefing marché pharma DZ`, consigne: "Fais un
 
 suite("Assistant IA — routines programmées", () => {
   beforeAll(async () => {
-    assistante = await compte("assistante", "DIRECTION_ASSISTANT", true);
-    autre = await compte("autre", "DIRECTION_ASSISTANT", true);
+    assistante = await compte("assistante", "SUPER_ADMIN", true);
+    autre = await compte("autre", "SUPER_ADMIN", true);
   });
   afterEach(() => remplacerModelesPourTests(null));
   afterAll(async () => {
@@ -216,6 +216,8 @@ suite("Assistant IA — routines programmées", () => {
   it("LIMITE : l'assistant retiré entre deux passages → rien n'est lu, la routine passe en pause, et c'est dit", async () => {
     const routine = await prisma.assistantRoutine.findFirstOrThrow({ where: { userId: assistante.id } });
     await prisma.userAccess.deleteMany({ where: { userId: assistante.id, module: "ASSISTANT_IA" } });
+    // Adam est réservé au Super Admin (24/11/2026) : le lui retirer, c'est que la personne ne le soit plus.
+    await prisma.user.update({ where: { id: assistante.id }, data: { role: "DIRECTION_ASSISTANT" } });
     await prisma.assistantRoutine.update({ where: { id: routine.id }, data: { prochaineLe: new Date(Date.now() - 60_000) } });
     const faux = modeleFactice([{ texte: "ne doit pas être appelé" }]);
     remplacerModelesPourTests([faux.modele as never]);
@@ -226,6 +228,7 @@ suite("Assistant IA — routines programmées", () => {
     const dernier = await prisma.assistantRoutineRun.findFirstOrThrow({ where: { routineId: routine.id }, orderBy: { debutLe: "desc" } });
     expect(dernier.statut).toBe("IGNOREE");
     expect(await prisma.notification.count({ where: { userId: assistante.id, title: { contains: "passage ignoré" } } })).toBe(1);
+    await prisma.user.update({ where: { id: assistante.id }, data: { role: "SUPER_ADMIN" } });
     await prisma.userAccess.create({ data: { userId: assistante.id, module: "ASSISTANT_IA", canView: true, scope: "ASSIGNED" } });
   });
 

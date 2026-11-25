@@ -64,6 +64,17 @@ const DETTE_SQL_BRUT: Record<string, readonly string[]> = {
   "src/platform/ia/artifact/factory/emission.ts": ["juridique"],
   "src/platform/ia/artifact/factory/numerotation.ts": ["documents"],
   "src/platform/in-process/intelligence/index.ts": ["finances", "juridique", "reglementaire"],
+  // Contrôle final (24/11/2026) — SQL indispensable déclaré par les lots fusionnés : des VERROUS de ligne (`FOR UPDATE`,
+  // `pg_advisory_xact_lock`) qui sérialisent une transition, une jointure de contrôle d'intégrité, et le balayage des
+  // notifications d'une destruction (`LIKE ANY`), que le client Prisma n'exprime pas.
+  "src/lib/actions/database-admin-actions.ts": ["documents", "finances"],
+  "src/lib/actions/drive-actions.ts": ["documents"],
+  "src/lib/regulatory/bv-centre.ts": ["travail"],
+  "src/lib/suppression/destruction.ts": ["ad-pro", "communication", "documents", "finances", "info-medicale", "juridique", "materiel-promo", "moyens-generaux", "travail"],
+  "src/modules/ad-pro/infra/prise-en-charge/achats.ts": ["ad-pro"],
+  "src/modules/finances/actions-comptabilite.ts": ["finances"],
+  "src/modules/pilotage/infra/cles.ts": ["terrain"],
+  "src/modules/rh/infra/depart-circuit.ts": ["personnel", "travail"],
 };
 
 const RACINE = process.cwd();

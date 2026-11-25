@@ -29,7 +29,7 @@ let moi: CurrentUser;
 let autre: CurrentUser;
 let admin: CurrentUser;
 
-async function compte(nom: string, role = "DIRECTION_ASSISTANT"): Promise<CurrentUser> {
+async function compte(nom: string, role = "SUPER_ADMIN"): Promise<CurrentUser> {
   const u = await prisma.user.create({ data: { name: `${TAG}${nom}`, email: `${TAG}${nom}@t.dz`, passwordHash: "x", role: role as never } });
   await prisma.userAccess.create({ data: { userId: u.id, module: "ASSISTANT_IA", canView: true, scope: "ASSIGNED" } });
   const access = await getAccess(u.id, u.role);

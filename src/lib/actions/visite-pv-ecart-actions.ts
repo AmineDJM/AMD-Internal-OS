@@ -48,6 +48,7 @@ export async function ecarterAlertePvVisite(formData: FormData): Promise<ActionR
   if (refus) return { ok: false, error: refus };
 
   const maintenant = new Date();
+  // porte d'écriture : le délégué de CETTE visite (relu plus haut, et dans la condition `delegateId`).
   const ecrit = await prisma.medicalVisit.updateMany({
     where: {
       id: visite.id, delegateId: user.id, report: visite.report, pvIa: visite.pvIa, pvEcarteLe: null,

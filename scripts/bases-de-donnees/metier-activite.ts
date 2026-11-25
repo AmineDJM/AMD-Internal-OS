@@ -101,6 +101,11 @@ export const BASES_ACTIVITE: BaseDef[] = [
       MissionAssignment: "Mission terrain d'un événement",
       MissionParticipationVersion: "Version de la participation à une mission",
       MissionExpenseLine: "Frais d'une mission terrain",
+      AdProExecutionPoste: "Exécution d'un poste Ad & Pro",
+      CareChiffrage: "Demande de chiffrage d'une prise en charge",
+      CarePrixHistorique: "Historique des prix d'une prise en charge",
+      CarePecBc: "Bon de commande d'une prise en charge",
+      CarePecBcLigne: "Ligne du bon de commande d'une prise en charge",
     },
   },
   {
@@ -268,6 +273,9 @@ export const BASES_ACTIVITE: BaseDef[] = [
       Sale: "Vente",
       LogisticsOrder: "Ordre logistique",
       Reclamation: "Réclamation",
+      MarcheImport: "Import de données de marché",
+      NomenclatureLigne: "Ligne de la nomenclature des médicaments",
+      IqviaLigne: "Ligne de données IQVIA",
     },
   },
   {
@@ -373,6 +381,7 @@ export const BASES_ACTIVITE: BaseDef[] = [
       MedicalInfoDocRequest: "Demande de document d'information médicale",
       PharmacovigilanceCase: "Cas de pharmacovigilance",
       PharmacovigilanceParticipant: "Participant à un cas de pharmacovigilance",
+      PvReglage: "Réglage de la pharmacovigilance (délais, pharmaciens)",
     },
     plusSensibles: {
       PharmacovigilanceCase: { niveau: "secret", pourquoi: "donnée de santé d'un patient (âge, sexe, effet indésirable)" },
@@ -420,6 +429,7 @@ export const BASES_ACTIVITE: BaseDef[] = [
       DocumentSequence: "Séquence de numérotation",
       DocumentReference: "Référence de document attribuée",
       SerieReference: "Compteur de numérotation des pièces émises",
+      DocumentVersion: "Version d'un document",
     },
     plusSensibles: {
       FileBlob: { niveau: "confidentiel", pourquoi: "contenu brut de TOUS les fichiers, contrats et fiches de paie compris" },
@@ -552,6 +562,7 @@ export const BASES_ACTIVITE: BaseDef[] = [
       ExecutiveObjective: "Objectif de direction",
       ExecutiveCommitment: "Engagement de direction",
       DailyBrief: "Brief quotidien de la Direction",
+      SignalDate: "Signal daté (historique des indicateurs)",
     },
     plusSensibles: {
       KpiEvaluation: { niveau: "secret", pourquoi: "évaluation individuelle de performance" },

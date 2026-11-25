@@ -62,7 +62,9 @@ describe("l'aperçu universel — une table, tous les écrans", () => {
     expect(composer).toContain("enqueue(envoiArborescenceDrive(");
     expect(composer).toContain("lireDepot("); // glisser-déposer, dossiers compris
     // UNE construction pour l'import de dossier du Drive et la messagerie : mêmes performances par construction.
-    expect(lire("src/app/(app)/drive/upload-button.tsx")).toContain("enqueue(envoiArborescenceDrive(");
+    // Audit Drive (C1-C16) : le bouton délègue au chemin de dépôt UNIQUE du Drive (`depot-drive.tsx`).
+    expect(lire("src/app/(app)/drive/upload-button.tsx")).toContain("./depot-drive");
+    expect(lire("src/app/(app)/drive/depot-drive.tsx")).toContain("enqueue(envoiArborescenceDrive(");
     const actions = lire("src/lib/actions/messaging-actions.ts");
     expect(actions).toContain('userCan(user, "MESSAGING", "UPLOAD")');
     expect(actions).toContain("canAccessConversation(user.id, conversationId)");

@@ -33,8 +33,9 @@ const TAG = `__aia_conv_${Date.now().toString(36)}_`;
 let moi: CurrentUser;
 let collegue: CurrentUser;
 
+/** Adam (`ASSISTANT_IA`) est réservé au Super Admin (24/11/2026) : les comptes du banc le sont. */
 async function compte(nom: string): Promise<CurrentUser> {
-  const u = await prisma.user.create({ data: { name: `${TAG}${nom}`, email: `${TAG}${nom}@t.dz`, passwordHash: "x", role: "DIRECTION_ASSISTANT" } });
+  const u = await prisma.user.create({ data: { name: `${TAG}${nom}`, email: `${TAG}${nom}@t.dz`, passwordHash: "x", role: "SUPER_ADMIN" } });
   await prisma.userAccess.create({ data: { userId: u.id, module: "ASSISTANT_IA", canView: true, scope: "ASSIGNED" } });
   const access = await getAccess(u.id, u.role);
   return { id: u.id, name: u.name, email: u.email, role: access.role ?? u.role, secondaryRole: access.secondaryRole, access, mustChangePassword: false } as CurrentUser;
@@ -180,7 +181,9 @@ suite("Adventum IA — conversations multiples, privées, dossiers (vraie base)"
     await modifierDossier(moi.id, d.dossier.id, { consignes: "Réponds toujours en tableau, montants en DZD." });
     const mien = await prisma.driveNode.create({ data: { name: `${TAG}programme-oran.pdf`, type: "FILE", ownerId: moi.id, createdById: moi.id, mimeType: "application/pdf", size: 10 } });
     const sien = await prisma.driveNode.create({ data: { name: `${TAG}salaires.xlsx`, type: "FILE", ownerId: collegue.id, createdById: collegue.id, mimeType: "application/pdf", size: 10 } });
-    const ajout = await ajouterDocuments(moi, d.dossier.id, [mien.id, sien.id]);
+    // Adam est réservé au Super Admin (24/11/2026) : il ouvre tout le Drive. Le document « hors droits » est donc un
+    // document qu'il ne peut pas ouvrir — introuvable ; la relecture des droits reste la même porte.
+    const ajout = await ajouterDocuments(moi, d.dossier.id, [mien.id, `${TAG}introuvable`]);
     expect(ajout).toMatchObject({ ok: true, refuses: 1, documents: [{ id: mien.id, nom: `${TAG}programme-oran.pdf` }] });
     // Un collègue ne range rien dans MON dossier.
     expect((await ajouterDocuments(collegue, d.dossier.id, [sien.id])).ok).toBe(false);

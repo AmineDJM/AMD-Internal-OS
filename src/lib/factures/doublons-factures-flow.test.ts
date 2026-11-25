@@ -117,7 +117,7 @@ function demande(fields: Record<string, string>, pieces: { file: File; kind: str
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 suite("Doublons de factures — blocage aux portes, relance unifiée, recensement", () => {
-  const ROLES = { kam: "PRODUCT_MANAGER", autre: "SALES_USER", pdg: "DIRECTION", fin: "FINANCE_BUDGET_MANAGER" } as const;
+  const ROLES = { kam: "PRODUCT_MANAGER", autre: "SALES_USER", pdg: "GENERAL_MANAGER", fin: "FINANCE_BUDGET_MANAGER" } as const;
   const u: Record<keyof typeof ROLES, string> = { kam: "", autre: "", pdg: "", fin: "" };
   let evId = "", posteId = "", factureId = "", ordreId = "", compagnonId = "", titreFacture = "";
   const empreintes: string[] = [];

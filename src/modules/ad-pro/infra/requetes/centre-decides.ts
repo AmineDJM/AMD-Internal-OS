@@ -79,7 +79,7 @@ export async function decisionsRecentesCentreAdPro(): Promise<DecisionCentre[]> 
   const idsDe = (t: string) => visas.filter((v) => v.entityType === t).map((v) => v.entityId);
   const [legaux, contrats, autresVisa] = await Promise.all([
     idsDe("LEGAL_DOCUMENT").length ? prisma.legalDocument.findMany({ where: { id: { in: idsDe("LEGAL_DOCUMENT") } }, select: { id: true, reference: true, title: true, counterparty: true } }).catch(sansBloquer("ad-pro-centre-decides.legalDocument", [])) : [],
-    idsDe("CONSULTING_CONTRACT").length ? prisma.consultingContract.findMany({ where: { id: { in: idsDe("CONSULTING_CONTRACT") } }, select: { id: true, reference: true, title: true } }).catch(sansBloquer("ad-pro-centre-decides.consultingContract", [])) : [],
+    idsDe("CONSULTING_CONTRACT").length ? prisma.consultingContract.findMany({ where: { id: { in: idsDe("CONSULTING_CONTRACT") }, pole: "AD_PRO" }, select: { id: true, reference: true, title: true } }).catch(sansBloquer("ad-pro-centre-decides.consultingContract", [])) : [],
     idsDe("AD_PRO_OTHER").length ? prisma.adProOtherRequest.findMany({ where: { id: { in: idsDe("AD_PRO_OTHER") } }, select: { id: true, reference: true, title: true } }).catch(sansBloquer("ad-pro-centre-decides.adProOtherRequest", [])) : [],
   ]);
   const parentDe = (p: Record<(typeof PARENT_COLONNE)[AdProParent], string | null>): { type: AdProParent; id: string } | null => {

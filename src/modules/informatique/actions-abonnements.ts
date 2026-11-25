@@ -117,6 +117,7 @@ export async function modifierAbonnement(formData: FormData): Promise<ActionResu
     if (ligne && !(await ligneBudgetValide(ligne, avant.companyId))) return { ok: false, error: "Cette ligne budgétaire n'appartient pas au budget de la société de l'abonnement." };
     const aPiece = formData.get("piece") instanceof File && (formData.get("piece") as File).size > 0;
     if (!Object.keys(lu.data).length && !aPiece) return { ok: false, error: "Aucun champ à modifier." };
+    // porte d'écriture : la société de la fiche, relue plus haut (`societePermise`).
     if (Object.keys(lu.data).length) await prisma.abonnementInformatique.update({ where: { id: avant.id }, data: lu.data as object });
     const refus = await joindrePiece(formData, avant.id, user.id);
     await recordAudit({ actorId: user.id, action: "UPDATE", module: MODULE_AUDIT, entityId: avant.id, summary: `Abonnement « ${avant.fournisseur} — ${avant.objet} » modifié (${[...Object.keys(lu.data), ...(aPiece ? ["pièce"] : [])].join(", ")})` });
@@ -133,6 +134,7 @@ export async function resilierAbonnement(formData: FormData): Promise<ActionResu
     const id = fdStr(formData, "id");
     const a = id ? await prisma.abonnementInformatique.findUnique({ where: { id }, select: { id: true, companyId: true, fournisseur: true, objet: true } }) : null;
     if (!a || !(await societePermise(user.id, a.companyId))) return { ok: false, error: "Abonnement introuvable." };
+    // porte d'écriture : la société de la fiche, relue plus haut (`societePermise`).
     const r = await prisma.abonnementInformatique.updateMany({ where: { id: a.id, statut: "ACTIF" }, data: { statut: "RESILIE" } });
     if (r.count === 0) return { ok: true, message: "Cet abonnement est déjà résilié." };
     await recordAudit({ actorId: user.id, action: "UPDATE", module: MODULE_AUDIT, entityId: a.id, summary: `Abonnement « ${a.fournisseur} — ${a.objet} » résilié` });

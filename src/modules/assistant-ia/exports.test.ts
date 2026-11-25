@@ -9,6 +9,7 @@ vi.mock("@/lib/session", () => ({
 }));
 
 import ExcelJS from "exceljs";
+import { resolveDriveAccess } from "@/lib/drive";
 import { prisma } from "@/lib/prisma";
 import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
@@ -153,8 +154,10 @@ suite("K7 — exporter depuis l'assistant, puis envoyer à un collègue", () => 
     const m = await prisma.message.findFirstOrThrow({ where: { senderId: direction.id }, select: { body: true, conversation: { select: { members: { select: { userId: true } } } }, attachments: { select: { driveNodeId: true, name: true } } } });
     expect(m.attachments).toEqual([{ driveNodeId: f.nodeId, name: f.nom }]);
     expect(m.conversation.members.map((x) => x.userId)).toContain(collegue.id);
-    // Le destinataire reçoit l'accès en lecture à CE fichier, par la messagerie.
-    expect(await prisma.driveShare.count({ where: { nodeId: f.nodeId, userId: collegue.id } })).toBe(1);
+    // Le destinataire reçoit l'accès en lecture à CE fichier, par la messagerie : l'accès SUIT le message (audit Drive du
+    // 24/11, F3), sans partage nominatif.
+    expect(await resolveDriveAccess(collegue, f.nodeId)).toBe("VIEW");
+    expect(await prisma.driveShare.count({ where: { nodeId: f.nodeId, userId: collegue.id } })).toBe(0);
   });
 
   it("le destinataire ne reçoit que ce que l'expéditeur voit : une pièce hors de sa portée refuse la carte", async () => {

@@ -205,12 +205,13 @@ suite("ops vague 3 — Drive, Legal, Courriers", () => {
       expect(domainArgs(p).newName).toBe("BC imprimeur signé.pdf");
     });
 
-    it("delete_attachment : CRITIQUE — confirmText = nom du fichier ; suppression annoncée DÉFINITIVE", async () => {
+    // Audit Drive (24/11/2026, corbeille unifiée) : la pièce part à la corbeille, restaurable par le Super Admin.
+    it("delete_attachment : CRITIQUE — confirmText = nom du fichier ; départ à la corbeille annoncé", async () => {
       const p = await buildProposal("drive_operation", { op: "delete_attachment", name: `${TAG} BC imprimeur` }, sa());
       expect("error" in p).toBe(false);
       if ("error" in p) return;
       expect(p.confirmText).toBe(`${TAG} BC imprimeur.pdf`);
-      expect(p.warnings.join(" ")).toMatch(/DÉFINITIVE/);
+      expect(p.warnings.join(" ")).toMatch(/corbeille/);
     });
 
     it("delete_letterhead : CRITIQUE — confirmText ; les documents déjà créés ne bougent pas", async () => {

@@ -52,7 +52,7 @@ async function lireFaits(rows: readonly AdProRequest[]): Promise<Map<string, Fai
     vide("CONGRESS_NATIONAL", (id) => prisma.congressNational.findMany({ where: { id: { in: id } }, select: { id: true, requesterId: true, date: true, updatedAt: true } })),
     vide("EVENT", (id) => prisma.event.findMany({ where: { id: { in: id } }, select: { id: true, requesterId: true, startDate: true, updatedAt: true } })),
     vide("PROMO_MATERIAL", (id) => prisma.promoMaterial.findMany({ where: { id: { in: id } }, select: { id: true, requesterId: true, neededBy: true, returnedAt: true, updatedAt: true } })),
-    vide("CONSULTING", (id) => prisma.consultingContract.findMany({ where: { id: { in: id } }, select: { id: true, requesterId: true, endDate: true, returnedAt: true, updatedAt: true } })),
+    vide("CONSULTING", (id) => prisma.consultingContract.findMany({ where: { id: { in: id }, pole: "AD_PRO" }, select: { id: true, requesterId: true, endDate: true, returnedAt: true, updatedAt: true } })),
     vide("OTHER", (id) => prisma.adProOtherRequest.findMany({ where: { id: { in: id } }, select: { id: true, requesterId: true, updatedAt: true } })),
   ]);
   const out = new Map<string, Faits>();

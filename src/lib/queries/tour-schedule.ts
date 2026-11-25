@@ -197,7 +197,8 @@ async function lignesEtGamme(
         id: true, date: true, status: true, origin: true, objective: true, report: true, doctorId: true,
         tourPlanId: true, followUpActions: true, notHeldReason: true, doctorFeedback: true,
         pvIa: true, pvIaExtrait: true, analyseIaLe: true, pvEcarteLe: true, reluLe: true, reluParId: true, reluCommentaire: true,
-        casPharmacovigilance: { select: { id: true, reference: true }, orderBy: { createdAt: "asc" }, take: 1 },
+        // Sans `take` imbriqué (LIMIT en mémoire) : une visite porte au plus un ou deux cas, le premier est lu ensuite.
+        casPharmacovigilance: { select: { id: true, reference: true }, orderBy: { createdAt: "asc" } },
         doctor: { select: { name: true, institution: true, wilaya: true, specialty: true } },
         productLinks: { select: { productId: true, product: { select: { canonicalName: true } } } },
         messageLinks: { select: { messageId: true, message: { select: { title: true } } } },
