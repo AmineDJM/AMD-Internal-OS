@@ -254,7 +254,7 @@ describe("les données navigateur personnelles sont rangées par personne", () =
   // Préférences d'AFFICHAGE de l'appareil (largeur, colonnes, pôles ouverts, couleur) : elles ne disent rien de la
   // personne et restent communes. Tout le reste passe par `cleParPersonne` / `useCleParPersonne` / `lireStockagePersonnel`.
   // `CLE_THEME` : le thème clair / sombre d'Adventum IA (décision 0027) — un réglage d'affichage de l'appareil.
-  const PREFERENCES_APPAREIL = new Set(["OPEN_POLES_KEY", "WIDE_KEY", "HIDDEN_COLS_KEY", '"ik-mail-accent"', "CLE_THEME"]);
+  const PREFERENCES_APPAREIL = new Set(["OPEN_POLES_KEY", "WIDE_KEY", "HIDDEN_COLS_KEY", '"ik-mail-accent"', "CLE_THEME", "A_TRAITER_KEY"]);
   // Variables qui portent déjà une clé rangée par personne (vérifié ci-dessous à leur définition).
   const PERSONNELLES = new Set(["draftKey", "cleClip"]);
 

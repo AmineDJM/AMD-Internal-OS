@@ -309,6 +309,7 @@ function LigneTableau({ l, sous = false, pctEcoule, choisie, couleur, ouvert, on
 function CarteATraiter({ alertes, liens, peutReallouer, onReallouer }: {
   alertes: Alerte[]; liens: LiensMarketing; peutReallouer: boolean; onReallouer: (catId?: string) => void;
 }) {
+  const [ouvert, basculer] = useATraiterOuvert();
   if (alertes.length === 0) return null;
   const bouton = "inline-flex h-9 items-center gap-1 whitespace-nowrap rounded-[var(--radius)] border border-border bg-card px-3 text-xs font-medium hover:bg-secondary sm:h-8";
   const geste = (a: Alerte) => {
@@ -323,11 +324,19 @@ function CarteATraiter({ alertes, liens, peutReallouer, onReallouer }: {
   };
   return (
     <section className="surface min-w-0 overflow-hidden rounded-xl" aria-label="À traiter">
-      <header className="flex items-center gap-2 border-b border-border px-4 py-3">
-        <h2 className="text-sm font-semibold">À traiter</h2>
-        <span className="rounded-full bg-warning/15 px-2 py-0.5 text-xs font-medium text-warning">{alertes.length}</span>
-      </header>
-      <ul className="divide-y divide-border">
+      {/* REPLIABLE (Super Admin, 25/11/2026) : un clic sur l'en-tête déplie ou replie la liste ; le choix est gardé. */}
+      <h2>
+        <button
+          type="button" aria-expanded={ouvert} aria-controls="liste-a-traiter" onClick={basculer}
+          className={cn("flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-semibold hover:bg-secondary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring", ouvert && "border-b border-border")}
+        >
+          {ouvert ? <ChevronDown aria-hidden className="h-4 w-4 text-muted-foreground" /> : <ChevronRight aria-hidden className="h-4 w-4 text-muted-foreground" />}
+          À traiter
+          <span className="rounded-full bg-warning/15 px-2 py-0.5 text-xs font-medium text-warning">{alertes.length}</span>
+          <span className="ml-auto text-xs font-normal text-muted-foreground">{ouvert ? "Replier" : "Déplier"}</span>
+        </button>
+      </h2>
+      {ouvert && <ul id="liste-a-traiter" className="divide-y divide-border">
         {alertes.map((a) => {
           const g = geste(a);
           return (
@@ -344,7 +353,7 @@ function CarteATraiter({ alertes, liens, peutReallouer, onReallouer }: {
             </li>
           );
         })}
-      </ul>
+      </ul>}
     </section>
   );
 }
@@ -433,4 +442,20 @@ function MenuExport({ hrefDe, onImages }: { hrefDe: (format: string) => string; 
       )}
     </div>
   );
+}
+
+/** La préférence d'affichage « À traiter » replié / déplié — un réglage de l'appareil, comme les pôles ouverts du menu. */
+const A_TRAITER_KEY = "budget-marketing.a-traiter";
+
+/** Ouvert ou replié, gardé dans le navigateur (préférence d'affichage seulement ; sans stockage, on reste ouvert). */
+function useATraiterOuvert(): [boolean, () => void] {
+  const [ouvert, setOuvert] = React.useState(true);
+  React.useEffect(() => {
+    try { const v = window.localStorage.getItem(A_TRAITER_KEY); if (v === "0" || v === "1") setOuvert(v === "1"); } catch { /* stockage indisponible */ }
+  }, []);
+  const basculer = React.useCallback(() => setOuvert((o) => {
+    try { window.localStorage.setItem(A_TRAITER_KEY, o ? "0" : "1"); } catch { /* stockage indisponible */ }
+    return !o;
+  }), []);
+  return [ouvert, basculer];
 }
