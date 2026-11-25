@@ -60,7 +60,7 @@ describe("jamais appelable génériquement", () => {
 
   it("le refus d'auto-escalade et des attestations (generique.ts) est repris tel quel — sauf les gestes de fiche, sans leur champ de compte", () => {
     for (const c of CONTRATS_ACTIONS) if (interdictionGenerique(c) && !Object.hasOwn(GESTES_DE_FICHE, c.id)) expect(de(c.id).appelable, c.id).toBe(false);
-    expect(Object.keys(GESTES_DE_FICHE).sort()).toEqual(["hr-actions:createEmployee", "hr-actions:setEmployeeActive", "hr-actions:updateEmployee"]);
+    expect(Object.keys(GESTES_DE_FICHE).sort()).toEqual(["hr-actions:createEmployee", "hr-actions:setEmployeeActive", "hr-actions:updateEmployee", "recruitment-actions:onboardRecruitment"]);
     for (const id of Object.keys(GESTES_DE_FICHE)) {
       expect(de(id).appelable, id).toBe(true);
       expect(de(id).champs.map((ch) => ch.nom), id).not.toContain("userId");
