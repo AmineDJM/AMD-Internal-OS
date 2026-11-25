@@ -63,8 +63,8 @@ suite("Legal — l'engagement ponctuel terminé se tait ; le durable alerte (bas
   it("le balayage aligne les deux en EXPIRED, mais ne rappelle QUE le durable", async () => {
     await runLegalExpirySweep(maintenant);
     const notes = await prisma.notification.findMany({ where: { userId: auteur }, select: { title: true, body: true } });
-    expect(notes.filter((n) => n.body.includes("Convention Orateur")), "aucun rappel pour la convention terminée").toEqual([]);
-    expect(notes.filter((n) => n.body.includes("Contrat de maintenance")).map((n) => n.title)).toEqual([expect.stringContaining("DÉPASSÉE")]);
+    expect(notes.filter((n) => (n.body ?? "").includes("Convention Orateur")), "aucun rappel pour la convention terminée").toEqual([]);
+    expect(notes.filter((n) => (n.body ?? "").includes("Contrat de maintenance")).map((n) => n.title)).toEqual([expect.stringContaining("DÉPASSÉE")]);
     const conv = await prisma.legalDocument.findUniqueOrThrow({ where: { id: convention } });
     expect(conv.status, "le statut en base reste EXPIRED").toBe("EXPIRED");
     expect(conv.lastRemindedAt, "rien n'a été envoyé").toBeNull();
