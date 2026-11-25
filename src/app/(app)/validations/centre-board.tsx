@@ -129,9 +129,8 @@ export function CentreValidations(props: {
 
   const ouvrir = (p: PanneauCentre) => { setPanneau(p); setPleinEcran(false); };
   const menu = (
-    <MenuDossier key={panneau ?? "file"} label="Autres : déjà décidés, mes demandes envoyées, règles de validation" doigt>
+    <MenuDossier key={panneau ?? "file"} label="Autres : déjà décidés, règles de validation" doigt>
       <ItemMenu onClick={() => ouvrir("decides")} libelle="Déjà décidés" compte={props.decides.length} />
-      <ItemMenu onClick={() => ouvrir("envoyees")} libelle="Mes demandes envoyées" compte={props.envoyees.length} />
       <ItemMenu onClick={() => ouvrir("regles")} libelle="Règles de validation" />
       {props.estSuperAdmin && <ItemMenu onClick={() => ouvrir("supervision")} libelle="Supervision" compte={props.nbSupervision} />}
     </MenuDossier>
@@ -139,9 +138,11 @@ export function CentreValidations(props: {
 
   return (
     <div className="space-y-4">
+      {/* POUR TOUS (Super Admin, 25/11/2026) : demander une validation, demander un paiement et suivre ses demandes se
+          voient d'emblée — ils ne se cachent plus dans le menu ⋯. Qui ne siège pas au centre lit « Demandes de validations ». */}
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">Centre de validations</h1>
-        {menu}
+        <h1 className="text-2xl font-bold">{props.peutReglerSeuil ? "Centre de validations" : "Demandes de validations"}</h1>
+        <div className="flex flex-wrap items-center gap-2">{props.demander}{menu}</div>
       </header>
 
       {bandeau && (
@@ -173,7 +174,7 @@ export function CentreValidations(props: {
           <section aria-labelledby="file-validations" className="w-full min-w-0 overflow-hidden rounded-xl border border-border bg-card lg:max-w-[440px] lg:flex-[1_1_360px]">
             <h2 id="file-validations" className="px-4 pb-2.5 pt-4 text-base font-semibold">À décider · {file.length}</h2>
             {file.length === 0 && (
-              <p className="px-4 pb-6 pt-1 text-sm text-muted-foreground">Rien à décider. Les demandes qui vous sont adressées arrivent ici.</p>
+              <p className="px-4 pb-6 pt-1 text-sm text-muted-foreground">Rien à décider pour vous. Les demandes qui vous sont adressées arrivent ici.</p>
             )}
             <ul>
               {file.map((l) => {
@@ -249,6 +250,14 @@ export function CentreValidations(props: {
             )}
           </section>
         </div>
+      )}
+
+      {/* MES DEMANDES — validations et paiements que j'ai envoyés, toujours visibles (Super Admin, 25/11/2026). */}
+      {!panneau && (
+        <section aria-labelledby="mes-demandes" className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 sm:p-5">
+          <h2 id="mes-demandes" className="text-base font-semibold">Mes demandes · {props.envoyees.length + props.nbPaiements}</h2>
+          <PanneauEnvoyees envoyees={props.envoyees} demander={null} paiements={props.paiements} estSuperAdmin={props.estSuperAdmin} />
+        </section>
       )}
     </div>
   );
