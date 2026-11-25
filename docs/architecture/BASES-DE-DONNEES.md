@@ -209,12 +209,12 @@ Les demandes de paiement, ordres de dépense, mouvements, comptes de trésorerie
 | `LigneActualisationSoldes` | Solde déclaré pour un compte | Confidentiel | actualisation-soldes-actions |
 | `PaymentCentreSeat` | Siège au centre de paiement | Confidentiel | payment-centre-seat-actions |
 | `PaymentCentreMessage` | Message du centre de paiement | Confidentiel | care-actions, congress-request-actions, payment-centre-actions, payment-request-actions +1 |
-| `ObligationFiscale` | Obligation fiscale ou sociale (calendrier) | Confidentiel | impots-cotisations-actions |
-| `EcheanceFiscale` | Échéance fiscale ou sociale à payer | Confidentiel | impots-cotisations-actions |
+| `ObligationFiscale` | Obligation fiscale ou sociale au calendrier d'une société (G50, CNAS, acompte…) | Confidentiel | impots-cotisations-actions |
+| `EcheanceFiscale` | Échéance d'impôt ou de cotisation à payer (montants saisis, proposition de la paie, ordre) | Confidentiel | impots-cotisations-actions |
 | `PaymentThreshold` | Seuil de signature d'un paiement | Confidentiel | — |
 | `DocumentRequest` | Demande de pièce justificative | Confidentiel | document-request-actions, hr-document-actions, reservation-fiche-actions |
-| `ChargeFixeSociete` | Charge fixe des locaux d'une société | Confidentiel — bénéficiaires, RIB et montants des loyers et charges de la société | — |
-| `EcheanceChargeFixe` | Échéance d'une charge fixe | Confidentiel | — |
+| `ChargeFixeSociete` | Charge fixe des locaux d'une société (loyer, électricité…), saisie dans Informations de la société | Confidentiel — bénéficiaires, RIB et montants des loyers et charges de la société | — |
+| `EcheanceChargeFixe` | Échéance de charge fixe demandée au paiement (source de l'ordre FIXED_CHARGE) | Confidentiel | — |
 | `RetenueSource` | Retenue à la source d'un paiement | Confidentiel | expense-actions, payment-request-actions |
 | `TauxRetenueSource` | Taux de retenue à la source | Confidentiel | finances-natures |
 

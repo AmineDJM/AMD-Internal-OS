@@ -538,7 +538,7 @@
     },
     {
      "modele": "ObligationFiscale",
-     "libelle": "Obligation fiscale ou sociale (calendrier)",
+     "libelle": "Obligation fiscale ou sociale au calendrier d'une société (G50, CNAS, acompte…)",
      "sensibilite": "confidentiel",
      "ecritePar": [
       "impots-cotisations-actions"
@@ -546,7 +546,7 @@
     },
     {
      "modele": "EcheanceFiscale",
-     "libelle": "Échéance fiscale ou sociale à payer",
+     "libelle": "Échéance d'impôt ou de cotisation à payer (montants saisis, proposition de la paie, ordre)",
      "sensibilite": "confidentiel",
      "ecritePar": [
       "impots-cotisations-actions"
@@ -570,14 +570,14 @@
     },
     {
      "modele": "ChargeFixeSociete",
-     "libelle": "Charge fixe des locaux d'une société",
+     "libelle": "Charge fixe des locaux d'une société (loyer, électricité…), saisie dans Informations de la société",
      "sensibilite": "confidentiel",
      "pourquoi": "bénéficiaires, RIB et montants des loyers et charges de la société",
      "ecritePar": []
     },
     {
      "modele": "EcheanceChargeFixe",
-     "libelle": "Échéance d'une charge fixe",
+     "libelle": "Échéance de charge fixe demandée au paiement (source de l'ordre FIXED_CHARGE)",
      "sensibilite": "confidentiel",
      "ecritePar": []
     },

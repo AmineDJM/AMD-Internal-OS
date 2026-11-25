@@ -11046,7 +11046,7 @@
   ],
   "simulable": "oui",
   "annulation": "retour",
-  "appelable": false
+  "appelable": true
  },
  "recruitment-actions:openRecruitmentSourcing": {
   "risque": "R2",

@@ -429,7 +429,6 @@ export const BASES_ACTIVITE: BaseDef[] = [
       DocumentSequence: "Séquence de numérotation",
       DocumentReference: "Référence de document attribuée",
       SerieReference: "Compteur de numérotation des pièces émises",
-      DocumentVersion: "Version d'un document",
     },
     plusSensibles: {
       FileBlob: { niveau: "confidentiel", pourquoi: "contenu brut de TOUS les fichiers, contrats et fiches de paie compris" },
