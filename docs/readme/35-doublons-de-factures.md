@@ -85,15 +85,15 @@ le demandeur quand le dossier lui est renvoyé ; le demandeur est informé quand
 (`groupesDeDoublons` : CERTAINS puis PROBABLES). **Lecture seule**, sans appel à Luna, sans lire les écritures du livre.
 
 - Script : `npm run factures:doublons` (`-- --json`) — une connexion unique mise en `READ ONLY` avant toute requête.
-- Écran : **Finances › Doublons de factures** (`/finances/doublons-factures`, droit Finances VIEW) — pièces, modules,
-  montants, états de paiement, liens (seulement vers ce que la personne peut ouvrir). Colonne « à examiner / examiné »
-  sans migration : `marquerExamenDoublon` écrit au journal d'audit (module « Finances — doublons de factures »), réservé
-  à Finances UPDATE. Rien n'est corrigé ici : chaque pièce se corrige dans son module.
+- Écran **Finances › Doublons de factures** : **supprimé** (Super Admin, 25/11/2026). L'adresse `/finances/doublons-factures`
+  mène à la Comptabilité ; la clé `FINANCES_DOUBLONS` est retirée du service (`modules-retired.ts` : ni console, ni accès
+  effectif ; les lignes d'accès en base restent, ignorées) ; le geste « examiné » (`marquerExamenDoublon`) est retiré. La
+  détection reste : « doublon possible » au centre de paiement, « ressemble à » dans la Comptabilité.
 
 ### Fichiers clés
 
 `src/lib/factures/{identite,connues,blocage-vue,jeton-relance,recensement}.ts`, `src/modules/finances/domaine/relance-paiement.ts`,
-`src/modules/finances/infra/relance-destinataires.ts`, `src/lib/actions/{relance-paiement,doublons-factures}-actions.ts`,
-`src/components/factures/facture-deja-connue.tsx`, `src/app/(app)/finances/doublons-factures/`,
+`src/modules/finances/infra/relance-destinataires.ts`, `src/lib/actions/relance-paiement-actions.ts`,
+`src/components/factures/facture-deja-connue.tsx`,
 `scripts/recenser-doublons-factures.ts`. Tests : `identite.banc.test.ts`, `doublons-factures-flow.test.ts`,
 `finance/relance-paiement.test.ts`.

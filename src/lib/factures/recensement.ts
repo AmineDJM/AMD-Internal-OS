@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { prisma } from "@/lib/prisma";
 import { chargerFacturesConnues, type FactureConnue } from "@/lib/factures/connues";
 import { groupesDeDoublons, LIBELLE_NATURE } from "@/lib/factures/identite";
 import { PHRASE_ETAT_PAIEMENT } from "@/modules/finances/partage";
@@ -15,8 +14,9 @@ import { PHRASE_ETAT_PAIEMENT } from "@/modules/finances/partage";
  * (`LecturePiece`), à défaut ce qui a été saisi, et toujours l'empreinte de son fichier. Rien n'est corrigé, fusionné ni
  * annulé : les Finances examinent, pièce en main.
  *
- * Deux lecteurs : le script `npm run factures:doublons` (passage unique, base en lecture seule) et l'écran
- * Finances › Doublons de factures (`/finances/doublons-factures`).
+ * Lecteurs : le script `npm run factures:doublons` (passage unique, base en lecture seule) et la Comptabilité (« ressemble
+ * à »). L'écran « Doublons de factures » est supprimé (Super Admin, 25/11/2026) : la détection, elle, reste — ici, au centre
+ * de paiement (« doublon possible ») et dans la Comptabilité.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
@@ -75,35 +75,4 @@ export async function recenserDoublonsFactures(): Promise<Recensement> {
   const recent = (g: GroupeRecense) => g.membres.reduce((m, x) => (x.creeLe > m ? x.creeLe : m), "");
   groupes.sort((a, b) => (a.niveau === b.niveau ? recent(b).localeCompare(recent(a)) : a.niveau === "CERTAIN" ? -1 : 1));
   return { facturesExaminees: factures.length, groupes };
-}
-
-// ─────────────────────────────── « À examiner / examiné » ───────────────────────────────
-
-/**
- * L'EXAMEN D'UN GROUPE PAR LES FINANCES — sans migration : une entrée du JOURNAL D'AUDIT (`AuditLog`), module
- * `MODULE_EXAMEN`, champ « examen », identifiant = la signature du groupe. La dernière entrée fait foi ; la trace dit
- * qui a examiné et quand. Le recensement lui-même n'écrit rien.
- */
-export const MODULE_EXAMEN = "Finances — doublons de factures";
-
-export interface ExamenDoublon {
-  examine: boolean;
-  par: string | null;
-  le: string | null;
-  note: string | null;
-}
-
-export async function examensDesGroupes(signatures: readonly string[]): Promise<Map<string, ExamenDoublon>> {
-  const out = new Map<string, ExamenDoublon>();
-  if (signatures.length === 0) return out;
-  const lignes = await prisma.auditLog.findMany({
-    where: { module: MODULE_EXAMEN, field: "examen", entityId: { in: [...signatures] } },
-    select: { entityId: true, newValue: true, summary: true, createdAt: true, actor: { select: { name: true } } },
-    orderBy: { createdAt: "desc" },
-  });
-  for (const l of lignes) {
-    if (!l.entityId || out.has(l.entityId)) continue;
-    out.set(l.entityId, { examine: l.newValue === "EXAMINE", par: l.actor?.name ?? null, le: l.createdAt.toISOString(), note: l.summary });
-  }
-  return out;
 }

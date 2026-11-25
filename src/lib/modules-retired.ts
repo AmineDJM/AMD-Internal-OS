@@ -41,8 +41,14 @@
  * ⚠️ `PCH` (Marchés PCH) et `PRODUCT_EXPLORER` (Explorateur produits) RESTENT en service : ce
  * sont des modules voisins, séparés de Market Intelligence précisément pour survivre à ce genre
  * de décision. Ne pas les ajouter ici par association d'idées.
+ *
+ * Retiré le 25/11/2026 (Super Admin, après la mise en production) :
+ *   • `FINANCES_DOUBLONS` — « Doublons de factures » : l'écran du recensement est supprimé ; son adresse mène à la
+ *     Comptabilité. La DÉTECTION reste en service — elle ne lit pas cette clé : « doublon possible » au centre de
+ *     paiement, « ressemble à » dans la Comptabilité (`recenserDoublonsFactures`). Les accès posés en base restent,
+ *     ignorés : la console ne propose plus la clé, et aucun écran ne s'ouvre par elle.
  */
-export const RETIRED_MODULE_KEYS: readonly string[] = ["SALES", "LOGISTICS", "BUSINESS_DEVELOPMENT"];
+export const RETIRED_MODULE_KEYS: readonly string[] = ["SALES", "LOGISTICS", "BUSINESS_DEVELOPMENT", "FINANCES_DOUBLONS"];
 
 /**
  * CE QUI SURVIT À UN RETRAIT — un MODULE à part, jamais une exception de chemin.

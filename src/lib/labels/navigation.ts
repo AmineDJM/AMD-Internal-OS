@@ -330,8 +330,7 @@ export const NAVIGATION: NavItem[] = [
       // La TRÉSORERIE (l'ancienne page, la demande d'actualisation des soldes) vit avec la banque.
       { module: "FINANCES_BANQUE", label: "Banque & paiements", href: "/finances/paiements-a-faire", icon: "Banknote", group: "Pôles", pole: "ADMINISTRATION", match: ["/finances/actualisation-soldes", "/finances/ordres-de-depense"] },
       { module: "FINANCES_COMPTABILITE", label: "Comptabilité", href: "/finances/comptabilite", icon: "BookOpen", group: "Pôles", pole: "ADMINISTRATION" },
-      // LE RECENSEMENT DES DOUBLONS DE FACTURES (Direction, 14/10/2026) — lecture ; « Modifier » marque un groupe examiné.
-      { module: "FINANCES_DOUBLONS", label: "Doublons de factures", href: "/finances/doublons-factures", icon: "Copy", group: "Pôles", pole: "ADMINISTRATION" },
+      // « Doublons de factures » est SUPPRIMÉ (Super Admin, 25/11/2026) : la détection vit au centre de paiement et dans la Comptabilité.
       // IMPÔTS & COTISATIONS (maquette validée, 24/11/2026) — G50, CNAS, acomptes : préparés ici, autorisés au centre, payés à la banque.
       { module: "FINANCES_IMPOTS", label: "Impôts & cotisations", href: "/finances/impots-cotisations", icon: "ReceiptText", group: "Pôles", pole: "ADMINISTRATION" },
     ],

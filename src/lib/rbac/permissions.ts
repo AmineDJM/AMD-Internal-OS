@@ -545,14 +545,14 @@ for (const role of Object.keys(PERMISSIONS) as UserRole[]) {
  */
 // « Impôts & cotisations » (24/11/2026) suit la même règle : les gestes de `FINANCES` du rôle, recopiés par défaut
 // (migration `impots_cotisations` pour les accès personnalisés ou bloqués).
-const ECRANS_FINANCES: Module[] = ["FINANCES_BANQUE", "FINANCES_COMPTABILITE", "FINANCES_DOUBLONS", "FINANCES_IMPOTS"];
+// « Doublons de factures » (FINANCES_DOUBLONS) est retiré du service (25/11/2026, `modules-retired.ts`) : plus de défaut.
+const ECRANS_FINANCES: Module[] = ["FINANCES_BANQUE", "FINANCES_COMPTABILITE", "FINANCES_IMPOTS"];
 for (const role of Object.keys(PERMISSIONS) as UserRole[]) {
   if (role === "SUPER_ADMIN") continue;
   const matrice = PERMISSIONS[role];
   const finances = matrice.FINANCES;
   if (!finances) continue;
   for (const m of ECRANS_FINANCES) if (!matrice[m]) matrice[m] = [...finances];
-  if (role === "DIRECTION" && !matrice.FINANCES_DOUBLONS!.includes("UPDATE")) matrice.FINANCES_DOUBLONS!.push("UPDATE");
 }
 
 /**
