@@ -5,7 +5,6 @@ import { chargerFeuillePraticiens, type FiltreGrade } from "@/lib/queries/annuai
 import { AnnuaireGrid } from "@/app/(app)/medical/annuaire/annuaire-grid";
 import { DirectoryBar } from "@/app/(app)/medical/annuaire/directory-bar";
 import { EnTeteAnnuaires } from "./en-tete";
-import { BarreSpecialites } from "./barre-specialites";
 import { SANS_SPECIALITE } from "@/lib/annuaires/par-specialite";
 
 /**
@@ -82,14 +81,14 @@ export async function FeuillePraticiensHub({
           basePath={basePath}
         />
       )}
-      <BarreSpecialites
-        basePath={basePath} annuaire={medecins ? null : annuaire} gerer={undefined}
-        specialites={feuille.annuairesSpecialite} sansSpecialite={feuille.sansSpecialiteCount}
-        ouverte={feuille.specialiteOuverte} archives={feuille.archives} archivesCount={feuille.archivesCount}
-        avecSpecialites={grade === "medecins"}
-      />
-      {medecins && (gerer.creer || gerer.modifier || gerer.supprimer) && (
-        <p className="text-xs text-muted-foreground">Ajouter, renommer ou supprimer une spécialité se fait dans <Link href="/annuaires/specialites" className="text-primary underline">Annuaires › Spécialités</Link>.</p>
+      {/* LA BARRE « PAR SPÉCIALITÉ » EST RETIRÉE (Super Admin, 25/11/2026) : on filtre dans le tableau. Les archivés restent
+          joignables, par un simple lien, seulement quand il y en a. */}
+      {(feuille.archives || feuille.archivesCount > 0) && (
+        <p className="text-xs">
+          <Link href={lienArchives(basePath, medecins ? null : annuaire, !feuille.archives)} className="text-primary hover:underline">
+            {feuille.archives ? "← Revenir aux actifs" : `Voir les archivés (${feuille.archivesCount})`}
+          </Link>
+        </p>
       )}
       <AnnuaireGrid
         archives={feuille.archives}
@@ -105,4 +104,13 @@ export async function FeuillePraticiensHub({
       />
     </div>
   );
+}
+
+/** Le lien vers les archivés (ou retour aux actifs), en gardant l'annuaire ouvert — l'état de la vue vit dans l'adresse. */
+function lienArchives(basePath: string, annuaire: string | null | undefined, archives: boolean): string {
+  const q = new URLSearchParams();
+  if (annuaire) q.set("annuaire", annuaire);
+  if (archives) q.set("archives", "1");
+  const s = q.toString();
+  return s ? `${basePath}?${s}` : basePath;
 }

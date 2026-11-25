@@ -60,8 +60,10 @@ describe("annuaire des médecins : seulement par spécialité, spécialités gé
     expect(f).toContain("annuaire: medecins ? null : annuaire");
   });
 
-  it("ajouter, renommer, supprimer une spécialité depuis la barre, par les actions du référentiel", () => {
-    const b = lire("src/app/(app)/annuaires/barre-specialites.tsx");
-    for (const a of ["createSpecialty(", "updateSpecialty(", "deleteSpecialty("]) expect(b, a).toContain(a);
+  // La barre « Par spécialité » est retirée (Super Admin, 25/11/2026 : on filtre dans le tableau) ; les spécialités se
+  // gèrent dans Annuaires › Spécialités, par les mêmes actions du référentiel.
+  it("ajouter, renommer, supprimer une spécialité dans Annuaires › Spécialités, par les actions du référentiel", () => {
+    const b = lire("src/components/directory/specialites-table.tsx");
+    for (const a of ["executer(createSpecialty", "executer(updateSpecialty", "executer(deleteSpecialty"]) expect(b, a).toContain(a);
   });
 });

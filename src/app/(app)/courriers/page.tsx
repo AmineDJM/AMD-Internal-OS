@@ -16,7 +16,7 @@ import { MailTable, type MailRow } from "./mail-table";
 import { getMyCompanies, companyLabel } from "@/lib/company";
 import { MailPartnersManager } from "./mail-partners";
 import { mailRoutingOptions } from "@/lib/queries/mail-routing";
-import { MailFolderBar, type MailFolderRow } from "./mail-folder-bar";
+import type { MailFolderRow } from "./mail-folder-bar";
 import { buildFolderTree, flattenFolders, indentedLabel } from "@/lib/legal/folders";
 
 export const dynamic = "force-dynamic";
@@ -195,13 +195,8 @@ export default async function CourriersPage(props: { searchParams?: Promise<{ do
         </p>
       )}
 
-      <MailFolderBar
-        folders={folders}
-        current={searchParams?.dossier ?? null}
-        companies={myCompanies.map((c) => ({ id: c.id, label: companyLabel(c) }))}
-        canManage={canEdit}
-      />
-
+      {/* LA CARTE « DOSSIERS » EST RETIRÉE (Super Admin, 25/11/2026) : le tableau remonte. Les dossiers existants restent :
+          un courrier se range par « Classer » dans son panneau. */}
       <MailTable rows={rows} canEdit={canEdit} canCreate={canCreate} dossier={searchParams?.dossier ?? null} selection={fiche?.entry.id ?? null} />
 
       {fiche && <FicheCourrierPanneau fiche={fiche} dossier={searchParams?.dossier ?? null} />}
