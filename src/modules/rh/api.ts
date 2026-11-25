@@ -21,7 +21,7 @@
 export * from "./partage";
 
 // ── Congés : la fiche, le circuit N+1 → RH → DG, la file, l'escalade, les absences d'équipe
-export { attachLeaveFiles, createLeaveRequest, HR_TYPE_TO_LEAVE, hrTypeIsLeave, leaveDecider, revalidateLeaveViews } from "./infra/leave-core";
+export { attachLeaveFiles, createLeaveRequest, HR_TYPE_TO_LEAVE, hrTypeIsLeave, leaveDecider, revalidateLeaveViews, superieurHierarchiqueDe } from "./infra/leave-core";
 export { leaveFormContext } from "./infra/leave-form-context";
 export { remonterConge, trancherSousEscalade } from "./infra/conge-escalade";
 

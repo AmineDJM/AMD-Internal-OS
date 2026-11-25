@@ -104,6 +104,19 @@ export class Recette {
     await this.jouer(titre, attendu, geste, { ...o, bloquante: false });
   }
 
+  /**
+   * DÉPLIE TOUT LE MENU LATÉRAL — pôles et groupes. Un pôle replié ne rend pas ses entrées : compter les liens d'un menu
+   * sans le déplier compterait ce qu'on voit, pas ce qui existe (une personne déplie le pôle pour trouver l'entrée).
+   */
+  async deplierMenu(page: Page = this.page): Promise<void> {
+    const menu = page.locator("[data-app-sidebar]");
+    for (let tour = 0; tour < 40; tour += 1) {
+      const replie = menu.locator("button[aria-expanded='false']").first();
+      if (!(await replie.count())) return;
+      await replie.click();
+    }
+  }
+
   /** La page ne défile pas de côté (téléphone) : la largeur du document tient dans l'écran. */
   async sansDebordement(page: Page = this.page): Promise<string> {
     const { scroll, largeur } = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, largeur: window.innerWidth }));

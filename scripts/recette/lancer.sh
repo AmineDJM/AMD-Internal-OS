@@ -72,7 +72,9 @@ echo "▶ Migrations sur $BASE"
 npx prisma migrate deploy >/dev/null
 
 SERVEUR_PID=""
-arreter() { if [[ -n "$SERVEUR_PID" ]]; then kill "$SERVEUR_PID" 2>/dev/null || true; wait "$SERVEUR_PID" 2>/dev/null || true; fi; }
+# Le serveur tourne dans SON groupe de processus (`setsid`) : `npx` lance `next start` en petit-enfant, et tuer npx seul
+# laissait le serveur tourner (et tenir sa mémoire) après la recette. On arrête le groupe entier.
+arreter() { if [[ -n "$SERVEUR_PID" ]]; then kill -TERM -- "-$SERVEUR_PID" 2>/dev/null || kill "$SERVEUR_PID" 2>/dev/null || true; wait "$SERVEUR_PID" 2>/dev/null || true; fi; }
 trap arreter EXIT
 
 if [[ -n "$URL_EXISTANTE" ]]; then
@@ -91,7 +93,7 @@ else
     essayer(3200);')}"
   export RECETTE_URL="http://localhost:$PORT"
   echo "▶ Serveur de production locale sur $RECETTE_URL"
-  env NEXTAUTH_URL="$RECETTE_URL" NEXTAUTH_SECRET="$SECRET" \
+  setsid env NEXTAUTH_URL="$RECETTE_URL" NEXTAUTH_SECRET="$SECRET" \
     DRIVE_ENCRYPTION_KEY="${DRIVE_ENCRYPTION_KEY:-$(node -e 'console.log(require("crypto").createHash("sha256").update(process.argv[1]).digest("hex"))' "$SECRET")}" \
     ADAM_SORTIE_INTERDITE=1 TACHES_DE_FOND=worker SCHEDULER_DISABLED=1 WORKFLOW_SCHEDULER=off TRAVAUX_SWEEP=off \
     ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-recette-cle-presente-non-utilisee}" OPENAI_API_KEY="${OPENAI_API_KEY:-recette-cle-presente-non-utilisee}" \

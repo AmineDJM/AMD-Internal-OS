@@ -42,6 +42,8 @@ export async function nettoyerRecette(prisma: PrismaClient): Promise<void> {
   const ordreIds = ordres.map((o) => o.id);
   const sans = async (p: Promise<unknown>) => { await p.catch(() => undefined); };
   await sans(prisma.paymentCentreMessage.deleteMany({ where: { orderId: { in: ordreIds } } }));
+  // Les pièces du registre posées par la recette (BC signés des ordres de test) : avant les ordres qu'elles citent.
+  await sans(prisma.legalDocument.deleteMany({ where: { OR: [{ reference: { startsWith: P } }, { expenseOrderId: { in: ordreIds } }] } }));
   await sans(prisma.paymentRequest.deleteMany({ where: { OR: [{ expenseOrderId: { in: ordreIds } }, { title: { startsWith: P } }] } }));
   await sans(prisma.pettyCashAllotment.deleteMany({ where: { expenseOrderId: { in: ordreIds } } }));
   await sans(prisma.expenseOrder.deleteMany({ where: { id: { in: ordreIds } } }));
@@ -57,6 +59,7 @@ export async function nettoyerRecette(prisma: PrismaClient): Promise<void> {
   await sans(prisma.promoProduct.deleteMany({ where: { name: { startsWith: P } } }));
   await sans(prisma.medicalVisit.deleteMany({ where: { OR: [{ report: { startsWith: P } }, { doctor: { name: { startsWith: P } } }] } }));
   await sans(prisma.medicalDoctor.deleteMany({ where: { name: { startsWith: P } } }));
+  await sans(prisma.product.deleteMany({ where: { code: { startsWith: P } } }));
   await sans(prisma.congressNational.deleteMany({ where: { name: { startsWith: P } } }));
   await sans(prisma.businessUnit.deleteMany({ where: { name: { startsWith: P } } }));
   await sans(prisma.notification.deleteMany({ where: { userId: { in: ids } } }));

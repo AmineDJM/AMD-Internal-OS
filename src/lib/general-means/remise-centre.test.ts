@@ -21,7 +21,7 @@ import {
  */
 
 const ordre = (status: string, centralStatus: string) => ({ status, centralStatus });
-const TOUS: EtatRemise[] = ["EN_ATTENTE", "A_VERSER", "VERSEE", "REFUSEE", "ANNULEE"];
+const TOUS: EtatRemise[] = ["SANS_BON", "EN_ATTENTE", "A_VERSER", "VERSEE", "REFUSEE", "ANNULEE"];
 
 describe("etatRemise — le livre fait foi sur l'argent sorti", () => {
   it("une remise d'AVANT la règle n'a pas d'ordre : elle est versée, et se confirme comme avant", () => {
@@ -49,11 +49,17 @@ describe("etatRemise — le livre fait foi sur l'argent sorti", () => {
     expect(de("PENDING", "NOT_REQUIRED")).toBe("A_VERSER");
     expect(de("PENDING", "AWAITING")).toBe("EN_ATTENTE");
   });
+
+  it("sans bon de remise, l'ordre attend sa pièce AVANT le centre : la remise le dit (justificatif obligatoire, 24/11)", () => {
+    expect(etatRemise({ aUnOrdre: true, ordre: ordre("PENDING", "AWAITING_PROOF"), transactionId: null })).toBe("SANS_BON");
+    expect(ETAT_REMISE_LABEL.SANS_BON.label).toMatch(/bon de remise/);
+    expect(refusConfirmationRemise("SANS_BON")).toMatch(/pas encore partie au centre de paiement/);
+  });
 });
 
 describe("ce qui attend l'argent n'est ni dans le fond, ni à solder", () => {
   it("en attente et à verser attendent ; versée, refusée et annulée non", () => {
-    expect(TOUS.filter(remiseEnAttente)).toEqual(["EN_ATTENTE", "A_VERSER"]);
+    expect(TOUS.filter(remiseEnAttente)).toEqual(["SANS_BON", "EN_ATTENTE", "A_VERSER"]);
   });
 
   it("chaque état a son libellé", () => {
@@ -67,6 +73,7 @@ describe("refusConfirmationRemise — on ne confirme pas avoir reçu ce qui n'es
   });
 
   it("chaque refus nomme ce qu'on attend, et de qui", () => {
+    expect(refusConfirmationRemise("SANS_BON")).toMatch(/bon de remise/);
     expect(refusConfirmationRemise("EN_ATTENTE")).toMatch(/autorisation du centre de paiement/);
     expect(refusConfirmationRemise("A_VERSER")).toMatch(/les Finances doivent encore la payer/);
     expect(refusConfirmationRemise("REFUSEE")).toMatch(/refusé/);

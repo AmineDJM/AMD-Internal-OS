@@ -20,7 +20,7 @@ import {
   visibilityLabel, canEditExpenseClaim, expenseAmountError, expenseEditDeadline, expenseEditLabel,
   genererEtRemettreOrdreDeMission, societeDeLOrdreDeMission, estEtatRhTraite, marquerDemandeRhTraitee,
   archiveHrRequestIfDone, genererEtRemettreAttestation, preparerAttestationTravail, refusTransitionDemandeRh,
-  type PreparationAttestation, type Civilite,
+  superieurHierarchiqueDe, type PreparationAttestation, type Civilite,
 } from "@/modules/rh/api";
 import { fdStr, fdNum, fdDate, type ActionResult } from "@/lib/actions/types";
 import { refusAnnulationDemandeRh, STATUTS_RH_ANNULABLES } from "@/lib/annulations/regles";
@@ -31,6 +31,7 @@ import { synchroniserOrdreEmis } from "@/lib/missions-equipe/serveur";
 import { refusTraitementRh } from "@/lib/missions-equipe/etat";
 import { clauseSalariesVisibles } from "@/lib/queries/visibilite-listes";
 import { sansBloquer } from "@/lib/journal";
+import { LIEN_MISSIONS_A_VALIDER } from "@/lib/chemins/espace";
 
 const REQUEST_TYPES: HrRequestType[] = ["WORK_CERTIFICATE", "CNAS_CERTIFICATE", "SALARY_STATEMENT", "DOMICILIATION", "LEAVE_CERTIFICATE", "LEAVE_TITLE", "MISSION_ORDER", "EXPENSE_REPORT", "EXCEPTIONAL_EXIT", "SICK_LEAVE", "ANNUAL_LEAVE", "UNPAID_LEAVE", "SPECIAL_LEAVE", "MATERNITY_LEAVE", "HR_INTERVIEW", "OTHER"];
 const REQUEST_STATUSES: HrRequestStatus[] = ["PENDING", "IN_PROGRESS", "READY", "DELIVERED", "APPROVED", "REJECTED", "CANCELLED"];
@@ -174,9 +175,16 @@ export async function requestHrDocument(formData: FormData): Promise<ActionResul
   let periodDays = needsPeriod ? fdNum(formData, "periodDays") : null;
   if (periodDays == null && periodStart && periodEnd) periodDays = daysInclusive(periodStart, periodEnd);
 
+  // LA NOTE DE FRAIS PASSE PAR LE SUPÉRIEUR HIÉRARCHIQUE, PUIS LES RH (Super Admin, 24/11/2026 — « elles vont aux RH
+  // en passant par le supérieur hiérarchique ») : la même marche N+1 que la note de frais d'une mission (`managerGate`),
+  // tranchée par `deciderOrdreMissionN1`. Sans N+1 rattaché à la fiche, elle part directement aux RH — et on le dit.
+  const n1 = type === "EXPENSE_REPORT" ? await superieurHierarchiqueDe(employee.id, user.id) : null;
+  const parLeN1 = n1 !== null;
+
   const created = await prisma.hrDocumentRequest.create({
     data: {
       employeeId: employee.id, type, details: fdStr(formData, "details"),
+      ...(n1 ? { managerGate: "PENDING" as const, managerUserId: n1 } : {}),
       expenseMonth: type === "EXPENSE_REPORT" ? expenseMonth : null,
       expenseAmount: expenseAmount != null ? expenseAmount : null,
       // LA FENÊTRE EST POSÉE À L'ENVOI, pas recalculée à la lecture : elle se lit ainsi dans la
@@ -192,15 +200,31 @@ export async function requestHrDocument(formData: FormData): Promise<ActionResul
   // exigé plus haut), versées au dossier de la demande — visibles du demandeur et des RH.
   const refus = await attachRequestFiles(created.id, files, user.id);
   if (refus) return { ok: false, error: refus };
-  await recordAudit({ actorId: user.id, action: "CREATE", module: "RH", summary: `Demande RH — ${type}` });
-  await notifyRoles(["DIRECTION", "SUPER_ADMIN"], {
-    type: "GENERIC",
-    title: "Nouvelle demande RH",
-    body: `${employee.fullName} a demandé un document RH.`,
-    link: `/rh/demandes?demande=${created.id}`,
-  });
+  await recordAudit({ actorId: user.id, action: "CREATE", module: "RH", summary: `Demande RH — ${type}${parLeN1 ? " (chez le N+1, puis les RH)" : ""}` });
+  if (n1) {
+    await notifyUser({
+      userId: n1, type: "GENERIC", title: "Note de frais à valider (votre équipe)",
+      body: `${employee.fullName}${expenseAmount != null ? ` — ${expenseAmount.toLocaleString("fr-FR")} DZD` : ""} : validez-la pour qu'elle parte aux RH.`,
+      link: LIEN_MISSIONS_A_VALIDER,
+    }).catch(sansBloquer("rh-documents.requestHrDocument.notifyUser"));
+  } else {
+    await notifyRoles(["DIRECTION", "SUPER_ADMIN"], {
+      type: "GENERIC",
+      title: "Nouvelle demande RH",
+      body: `${employee.fullName} a demandé un document RH.`,
+      link: `/rh/demandes?demande=${created.id}`,
+    });
+  }
   revalidatePath("/mon-dossier");
   revalidatePath("/rh");
+  if (type === "EXPENSE_REPORT") {
+    return {
+      ok: true, id: created.id,
+      message: parLeN1
+        ? "Note de frais envoyée — chez votre supérieur hiérarchique, puis les RH."
+        : "Note de frais envoyée — aucun supérieur n'est rattaché à votre fiche : elle part directement aux RH.",
+    };
+  }
   return { ok: true, id: created.id };
 }
 

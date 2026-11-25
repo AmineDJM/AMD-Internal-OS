@@ -16,8 +16,8 @@ import type { BudgetChoice, CompteChoice, LigneBanque } from "./orders-table";
 /**
  * LE PANNEAU « PAYER » — toujours le même, quel que soit l'ordre (Super Admin, 24/11/2026).
  *
- * Le récapitulatif, puis seulement ce qui a une réponse à donner : le compte (s'il y en a au moins deux, avec son
- * solde), la date (aujourd'hui par défaut, jamais dans le futur), le mode (virement ; espèces pour une remise de
+ * Le récapitulatif, puis seulement ce qui a une réponse à donner : le compte (à choisir s'il y en a au moins deux, avec
+ * son solde ; un seul : il est DIT, avec son solde — on paie depuis un compte qu'on voit), la date (aujourd'hui par défaut, jamais dans le futur), le mode (virement ; espèces pour une remise de
  * caisse, que son écrivain sort toujours en liquide), la référence du virement ou du chèque (facultative), la
  * quittance d'un BV de l'ancien circuit, le budget quand l'ordre n'en a pas — JAMAIS pour une remise, qui n'est pas
  * une dépense. « Marquer payé » règle ; l'annulation passe par la barre d'annulation commune (`annulable`).
@@ -30,6 +30,9 @@ export function PayerPanneau({ ligne, comptes, budgets, onClose }: {
 }) {
   const aujourdhui = React.useMemo(() => jourAlger(new Date()), []);
   const choisirCompte = comptes.length >= 2;
+  // UN SEUL COMPTE : rien à choisir, mais il se dit — le compte que le règlement prendra (`compteParDefaut`, la même règle
+  // que le serveur quand aucun compte n'est envoyé), avec son solde, rouge s'il ne couvre pas le paiement.
+  const compteUnique = choisirCompte ? null : comptes.find((c) => c.id === ligne.compteParDefautId) ?? null;
   const [compteId, setCompteId] = React.useState(ligne.compteParDefautId ?? comptes[0]?.id ?? "");
   const [date, setDate] = React.useState(aujourdhui);
   const [mode, setMode] = React.useState<string>(ligne.remise ? "CASH" : "BANK_TRANSFER");
@@ -62,6 +65,16 @@ export function PayerPanneau({ ligne, comptes, budgets, onClose }: {
       width="md"
     >
       <form action={regler} className="space-y-4">
+
+        {compteUnique && (
+          <div className="space-y-1.5">
+            <p className="text-sm font-medium">Payé depuis</p>
+            <p className="flex flex-wrap items-center justify-between gap-1.5 rounded-lg border border-border px-3 py-2.5 text-sm">
+              <span className="font-medium">{compteUnique.nom}</span>
+              <span className={`tabular-nums ${compteUnique.solde < ligne.montant ? "text-destructive" : "text-muted-foreground"}`}>{formatCurrency(compteUnique.solde)} au {jourFr(compteUnique.jourAncrage)}</span>
+            </p>
+          </div>
+        )}
 
         {choisirCompte && (
           <fieldset className="space-y-1.5">

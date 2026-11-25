@@ -567,6 +567,22 @@ suite("Paie et caisse d'avance par le centre de paiement", () => {
       expect(seule.error).toMatch(/attend encore le centre de paiement/);
     });
 
+    it("SANS BON DE REMISE, LA REMISE N'ENTRE PAS AU CENTRE — et la phrase le DIT, avec le remède (justificatif obligatoire, 24/11/2026)", async () => {
+      ACTOR = await rh();
+      const r = await allotPettyCash(form({ departmentId: deptBId, holderId, amount: "7777", period: "2033-07" }));
+      expect(r.ok, r.error).toBe(true);
+      // « envoyée au centre de paiement » serait faux : l'ordre attend sa pièce, ni le centre ni les Finances ne le voient.
+      expect(r.message).not.toMatch(/envoyée au centre de paiement \(/);
+      expect(r.message).toMatch(/PAS encore envoyée au centre de paiement : il manque le bon de remise/);
+      const remise = await prisma.pettyCashAllotment.findFirstOrThrow({ where: { departmentId: deptBId, amount: 7777 }, include: { expenseOrder: true } });
+      expect(remise.expenseOrder?.centralStatus).toBe("AWAITING_PROOF");
+      // L'ÉCRAN la montre « attend son bon de remise », avec le lien vers le dossier où le joindre.
+      const vue = await getGeneralMeans(await actorFor(holderId, "DIRECTION_ASSISTANT"), deptBId, YEAR);
+      const ligne = vue?.cash?.remittances.find((x) => x.id === remise.id);
+      expect(ligne?.centre).toBe("SANS_BON");
+      expect(ligne?.dossierHref).toMatch(/\/validations\/paiements\//);
+    });
+
     it("UNE REMISE D'AVANT LA RÈGLE (sans ordre) se confirme comme avant", async () => {
       const ancienne = await prisma.pettyCashAllotment.create({
         data: { departmentId: deptAId, period: "2033-01", amount: 3000, holderId },

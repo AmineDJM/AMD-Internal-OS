@@ -10,6 +10,7 @@ import { etatRemise, remiseEnAttente, statutPourLeFond, motifDuRefus, type EtatR
 import { isFullyClassified } from "@/lib/budget/imputation";
 import { natureDeLaDepense, partsParNature, type PartDeNature } from "@/lib/general-means/ecran";
 import { getAppSettings } from "@/lib/settings";
+import { dossierHrefByOrder } from "@/modules/finances/api";
 
 /**
  * MOYENS GÉNÉRAUX — la lecture consolidée d'un département : son budget, ses dépenses, sa
@@ -65,6 +66,8 @@ export interface GeneralMeansRemittance {
    * et à verser, versée, refusée. `VERSEE` pour une remise d'avant la règle.
    */
   centre: EtatRemise;
+  /** Le dossier de paiement de la remise qui ATTEND SON BON (`SANS_BON`) — c'est là qu'il se joint ; `null` sinon. */
+  dossierHref: string | null;
   holder: string;
   receivedAt: string | null;
   note: string | null;
@@ -349,6 +352,9 @@ export async function getGeneralMeans(
     },
   });
   const openRows = remittanceRows.filter((r) => r.status !== "CLOSED");
+  // LE BON DE REMISE SE JOINT AU DOSSIER DE PAIEMENT de l'ordre : l'écran y mène la remise qui l'attend.
+  const sansBon = openRows.filter((r) => r.expenseOrderId && r.expenseOrder?.centralStatus === "AWAITING_PROOF").map((r) => r.expenseOrderId!);
+  const dossierDeLOrdre = sansBon.length ? await dossierHrefByOrder(sansBon) : new Map<string, string>();
   const closedRows = remittanceRows.filter((r) => r.status === "CLOSED").slice(0, 12);
   /** La remise la plus récente : c'est elle qui nomme le détenteur du fond. */
   const latest = openRows[0] ?? null;
@@ -491,6 +497,7 @@ export async function getGeneralMeans(
       spent: remittanceSpent(base),
       status: r.status as PettyCashStatus,
       centre: centreDe(r),
+      dossierHref: r.expenseOrderId ? dossierDeLOrdre.get(r.expenseOrderId) ?? null : null,
       holder: r.holder?.name ?? "",
       receivedAt: r.receivedAt ? r.receivedAt.toISOString() : null,
       note: r.note,

@@ -15,6 +15,9 @@
  *   remise → EN_ATTENTE (centre) → REFUSEE, ou A_VERSER (Finances) → VERSEE (payée, à confirmer)
  *          → confirmée par le caissier (`RECEIVED`) : alors seulement elle compte dans le solde.
  *
+ * LE JUSTIFICATIF D'ABORD (24/11/2026) : une remise sans BON DE REMISE n'entre pas au centre — elle est `SANS_BON` (l'ordre
+ * attend sa pièce, `AWAITING_PROOF`) et l'écran le dit, avec le remède : joindre le bon au dossier de paiement.
+ *
  * La règle du 28/10/2026 — l'autorisation du centre créditait la caisse aussitôt, sans Finances ni
  * confirmation — est retirée : l'argent ne compte qu'une fois sorti de la banque ET reçu en main.
  * Confirmer avoir reçu une somme que personne n'a encore payée, c'est attester un fait qui n'a pas
@@ -40,7 +43,7 @@
 import { PETTY_CASH_STATUS_LABEL, type PettyCashStatus } from "@/lib/petty-cash";
 
 /** Où en est une remise, côté argent. */
-export type EtatRemise = "EN_ATTENTE" | "A_VERSER" | "VERSEE" | "REFUSEE" | "ANNULEE";
+export type EtatRemise = "SANS_BON" | "EN_ATTENTE" | "A_VERSER" | "VERSEE" | "REFUSEE" | "ANNULEE";
 
 export interface RemiseBrute {
   /** La remise porte-t-elle un ordre de dépense ? Non = remise d'avant la règle. */
@@ -68,10 +71,12 @@ export function etatRemise(r: RemiseBrute): EtatRemise {
   if (o.status === "CANCELLED") return "ANNULEE";
   if (o.centralStatus === "REFUSED") return "REFUSEE";
   if (o.centralStatus === "APPROVED" || o.centralStatus === "NOT_REQUIRED") return "A_VERSER";
+  if (o.centralStatus === "AWAITING_PROOF") return "SANS_BON";
   return "EN_ATTENTE";
 }
 
 export const ETAT_REMISE_LABEL: Record<EtatRemise, { label: string; tone: "warning" | "success" | "neutral" | "danger" }> = {
+  SANS_BON: { label: "Attend son bon de remise", tone: "warning" },
   EN_ATTENTE: { label: "En attente du centre de paiement", tone: "warning" },
   A_VERSER: { label: "Autorisée — à payer par les Finances", tone: "warning" },
   VERSEE: { label: "Versée", tone: "success" },
@@ -81,7 +86,7 @@ export const ETAT_REMISE_LABEL: Record<EtatRemise, { label: string; tone: "warni
 
 /** La remise attend-elle encore l'argent ? Elle n'est alors ni dans le fond, ni à solder. */
 export function remiseEnAttente(etat: EtatRemise): boolean {
-  return etat === "EN_ATTENTE" || etat === "A_VERSER";
+  return etat === "SANS_BON" || etat === "EN_ATTENTE" || etat === "A_VERSER";
 }
 
 /** Payée par les Finances, pas encore confirmée par le caissier : hors du solde, en attente de son geste. */
@@ -136,6 +141,8 @@ export function motifDuRefus(note: string | null): string | null {
 export function refusConfirmationRemise(etat: EtatRemise): string | null {
   switch (etat) {
     case "VERSEE": return null;
+    case "SANS_BON":
+      return "Cette remise attend son bon de remise : sans lui, elle n'est pas encore partie au centre de paiement — rien n'est à recevoir.";
     case "EN_ATTENTE":
       return "Cette remise attend encore l'autorisation du centre de paiement : la somme n'est pas partie, vous ne pouvez pas confirmer l'avoir reçue.";
     case "A_VERSER":

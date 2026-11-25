@@ -509,14 +509,15 @@ export interface OrdreAValiderDTO {
  */
 export const MARCHE_N1_MISSIONS = (userId: string): Prisma.HrDocumentRequestWhereInput => ({
   status: "PENDING", managerGate: "PENDING", managerUserId: userId,
-  OR: [{ type: "MISSION_ORDER" }, { type: "EXPENSE_REPORT", missionAssignmentId: { not: null } }],
+  // Toute note de frais, de mission ou non : elles montent toutes N+1 → RH (Super Admin, 24/11/2026).
+  type: { in: ["MISSION_ORDER", "EXPENSE_REPORT"] },
 });
 
 /** LES ORDRES DE MISSION (et notes de frais de mission) QUI ATTENDENT MA VALIDATION (N+1) — la marche avant les RH. */
 export async function ordresMissionAValider(userId: string): Promise<OrdreAValiderDTO[]> {
   const rows = await prisma.hrDocumentRequest.findMany({
     where: MARCHE_N1_MISSIONS(userId),
-    select: { id: true, type: true, createdAt: true, omPrefill: true, expenseAmount: true, missionAssignmentId: true, employee: { select: { fullName: true } } },
+    select: { id: true, type: true, createdAt: true, omPrefill: true, expenseAmount: true, expenseMonth: true, details: true, missionAssignmentId: true, employee: { select: { fullName: true } } },
     orderBy: { createdAt: "asc" },
     take: 50,
   });
@@ -530,8 +531,10 @@ export async function ordresMissionAValider(userId: string): Promise<OrdreAValid
     if (r.type === "EXPENSE_REPORT") {
       const a = r.missionAssignmentId ? parAssignation.get(r.missionAssignmentId) : undefined;
       const parent = a ? parents.get(`${a.entityType}:${a.entityId}`) : undefined;
+      // Une note de frais HORS mission (« Mon espace › Une note de frais ») : son mois et son motif, pas une mission.
+      const horsMission = [r.expenseMonth ? `Note de frais de ${r.expenseMonth}` : "Note de frais", r.details].filter(Boolean).join(" — ");
       return {
-        requestId: r.id, employeeName: r.employee.fullName, mission: parent?.label ?? "Mission",
+        requestId: r.id, employeeName: r.employee.fullName, mission: a ? parent?.label ?? "Mission" : horsMission,
         dates: { depart: iso(a?.dateDepart), retour: iso(a?.dateRetour) }, destination: a?.ville ?? parent?.ville ?? null,
         createdAt: r.createdAt.toISOString(), nature: "NF" as const,
         montant: r.expenseAmount != null ? Number(r.expenseAmount) : null, missionId: r.missionAssignmentId,

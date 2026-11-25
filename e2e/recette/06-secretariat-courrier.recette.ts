@@ -45,10 +45,14 @@ test("Délégué — demandeur ordinaire : il ne voit que ses demandes ; la note
     const autres = page.locator("tbody tr").filter({ hasNotText: /Délégué médical/ });
     expect(await autres.count()).toBe(0);
   });
-  await r.controle("Ouvrir « Mon espace › Demander » › note de frais", "Le circuit annoncé est : supérieur hiérarchique → RH (pas l'assistante de direction)", async () => {
+  await r.controle("Ouvrir « Mon espace › Demander » › « Une note de frais »", "Le circuit annoncé est : supérieur hiérarchique → RH (pas l'assistante de direction)", async () => {
     await r.aller("/mon-espace");
-    await page.getByRole("button", { name: "Demander" }).first().click();
-    await expect(page.getByText(/note de frais/i).first()).toBeVisible();
+    await page.getByRole("button", { name: "Une note de frais" }).first().click();
+    const feuille = page.getByRole("dialog").last();
+    await expect(feuille).toContainText("Ajouter une note de frais");
+    await expect(feuille).toContainText(/supérieur hiérarchique/);
+    await expect(feuille).toContainText(/RH/);
+    await expect(feuille).not.toContainText(/assistante de direction/i);
   });
 });
 
@@ -67,10 +71,17 @@ test("Assistante — courrier : enregistrer, ouvrir en panneau, corriger sans ef
     await panneau.getByRole("button", { name: /Enregistrer/ }).last().click();
     await expect(page.getByText("Convocation ANPP — Cardiolex").first()).toBeVisible();
   });
-  await r.etape("Cliquer la ligne du courrier", "Sa fiche s'ouvre en PANNEAU ; bouton « Enregistrer les corrections »", async () => {
-    await page.getByText("Convocation ANPP — Cardiolex").first().click();
-    await expect(page.getByRole("button", { name: "Enregistrer les corrections" })).toBeVisible();
-  });
+  await r.etape("Fermer le panneau, cliquer la ligne du courrier, « Modifier »", "Sa fiche s'ouvre en PANNEAU (la liste reste derrière) ; « Modifier » bascule le panneau en correction : « Enregistrer les corrections »", async () => {
+    // L'enregistrement laisse la fiche du nouveau courrier ouverte dans le panneau : on revient au registre seul pour
+    // rouvrir le courrier depuis sa ligne, comme le lendemain.
+    await r.aller("/courriers");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await page.getByRole("link", { name: /Convocation ANPP — Cardiolex/ }).first().click();
+    const panneau = page.getByRole("dialog").last();
+    await expect(panneau).toContainText("Convocation ANPP — Cardiolex");
+    await panneau.getByRole("button", { name: "Modifier" }).click();
+    await expect(panneau.getByRole("button", { name: "Enregistrer les corrections" })).toBeVisible();
+  }, { cible: page.getByRole("dialog").last() });
   await r.controle("Téléphone : ouvrir la liste des courriers", "Pas de défilement de côté ; le panneau prend tout l'écran", async () => {
     const tel = await r.telephone("assistante");
     await r.aller("/courriers", tel);

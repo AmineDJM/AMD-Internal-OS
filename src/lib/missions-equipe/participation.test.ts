@@ -225,7 +225,9 @@ describe("La clôture", () => {
     expect(refusDecisionN1NoteFrais(nf, true, "VALIDER", null)).toBeNull();
     expect(refusDecisionN1NoteFrais(nf, false, "VALIDER", null)).toMatch(/Seul le N\+1/);
     expect(refusDecisionN1NoteFrais(nf, true, "REFUSER", "")).toMatch(/pourquoi/);
-    expect(refusDecisionN1NoteFrais({ ...nf, missionAssignmentId: null }, true, "VALIDER", null)).toMatch(/pas une note de frais de mission/);
+    // TOUTE note de frais monte N+1 → RH (Super Admin, 24/11/2026) : celle de « Mon espace », hors mission, aussi.
+    expect(refusDecisionN1NoteFrais({ ...nf, missionAssignmentId: null }, true, "VALIDER", null)).toBeNull();
+    expect(refusDecisionN1NoteFrais({ ...nf, type: "MISSION_ORDER" }, true, "VALIDER", null)).toMatch(/pas une note de frais/);
     expect(refusDecisionN1NoteFrais({ ...nf, managerGate: "APPROVED" }, true, "VALIDER", null)).toMatch(/n'attend plus/);
   });
 });
