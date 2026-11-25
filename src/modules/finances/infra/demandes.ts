@@ -2,12 +2,11 @@ import type { EntityType, PaymentRequestStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { userCan, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
-import { notifyUser, notifyRoles } from "@/lib/notify";
+import { notifyUser, notifyModule } from "@/lib/notify";
 import { referenceDeSerie } from "@/lib/refs";
 import { ttcDesFacturesStockees } from "@/lib/factures/connues";
 import type { ActionResult } from "@/lib/actions/types";
 import { ENTITY_MODULE } from "@/lib/entity-access";
-import { ROLES_CENTRE_DE_PAIEMENT } from "../domaine/authorization";
 import { statusFromPieces } from "../domaine/payment-request";
 import type { LectureMontant } from "../domaine/montant-facture";
 
@@ -82,7 +81,7 @@ export async function alertFinance(req: { id: string; reference: string; title: 
   const body = `${req.reference} — ${req.title}`;
   const link = `${PATH}/${req.id}`;
   if (req.recipientId) await notifyUser({ userId: req.recipientId, type: "VALIDATION_REQUIRED", title, body, link });
-  await notifyRoles([...ROLES_CENTRE_DE_PAIEMENT], { type: "VALIDATION_REQUIRED", title, body, link });
+  await notifyModule("PAYMENT_CENTRE", { type: "VALIDATION_REQUIRED", title, body, link });
 }
 
 /** Recalcule l'état d'après les verdicts, et le trace s'il change. */

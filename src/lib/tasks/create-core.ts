@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { taskCreationMode, creationNotices, CREATION_STATUS, type TaskCreationMode } from "@/lib/tasks/request-flow";
 import { rejouerNotifications } from "@/lib/notifications/ecrire";
+import { admettreLignes } from "@/lib/notifications/admission";
 import { lienTache } from "@/lib/chemins/espace";
 
 /**
@@ -64,11 +65,11 @@ export async function createTaskRecord(
   if (notices.length) {
     // La tâche s'ouvre dans la vue où elle se range POUR CHACUN : « À faire » (ou « à accepter ») pour qui
     // la reçoit, « Partagées » pour un participant ou un lecteur.
-    const lignes = notices.map((n) => ({
+    const lignes = await admettreLignes(notices.map((n) => ({
       userId: n.userId, type: "ASSIGNMENT" as const, title: n.title, body: input.title,
       link: lienTache(created.id, n.userId === input.assignedToId ? undefined : "partagees"), popup: n.popup,
-    }));
-    try {
+    })), "nominatif", "tasks.createTaskCore");
+    if (lignes.length) try {
       await prisma.notification.createMany({ data: lignes });
     } catch (err) {
       await rejouerNotifications(lignes, err);

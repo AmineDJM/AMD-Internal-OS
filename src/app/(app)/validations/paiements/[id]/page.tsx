@@ -153,9 +153,9 @@ export default async function PaymentRequestPage(props: { params: Promise<{ id: 
   // Le motif ne se répète pas quand il n'est que le libellé par défaut d'une autorisation sèche.
   const motifCentre = derniereDecision && derniereDecision.body !== CENTRAL_DECISION_LABEL[derniereDecision.decision as CentralDecision]
     ? derniereDecision.body : null;
-  // Le centre ne montre une ligne qu'à ses sièges et à son demandeur : le lien n'est offert qu'à eux,
-  // sinon il mènerait les Finances à une page qui leur explique qu'elles n'y siègent pas.
-  const voitLeCentre = sitsOnPaymentCentre(user) || req.requesterId === user.id;
+  // Le centre n'ouvre qu'à ses sièges (la Direction générale, 25/11/2026) : le lien n'est offert qu'à eux. Le demandeur
+  // lit ici même l'état de l'autorisation — le centre le renverrait vers ses demandes.
+  const voitLeCentre = sitsOnPaymentCentre(user);
 
   const amount = toNumber(req.amount);
   // `entityType` et l'attestation entrent dans le calcul : c'est le rattachement qui exempte un

@@ -2,7 +2,9 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { SessionUser } from "@/lib/rbac";
 import { userCan, hasGlobalView } from "@/lib/rbac";
-import { sitsOnPaymentCentre } from "@/modules/finances/partage";
+import { sitsOnPaymentCentre, ENTITE_SANS } from "@/modules/finances/partage";
+import { instruitLesDemandes } from "@/modules/finances/api";
+import { lienCentreDePaiement, lienOrdreAPayer } from "@/lib/chemins/finances";
 import { platformScope } from "@/lib/company";
 import { globalSearch } from "@/lib/queries/search";
 import { toNumber } from "@/lib/utils";
@@ -167,8 +169,13 @@ export async function searchEverythingStrict(user: SessionUser, q: string, take 
 
   const entity = await platformScope(user.id);
   const global = hasGlobalView(user);
+  // L'ARGENT DES AUTRES (25/11/2026) : les dossiers de paiement à qui les instruit (les Finances) ou siège au centre ; les
+  // ORDRES au centre (lien vers sa file) ou à qui tient « Banque & paiements » (lien vers sa ligne). Le droit transverse
+  // `FINANCES` en lecture ne suffit plus : le Directeur des opérations l'a, et la recherche le menait au centre de paiement.
   const canFinances = userCan(user, "FINANCES", "VIEW");
-  const canPayments = sitsOnPaymentCentre(user) || canFinances;
+  const siege = sitsOnPaymentCentre(user);
+  const canPayments = siege || instruitLesDemandes(user);
+  const canOrders = siege || userCan(user, "FINANCES_BANQUE", "VIEW");
 
   // Les `where` à repli flou se préparent EN PARALLÈLE (chacun peut sonder le SQL), puis les
   // requêtes partent ensemble : la latence de la fédération est celle de la famille la plus
@@ -217,11 +224,11 @@ export async function searchEverythingStrict(user: SessionUser, q: string, take 
       take, orderBy: { createdAt: "desc" },
     }).catch(sansBloquer("search-everything.searchEverythingStrict.paymentRequest", [])),
 
-    // 3) Règlements (ordres de dépense) — Finances ou siège du centre.
-    canPayments
+    // 3) Règlements (ordres de dépense) — siège du centre ou Banque & paiements.
+    canOrders
       ? prisma.expenseOrder.findMany({
           where: wOrders as Prisma.ExpenseOrderWhereInput,
-          select: { id: true, reference: true, label: true, beneficiary: true, status: true, centralStatus: true, amount: true, createdAt: true },
+          select: { id: true, reference: true, label: true, beneficiary: true, status: true, centralStatus: true, amount: true, createdAt: true, companyId: true },
           take, orderBy: { createdAt: "desc" },
         }).catch(sansBloquer("search-everything.searchEverythingStrict.expenseOrder", []))
       : [],
@@ -341,7 +348,9 @@ export async function searchEverythingStrict(user: SessionUser, q: string, take 
     hits.push({
       famille: "Règlements", titre: `${r.reference} — ${r.label}`,
       detail: `${r.beneficiary ?? "—"} · ${Math.round(toNumber(r.amount)).toLocaleString("fr-FR")} DZD`,
-      reference: r.reference, statut: r.centralStatus ?? r.status, date: d10(r.createdAt), lien: "/centre-de-paiement",
+      reference: r.reference, statut: r.centralStatus ?? r.status, date: d10(r.createdAt),
+      // Chacun vers SON écran : le centre pour qui y siège (sur l'entité et l'ordre), la ligne à payer pour les Finances.
+      lien: siege ? `${lienCentreDePaiement(r.companyId ?? ENTITE_SANS)}&ordre=${encodeURIComponent(r.id)}` : lienOrdreAPayer(r.id),
     });
   }
   for (const r of legal) {

@@ -6,7 +6,7 @@ import type { SessionUser } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/utils";
 import { getCompanies, moneyEntityOf } from "@/lib/company";
-import { notifyRoles } from "@/lib/notify";
+import { notifyRoles, notifyModule } from "@/lib/notify";
 import { type AdProParent, sansBonDeCommande, noteApresCorrection, refusChangementDeValidation, refusEditionDesLignes, refusGenerationBC, refusTauxDuDevis, type LigneDevisPoste } from "@/modules/ad-pro/partage";
 import { enSerie } from "@/lib/refs";
 import { fdStr, fdCase, type ActionResult } from "@/lib/actions/types";
@@ -504,7 +504,7 @@ async function traiterLeBCDuPoste(formData: FormData, mode: "APERCU" | "VALIDER"
       const posee = await prisma.adProItem.updateMany({ where: prise.where, data: prise.data });
       if (posee.count === 0) return { ok: false, error: REFUS_MARCHE_PRISE };
       if (!prise.sousLeSeuil) {
-        await notifyRoles(["GENERAL_MANAGER", "SUPER_ADMIN"], notificationDuCentreBC({ id: item.id, ref: info.ref, label: item.label, montantAccorde: montantAccorde as number })).catch(sansBloquer("ad-pro-item-actions.traiterLeBCDuPoste.notifyRoles"));
+        await notifyModule("AD_PRO_CENTRE", notificationDuCentreBC({ id: item.id, ref: info.ref, label: item.label, montantAccorde: montantAccorde as number })).catch(sansBloquer("ad-pro-item-actions.traiterLeBCDuPoste.notifyRoles"));
       }
       marche = { sousLeSeuil: prise.sousLeSeuil, seuilBC: prise.seuilBC };
     }

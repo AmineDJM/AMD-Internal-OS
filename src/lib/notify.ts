@@ -2,8 +2,19 @@ import { UserRole as UserRoleValues } from "@prisma/client";
 import type { NotificationType, UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { anyRoleFilter } from "@/lib/rbac";
+import type { Module } from "@/lib/rbac";
 import { rejouerNotifications } from "@/lib/notifications/ecrire";
+import { admettreDestinataires, personnesAyantLeModule } from "@/lib/notifications/admission";
 import { sendPushToUser } from "@/lib/push";
+
+/*
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * AUCUNE NOTIFICATION D'UN MODULE À QUI N'Y A PAS ACCÈS (Super Admin, 25/11/2026). Chaque écrivain ci-dessous fait passer
+ * ses destinataires par `admettreDestinataires` AVANT d'écrire : qui ne peut pas ouvrir le module du lien est retiré
+ * (journalisé), notification ET envoi poussé. L'exception du demandeur (une fiche adressée nommément) est dans
+ * `notifications/porte-du-lien.ts`. L'écriture reste dans le corps de chaque écrivain (`notifications/ecrire.ts`).
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ */
 
 interface NotifyInput {
   userId: string;
@@ -18,6 +29,8 @@ interface NotifyInput {
 /** Create an internal notification for a user (best-effort) + push sur ses appareils. */
 export async function notifyUser(input: NotifyInput) {
   const { push, ...row } = input;
+  // Adressée NOMMÉMENT : la fiche de SA demande lui reste permise (`admisParLaPorte`).
+  if ((await admettreDestinataires([input.userId], input.link, "nominatif", "notifyUser")).length === 0) return;
   try {
     await prisma.notification.create({ data: row });
   } catch (err) {
@@ -58,7 +71,7 @@ export async function broadcastNotification(opts: {
   popup?: boolean;
 }, fixe?: { idsFixes?: string[] }): Promise<number> {
   try {
-    const ids = await destinatairesDeLaDiffusion(opts);
+    const ids = await admettreDestinataires(await destinatairesDeLaDiffusion(opts), opts.link, "collectif", "broadcastNotification");
     if (ids.length === 0) return 0;
     // UN DESTINATAIRE DISPARU NE DOIT PAS FAIRE TAIRE TOUT L'ENVOI : le lot est le chemin
     // rapide, et un lot refusé se rejoue ligne à ligne (§118.137). Le nombre rendu est celui des
@@ -102,10 +115,12 @@ export async function notifyRoles(
       console.error("[notify] rôle(s) inconnu(s) ignoré(s) :", roles.filter((r) => !(r in UserRoleValues)));
     }
     if (connus.length === 0) return;
-    const users = await prisma.user.findMany({
+    const lus = await prisma.user.findMany({
       where: { ...anyRoleFilter(connus), isActive: true },
       select: { id: true },
     });
+    // Un RÔLE n'est pas un accès : la console a pu fermer le module à l'un d'eux (`admettreDestinataires`).
+    const users = (await admettreDestinataires(lus.map((u) => u.id), input.link, "collectif", "notifyRoles")).map((id) => ({ id }));
     if (users.length === 0) return;
     // UN DESTINATAIRE DISPARU NE DOIT PAS FAIRE TAIRE TOUT L'ENVOI — même règle que le rôle
     // inventé ci-dessus, par l'autre porte : les comptes sont LUS puis écrits, et l'un d'eux peut
@@ -120,5 +135,34 @@ export async function notifyRoles(
     await Promise.all(users.map((u) => sendPushToUser(u.id, { title: input.title, body: input.body, url: input.link ?? "/" })));
   } catch (err) {
     console.error("[notify] failed (roles)", err);
+  }
+}
+
+/**
+ * PRÉVENIR LES PERSONNES QUI ONT LE MODULE — et non une liste de rôles écrite dans le code (Super Admin, 25/11/2026).
+ *
+ * `notifyRoles(["GENERAL_MANAGER", "SUPER_ADMIN"])` prévenait un Directeur Général que la console avait BLOQUÉ, et oubliait
+ * la personne à qui elle avait OUVERT le module. Ici, les destinataires sont lus sur l'accès réel (`personnesAyantLeModule` :
+ * rôle, « autre rôle », console, puis la règle propre du module — un siège), et le lien passe la même admission que
+ * partout. Rend le nombre de personnes prévenues. Best-effort, comme les autres écrivains.
+ */
+export async function notifyModule(module: Module, input: Omit<NotifyInput, "userId">): Promise<number> {
+  try {
+    const ayants = await personnesAyantLeModule(module);
+    const ids = await admettreDestinataires(ayants, input.link, "collectif", `notifyModule:${module}`);
+    if (ids.length === 0) return 0;
+    const { push, ...row } = input;
+    const lignes = ids.map((userId) => ({ ...row, userId }));
+    let ecrites = lignes.length;
+    try {
+      await prisma.notification.createMany({ data: lignes });
+    } catch (err) {
+      ecrites = await rejouerNotifications(lignes, err);
+    }
+    await Promise.all(ids.map((userId) => sendPushToUser(userId, { title: input.title, body: input.body, url: input.link ?? "/", tag: push?.tag, requireInteraction: push?.requireInteraction })));
+    return ecrites;
+  } catch (err) {
+    console.error("[notify] failed (module)", err);
+    return 0;
   }
 }

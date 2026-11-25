@@ -9,6 +9,12 @@ export const CHEMIN_PAIEMENTS_A_FAIRE = "/finances/paiements-a-faire";
 export const CHEMIN_CENTRE_DE_PAIEMENT = "/centre-de-paiement";
 
 /**
+ * « MES DEMANDES DE PAIEMENT » (dans les Demandes de validations) — là où un demandeur suit SES paiements : chaque dossier
+ * y dit l'état de son autorisation au centre. C'est là, et jamais au centre, qu'on envoie qui n'y siège pas (25/11/2026).
+ */
+export const CHEMIN_MES_DEMANDES_DE_PAIEMENT = "/validations/paiements";
+
+/**
  * LE CENTRE DE PAIEMENT ouvert sur l'ENTITÉ où le paiement attend — sans elle, il s'ouvre sur
  * l'entité qui attend le plus, souvent pas celle de la notification. Une seule file par entité :
  * plus de section dans l'adresse (les anciens `?section=` sont ignorés par l'écran).

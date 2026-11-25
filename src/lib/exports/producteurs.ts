@@ -1,5 +1,6 @@
 import type { CurrentUser } from "@/lib/session";
 import { userCan, peutAnnuaire } from "@/lib/rbac";
+import { sitsOnPaymentCentre } from "@/modules/finances/partage";
 import { DOMAINES, DOMAINES_POLE } from "@/lib/budget/domaines";
 import { droitsSegmentation } from "@/lib/segmentation/droits";
 import { peutPiloterDemandesStocks } from "@/lib/queries/demande-stocks";
@@ -87,10 +88,11 @@ const OUVERTURES: Readonly<Record<string, (u: CurrentUser) => boolean>> = {
   exporter_fiche_coaching: (u) => voit(u, "MEDICAL"),
   exporter_annuaire: (u) => voit(u, "MEDICAL") || peutAnnuaire(u, "MEDECINS", "VIEW") || peutAnnuaire(u, "PHARMACIENS", "VIEW"),
   exporter_plan_de_tournee_pdf: (u) => voit(u, "MEDICAL"),
-  // Les deux écrans de l'argent sont ouverts à toute personne connectée (chacun y voit ses demandes ; le centre et les
-  // Finances, leur file) : la porte est la PORTÉE, jugée par la fonction d'export.
+  // « Mes demandes de paiement » est ouvert à toute personne connectée (chacun y voit ses demandes ; les Finances, leur
+  // file) : la porte est la PORTÉE, jugée par la fonction d'export. Le CENTRE, lui, est à la Direction générale seule
+  // (25/11/2026) : l'outil ne s'offre qu'à qui y siège.
   exporter_demandes_paiement: () => true,
-  exporter_ordres_centre_paiement: () => true,
+  exporter_ordres_centre_paiement: (u) => sitsOnPaymentCentre(u),
 };
 
 export const exportOuvert = (outil: string, user: CurrentUser): boolean => OUVERTURES[outil]?.(user) ?? false;

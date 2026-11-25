@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { identiteDuSondage } from "@/lib/session-legere";
 import { prisma } from "@/lib/prisma";
 import { reécriteLienNotification } from "@/lib/notifications/lien-actuel";
+import { clauseOuvrablesDe } from "@/lib/notifications/admission";
 
 export const dynamic = "force-dynamic";
 
@@ -16,10 +17,12 @@ export async function GET() {
   const user = await identiteDuSondage();
   if (!user || user.mustChangePassword) return NextResponse.json({ unread: 0, popups: [] }, { status: 200 });
 
+  // Les notifications qu'elle peut encore OUVRIR (25/11/2026) — la clause est gardée une minute par personne.
+  const ouvrables = await clauseOuvrablesDe(user.id, user.role);
   const [unread, popups] = await Promise.all([
-    prisma.notification.count({ where: { userId: user.id, isRead: false } }),
+    prisma.notification.count({ where: { AND: [{ userId: user.id, isRead: false }, ouvrables] } }),
     prisma.notification.findMany({
-      where: { userId: user.id, isRead: false, popup: true },
+      where: { AND: [{ userId: user.id, isRead: false, popup: true }, ouvrables] },
       select: { id: true, title: true, body: true, link: true, createdAt: true },
       orderBy: { createdAt: "asc" },
       take: 5,

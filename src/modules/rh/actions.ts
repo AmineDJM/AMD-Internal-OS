@@ -709,15 +709,14 @@ export async function decideAdvance(formData: FormData): Promise<ActionResult> {
       data: { status: decision, decidedById: user.id, decidedAt: new Date(), decisionNote: fdStr(formData, "note") },
     });
     if (pris.count === 0) return { ok: false, error: "Cette demande vient d'être traitée ou retirée — rechargez la page." };
+    // Par la porte commune (`notifyUser`) : l'admission du destinataire y est faite une fois (25/11/2026).
     if (adv.employee.userId) {
-      await prisma.notification.create({
-        data: {
-          userId: adv.employee.userId, type: "GENERIC",
-          title: decision === "APPROVED" ? "Avance approuvée" : "Avance refusée",
-          body: `Votre demande d'avance sur salaire a été ${decision === "APPROVED" ? "approuvée" : "refusée"}.`,
-          link: LIEN_MES_AVANCES,
-        },
-      }).catch(sansBloquer("hr-actions.decideAdvance.notification"));
+      await notifyUser({
+        userId: adv.employee.userId, type: "GENERIC",
+        title: decision === "APPROVED" ? "Avance approuvée" : "Avance refusée",
+        body: `Votre demande d'avance sur salaire a été ${decision === "APPROVED" ? "approuvée" : "refusée"}.`,
+        link: LIEN_MES_AVANCES,
+      });
     }
 
     // Approval → emit an ordre de dépense for the comptable (who settles it).

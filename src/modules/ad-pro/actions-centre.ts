@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
-import { notifyUser, notifyRoles } from "@/lib/notify";
+import { notifyUser, notifyRoles, notifyModule } from "@/lib/notify";
 import { montantPourLeVisa, seuilAdProEnVigueur, demandeurDuVisa, peutResoumettreAuCentre, demandeAttendLeCentre } from "@/modules/ad-pro/api";
 import { porteDgRequise } from "@/lib/seuils/ad-pro";
 import { siegeAuCentreAdPro, REFUS_CENTRE_AD_PRO, AD_PRO_ENTITY_TYPE, AD_PRO_KINDS, type AdProKind } from "@/modules/ad-pro/partage";
@@ -279,7 +279,7 @@ export async function resoumettreAuCentreAdPro(formData: FormData): Promise<Acti
   if (!garde) {
     return { ok: true, id: entityId, message: "Corrigée sous le seuil : elle ne passe plus par le centre et poursuit son circuit." };
   }
-  await notifyRoles(["GENERAL_MANAGER", "SUPER_ADMIN"], {
+  await notifyModule("AD_PRO_CENTRE", {
     type: "VALIDATION_REQUIRED", title: "Centre Ad & Pro : demande resoumise après correction",
     body: historique, link: lienLigneCentreAdPro(entityId),
   }).catch(sansBloquer("ad-pro-centre-actions.resoumettreAuCentreAdPro.notifyRoles"));

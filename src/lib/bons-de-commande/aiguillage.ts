@@ -2,7 +2,7 @@ import { Prisma, type EntityType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/utils";
 import { recordAudit } from "@/lib/audit";
-import { notifyRoles } from "@/lib/notify";
+import { notifyRoles, notifyModule } from "@/lib/notify";
 import { createDirectValidation } from "@/lib/validation";
 import { centreValidatorFrom } from "@/lib/validations/centre";
 import { TYPES_ENTITE_AD_PRO } from "@/modules/ad-pro/partage";
@@ -365,7 +365,7 @@ async function poser(doc: DocBC, centre: CentreBC, acteurId: string, motif: stri
       // d'audit garde qui avait validé et quand, et la raison de la réouverture est la note.
       update: { status: "PENDING", decidedById: null, decidedAt: null, note: motif, amount: montant },
     });
-    await notifyRoles(["GENERAL_MANAGER", "SUPER_ADMIN"], {
+    await notifyModule("AD_PRO_CENTRE", {
       type: "VALIDATION_REQUIRED",
       title: motif ? "Bon de commande à revalider" : "Bon de commande à valider",
       body: `${titre} (${montantLisible(montant)})${motif ? ` — ${motif}` : ""}`,

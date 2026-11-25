@@ -20,6 +20,7 @@ import {
   sendDirective, attachDirectiveFiles, resolveRecipientIds, companyIdsOf, scopeOf,
 } from "@/lib/directives/recipients";
 import { rejouerNotifications } from "@/lib/notifications/ecrire";
+import { admettreLignes } from "@/lib/notifications/admission";
 import { sansBloquer } from "@/lib/journal";
 
 const PATH = "/directives";
@@ -371,11 +372,11 @@ export async function postDirectiveMessage(formData: FormData): Promise<ActionRe
     // Une réponse de la Direction se pousse à la personne quand la note est nominative ;
     // au-delà, elle vit dans le fil, que chacun retrouve depuis la directive.
     if (ids.length > 0 && ids.length <= 5) {
-      const lignes = ids.map((userId) => ({
+      const lignes = await admettreLignes(ids.map((userId) => ({
         userId, type: "GENERIC" as const, title: "Directive — message",
         body: `${d.reference} — ${d.title}`, link: `${PATH}/${id}`,
-      }));
-      try {
+      })), "nominatif", "directive-actions.message");
+      if (lignes.length) try {
         await prisma.notification.createMany({ data: lignes });
       } catch (err) {
         await rejouerNotifications(lignes, err);

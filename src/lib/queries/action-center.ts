@@ -22,6 +22,7 @@ import { libelleEtape } from "@/lib/promo-material/circuit";
 import { toNumber, formatCurrency } from "@/lib/utils";
 import { polesLisibles } from "@/lib/lecteurs/consulting";
 import { reécriteLienNotification } from "@/lib/notifications/lien-actuel";
+import { clauseNotificationsOuvrables } from "@/lib/notifications/admission";
 import type { PromoMaterialStatus } from "@prisma/client";
 import { MARCHE_N1_MISSIONS } from "@/lib/queries/missions";
 import { lienMission, LIEN_MISSIONS_A_VALIDER } from "@/lib/chemins/espace";
@@ -970,7 +971,8 @@ export async function getActionCenter(user: SessionUser) {
   // 7. Notifications non lues
   let notifications: ActionNotification[] = [];
   if (userCan(user, "NOTIFICATIONS", "VIEW")) {
-    const notifs = await prisma.notification.findMany({ where: { userId: user.id, isRead: false }, orderBy: { createdAt: "desc" }, take: 20 });
+    // Celles qu'elle peut encore ouvrir (25/11/2026) : un module retiré depuis n'y laisse rien.
+    const notifs = await prisma.notification.findMany({ where: { AND: [{ userId: user.id, isRead: false }, clauseNotificationsOuvrables(user)] }, orderBy: { createdAt: "desc" }, take: 20 });
     notifications = notifs.map((n) => ({ id: n.id, title: n.title, body: n.body ?? "", link: reécriteLienNotification(n.link) ?? "", type: n.type, createdAt: n.createdAt.toISOString() }));
   }
 

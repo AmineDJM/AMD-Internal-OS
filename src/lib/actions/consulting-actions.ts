@@ -6,7 +6,7 @@ import { requireUser, requireUserAuNomDeLaVue } from "@/lib/session";
 import { userCan, hasGlobalView, getAccess, type SessionUser, type Action } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
-import { notifyUser, notifyRoles } from "@/lib/notify";
+import { notifyUser, notifyRoles, notifyModule } from "@/lib/notify";
 import { lienLigneCentreAdPro } from "@/lib/chemins/ad-pro";
 import { createWithRetry, referenceDeSerie } from "@/lib/refs";
 import { companyIdForNew } from "@/lib/company";
@@ -276,14 +276,14 @@ export async function requestConsultingValidation(formData: FormData): Promise<A
     if (visa?.etat === "PENDING") {
       // On prévient le CENTRE, pas le validateur : c'est lui qui a la main, et prévenir les deux
       // ferait croire au validateur qu'il peut trancher — il se heurterait au blocage (§118.30).
-      await notifyRoles(["GENERAL_MANAGER", "SUPER_ADMIN"], {
+      await notifyModule("AD_PRO_CENTRE", {
         type: "VALIDATION_REQUIRED", title: "Centre Ad & Pro — contrat de consulting au-dessus du seuil",
         body, link: lienLigneCentreAdPro(id),
       });
     } else if (visa?.etat === "REFUSED") {
       // Resoumis sous un REFUS du centre : seul un siège peut le réexaminer. Prévenir le validateur, que
       // ce refus bloque, lui demanderait une décision qu'il ne peut pas prendre (§118.30).
-      await notifyRoles(["GENERAL_MANAGER", "SUPER_ADMIN"], {
+      await notifyModule("AD_PRO_CENTRE", {
         type: "VALIDATION_REQUIRED", title: "Centre Ad & Pro — contrat resoumis : votre refus est à réexaminer",
         body, link: lienLigneCentreAdPro(id),
       });
@@ -685,7 +685,7 @@ export async function transfererConsulting(formData: FormData): Promise<ActionRe
       }
     }
     if (porte === "POSEE") {
-      await notifyRoles(["GENERAL_MANAGER", "SUPER_ADMIN"], {
+      await notifyModule("AD_PRO_CENTRE", {
         type: "VALIDATION_REQUIRED", title: "Centre Ad & Pro — contrat de consulting au-dessus du seuil",
         body, link: lienLigneCentreAdPro(id),
       });

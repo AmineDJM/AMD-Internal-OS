@@ -15,6 +15,7 @@ import { createTaskRecord } from "@/lib/tasks/create-core";
 import { attachFiles, validateAttachments } from "@/lib/attach-files";
 import { fdStr, fdNum, fdDate, type ActionResult } from "@/lib/actions/types";
 import { rejouerNotifications } from "@/lib/notifications/ecrire";
+import { admettreLignes, lienAdmis } from "@/lib/notifications/admission";
 import { CHEMIN_TACHES, lienTache, vueTachePour } from "@/lib/chemins/espace";
 import { sansBloquer } from "@/lib/journal";
 
@@ -174,10 +175,10 @@ export async function modifierTache(formData: FormData): Promise<ActionResult> {
 
   await prisma.task.update({ where: { id }, data });
   const prevenir = new Set([data.assignedToId, task.assignedToId].filter((p): p is string => !!p && p !== user.id));
-  const lignes = [...prevenir].map((userId) => ({
+  const lignes = await admettreLignes([...prevenir].map((userId) => ({
     userId, type: "ASSIGNMENT" as const, title: "Tâche modifiée", body: `${task.title} — ${resume.join(", ")}`,
     link: userId === task.assignedToId && nouveau ? CHEMIN_TACHES : lienTache(id),
-  }));
+  })), "nominatif", "task-actions.modification");
   if (lignes.length) {
     try {
       await prisma.notification.createMany({ data: lignes });
@@ -306,13 +307,13 @@ export async function addTaskComment(formData: FormData): Promise<ActionResult> 
     task.assignedToId, task.createdById, ...task.participantIds, ...task.readerIds,
   ].filter((x): x is string => Boolean(x) && x !== user.id))];
   if (circle.length) {
-    const lignes = circle.map((userId) => ({
+    const lignes = await admettreLignes(circle.map((userId) => ({
       userId, type: "GENERIC" as const,
       title: `${user.name} a commenté une tâche`,
       body: `${task.title} — ${body.slice(0, 120)}`,
       link: lienTache(id, vueTachePour(userId, task)),
-    }));
-    try {
+    })), "nominatif", "task-actions.commentaire");
+    if (lignes.length) try {
       await prisma.notification.createMany({ data: lignes });
     } catch (err) {
       await rejouerNotifications(lignes, err);
@@ -350,7 +351,7 @@ export async function respondTaskRequest(formData: FormData): Promise<ActionResu
     where: { id },
     data: { status, respondedAt: new Date(), declineReason: reason, ...(accept ? { startedAt: new Date() } : {}) },
   });
-  if (task.createdById) {
+  if (task.createdById && await lienAdmis(task.createdById, lienTache(id, "demandees"), "task-actions.reponse")) {
     await prisma.notification.create({
       data: {
         userId: task.createdById, type: "GENERIC",
@@ -394,7 +395,7 @@ export async function submitTaskWork(formData: FormData): Promise<ActionResult> 
     where: { id },
     data: { status: "DONE", completedAt: again ? undefined : new Date(), completionNote: fdStr(formData, "note") },
   });
-  if (task.createdById && task.createdById !== user.id) {
+  if (task.createdById && task.createdById !== user.id && await lienAdmis(task.createdById, lienTache(id, "demandees"), "task-actions.travail")) {
     await prisma.notification.create({
       data: {
         userId: task.createdById, type: "GENERIC",
@@ -473,7 +474,7 @@ export async function relanceTaskRequest(formData: FormData): Promise<ActionResu
 
   await prisma.task.update({ where: { id }, data: { lastNudgeAt: new Date(), nudgeCount: rang } });
 
-  if (task.assignedToId) {
+  if (task.assignedToId && await lienAdmis(task.assignedToId, lienTache(id), "task-actions.relance")) {
     await prisma.notification.create({
       data: {
         userId: task.assignedToId, type: "ASSIGNMENT",
@@ -539,7 +540,7 @@ export async function annulerDemandeTache(formData: FormData): Promise<ActionRes
   await prisma.taskComment.create({
     data: { taskId: id, authorId: user.id, body: motif ? `Demande annulée par son demandeur — ${motif}` : "Demande annulée par son demandeur." },
   }).catch(sansBloquer("task-actions.annulerDemandeTache.taskComment"));
-  if (task.assignedToId) {
+  if (task.assignedToId && await lienAdmis(task.assignedToId, lienTache(id), "task-actions.annulation")) {
     await prisma.notification.create({
       data: {
         userId: task.assignedToId, type: "ASSIGNMENT",
@@ -597,14 +598,14 @@ export async function reattribuerDemandeTache(formData: FormData): Promise<Actio
   await prisma.taskComment.create({
     data: { taskId: id, authorId: user.id, body: `Demande réattribuée à ${nouveau.name}${ancien ? ` (auparavant : ${ancien})` : ""}.` },
   }).catch(sansBloquer("task-actions.reattribuerDemandeTache.taskComment"));
-  const lignes = [
+  const lignes = await admettreLignes([
     { userId: nouveau.id, type: "ASSIGNMENT" as const, title: "Demande de tâche", body: task.title, link: lienTache(id), popup: true },
     // L'ancien destinataire ne voit plus la tâche : on le mène à SES tâches, pas à une fiche fermée.
     ...(task.status === "REQUESTED" && task.assignedToId && task.assignedToId !== nouveau.id
       ? [{ userId: task.assignedToId, type: "ASSIGNMENT" as const, title: "Demande réattribuée", body: `${task.title} — vous n'avez plus à la traiter.`, link: CHEMIN_TACHES, popup: false }]
       : []),
-  ];
-  try {
+  ], "nominatif", "task-actions.reattribution");
+  if (lignes.length) try {
     await prisma.notification.createMany({ data: lignes });
   } catch (err) {
     await rejouerNotifications(lignes, err);

@@ -8,7 +8,7 @@ import { reporterLesPostesDeclares, ouvrirDeclarationSiPostesValides, posteCompt
 export { reporterLesPostesDeclares, ouvrirDeclarationSiPostesValides, posteCompteDansLaDeclaration, signalerPostesALaDeclaration };
 import { toNumber } from "@/lib/utils";
 import { recordAudit } from "@/lib/audit";
-import { notifyUser, notifyRoles } from "@/lib/notify";
+import { notifyUser, notifyRoles, notifyModule } from "@/lib/notify";
 import { AD_PRO_PARENTS, ITEM_KIND_LABELS, PARENT_ENTITE, type AdProParent } from "../../domaine/postes";
 import { PIECE_SECRETARIAT, NATURES_PIECE_SECRETARIAT, TITRE_BC_A_ETABLIR, type NaturePieceSecretariat } from "../../domaine/pieces-secretariat";
 import { montantDeLaDemande } from "../../domaine/montant-demande";
@@ -542,9 +542,8 @@ export function etatBcDe(item: PosteCharge): EtatBcPoste {
   };
 }
 
-/** Qui siège au centre de validation Ad & Pro, et qui émet — les rôles que la demande de BC prévient déjà. */
-export const SIEGES_CENTRE: UserRole[] = ["GENERAL_MANAGER", "SUPER_ADMIN"];
-
+/** Qui émet le BC — le rôle que la demande de BC prévient déjà. (Le centre Ad & Pro, lui, se prévient par son module :
+ *  `notifyModule("AD_PRO_CENTRE")` — la console décide qui y siège, 25/11/2026.) */
 export const FINANCES_BC: UserRole[] = ["FINANCE_BUDGET_MANAGER", "SUPER_ADMIN"];
 
 /**
@@ -571,7 +570,7 @@ export async function appliquerGesteVisa(
       },
     });
     if (r.count === 0) return null;
-    await notifyRoles(SIEGES_CENTRE, {
+    await notifyModule("AD_PRO_CENTRE", {
       type: "VALIDATION_REQUIRED", title: "Bon de commande à revoir", body: `${cible} — ${geste.motif}`, link: lienLigneCentreAdPro(item.id),
     }).catch(sansBloquer("ad-pro-item-actions.appliquerGesteVisa.notifyRoles"));
     // Les Finances avaient reçu « à émettre » : sans ce message, l'ordre partirait sous l'ancien visa.

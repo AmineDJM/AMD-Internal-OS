@@ -8,6 +8,7 @@ import {
   scopeRegulatory, scopeAdminRequests, type CurrentUser, getAppSettings,
 } from "@/lib/assistant/coeur/erp";
 import { resultatListe, resultatVide } from "@/platform/ia/lectures/empty-result";
+import { clauseNotificationsOuvrables } from "@/lib/notifications/admission";
 // Les demandes Ad & Pro, le secrétariat et les circuits : par le pont (frontière Adam ↔ ERP).
 import {
   WORKFLOW_CATEGORIES, CATEGORY_LABELS, SCOPE_LABELS, POWER_LABELS, ACTOR_SCOPES, WORKFLOW_POWERS,
@@ -104,7 +105,7 @@ export async function executeReadTool(name: string, input: Record<string, unknow
       const [openTasks, openRequests, unread] = await Promise.all([
         prisma.task.count({ where: { assignedToId: user.id, status: { in: ["TODO", "IN_PROGRESS"] } } }),
         prisma.administrativeRequest.count({ where: { AND: [scopeAdminRequests(user), { status: { notIn: ["DONE", "CANCELLED"] } }] } }),
-        prisma.notification.count({ where: { userId: user.id, isRead: false } }),
+        prisma.notification.count({ where: { AND: [{ userId: user.id, isRead: false }, clauseNotificationsOuvrables(user)] } }),
       ]);
       const mods = accessibleModules(user).map((m) => MODULE_FR[m]).filter(Boolean);
       return JSON.stringify({ tachesOuvertes: openTasks, demandesEnCours: openRequests, notificationsNonLues: unread, modulesAccessibles: mods });

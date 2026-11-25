@@ -4,16 +4,16 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
-import { notifyUser, notifyRoles } from "@/lib/notify";
+import { notifyUser, notifyRoles, notifyModule } from "@/lib/notify";
 import { lienRemiseCaisse } from "@/lib/chemins/moyens-generaux";
 import {
   sitsOnPaymentCentre, applyDecision, applyResubmission, canResubmitAuCentre as canResubmit, memeBeneficiaire,
   CENTRAL_DECISION_LABEL, CENTRAL_STATUS_LABEL, type CentralDecision, type CentralStatus,
-  PAYMENT_CENTRE_REFUSAL, refusOrdreFerme, ROLES_CENTRE_DE_PAIEMENT, dossierHrefByOrder, ENTITE_SANS,
+  PAYMENT_CENTRE_REFUSAL, refusOrdreFerme, dossierHrefByOrder, ENTITE_SANS,
   refusSeparationDesTaches, approbateursEnAmont, signauxDeFractionnement, phraseFractionnement,
 } from "@/modules/finances/api";
 import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
-import { lienCentreDePaiement, lienOrdreAPayer } from "@/lib/chemins/finances";
+import { CHEMIN_MES_DEMANDES_DE_PAIEMENT, lienCentreDePaiement, lienOrdreAPayer } from "@/lib/chemins/finances";
 import { ouvrirPourEcrire } from "@/lib/queries/porte-ecriture";
 import { getAppSettings } from "@/lib/settings";
 import { sansBloquer } from "@/lib/journal";
@@ -244,14 +244,15 @@ export async function decidePayment(formData: FormData): Promise<ActionResult> {
     });
   }
   if (order.requestedById) {
-    // Le demandeur ne siège pas au centre : il va sur SON dossier (la demande qui porte l'ordre).
+    // Le demandeur ne siège pas au centre : il va sur SON dossier (la demande qui porte l'ordre), et sans dossier sur
+    // « Mes demandes de paiement » — jamais au centre, qui ne s'ouvre qu'à la Direction générale (25/11/2026).
     const dossier = dossierBv ?? await dossierHrefByOrder([id]).then((m) => m.get(id)).catch(sansBloquer("payment-centre-actions.decidePayment.dossierHrefByOrder"));
     await notifyUser({
       userId: order.requestedById,
       type: next === "APPROVED" ? "GENERIC" : "VALIDATION_REQUIRED",
       title: `Centre de paiement — ${CENTRAL_DECISION_LABEL[decision]}`,
       body: `${order.reference} — ${order.label} (${money})${body.trim() ? ` : ${body.trim().slice(0, 200)}` : ""}`,
-      link: dossier ?? PATH,
+      link: dossier ?? CHEMIN_MES_DEMANDES_DE_PAIEMENT,
     });
   }
 
@@ -331,7 +332,7 @@ export async function respondToPaymentCentre(formData: FormData): Promise<Action
     actorId: user.id, action: "UPDATE", module: "Finances", entityType: "EXPENSE_ORDER", entityId: id,
     summary: `Centre de paiement — réponse du demandeur : ${order.reference} « ${order.label} »`,
   });
-  await notifyRoles([...ROLES_CENTRE_DE_PAIEMENT], {
+  await notifyModule("PAYMENT_CENTRE", {
     type: "VALIDATION_REQUIRED",
     title: "Réponse reçue — autorisation à reprendre",
     body: `${order.reference} — ${order.label} (${Number(order.amount).toLocaleString("fr-FR")} DZD)`,

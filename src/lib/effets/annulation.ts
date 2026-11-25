@@ -4,6 +4,7 @@ import type { CurrentUser } from "@/lib/session";
 import { prismaBrut } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser } from "@/lib/notify";
+import { lienAdmis } from "@/lib/notifications/admission";
 import { composer, type Changement, type EtatActuel } from "@/lib/annulation/plan";
 import { classerGeste, natureDe as natureDuJournal, type NatureGeste } from "@/lib/annulation/reversibilite";
 import { construireDiff, natureDe } from "./diff";
@@ -294,7 +295,9 @@ async function defaireCreation(e: EffetLu, info: InfoModele, ctx: Contexte): Pro
     if (ctx.appliquer) {
       const ecrit = await prismaBrut.notification.create({
         data: {
-          userId: String(actuelle.userId), type: (actuelle.type ?? "GENERIC") as never, link: (actuelle.link as string | null) ?? null,
+          // Le lien de la notification reprise, s'il lui est encore ouvrable (droits retirés depuis : le rectificatif part sans lien).
+          userId: String(actuelle.userId), type: (actuelle.type ?? "GENERIC") as never,
+          link: await lienAdmis(String(actuelle.userId), (actuelle.link as string | null) ?? null, "annulation.rectificatif") ? (actuelle.link as string | null) ?? null : null,
           title: `Rectificatif — ${String(actuelle.title ?? "")}`.slice(0, 300), body: `Annulé par ${ctx.user.name ?? "son auteur"} : n'en tenez plus compte.`,
         },
       }).then(() => true, async (err) => { if (await destinataireDisparu("Notification", actuelle)) return false; throw err; });

@@ -1,6 +1,7 @@
+import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/session";
-import { EmptyState } from "@/components/shared/empty-state";
-import { PAYMENT_CENTRE_REFUSAL, trierFile } from "@/modules/finances/partage";
+import { sitsOnPaymentCentre, trierFile } from "@/modules/finances/partage";
+import { CHEMIN_MES_DEMANDES_DE_PAIEMENT } from "@/lib/chemins/finances";
 import { chargerCentre, historiqueDuCentre } from "@/modules/finances/api";
 import { contexteDuCentre } from "@/lib/queries/centre-contexte";
 import { CentreBoard } from "./centre-board";
@@ -24,25 +25,21 @@ export const metadata = { title: "Centre de paiement — AMD Internal OS" };
  * compteurs répétés, plus de description d'en-tête, plus de deux liens vers la même page : la file est le compte, la
  * fiche est le dossier.
  *
- * L'écran reste ouvert au DEMANDEUR qui n'y décide pas : il y suit ses propres paiements, sans gestes de décision.
- * Qui n'y décide pas et n'a rien demandé lit la règle, et comment faire autoriser un paiement.
+ * QUI N'Y SIÈGE PAS N'Y ENTRE PAS (Super Admin, 25/11/2026 : « une personne qui n'a pas accès à un module ne peut pas
+ * l'ouvrir »). L'écran restait ouvert au demandeur, qui y suivait ses paiements — et la fiche de décision lui montrait ce
+ * qui n'est écrit que pour la Direction générale : l'historique du bénéficiaire sur toute la société, le budget avant →
+ * après. Le choix le plus sûr : le demandeur est RENVOYÉ vers « Mes demandes de paiement », où chaque dossier dit l'état
+ * de son autorisation, qui a tranché, quand et pourquoi (`validations/paiements/[id]`). Le chargeur refuse de son côté
+ * (`chargerCentre`), l'export aussi (`exporterOrdresCentre`).
  */
 export default async function CentreDePaiementPage(props: { searchParams?: Promise<{ entite?: string; ordre?: string }> }) {
   const searchParams = await props.searchParams;
   const user = await requireUser();
+  if (!sitsOnPaymentCentre(user)) redirect(CHEMIN_MES_DEMANDES_DE_PAIEMENT);
 
-  // Le chargeur décide de la portée (sociétés ouvertes, Direction générale ou demandeur) et VALIDE l'entité de l'adresse.
+  // Le chargeur décide de la portée (sociétés ouvertes) et VALIDE l'entité de l'adresse.
   const centre = await chargerCentre(user, { entite: searchParams?.entite ?? null });
   const { canDecide } = centre;
-
-  if (!canDecide && centre.aucunOrdre) {
-    return (
-      <div className="space-y-5">
-        <h1 className="text-2xl font-bold">Centre de paiement</h1>
-        <EmptyState icon="ShieldAlert" title="Le centre de paiement est réservé à la Direction générale" description={PAYMENT_CENTRE_REFUSAL} />
-      </div>
-    );
-  }
 
   // LA FICHE DE CHAQUE ORDRE EN ATTENTE, en lot ; puis l'ordre de la file (échéance fixe proche, montant élevé, ancienneté).
   const [fiches, historique] = await Promise.all([

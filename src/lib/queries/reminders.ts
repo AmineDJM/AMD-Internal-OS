@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { RECURRENCE_LABEL, type ReminderRecurrence } from "@/lib/assistant/reminders";
 import type { RappelVue } from "@/lib/rappels/vue";
+import type { SessionUser } from "@/lib/rbac";
+import { clauseNotificationsOuvrables } from "@/lib/notifications/admission";
 
 const JOURS_RECUS = 30;
 
@@ -12,7 +14,8 @@ const JOURS_RECUS = 30;
  *   · reçus : les échéances (proches, dépassées) et les relances des 30 derniers jours (50). Les
  *     notifications « Rappel » des rappels personnels n'y sont pas : le rappel lui-même est déjà listé.
  */
-export async function listerMesRappels(userId: string): Promise<RappelVue[]> {
+export async function listerMesRappels(user: SessionUser): Promise<RappelVue[]> {
+  const userId = user.id;
   const depuis = new Date(Date.now() - JOURS_RECUS * 86_400_000);
   const [actifs, faits, assistant, recus] = await Promise.all([
     prisma.reminder.findMany({
@@ -32,6 +35,8 @@ export async function listerMesRappels(userId: string): Promise<RappelVue[]> {
     }),
     prisma.notification.findMany({
       where: {
+        // Celles qu'elle peut encore ouvrir (25/11/2026) : un module retiré depuis n'y laisse rien.
+        AND: [clauseNotificationsOuvrables(user)],
         userId, createdAt: { gte: depuis },
         OR: [
           { type: { in: ["DEADLINE_NEAR", "LATE"] } },
