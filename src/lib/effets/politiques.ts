@@ -30,6 +30,8 @@ export interface PolitiqueAnnulation {
 /** Les gestes inverses métier — importés tard : l'annulation ne tire pas l'ERP entier. */
 const METIERS: Readonly<Record<string, () => Promise<NonNullable<PolitiqueAnnulation["metier"]>>>> = {
   "ad-pro-item-actions:deleteAdProItem": async () => (await import("@/lib/suppression/coeur")).restaurerDepuisLaCorbeille,
+  // Une enveloppe mise à la corbeille (25/11/2026) : elle revient avec ses lignes, les dépenses s'y rattachent de nouveau.
+  "budget-envelope-actions:deleteEnvelope": async () => (await import("@/lib/suppression/coeur")).restaurerDepuisLaCorbeille,
   "reservation-fiche-actions:envoyerFiche": async () => (await import("./annulation-bibliotheque")).indexBibliotheque,
   "reservation-fiche-actions:envoyerFichesPretes": async () => (await import("./annulation-bibliotheque")).indexBibliotheque,
   "reservation-fiche-actions:joindreDevisAgence": async () => (await import("./annulation-bibliotheque")).indexBibliotheque,

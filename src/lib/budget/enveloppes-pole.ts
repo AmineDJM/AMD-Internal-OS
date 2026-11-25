@@ -3,7 +3,8 @@ import { recordAudit } from "@/lib/audit";
 import { companyIdForNew } from "@/lib/company";
 import { enSerie } from "@/lib/refs";
 import { canGovernPoleEnvelope, type SessionUser } from "@/lib/rbac";
-import { DOMAINES, bornesAnnee, type DomainePole } from "@/lib/budget/domaines";
+import { DOMAINES, type DomainePole } from "@/lib/budget/domaines";
+import { trouverOuCreerEnveloppe } from "@/lib/budget/enveloppe-unique";
 import { CATEGORIES_AD_PRO } from "@/lib/budget-marketing/domaine";
 import { CATEGORIES_BV } from "@/lib/budget-regulatory/bv";
 import { CATEGORIES_OPERATIONS, CLE_MASSE_SALARIALE } from "@/lib/budget-operations/force-de-vente";
@@ -102,21 +103,15 @@ async function ouvrirEnveloppeAnnuelle(
 ): Promise<{ id: string; creee: boolean }> {
   const annee = date.getUTCFullYear();
   return enSerie(`enveloppe-annuelle:${pole}:${companyId ?? "groupe"}`, async () => {
-    const existe = await prisma.budgetEnvelope.findFirst({
-      where: {
-        domaine: pole, periodStart: { lte: date }, periodEnd: { gte: date },
-        OR: [{ companyId }, { companyId: null }],
-      },
-      orderBy: [{ isActive: "desc" }, { periodStart: "desc" }],
-      select: { id: true },
-    });
-    if (existe) return { id: existe.id, creee: false };
-    const { debut, fin } = bornesAnnee(annee);
+    // La clé (société, pôle, année) par la fonction unique (`enveloppe-unique.ts`) : une enveloppe du pôle de l'année,
+    // de la société ou du groupe — et, pour une personne sans société, l'UNIQUE enveloppe de société du pôle (le cas qui
+    // avait doublé « Operations & Sales 2026 ») — n'est jamais doublée.
     const nom = nomEnveloppeAnnuelle(pole, annee);
-    const cree = await prisma.budgetEnvelope.create({
-      data: { name: nom, domaine: pole, modules: [], periodStart: debut, periodEnd: fin, totalAmount: 0, createdById: actorId, companyId },
-      select: { id: true },
-    });
+    const cree = await trouverOuCreerEnveloppe(
+      { companyId, annee, direction: pole },
+      { name: nom, domaine: pole, modules: [], totalAmount: 0, createdById: actorId },
+    );
+    if (!cree.creee) return { id: cree.id, creee: false };
     const n = await completerCategoriesDuPole(cree.id, pole);
     await recordAudit({
       actorId, action: "CREATE", module: DOMAINES[pole].titre, entityId: cree.id,

@@ -6,3 +6,5 @@
  */
 export { hasGlobalView, userCan, hasRole, peutGererSpecialites } from "@/lib/rbac";
 export type { CurrentUser } from "@/lib/session";
+// La suppression d'une enveloppe est à la Direction générale (25/11/2026) : la même règle que l'action.
+export { peutSupprimerEnveloppe } from "@/lib/budget/suppression-enveloppe-regle";

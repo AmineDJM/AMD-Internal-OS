@@ -10,8 +10,6 @@
 
 import * as React from "react";
 import { useAction, type OptionsAction, type OptionsGeste } from "@/components/shared/use-action";
-import { useConfirmer } from "@/components/ui/dialogue";
-import { actionFailureMessage } from "@/lib/action-outcome";
 import { Plus, Pencil, Trash2, Loader2, CornerDownRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
@@ -20,13 +18,12 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/utils";
 import {
-  createEnvelope, updateEnvelope, deleteEnvelope, setBudgetTotal, createBudgetCategory, updateBudgetCategory,
+  createEnvelope, updateEnvelope, setBudgetTotal, createBudgetCategory, updateBudgetCategory,
   addBudgetExpense, updateBudgetExpense,
 } from "@/lib/actions/budget-envelope-actions";
 import type { BudgetOverview, BudgetCategoryView, BudgetHealth, AttributedTx } from "@/lib/queries/budget";
 import { ROLE_LABELS } from "@/lib/labels";
 import { effetAllocation } from "@/lib/budget/marketing-vue";
-import { journal } from "@/lib/journal";
 
 interface BudgetTotalInfo { mode: "FIXED" | "FLEXIBLE"; value: number; fixed: number }
 type UserOpt = { id: string; name: string };
@@ -351,9 +348,10 @@ export function CategoryCard({ c, propre, subs, canManage, onEdit, onDelete, onA
   );
 }
 
-export function EnvelopeSheet({ envelope, users, onClose, onDeleted, canDelete }: { envelope: BudgetOverview["envelope"]; users: UserOpt[]; onClose: () => void; onDeleted: () => void; canDelete: boolean }) {
-  const { busy, err, setErr, run } = useRun();
-  const confirmer = useConfirmer();
+/** La SUPPRESSION de l'enveloppe n'est plus ici : elle est dans le menu « ⋯ » (`supprimer-enveloppe.tsx`), réservée à
+ *  la Direction générale, avec son aperçu chiffré et le nom retapé (25/11/2026). */
+export function EnvelopeSheet({ envelope, users, onClose }: { envelope: BudgetOverview["envelope"]; users: UserOpt[]; onClose: () => void }) {
+  const { busy, err, run } = useRun();
   return (
     <Sheet open onClose={onClose} title="Modifier l'enveloppe" width="md">
       <form action={(fd) => { fd.set("id", envelope.id); run(() => updateEnvelope(fd), onClose); }} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -369,7 +367,7 @@ export function EnvelopeSheet({ envelope, users, onClose, onDeleted, canDelete }
         <label className="flex items-center gap-2 text-sm sm:col-span-2"><input type="checkbox" name="isActive" defaultChecked={envelope.isActive} className="h-4 w-4 rounded border-input" /> Enveloppe active</label>
         {err && <p className="text-sm text-destructive sm:col-span-2">{err}</p>}
         <div className="flex flex-col-reverse gap-2 sm:col-span-2 sm:flex-row sm:items-center sm:justify-between">
-          {canDelete ? <Button type="button" variant="ghost" className="text-destructive" onClick={async () => { if (await confirmer("Supprimer cette enveloppe et ses catégories ?")) { const fd = new FormData(); fd.set("id", envelope.id); deleteEnvelope(fd).then((r) => { if (r.ok) onDeleted(); else setErr(r.error ?? "Suppression refusée."); }).catch((e: unknown) => { journal.erreur("budget-forms.deleteEnvelope", {}, e); setErr(actionFailureMessage("THROWN")); }); } }}><Trash2 className="h-4 w-4" /> Supprimer</Button> : <span />}
+          <span />
           <div className="flex flex-col-reverse gap-2 sm:flex-row"><Button type="button" variant="outline" onClick={onClose}>Annuler</Button><Button type="submit" disabled={busy}>{busy && <Loader2 className="h-4 w-4 animate-spin" />} Enregistrer</Button></div>
         </div>
       </form>

@@ -236,6 +236,20 @@ export const REFERENCES_TEXTE: readonly { modele: string; champ: string; cible: 
   // Le virement de paie garde l'écriture qui l'a soldé (§118.176) — ce fait survit à la purge
   // de l'historique des règlements, et doit être vidé puis rétabli avec elle.
   { modele: "PayrollWire", champ: "transactionId", cible: "FinanceTransaction" },
+  // UNE ENVELOPPE BUDGÉTAIRE MISE À LA CORBEILLE (Super Admin, 25/11/2026) : ce qui désigne ses lignes par un champ texte
+  // redevient « à imputer » (vidé), et se rattache de nouveau à la restauration — comme l'écriture de trésorerie, que sa
+  // clé étrangère met à vide. Rien ne part avec l'enveloppe : ce sont des dépenses, des engagements, des réglages.
+  { modele: "ExpenseOrder", champ: "budgetCategoryId", cible: "BudgetCategoryLine" },
+  { modele: "AbonnementInformatique", champ: "budgetCategoryId", cible: "BudgetCategoryLine" },
+  { modele: "CarePecBc", champ: "budgetCategoryId", cible: "BudgetCategoryLine" },
+  { modele: "ImputationCoutIa", champ: "categoryId", cible: "BudgetCategoryLine" },
+  { modele: "MedicalInfoDeclaration", champ: "budgetCategoryId", cible: "BudgetCategoryLine" },
+  { modele: "MissionAssignment", champ: "budgetCategoryId", cible: "BudgetCategoryLine" },
+  { modele: "PayrollEntry", champ: "budgetCategoryId", cible: "BudgetCategoryLine" },
+  { modele: "RetenueSource", champ: "budgetCategoryId", cible: "BudgetCategoryLine" },
+  { modele: "WorkflowInstance", champ: "budgetCategoryId", cible: "BudgetCategoryLine" },
+  { modele: "BudgetProposalLine", champ: "categoryLineId", cible: "BudgetCategoryLine" },
+  { modele: "BudgetProposal", champ: "envelopeId", cible: "BudgetEnvelope" },
 ];
 
 const ref = (d: Record<string, unknown>) => {
@@ -286,6 +300,16 @@ export function delegueDe(modele: string): string {
 
 /** Libellés lisibles, pour dire à la personne ce qui part avec la demande. */
 export const LIBELLE_DU_MODELE: Readonly<Record<string, [string, string]>> = {
+  // Une enveloppe budgétaire à la corbeille (25/11/2026) : ce qui part avec elle, et ce qui perd son imputation.
+  BudgetCategoryLine: ["ligne budgétaire", "lignes budgétaires"],
+  BudgetExpenseLine: ["dépense saisie dans l'enveloppe", "dépenses saisies dans l'enveloppe"],
+  AbonnementInformatique: ["abonnement informatique", "abonnements informatiques"],
+  ImputationCoutIa: ["imputation du coût de l'IA", "imputations du coût de l'IA"],
+  RetenueSource: ["retenue à la source", "retenues à la source"],
+  BudgetProposalLine: ["ligne de proposition budgétaire", "lignes de proposition budgétaire"],
+  BudgetProposal: ["proposition budgétaire", "propositions budgétaires"],
+  DepartmentBudgetExpense: ["dépense de département", "dépenses de département"],
+  DepartmentExpenseLine: ["ligne de dépense de département", "lignes de dépense de département"],
   // Ce qui part avec un praticien (DONNEES-07) — l'aperçu le dit en français avant le clic.
   DirectoryCellStyle: ["couleur de cellule d'annuaire", "couleurs de cellule d'annuaire"],
   SegmentationFiche: ["fiche de segmentation", "fiches de segmentation"],

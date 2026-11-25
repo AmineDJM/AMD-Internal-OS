@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Plus, Pencil, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +14,7 @@ import { cumulerSousCategories } from "@/lib/budget/cumul-categories";
 import { partRepartie } from "@/lib/budget/marketing-vue";
 import { CategoriesMarketing } from "./categories-marketing";
 import { FenetreConfirmation, type Confirmation } from "./fenetre-confirmation";
+import { MenuEnveloppe } from "./supprimer-enveloppe";
 
 interface BudgetTotalInfo { mode: "FIXED" | "FLEXIBLE"; value: number; fixed: number }
 type UserOpt = { id: string; name: string };
@@ -31,7 +31,7 @@ export interface VariantePole { domaine: DomainePole; options: RattachementOptio
  * la structure du budget alors qu'on voulait juste le consulter.
  */
 export function BudgetSettings({
-  overview, canManage, canManageAccess, budgetTotal, users, marketing, bandeau,
+  overview, canManage, canManageAccess, budgetTotal, users, marketing, bandeau, peutSupprimer = false,
 }: {
   overview: BudgetOverview;
   canManage: boolean;
@@ -42,9 +42,10 @@ export function BudgetSettings({
   marketing?: VariantePole;
   /** Une enveloppe tenue ailleurs (le budget d'un pôle) : le mot qui le dit, à la place du bouton « Modifier ». */
   bandeau?: React.ReactNode;
+  /** La Direction générale (règle serveur) : le menu « ⋯ » propose « Supprimer l'enveloppe ». */
+  peutSupprimer?: boolean;
 }) {
   const peutModifier = marketing ? marketing.canEdit : canManageAccess && !bandeau;
-  const router = useRouter();
   const { run, err: erreurGeste } = useRun();
   const [editEnv, setEditEnv] = React.useState(false);
   const [totalSheet, setTotalSheet] = React.useState(false);
@@ -91,7 +92,7 @@ export function BudgetSettings({
       {/* L'enveloppe elle-même */}
       <section className="surface space-y-3 p-3 sm:p-4">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-sm font-semibold">L&apos;enveloppe</h2>
+          <h2 className="text-sm font-semibold">L&apos;enveloppe{overview.envelope.societe ? <span className="ml-1.5 font-normal text-muted-foreground">· {overview.envelope.societe}</span> : null}</h2>
           <Badge tone={overview.envelope.isActive ? "success" : "neutral"} dot={false}>
             {overview.envelope.isActive ? "Active" : "Archivée"}
           </Badge>
@@ -100,6 +101,11 @@ export function BudgetSettings({
             <Button variant="outline" size="sm" className="ml-auto" onClick={() => setEditEnv(true)}>
               <Pencil className="h-4 w-4" /> Modifier
             </Button>
+          )}
+          {peutSupprimer && (
+            <div className={peutModifier || bandeau ? "" : "ml-auto"}>
+              <MenuEnveloppe envelopeId={overview.envelope.id} peutSupprimer />
+            </div>
           )}
         </div>
         <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
@@ -190,7 +196,7 @@ export function BudgetSettings({
 
       {editEnv && (marketing
         ? <EnveloppePoleSheet domaine={marketing.domaine} envelope={overview.envelope} options={marketing.options} canDelete={marketing.canDelete} onClose={() => setEditEnv(false)} />
-        : <EnvelopeSheet envelope={overview.envelope} users={users} onClose={() => setEditEnv(false)} onDeleted={() => router.push("/budgets")} canDelete={canManageAccess} />)}
+        : <EnvelopeSheet envelope={overview.envelope} users={users} onClose={() => setEditEnv(false)} />)}
       {catSheet && <CategorySheet envelopeId={overview.envelope.id} cat={catSheet.cat} defaultParentId={catSheet.parentId} parentOptions={topCatOptions} onClose={() => setCatSheet(null)} repartition={repartition} />}
       {confirmation && <FenetreConfirmation c={confirmation} occupe={false} onFermer={() => setConfirmation(null)} />}
       {totalSheet && <BudgetTotalSheet info={budgetTotal} onClose={() => setTotalSheet(false)} />}

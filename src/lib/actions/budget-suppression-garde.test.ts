@@ -48,6 +48,7 @@ suite("suppression d'une catégorie ou d'une enveloppe budgétaire — les dépe
   afterAll(async () => {
     await prisma.budgetExpenseLine.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
     await prisma.budgetEnvelope.deleteMany({ where: { name: TAG } }).catch(() => {});
+    await prisma.deletedRecord.deleteMany({ where: { name: TAG } }).catch(() => {});
     await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
@@ -60,7 +61,7 @@ suite("suppression d'une catégorie ou d'une enveloppe budgétaire — les dépe
   });
 
   it("refuse de supprimer l'ENVELOPPE qui porte une dépense — rien n'est effacé", async () => {
-    const r = await deleteEnvelope(form({ id: envId }));
+    const r = await deleteEnvelope(form({ id: envId, nom: TAG }));
     expect(r.ok).toBe(false);
     expect(await prisma.budgetExpenseLine.count({ where: { id: ligneId } })).toBe(1);
     expect(await prisma.budgetEnvelope.count({ where: { id: envId } })).toBe(1);
@@ -70,7 +71,8 @@ suite("suppression d'une catégorie ou d'une enveloppe budgétaire — les dépe
     await prisma.budgetExpenseLine.delete({ where: { id: ligneId } });
     expect((await deleteBudgetCategory(form({ id: teteId }))).ok).toBe(true);
     expect(await prisma.budgetCategoryLine.count({ where: { id: { in: [teteId, sousId] } } })).toBe(0);
-    expect((await deleteEnvelope(form({ id: envId }))).ok).toBe(true);
+    // Le nom retapé (25/11/2026) ; l'enveloppe part à la corbeille, réversible.
+    expect((await deleteEnvelope(form({ id: envId, nom: TAG }))).ok).toBe(true);
     expect(await prisma.budgetEnvelope.count({ where: { id: envId } })).toBe(0);
   });
 });

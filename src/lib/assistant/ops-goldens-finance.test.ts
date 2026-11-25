@@ -213,12 +213,14 @@ suite("ops FINANCES vague 1 — budgets, caisse, paiements, écritures, paie (go
       expect(args.isActive).toBe("1");
     });
 
-    it("delete_envelope : CRITIQUE — ressaisie du NOM exact", async () => {
-      const p = await buildProposal("finance_operation", { op: "delete_envelope", envelope: `${TAG} Fonctionnement` }, budget());
+    it("delete_envelope : CRITIQUE — Direction générale seule (25/11/2026), ressaisie du NOM exact, nom transmis à l'action", async () => {
+      expect("error" in (await buildProposal("finance_operation", { op: "delete_envelope", envelope: `${TAG} Fonctionnement` }, budget()))).toBe(true);
+      const p = await buildProposal("finance_operation", { op: "delete_envelope", envelope: `${TAG} Fonctionnement` }, sa());
       expect("error" in p).toBe(false);
       if ("error" in p) return;
       expect(p.level).toBe("CRITICAL");
       expect(p.confirmText).toBe(`${TAG} Fonctionnement`);
+      expect(domainArgs(p).nom).toBe(`${TAG} Fonctionnement`);
     });
 
     it("create_budget_category : l'enveloppe se résout par nom ; update = FUSION (alloué seul)", async () => {

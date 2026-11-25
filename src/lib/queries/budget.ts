@@ -6,6 +6,7 @@ import { canViewEnvelope, type SessionUser } from "@/lib/rbac";
 import { generalMeansConsumption } from "@/lib/queries/budget-general-means";
 import { getAppSettings } from "@/lib/settings";
 import { dansLaPortee, totaliser, type PorteeBudget } from "@/lib/budget/domaines";
+import { nomAvecSociete } from "@/lib/budget/enveloppe-cle";
 import { masseSalarialeConsumption } from "@/lib/queries/budget-operations";
 import { fraisMissionConsumption } from "@/lib/missions-equipe/imputation-serveur";
 import { bvAcceptesConsumption } from "@/lib/queries/budget-bv-acceptes";
@@ -119,6 +120,8 @@ export interface BudgetEnvelopeOption {
   domaine: string;
   businessUnitId: string | null;
   productId: string | null;
+  /** La société, nommée seulement quand plusieurs sociétés existent (sinon `null`) — `societesAffichees`. */
+  societe: string | null;
 }
 
 /** Ligne d'une enveloppe dans la vue consolidée (« total des enveloppes »). */
@@ -128,6 +131,8 @@ export interface EnvelopeSummaryItem {
   isActive: boolean;
   modules: string[];
   domaine: string;
+  /** La société, nommée seulement quand plusieurs sociétés existent. */
+  societe: string | null;
   total: number;
   allocated: number;
   consumed: number;
@@ -157,7 +162,7 @@ export interface BudgetMonthPoint {
 }
 
 export interface BudgetOverview {
-  envelope: { id: string; name: string; module: string | null; modules: string[]; accessRoles: string[]; accessUserIds: string[]; managerRoles: string[]; managerUserIds: string[]; periodStart: string; periodEnd: string; total: number; notes: string | null; isActive: boolean; domaine: string; businessUnitId: string | null; productId: string | null; companyId?: string | null };
+  envelope: { id: string; name: string; module: string | null; modules: string[]; accessRoles: string[]; accessUserIds: string[]; managerRoles: string[]; managerUserIds: string[]; periodStart: string; periodEnd: string; total: number; notes: string | null; isActive: boolean; domaine: string; businessUnitId: string | null; productId: string | null; companyId?: string | null; societe?: string | null };
   period: { from: string; to: string };
   categories: BudgetCategoryView[];
   totals: {
@@ -222,11 +227,26 @@ function health(allocated: number, consumed: number): BudgetHealth {
   return "ON_TRACK";
 }
 
+/**
+ * LES SOCIÉTÉS À NOMMER à côté d'une enveloppe — seulement quand plusieurs sociétés existent (Super Admin, 25/11/2026) :
+ * trois « Informatique 2026 » ne sont pas un doublon, une par société, mais rien ne le disait. Une seule société : rien
+ * à distinguer, la carte reste nue. Une enveloppe sans société se lit « Groupe ».
+ */
+export async function societesAffichees(): Promise<((companyId: string | null) => string | null)> {
+  const societes = await prisma.company.findMany({ where: { isActive: true }, select: { id: true, name: true, shortName: true } });
+  if (societes.length < 2) return () => null;
+  const nom = new Map(societes.map((c) => [c.id, c.shortName || c.name]));
+  return (companyId) => (companyId ? nom.get(companyId) ?? null : "Groupe");
+}
+
 export async function getEnvelopes(viewer: SessionUser, opts: OptionsPortee = {}): Promise<BudgetEnvelopeOption[]> {
-  const list = await prisma.budgetEnvelope.findMany({ where: await platformScope(viewer.id), orderBy: [{ isActive: "desc" }, { periodStart: "desc" }] });
+  const [list, societe] = await Promise.all([
+    prisma.budgetEnvelope.findMany({ where: await platformScope(viewer.id), orderBy: [{ isActive: "desc" }, { periodStart: "desc" }] }),
+    societesAffichees(),
+  ]);
   return list
     .filter((e) => dansLaPortee(e, opts.portee) && envelopeVisible(viewer, e))
-    .map((e) => ({ id: e.id, name: e.name, module: e.module, modules: e.modules, accessRoles: e.accessRoles, accessUserIds: e.accessUserIds, managerRoles: e.managerRoles, managerUserIds: e.managerUserIds, periodStart: e.periodStart.toISOString(), periodEnd: e.periodEnd.toISOString(), total: toNumber(e.totalAmount), isActive: e.isActive, domaine: e.domaine, businessUnitId: e.businessUnitId, productId: e.productId }));
+    .map((e) => ({ id: e.id, name: e.name, module: e.module, modules: e.modules, accessRoles: e.accessRoles, accessUserIds: e.accessUserIds, managerRoles: e.managerRoles, managerUserIds: e.managerUserIds, periodStart: e.periodStart.toISOString(), periodEnd: e.periodEnd.toISOString(), total: toNumber(e.totalAmount), isActive: e.isActive, domaine: e.domaine, businessUnitId: e.businessUnitId, productId: e.productId, societe: societe(e.companyId) }));
 }
 
 /**
@@ -303,11 +323,12 @@ export async function getEnvelopesGrandTotal(viewer: SessionUser, opts: OptionsP
     consumedByCat.set(catId, (consumedByCat.get(catId) ?? 0) + amount);
   }
 
+  const societe = await societesAffichees();
   const items: EnvelopeSummaryItem[] = visible.map((e) => {
     const total = toNumber(e.totalAmount);
     const allocated = e.categories.filter((c) => c.parentId === null).reduce((a, c) => a + toNumber(c.allocated), 0);
     const consumed = e.categories.reduce((a, c) => a + (consumedByCat.get(c.id) ?? 0), 0);
-    return { id: e.id, name: e.name, isActive: e.isActive, modules: e.modules, domaine: e.domaine, total, allocated, consumed, remaining: total - consumed };
+    return { id: e.id, name: e.name, isActive: e.isActive, modules: e.modules, domaine: e.domaine, societe: societe(e.companyId), total, allocated, consumed, remaining: total - consumed };
   });
 
   return { ...totaliser(items), items };
@@ -340,12 +361,15 @@ export async function getBudgetCategoryOptions(module?: string | string[], viewe
   const relevant = wanted ? accessible.filter((e) => wanted.some((m) => e.modules.includes(m) || e.module === m)) : accessible;
   const list = relevant.length ? relevant : accessible;
   const out: BudgetCategoryOption[] = [];
+  // Trois « Informatique 2026 », une par société : la société se lit dans le chemin dès qu'il y en a plusieurs.
+  const societe = await societesAffichees();
   for (const env of list) {
     const tops = env.categories.filter((c) => c.parentId === null);
+    const nom = nomAvecSociete(env.name, societe(env.companyId));
     for (const top of tops) {
-      out.push({ id: top.id, label: `${env.name} › ${top.name}`, isSub: false });
+      out.push({ id: top.id, label: `${nom} › ${top.name}`, isSub: false });
       for (const sub of env.categories.filter((c) => c.parentId === top.id)) {
-        out.push({ id: sub.id, label: `${env.name} › ${top.name} › ${sub.name}`, isSub: true });
+        out.push({ id: sub.id, label: `${nom} › ${top.name} › ${sub.name}`, isSub: true });
       }
     }
   }
@@ -653,7 +677,7 @@ export async function getBudgetOverview(
   ].sort((a, b) => b.date.localeCompare(a.date));
 
   return {
-    envelope: { id: envelope.id, name: envelope.name, module: envelope.module, modules: envelope.modules, accessRoles: envelope.accessRoles, accessUserIds: envelope.accessUserIds, managerRoles: envelope.managerRoles, managerUserIds: envelope.managerUserIds, periodStart: envelope.periodStart.toISOString(), periodEnd: envelope.periodEnd.toISOString(), total, notes: envelope.notes, isActive: envelope.isActive, domaine: envelope.domaine, businessUnitId: envelope.businessUnitId, productId: envelope.productId, companyId: envelope.companyId },
+    envelope: { id: envelope.id, name: envelope.name, module: envelope.module, modules: envelope.modules, accessRoles: envelope.accessRoles, accessUserIds: envelope.accessUserIds, managerRoles: envelope.managerRoles, managerUserIds: envelope.managerUserIds, periodStart: envelope.periodStart.toISOString(), periodEnd: envelope.periodEnd.toISOString(), total, notes: envelope.notes, isActive: envelope.isActive, domaine: envelope.domaine, businessUnitId: envelope.businessUnitId, productId: envelope.productId, companyId: envelope.companyId, societe: (await societesAffichees())(envelope.companyId) },
     period: { from: from.toISOString(), to: to.toISOString() },
     categories,
     totals: {

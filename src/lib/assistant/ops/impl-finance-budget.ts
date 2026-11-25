@@ -163,9 +163,10 @@ export const FINANCE_BUDGET_OPS_IMPL: Record<string, OpImpl> = {
       return {
         title: `SUPPRIMER l'enveloppe « ${env.name} »`,
         fields: [{ label: "Enveloppe", value: env.name }],
-        warnings: ["Suppression définitive : les catégories et l'historique d'imputation de cette enveloppe disparaissent."],
+        warnings: ["Mise à la corbeille avec ses catégories : ses dépenses redeviennent « à imputer » (elles s'y rattachent de nouveau si le Super Admin la restaure)."],
         confirmText: env.name,
-        args: { id: env.id },
+        // Le nom retapé : la même confirmation que l'écran (`deleteEnvelope` la revérifie).
+        args: { id: env.id, nom: env.name },
         successMessage: `Enveloppe « ${env.name} » supprimée.`,
         revalidate: ["/budgets"],
       };

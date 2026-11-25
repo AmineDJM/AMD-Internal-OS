@@ -1,4 +1,4 @@
-import { userCan, hasGlobalView } from "./dependances";
+import { userCan, hasGlobalView, peutSupprimerEnveloppe } from "./dependances";
 import { isSA, type OpMeta } from "./types";
 
 /**
@@ -135,8 +135,8 @@ export const OPS_FINANCES: OpMeta[] = [
     uiLabel: "Supprimer l'enveloppe",
     aliases: ["supprime l'enveloppe budgétaire", "efface l'enveloppe"],
     risk: "CRITICAL",
-    summary: "Supprime DÉFINITIVEMENT une enveloppe, ses catégories et l'historique d'imputation.",
-    gate: (u) => userCan(u, "BUDGETS", "DELETE") || userCan(u, "BUDGETS", "UPDATE"),
+    summary: "Met une enveloppe à la corbeille avec ses catégories (Direction générale seule) — ses dépenses redeviennent « à imputer », et s'y rattachent de nouveau si elle est restaurée.",
+    gate: (u) => peutSupprimerEnveloppe(u),
     covers: ["budget-envelope-actions:deleteEnvelope"],
   },
   {

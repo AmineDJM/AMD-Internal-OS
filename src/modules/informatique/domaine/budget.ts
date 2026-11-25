@@ -7,6 +7,8 @@
  */
 
 export const CLE_LIGNE_IA = "IA_CONSOMMATION";
+/** Le code de direction de l'enveloppe Informatique (`BudgetEnvelope.module`) — sa clé, avec la société et l'année. */
+export const CODE_ENVELOPPE_INFORMATIQUE = "INFORMATIQUE";
 export const CLE_LIGNE_ABONNEMENTS = "ABONNEMENTS_LICENCES";
 export const CLE_LIGNE_MATERIEL = "MATERIEL_INFORMATIQUE";
 

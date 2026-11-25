@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { refusDuContenu } from "./suppression-enveloppe-regle";
 
 /**
  * SUPPRIMER UNE CATÉGORIE OU UNE ENVELOPPE NE DÉTRUIT AUCUNE DÉPENSE (audit données 2026-10-27).
@@ -69,4 +70,18 @@ export async function supprimerSousGarde(
     else await tx.budgetCategoryLine.delete({ where: { id: cible.categoryId } });
     return { ok: true as const };
   });
+}
+
+/**
+ * LA MISE À LA CORBEILLE D'UNE ENVELOPPE (Direction générale, 25/11/2026) — ce qu'elle refuse, lu par le registre des
+ * suppressions avant tout instantané : les dépenses saisies DANS ses catégories (elles n'existent que là, elles ne
+ * peuvent pas redevenir « à imputer ») et un lot d'intégration Ad & Pro (clé RESTRICT). Le reste suit le lot.
+ */
+export async function refusSuppressionEnveloppe(envelopeId: string): Promise<string | null> {
+  const ids = (await prisma.budgetCategoryLine.findMany({ where: { envelopeId }, select: { id: true } })).map((c) => c.id);
+  const [lignesBudgetaires, lotsIntegration] = await Promise.all([
+    ids.length ? prisma.budgetExpenseLine.count({ where: { categoryId: { in: ids } } }) : 0,
+    prisma.adProIntegrationLot.count({ where: { envelopeId } }),
+  ]);
+  return refusDuContenu({ lignesBudgetaires, lotsIntegration });
 }

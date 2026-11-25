@@ -2,6 +2,7 @@ import { companyIdForNew } from "@/lib/company";
 import { sansBloquer } from "@/lib/journal";
 import { expect } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { trouverOuCreerEnveloppe } from "@/lib/budget/enveloppe-unique";
 import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import { annulerGeste } from "@/lib/effets/annulation";
@@ -88,7 +89,8 @@ const PRISE_EN_CHARGE: CasReversible[] = [
     const intId = (await prisma.congressInternational.create({ data: { name: `${tag}Int`, requestStatus: "APPROVED", requesterId: moi.id, usdDzdRate: 240 } })).id;
     const personne = (await prisma.careBeneficiary.create({ data: { congressInternationalId: intId, firstName: "Nora", lastName: `${tag}Voyageuse`, status: "APPROVED" } })).id;
     const hotel = (await prisma.careCell.create({ data: { beneficiaryId: personne, kind: "SERVICE", serviceKind: "HOTEL", label: "Hôtellerie", city: "Paris", currency: "USD" } })).id;
-    const env = await prisma.budgetEnvelope.create({ data: { name: `${tag}Enveloppe`, modules: ["CONGRESS_INTERNATIONAL"], periodStart: new Date(`${ANNEE}-01-01`), periodEnd: new Date(`${ANNEE}-12-31`), totalAmount: 10_000_000 } });
+    // Une enveloppe LIBRE (sans direction) : le banc ne doit jamais adopter une enveloppe réelle de l'année.
+    const env = await trouverOuCreerEnveloppe({ companyId: null, annee: ANNEE, direction: null }, { name: `${tag}Enveloppe`, modules: ["CONGRESS_INTERNATIONAL"], periodStart: new Date(`${ANNEE}-01-01`), periodEnd: new Date(`${ANNEE}-12-31`), totalAmount: 10_000_000 });
     const cat = await prisma.budgetCategoryLine.create({ data: { envelopeId: env.id, name: `${tag}Congrès`, module: "CONGRESS_INTERNATIONAL", allocated: 5_000_000 } });
     const quoteId = (await prisma.careQuote.create({
       data: { congressInternationalId: intId, supplier: `${tag}Hôtel`, amountDzd: 120_000, amount: 500, currency: "USD", retainedAt: new Date(), retainedById: moi.id, cells: { create: [{ cellId: hotel }] } },

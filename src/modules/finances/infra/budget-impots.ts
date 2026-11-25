@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { enSerie } from "@/lib/refs";
+import { trouverOuCreerEnveloppe } from "@/lib/budget/enveloppe-unique";
 import {
   CATEGORIES_BUDGET_IMPOTS, CATEGORIES_MASSE_SALARIALE_IMPOTS, CODE_ENVELOPPE_IMPOTS, nomEnveloppeImpots,
   type CleLigneBudgetImpots, type CleLigneMasseSalariale,
@@ -43,20 +44,12 @@ async function lignesDeLEnveloppe<K extends string>(envelopeId: string, modele: 
 export async function lignesBudgetImpots(companyId: string, date: Date, actorId: string | null): Promise<Map<CleLigneBudgetImpots, string>> {
   const annee = date.getUTCFullYear();
   return enSerie(`enveloppe-impots:${companyId}:${annee}`, async () => {
-    let enveloppe = await prisma.budgetEnvelope.findFirst({
-      where: { companyId, module: CODE_ENVELOPPE_IMPOTS, periodStart: { lte: date }, periodEnd: { gte: date } },
-      orderBy: [{ isActive: "desc" }, { periodStart: "desc" }],
-      select: { id: true },
-    });
-    if (!enveloppe) {
-      enveloppe = await prisma.budgetEnvelope.create({
-        data: {
-          name: nomEnveloppeImpots(annee), companyId, module: CODE_ENVELOPPE_IMPOTS, modules: ["FINANCES_IMPOTS"], domaine: "GENERAL",
-          periodStart: new Date(Date.UTC(annee, 0, 1)), periodEnd: new Date(Date.UTC(annee, 11, 31, 23, 59, 59)), totalAmount: 0,
-          createdById: actorId,
-        },
-        select: { id: true },
-      });
+    // La clé (société, IMPOTS_TAXES, année) — la fonction unique trouve, sinon ouvre (`lib/budget/enveloppe-unique.ts`).
+    const enveloppe = await trouverOuCreerEnveloppe(
+      { companyId, annee, direction: CODE_ENVELOPPE_IMPOTS },
+      { name: nomEnveloppeImpots(annee), module: CODE_ENVELOPPE_IMPOTS, modules: ["FINANCES_IMPOTS"], domaine: "GENERAL", totalAmount: 0, createdById: actorId },
+    );
+    if (enveloppe.creee) {
       await recordAudit({
         actorId, action: "CREATE", module: "Budgets", entityId: enveloppe.id,
         summary: `Enveloppe « ${nomEnveloppeImpots(annee)} » ouverte d'office (TVA nette, IBS) — montants à fixer par la campagne budgétaire`,

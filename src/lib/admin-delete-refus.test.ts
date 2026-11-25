@@ -45,7 +45,9 @@ describe("Registre des suppressions — le refus et la réserve", () => {
     // 39 → 41 (audit du Drive, 24/11) : le DOCUMENT (pièce jointe hors Drive) — `deleteDocument` l'effaçait avec son
     // fichier ; il part à la corbeille, et REFUSE quand il justifie un paiement ou une étape terminée — et la CATÉGORIE
     // du Drive, effacée d'un clic avec tout son contenu, qui part désormais en lot.
-    expect(DELETABLE_KINDS).toHaveLength(41);
+    // 41 → 42 (Direction générale, 25/11/2026) : l'ENVELOPPE BUDGÉTAIRE — effacée d'un `delete`, elle part en lot à la
+    // corbeille ; ses dépenses redeviennent « à imputer », et REFUSE quand une dépense est saisie dans ses lignes.
+    expect(DELETABLE_KINDS).toHaveLength(42);
   });
 
   it("le poste Ad & Pro part EN LOT et ne refuse rien lui-même — c'est le lot qui refuse ce qui a quitté l'ERP", () => {
@@ -85,7 +87,9 @@ describe("Registre des suppressions — le refus et la réserve", () => {
       // Un bon de commande de marché déjà livré (audit 27/10, DONNEES-15).
       "PCH_ORDER",
       // La pièce d'un paiement ou d'une étape terminée (audit du Drive, 24/11) — éprouvé dans `document-versions-flow`.
-      "DOCUMENT"];
+      "DOCUMENT",
+      // L'enveloppe qui porte une dépense saisie dans ses lignes (25/11/2026) — éprouvé dans `enveloppe-suppression-flow`.
+      "BUDGET_ENVELOPE"];
     // LEGAL_DOCUMENT (§118.209) : une pièce signée, réglée ou dont une autre découle ne se supprime pas ; le refus
     // vit chez l'écrivain (`refusSuppressionDeLaPiece`), éprouvé dans `legal-suppression-flow`.
     // PAYMENT_REQUEST (19/10/2026) : une demande vivante, un compagnon, un paiement sorti ne se suppriment pas

@@ -1,6 +1,7 @@
 import { recordAudit } from "@/lib/audit";
 import { sansBloquer } from "@/lib/journal";
-import { CLE_LIGNE_IA, LIGNES_INFORMATIQUE, choisirEnveloppe, lignesManquantes, nomEnveloppeInformatique } from "../domaine/budget";
+import { trouverOuCreerEnveloppe } from "@/lib/budget/enveloppe-unique";
+import { CODE_ENVELOPPE_INFORMATIQUE, CLE_LIGNE_IA, LIGNES_INFORMATIQUE, lignesManquantes, nomEnveloppeInformatique } from "../domaine/budget";
 import { responsablesInformatique } from "./departement";
 import { sousVerrou } from "./verrou";
 
@@ -23,25 +24,21 @@ export interface EnveloppeInformatique {
 export async function enveloppeInformatique(companyId: string, date: Date, actorId: string | null): Promise<EnveloppeInformatique> {
   const responsable = (await responsablesInformatique([companyId])).get(companyId) ?? null;
   const r = await sousVerrou(`budget-informatique:${companyId}`, async (tx) => {
-    const candidates = await tx.budgetEnvelope.findMany({
-      where: { companyId, periodStart: { lte: date }, periodEnd: { gte: date }, categories: { some: { cle: CLE_LIGNE_IA } } },
-      select: { id: true, name: true, isActive: true, periodStart: true, accessUserIds: true },
-    });
-    let env = choisirEnveloppe(candidates);
-    let creee = false;
-    if (!env) {
-      const annee = date.getUTCFullYear();
-      env = await tx.budgetEnvelope.create({
-        data: {
-          name: nomEnveloppeInformatique(annee), domaine: "GENERAL", modules: [], companyId,
-          periodStart: new Date(Date.UTC(annee, 0, 1)), periodEnd: new Date(Date.UTC(annee, 11, 31, 23, 59, 59)),
-          totalAmount: 0, isActive: true, accessUserIds: responsable ? [responsable] : [], createdById: actorId,
-          notes: "Budget du département Informatique — l'IA (consommation imputée chaque mois), les abonnements, le matériel. Montants à fixer.",
-        },
-        select: { id: true, name: true, isActive: true, periodStart: true, accessUserIds: true },
-      });
-      creee = true;
-    } else if (responsable && !env.accessUserIds.includes(responsable)) {
+    // La clé (société, INFORMATIQUE, année) par la fonction unique (`lib/budget/enveloppe-unique.ts`) ; une enveloppe
+    // d'avant le code, reconnue à sa ligne IA, est adoptée (elle reçoit le code) plutôt que doublée.
+    const annee = date.getUTCFullYear();
+    const trouvee = await trouverOuCreerEnveloppe(
+      { companyId, annee, direction: CODE_ENVELOPPE_INFORMATIQUE },
+      {
+        name: nomEnveloppeInformatique(annee), domaine: "GENERAL", module: CODE_ENVELOPPE_INFORMATIQUE, modules: [],
+        totalAmount: 0, isActive: true, accessUserIds: responsable ? [responsable] : [], createdById: actorId,
+        notes: "Budget du département Informatique — l'IA (consommation imputée chaque mois), les abonnements, le matériel. Montants à fixer.",
+      },
+      { tx, reconnaitre: { companyId, categories: { some: { cle: CLE_LIGNE_IA } } } },
+    );
+    const env = await tx.budgetEnvelope.findUniqueOrThrow({ where: { id: trouvee.id }, select: { id: true, name: true, accessUserIds: true } });
+    const creee = trouvee.creee;
+    if (!creee && responsable && !env.accessUserIds.includes(responsable)) {
       // Le responsable désigné depuis lit SON budget, comme le responsable d'un pôle lit l'enveloppe de sa campagne.
       await tx.budgetEnvelope.update({ where: { id: env.id }, data: { accessUserIds: { push: responsable } } });
     }

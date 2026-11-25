@@ -9,6 +9,11 @@ import { recordAudit } from "@/lib/audit";
 import { fdStr, fdNum, fdDate, fdBool, type ActionResult } from "@/lib/actions/types";
 import { poleDe } from "@/lib/budget/domaines";
 import { supprimerSousGarde } from "@/lib/budget/suppression-garde";
+import { supprimerReversible } from "@/lib/suppression/coeur";
+import { lireApercuEnveloppe, type ApercuEnveloppe } from "@/lib/budget/suppression-enveloppe";
+import { REFUS_SUPPRESSION_ENVELOPPE, nomConfirme, peutSupprimerEnveloppe } from "@/lib/budget/suppression-enveloppe-regle";
+import { trouverOuCreerEnveloppe } from "@/lib/budget/enveloppe-unique";
+import { estCodeDirection } from "@/lib/budget/enveloppe-cle";
 import { annulable } from "@/lib/effets/ecran";
 import { refusSurReserve } from "@/modules/finances/partage";
 
@@ -64,8 +69,12 @@ export async function createEnvelope(formData: FormData): Promise<ActionResult> 
   const periodEnd = fdDate(formData, "periodEnd") ?? new Date(now.getFullYear(), 11, 31);
 
   const modules = readModules(formData);
-  const created = await prisma.budgetEnvelope.create({
-    data: {
+  // UNE ENVELOPPE PAR (société, direction, année) — par la fonction unique (`budget/enveloppe-unique.ts`). La direction
+  // d'une enveloppe générale est son premier module couvert ; sans module, elle est libre (rien à dédoublonner).
+  const created = await trouverOuCreerEnveloppe(
+    // Une enveloppe appartient à une société : le budget d'Adventum n'est pas celui de Pharmagène.
+    { companyId: await companyIdForNew(user.id), annee: periodStart.getUTCFullYear(), direction: modules[0] ?? null },
+    {
       name,
       modules,
       module: modules[0] ?? null, // compat : module principal
@@ -78,11 +87,11 @@ export async function createEnvelope(formData: FormData): Promise<ActionResult> 
       totalAmount: fdNum(formData, "totalAmount") ?? 0,
       notes: fdStr(formData, "notes"),
       createdById: user.id,
-      // Une enveloppe appartient à une société : le budget d'Adventum n'est pas celui de Pharmagène.
-      companyId: await companyIdForNew(user.id),
     },
-    select: { id: true },
-  });
+  );
+  if (!created.creee) {
+    return { ok: false, error: `L'enveloppe « ${created.name} » couvre déjà ce module pour cette société et cette année : ouvrez-la et complétez-la (catégories, montant) plutôt que d'en créer une seconde.` };
+  }
   await recordAudit({ actorId: user.id, action: "CREATE", module: "Budgets", summary: `Enveloppe budgétaire « ${name} »` });
   revalidatePath("/budgets");
   return { ok: true, id: created.id };
@@ -99,12 +108,16 @@ export async function updateEnvelope(formData: FormData): Promise<ActionResult> 
   const accessUserIds = readAccessUserIds(formData);
   const managerRoles = readManagerRoles(formData);
   const managerUserIds = readManagerUserIds(formData);
+  // LE CODE DE DIRECTION (ADMINISTRATION, IMPOTS_TAXES…) se garde : c'est la clé qui fait retrouver l'enveloppe. Effacé
+  // par une simple modification des modules couverts, l'ouverture d'office suivante en aurait créé une seconde.
+  const avant = await prisma.budgetEnvelope.findUnique({ where: { id }, select: { module: true } });
+  if (!avant) return { ok: false, error: "Enveloppe introuvable." };
   await prisma.budgetEnvelope.update({
     where: { id },
     data: {
       name,
       modules,
-      module: modules[0] ?? null, // compat : module principal
+      module: estCodeDirection(avant.module) ? avant.module : modules[0] ?? null, // compat : module principal
       accessRoles,
       accessUserIds,
       managerRoles,
@@ -125,19 +138,39 @@ export async function updateEnvelope(formData: FormData): Promise<ActionResult> 
   return { ok: true };
 }); }
 
+/**
+ * L'APERÇU d'une suppression d'enveloppe — lecture seule, relue à chaque ouverture du panneau « Supprimer l'enveloppe »
+ * (menu ⋯) : lignes, dépenses imputées, engagements, montants, ce qui redeviendra « à imputer », et le refus éventuel.
+ */
+export async function apercuSuppressionEnveloppe(formData: FormData): Promise<{ ok: true; apercu: ApercuEnveloppe } | { ok: false; error: string }> {
+  const user = await requireUser();
+  if (!peutSupprimerEnveloppe(user)) return { ok: false, error: REFUS_SUPPRESSION_ENVELOPPE };
+  const id = fdStr(formData, "id");
+  if (!id) return { ok: false, error: "Identifiant manquant." };
+  const apercu = await lireApercuEnveloppe(id);
+  return apercu ? { ok: true, apercu } : { ok: false, error: "Enveloppe introuvable (déjà supprimée ?)." };
+}
+
+/**
+ * SUPPRIMER UNE ENVELOPPE — la DIRECTION GÉNÉRALE seule (Super Admin ou Directeur général : la règle serveur,
+ * `budget/suppression-enveloppe-regle.ts`), nom RETAPÉ, et RÉVERSIBLE : le cœur de la corbeille (`supprimerReversible`)
+ * l'emporte avec ses lignes ; les dépenses imputées restent et redeviennent « à imputer », et se rattachent de nouveau
+ * si elle est restaurée. Refusée si elle porte des dépenses saisies dans ses catégories ou un lot d'intégration.
+ */
 export async function deleteEnvelope(formData: FormData): Promise<ActionResult> { return annulable("budget-envelope-actions:deleteEnvelope", "Supprimer enveloppe", async () => {
   const user = await requireUser();
-  if (!canManageEnvelopes(user)) return NOT_ALLOWED;
+  if (!peutSupprimerEnveloppe(user)) return { ok: false, error: REFUS_SUPPRESSION_ENVELOPPE };
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Identifiant manquant." };
   const env = await prisma.budgetEnvelope.findUnique({ where: { id }, select: { name: true } });
-  if (!env) return { ok: false, error: "Enveloppe introuvable." };
-  // Ses dépenses budgétaires partiraient en cascade : refusé tant qu'il en reste (`budget/suppression-garde.ts`).
-  const fait = await supprimerSousGarde({ envelopeId: id });
-  if (!fait.ok) return fait;
-  await recordAudit({ actorId: user.id, action: "DELETE", module: "Budgets", summary: `Enveloppe budgétaire « ${env.name} » supprimée` });
+  if (!env) return { ok: false, error: "Enveloppe introuvable (déjà supprimée ?)." };
+  if (!nomConfirme(fdStr(formData, "nom"), env.name)) {
+    return { ok: false, error: `Pour confirmer, retapez exactement le nom de l'enveloppe : « ${env.name} ».` };
+  }
+  const fait = await supprimerReversible("BUDGET_ENVELOPE", id, user.id, `Enveloppe budgétaire « ${env.name} » mise à la corbeille — ses dépenses redeviennent « à imputer »`);
+  if (!fait.ok) return { ok: false, error: fait.error ?? "Suppression impossible." };
   revalidatePath("/budgets");
-  return { ok: true };
+  return { ok: true, redirect: "/budgets", message: `Enveloppe « ${env.name} » mise à la corbeille : ses dépenses sont « à imputer ». Le Super Admin peut la restaurer depuis la corbeille — elles s'y rattacheront de nouveau.` };
 }); }
 
 // ─────────────────────────── Catégories ───────────────────────────

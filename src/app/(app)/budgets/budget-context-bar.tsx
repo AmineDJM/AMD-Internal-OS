@@ -6,6 +6,7 @@ import { Select } from "@/components/ui/input";
 import type { BudgetEnvelopeOption } from "@/lib/queries/budget";
 import { formatDate } from "@/lib/utils";
 import { rememberBudgetEnvelope } from "@/lib/actions/budget-scope-actions";
+import { nomAvecSociete } from "@/lib/budget/enveloppe-cle";
 
 /**
  * Barre de contexte des Budgets : **quelle enveloppe** et **quelle période**. Rien d'autre.
@@ -50,11 +51,11 @@ export function BudgetContextBar({
           aria-label="Enveloppe budgétaire"
         >
           {envelopes.map((en) => (
-            <option key={en.id} value={en.id}>{en.name}{en.isActive ? "" : " (archivée)"}</option>
+            <option key={en.id} value={en.id}>{nomAvecSociete(en.name, en.societe)}{en.isActive ? "" : " (archivée)"}</option>
           ))}
         </Select>
       ) : (
-        <span className="font-medium">{envelopes[0]?.name}</span>
+        <span className="font-medium">{envelopes[0] ? nomAvecSociete(envelopes[0].name, envelopes[0].societe) : null}</span>
       )}
 
       <button

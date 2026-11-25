@@ -11,6 +11,7 @@ import { fdStr, fdNum, fdDate, fdCase, type ActionResult } from "@/lib/actions/t
 import { DOMAINES, bornesAnnee, estDomainePole, poleDe, type DomainePole } from "@/lib/budget/domaines";
 import { MODULES_AD_PRO_BUDGET } from "@/lib/budget-marketing/domaine";
 import { completerCategoriesDuPole as completer } from "@/lib/budget/enveloppes-pole";
+import { trouverOuCreerEnveloppe } from "@/lib/budget/enveloppe-unique";
 import { CLE_DE_LA_NATURE, natureDuLibelle, type NatureBv } from "@/lib/budget-regulatory/bv";
 import { arbreCategories, refusReallocation } from "@/lib/budget/marketing-vue";
 import { getBudgetOverview } from "@/lib/queries/budget";
@@ -66,8 +67,14 @@ export async function createPoleEnvelope(formData: FormData): Promise<ActionResu
   const modele = pole === "MARKETING" ? fdCase(formData, "adPro") === true : fdCase(formData, "categoriesParDefaut") === true;
   const adPro = pole === "MARKETING" && modele;
 
-  const created = await prisma.budgetEnvelope.create({
-    data: {
+  // UNE ENVELOPPE PAR (société, pôle, année, BU, produit) — par la fonction unique (`budget/enveloppe-unique.ts`). Celle
+  // qui existe déjà n'est pas doublée : on la complète (Super Admin, 25/11/2026).
+  const businessUnitId = fdStr(formData, "businessUnitId");
+  // Operations & Sales : la Business Unit dit déjà les produits (Direction, 10/2026) — pas de produit.
+  const productId = pole === "OPERATIONS" ? null : fdStr(formData, "productId");
+  const created = await trouverOuCreerEnveloppe(
+    { companyId: await companyIdForNew(user.id), annee: debut.getUTCFullYear(), direction: pole, businessUnitId, productId },
+    {
       name,
       domaine: pole,
       // Une enveloppe Ad & Pro couvre sa famille. Les BV, eux, ne couvrent PAS le module Regulatory : l'attribution
@@ -75,18 +82,16 @@ export async function createPoleEnvelope(formData: FormData): Promise<ActionResu
       // sa nature — à la demande (`requestBV`) ou depuis l'écran « BV par dossier ».
       modules: adPro ? [...MODULES_AD_PRO_BUDGET] : [],
       module: adPro ? MODULES_AD_PRO_BUDGET[0] : null,
-      businessUnitId: fdStr(formData, "businessUnitId"),
-      // Operations & Sales : la Business Unit dit déjà les produits (Direction, 10/2026) — pas de produit.
-      productId: pole === "OPERATIONS" ? null : fdStr(formData, "productId"),
       periodStart: debut,
       periodEnd: fin,
       totalAmount: montant,
       notes: fdStr(formData, "notes"),
       createdById: user.id,
-      companyId: await companyIdForNew(user.id),
     },
-    select: { id: true },
-  });
+  );
+  if (!created.creee) {
+    return { ok: false, error: `L'enveloppe « ${created.name} » couvre déjà ce budget ${DOMAINES[pole].court} pour cette année (même société, même BU et produit) : ouvrez-la et complétez-la plutôt que d'en créer une seconde.` };
+  }
   if (modele) await completer(created.id, pole);
   await recordAudit({ actorId: user.id, action: "CREATE", module: DOMAINES[pole].titre, entityId: created.id, summary: `Enveloppe ${DOMAINES[pole].court} « ${name} »` });
   revalider(pole);
