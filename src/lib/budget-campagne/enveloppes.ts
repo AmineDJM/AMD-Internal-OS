@@ -2,7 +2,10 @@ import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/utils";
 import { recordAudit } from "@/lib/audit";
 import { enSerie } from "@/lib/refs";
-import { bornesAnnee } from "@/lib/budget/domaines";
+import { DOMAINES_POLE, bornesAnnee, type DomainePole } from "@/lib/budget/domaines";
+import { trouverOuCreerEnveloppe } from "@/lib/budget/enveloppe-unique";
+import { PREFIXE_DEPARTEMENT } from "@/lib/budget/enveloppe-cle";
+import { CODE_ENVELOPPE_ADMINISTRATION } from "@/modules/finances/partage";
 import { CLE_DEPARTEMENT_INFORMATIQUE } from "@/lib/rbac";
 import { enveloppeInformatique } from "@/modules/informatique/api";
 import { STATUTS_ACCEPTES, estPoleAdministration, estStatutProposition, montantRetenu, nomEnveloppe, planEnveloppe, type LignePourEnveloppe } from "./regles";
@@ -16,6 +19,11 @@ import { STATUTS_ACCEPTES, estPoleAdministration, estStatutProposition, montantR
  * Un rectificatif met à jour les allocations, une piste d'audit par catégorie changée (ancien → nouveau montant).
  */
 
+/** L'enveloppe trouvée est déjà celle d'une autre proposition — la transaction est annulée, le refus dit laquelle. */
+class DejaLieeAilleurs extends Error {
+  constructor(readonly nom: string, readonly pole: string) { super("DEJA_LIEE_AILLEURS"); }
+}
+
 export async function ouvrirEnveloppeDeLaProposition(proposalId: string, actorId: string | null): Promise<
   { ok: true; envelopeId: string; cree: boolean; changements: number } | { ok: false; error: string }
 > {
@@ -25,7 +33,7 @@ export async function ouvrirEnveloppeDeLaProposition(proposalId: string, actorId
       select: {
         id: true, status: true, poleLabel: true, domaine: true, envelopeId: true, currentVersion: true, estRectificatif: true,
         campaign: { select: { year: true, title: true, companyId: true } },
-        department: { select: { companyId: true, name: true, code: true, cle: true, head: { select: { userId: true } }, deputy: { select: { userId: true } } } },
+        department: { select: { id: true, companyId: true, name: true, code: true, cle: true, head: { select: { userId: true } }, deputy: { select: { userId: true } } } },
         lines: { select: { id: true, key: true, label: true, categoryKey: true, categoryLineId: true, propose: true, ajuste: true, decision: true } },
         versions: { select: { lines: true } },
       },
@@ -65,32 +73,59 @@ export async function ouvrirEnveloppeDeLaProposition(proposalId: string, actorId
     if (!existante) {
       const { debut, fin } = bornesAnnee(p.campaign.year);
       const lecteurs = [p.department?.head?.userId, p.department?.deputy?.userId].filter((x): x is string => Boolean(x));
-      // L'ENVELOPPE NAÎT ET SE LIE DANS LA MÊME TRANSACTION : si une autre l'a liée entre-temps, celle-ci est annulée.
+      const administration = !!p.department && estPoleAdministration(p.department.name, p.department.code);
+      // UNE ENVELOPPE PAR (société, direction, année) — par la fonction unique (`budget/enveloppe-unique.ts`). La direction
+      // d'un pôle : son domaine (Marketing, Regulatory, Operations), l'Administration (l'enveloppe des charges fixes et des
+      // moyens généraux, déjà ouverte d'office : la campagne s'y lie), sinon le département lui-même.
+      const direction = DOMAINES_POLE.includes(p.domaine as DomainePole) ? p.domaine
+        : administration ? CODE_ENVELOPPE_ADMINISTRATION
+        : p.department ? `${PREFIXE_DEPARTEMENT}${p.department.id}` : null;
+      // L'ENVELOPPE NAÎT (ou est trouvée) ET SE LIE DANS LA MÊME TRANSACTION : si une autre l'a liée entre-temps, annulé.
       const r = await prisma.$transaction(async (tx) => {
-        const env = await tx.budgetEnvelope.create({
-          data: {
+        const env = await trouverOuCreerEnveloppe(
+          {
+            companyId: societe, annee: p.campaign.year, direction,
+            ...(DOMAINES_POLE.includes(p.domaine as DomainePole) ? { businessUnitId: null, productId: null } : {}),
+          },
+          {
             name: nomEnveloppe(p.campaign.year, p.poleLabel), domaine: p.domaine,
-            companyId: p.campaign.companyId ?? p.department?.companyId ?? null,
             periodStart: debut, periodEnd: fin, totalAmount: 0, isActive: true,
             accessUserIds: lecteurs,
             // LE BUDGET DE L'ADMINISTRATION est tenu par les FINANCES, pas par le DG (Super Admin, 24/11/2026).
-            ...(p.department && estPoleAdministration(p.department.name, p.department.code) ? { managerRoles: ["FINANCE_BUDGET_MANAGER"] } : {}),
+            ...(administration ? { managerRoles: ["FINANCE_BUDGET_MANAGER"] } : {}),
             notes: `Ouverte par la campagne budgétaire « ${p.campaign.title} » (v${p.currentVersion}).`,
             createdById: actorId,
           },
-          select: { id: true },
-        });
+          { tx },
+        );
+        // Trouvée et déjà liée à une AUTRE proposition : on ne la lui prend pas (une proposition, une enveloppe).
+        const autre = env.creee ? null : await tx.budgetProposal.findFirst({ where: { envelopeId: env.id, NOT: { id: p.id } }, select: { poleLabel: true } });
+        if (autre) throw new DejaLieeAilleurs(env.name, autre.poleLabel);
         const lie = await tx.budgetProposal.updateMany({ where: { id: p.id, envelopeId: null }, data: { envelopeId: env.id } });
         if (lie.count === 0) throw new Error("DEJA_LIEE");
-        return env.id;
-      }).catch((err: unknown) => (err instanceof Error && err.message === "DEJA_LIEE" ? null : Promise.reject(err)));
+        if (!env.creee) {
+          // Trouvée : ceux qui tiennent le pôle la lisent, comme s'ils l'avaient ouverte.
+          const actuelle = await tx.budgetEnvelope.findUnique({ where: { id: env.id }, select: { accessUserIds: true } });
+          const manquants = lecteurs.filter((u) => !actuelle?.accessUserIds.includes(u));
+          if (manquants.length) await tx.budgetEnvelope.update({ where: { id: env.id }, data: { accessUserIds: { push: manquants } } });
+        }
+        return { id: env.id, creee: env.creee };
+      }).catch((err: unknown) => {
+        if (err instanceof Error && err.message === "DEJA_LIEE") return null;
+        if (err instanceof DejaLieeAilleurs) {
+          const { nom, pole } = err;
+          return { erreur: `L'enveloppe « ${nom} » de cette direction pour ${p.campaign.year} est déjà liée à la proposition « ${pole} » : une seconde enveloppe ne s'ouvre pas. Rattachez cette proposition au même pôle.` };
+        }
+        return Promise.reject(err);
+      });
+      if (r && "erreur" in r) return { ok: false, error: r.erreur };
       if (!r) {
         const relu = await prisma.budgetProposal.findUnique({ where: { id: p.id }, select: { envelopeId: true } });
         if (!relu?.envelopeId) return { ok: false, error: "Enveloppe impossible à lier — réessayez." };
         envelopeId = relu.envelopeId;
       } else {
-        envelopeId = r;
-        cree = true;
+        envelopeId = r.id;
+        cree = r.creee;
       }
     }
     const env = await prisma.budgetEnvelope.findUnique({

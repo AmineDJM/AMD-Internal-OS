@@ -694,6 +694,12 @@ export function classerExclusionsCircuits(): void {
     "ad-pro-suppression-definitive-actions:supprimerDefinitivementDemandeAdPro",
     "ad-pro-suppression-definitive-actions:apercuSuppressionDefinitiveAdPro",
   ]);
+  X("L'APERÇU D'UNE SUPPRESSION D'ENVELOPPE (Direction générale, 25/11/2026) — une LECTURE de l'écran : le panneau « Supprimer "
+    + "l'enveloppe » (menu « ⋯ » des réglages du budget) relit, à chaque ouverture, ses lignes, ses dépenses imputées, ses "
+    + "engagements et ce qui redeviendra « à imputer », avant de faire RETAPER le nom. La suppression elle-même reste proposable "
+    + "(`delete_envelope`), avec sa propre confirmation.", [
+    "budget-envelope-actions:apercuSuppressionEnveloppe",
+  ]);
   X("SUPPRIMER UNE PIÈCE LEGAL, OU L'UN DE SES FICHIERS, depuis la fiche de la demande Ad & Pro (§118.209) — « on doit pouvoir "
     + "supprimer les documents dans les demandes ». Adam n'est visible que du Super Admin (§118.153), qui supprime déjà une pièce "
     + "par `delete_record` (même cœur réversible, même refus de ce qui engage la pièce) ; offrir une seconde porte à Adam ne "

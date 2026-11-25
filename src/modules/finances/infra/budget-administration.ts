@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { sansBloquer } from "@/lib/journal";
+import { trouverOuCreerEnveloppe } from "@/lib/budget/enveloppe-unique";
 import {
   CLE_MOYENS_GENERAUX, CODE_ENVELOPPE_ADMINISTRATION, GESTIONNAIRES_ADMINISTRATION, LIBELLE_NATURE_CHARGE_FIXE,
   LIGNES_STRUCTURE_ADMINISTRATION, NATURES_CHARGE_FIXE, nomEnveloppeAdministration, totauxAnnuelsParNature,
@@ -33,28 +34,22 @@ async function sousVerrou<T>(cle: string, corps: (tx: Tx) => Promise<T>): Promis
   }, { timeout: 20_000 });
 }
 
-const milieuDAnnee = (annee: number) => new Date(Date.UTC(annee, 5, 30));
-
-/** L'enveloppe « Administration <année> » de la société — trouvée, sinon ouverte (montant 0, tenue par les Finances). */
+/**
+ * L'enveloppe « Administration <année> » de la société — trouvée, sinon ouverte (montant 0, tenue par les Finances), par
+ * la fonction unique (`lib/budget/enveloppe-unique.ts`) : la clé (société, ADMINISTRATION, année), jamais le nom.
+ */
 async function trouverOuOuvrir(tx: Tx, companyId: string, annee: number, actorId: string | null): Promise<{ id: string; creee: boolean }> {
-  const milieu = milieuDAnnee(annee);
-  const existe = await tx.budgetEnvelope.findFirst({
-    where: { companyId, module: CODE_ENVELOPPE_ADMINISTRATION, periodStart: { lte: milieu }, periodEnd: { gte: milieu } },
-    orderBy: [{ isActive: "desc" }, { periodStart: "desc" }],
-    select: { id: true },
-  });
-  if (existe) return { id: existe.id, creee: false };
-  const cree = await tx.budgetEnvelope.create({
-    data: {
-      name: nomEnveloppeAdministration(annee), companyId, module: CODE_ENVELOPPE_ADMINISTRATION, modules: [], domaine: "GENERAL",
-      managerRoles: [...GESTIONNAIRES_ADMINISTRATION],
-      periodStart: new Date(Date.UTC(annee, 0, 1)), periodEnd: new Date(Date.UTC(annee, 11, 31, 23, 59, 59)), totalAmount: 0,
+  const r = await trouverOuCreerEnveloppe(
+    { companyId, annee, direction: CODE_ENVELOPPE_ADMINISTRATION },
+    {
+      name: nomEnveloppeAdministration(annee), module: CODE_ENVELOPPE_ADMINISTRATION, modules: [], domaine: "GENERAL",
+      managerRoles: [...GESTIONNAIRES_ADMINISTRATION], totalAmount: 0,
       notes: "Budget de l'Administration, tenu par les Finances : charges fixes des locaux, moyens généraux, dons et mécénat, réserve pour imprévus, remboursement d'emprunt.",
       createdById: actorId,
     },
-    select: { id: true },
-  });
-  return { id: cree.id, creee: true };
+    { tx },
+  );
+  return { id: r.id, creee: r.creee };
 }
 
 /** Une ligne de premier niveau, reconnue par sa clé (ou par son nom, créée à la main) — sinon créée. */

@@ -322,6 +322,9 @@ describe("les actions qui CHARGENT un écran voient la personne visualisée", ()
     // (`confirmerIntentionAssistantIA`, `requireUser`) ; ses options doivent être celles de qui signe.
     "chercherReferenceCarteAssistantIA",
     "apercuReprise", // l'aperçu à blanc d'une reprise de la refonte des données — Super Admin seul, qui exécute ensuite en son nom
+    // L'aperçu d'une suppression d'enveloppe (25/11/2026) — la Direction générale seule, qui supprime ensuite en son nom :
+    // le droit qu'il vérifie est celui de qui SUPPRIME, pas celui de la personne visualisée.
+    "apercuSuppressionEnveloppe",
   ]);
   const corpsDe = (src: string, nom: string) => src.slice(src.indexOf(`export async function ${nom}(`)).split(/\nexport /)[0];
 

@@ -6,6 +6,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { refusSuppressionDemandePaiement } from "@/modules/finances/api";
+import { refusSuppressionEnveloppe } from "@/lib/budget/suppression-garde";
 import type { DeletableKind, KindSpec } from "./types";
 
 export const REGISTRE_FINANCE = {
@@ -45,6 +46,28 @@ export const REGISTRE_FINANCE = {
     async remove(id) {
       await prisma.expenseOrder.delete({ where: { id } });
     },
+  },
+  /**
+   * UNE ENVELOPPE BUDGÉTAIRE (Super Admin, 25/11/2026) — supprimée par la Direction générale (`deleteEnvelope`), EN LOT :
+   * ses lignes partent avec elle dans la corbeille ; tout ce qui leur était imputé (écritures, ordres, dépenses de
+   * département, postes, abonnements…) RESTE et redevient « à imputer » — lien vidé, noté, et rétabli à la restauration.
+   * Refusée tant qu'elle porte des dépenses saisies dans ses catégories ou un lot d'intégration (`refusSuppressionEnveloppe`).
+   */
+  BUDGET_ENVELOPE: {
+    label: "enveloppe budgétaire",
+    module: "Budgets",
+    redirect: "/budgets",
+    model: "budgetEnvelope",
+    searchFields: ["name"],
+    refuse: (id) => refusSuppressionEnveloppe(id),
+    async describe(id) {
+      const r = await prisma.budgetEnvelope.findUnique({ where: { id }, select: { name: true } });
+      return r ? r.name : null;
+    },
+    async remove(id) {
+      await prisma.budgetEnvelope.delete({ where: { id } });
+    },
+    lot: true,
   },
   /**
    * UNE DEMANDE DE PAIEMENT RETIRÉE (Direction, 19/10/2026) — elle part EN LOT : son ordre de dépense annulé (sinon une

@@ -3148,6 +3148,15 @@
   "annulation": "compensation",
   "appelable": true
  },
+ "budget-envelope-actions:apercuSuppressionEnveloppe": {
+  "risque": "R0",
+  "familles": [
+   "BUDGETS"
+  ],
+  "simulable": "oui",
+  "annulation": "aucune",
+  "appelable": true
+ },
  "budget-envelope-actions:attributeTransaction": {
   "risque": "R4",
   "familles": [

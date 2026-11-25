@@ -379,6 +379,10 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/coffre/infra/lecteur.ts → src/lib/hr/confidentialite",
   ],
   finances: [
+    // LA FONCTION UNIQUE QUI FAIT NAÎTRE UNE ENVELOPPE (Super Admin, 25/11/2026 — plus jamais de doublon) : l'Administration
+    // et les Impôts y passent, keyés par (société, direction, année). Le budget n'est pas encore un module ; cible = sa porte.
+    "src/modules/finances/infra/budget-administration.ts → src/lib/budget/enveloppe-unique",
+    "src/modules/finances/infra/budget-impots.ts → src/lib/budget/enveloppe-unique",
     // Prévenir et numéroter : `notify` (notifications) et `refs` (séries PAY-, OD-, FIN-) sont des services
     // transverses que tout métier appelle ; cible = le socle, quand ils y seront rangés.
     "src/modules/finances/actions-centre.ts → src/lib/notify",
@@ -754,6 +758,8 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/salles/actions.ts → src/lib/refs",
   ],
   informatique: [
+    // L'enveloppe Informatique naît par la fonction unique (25/11/2026, voir `finances`) ; cible = la porte du module budget.
+    "src/modules/informatique/infra/budget.ts → src/lib/budget/enveloppe-unique",
     // Le département Informatique (24/11/2026) : les sociétés permises à la personne (`getMyCompanies`) bornent chaque écran
     // et chaque geste — la règle d'entité du groupe, transverse ; cible = une porte « entités » du socle (proposition §5.3).
     "src/modules/informatique/actions-abonnements.ts → src/lib/company",

@@ -12,6 +12,7 @@ import { rapprochementDesAImputer } from "@/lib/budget-marketing/rapprochement-s
 import { libelleRattachement, optionsRattachement } from "@/lib/queries/budget-marketing";
 import { getAppSettings } from "@/lib/settings";
 import { getMyCompanies } from "@/lib/company";
+import { peutSupprimerEnveloppe } from "@/lib/budget/suppression-enveloppe-regle";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ModuleTabs } from "@/components/shared/module-tabs";
@@ -237,6 +238,7 @@ export async function VueEnsembleBudget({ user, searchParams, config }: { user: 
                   >
                     <span className={`min-w-0 flex-1 truncate font-medium ${e.id === overview.envelope.id ? "text-primary" : ""}`}>
                       {e.name}
+                      {e.societe && <span className="ml-2 text-xs font-normal text-muted-foreground">· {e.societe}</span>}
                       {!e.isActive && <span className="ml-2 text-xs font-normal text-muted-foreground">(clôturée)</span>}
                       {!pole && poleDeE && <span className="ml-2 text-xs font-normal text-muted-foreground">· {DOMAINES[poleDeE].etiquette}</span>}
                     </span>
@@ -540,6 +542,7 @@ export async function VueReglagesBudget({ user, searchParams, config }: { user: 
             users={users}
             marketing={variante}
             bandeau={poleTenant ? <GerePar user={user} domaine={poleTenant} /> : undefined}
+            peutSupprimer={peutSupprimerEnveloppe(user)}
           />
         </>
       )}
