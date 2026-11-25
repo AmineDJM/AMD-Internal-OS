@@ -16,7 +16,6 @@ import { formatMontant } from "@/lib/utils";
 import { categorieDuTypePiece, motifDeContrePassation, REFUS_CONTRE_PASSATION_SANS_MOTIF } from "./domaine/comptabilite-vue";
 import { CHAMP_DEMANDE_PIECE } from "./infra/requetes/comptabilite";
 import { dossierHrefByOrder } from "./infra/expense-orders";
-import { entityHref } from "@/lib/entity-href";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -190,8 +189,10 @@ export async function demanderPieceEcriture(formData: FormData): Promise<ActionR
     userId: destinataire, type: "ASSIGNMENT", title: `Pièce demandée — ${ecriture.reference}`, body: message,
     // LE DEMANDEUR VA LÀ OÙ IL PEUT DÉPOSER — le dossier de son paiement (comme `requestInvoice`), pas l'écran des Finances
     // qu'il n'ouvre pas ; l'auteur d'une saisie (un financier) revient sur l'écriture.
+    // Sans dossier ni fiche d'origine, « Mes demandes de paiement » : la seule porte qu'un demandeur ouvre à coup sûr (une
+    // notification vers un écran qu'il n'ouvre pas ne lui parviendrait pas — règle des notifications du 25/11/2026).
     link: (ordre && destinataire === ordre.requestedById
-      ? (await dossierHrefByOrder([ordre.id])).get(ordre.id) ?? entityHref(ordre.sourceType, ordre.sourceId)
+      ? (await dossierHrefByOrder([ordre.id])).get(ordre.id) ?? "/validations/paiements"
       : null) ?? `${CHEMIN}?ecriture=${id}`,
   });
   await recordAudit({

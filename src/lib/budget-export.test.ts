@@ -28,7 +28,7 @@ const overview: BudgetOverview = {
 
 const grand: EnvelopesGrandTotal = {
   count: 1, total: 1000, allocated: 1000, consumed: 800, remaining: 200,
-  items: [{ id: "e1", name: "Budget 2026", isActive: true, modules: ["SPONSORING"], domaine: "GENERAL", total: 1000, allocated: 1000, consumed: 800, remaining: 200 }],
+  items: [{ id: "e1", name: "Budget 2026", societe: null, isActive: true, modules: ["SPONSORING"], domaine: "GENERAL", total: 1000, allocated: 1000, consumed: 800, remaining: 200 }],
 };
 
 describe("buildBudgetWorkbook", () => {
