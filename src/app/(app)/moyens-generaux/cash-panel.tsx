@@ -153,10 +153,11 @@ export function CashPanel({ view, people }: { view: GeneralMeansView; people: { 
           {enAttente.map((r) => (
             <div key={r.id} id={ancreRemise(r.id)} className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-secondary/30 p-3 text-sm">
               <CalendarClock className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <span className="min-w-0 flex-1">
+              <span className="min-w-[12rem] flex-1">
                 <strong>{formatCurrency(r.amount)}</strong> demandés le {formatDate(r.remittedAt)}
-                {r.holder ? ` pour ${r.holder}` : ""} — {libelleRemise(r.centre, r.status).label.toLowerCase()}.
-                Ils compteront dans la caisse une fois payés par les Finances et leur réception confirmée.
+                {r.holder ? ` pour ${r.holder}` : ""} — {libelleRemise(r.centre, r.status).label.toLowerCase()}
+                {r.centre === "SANS_BON" ? " : sans lui, la remise n'est pas encore partie au centre de paiement." : "."}
+                {" "}Ils compteront dans la caisse une fois payés par les Finances et leur réception confirmée.
               </span>
               <Badge tone="warning" dot={false}>{libelleRemise(r.centre, r.status).label}</Badge>
               {/* SANS BON DE REMISE, PAS DE CENTRE (justificatif obligatoire, 24/11/2026) : le remède, d'un clic. */}

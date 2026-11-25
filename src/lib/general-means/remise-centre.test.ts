@@ -52,7 +52,8 @@ describe("etatRemise — le livre fait foi sur l'argent sorti", () => {
 
   it("sans bon de remise, l'ordre attend sa pièce AVANT le centre : la remise le dit (justificatif obligatoire, 24/11)", () => {
     expect(etatRemise({ aUnOrdre: true, ordre: ordre("PENDING", "AWAITING_PROOF"), transactionId: null })).toBe("SANS_BON");
-    expect(ETAT_REMISE_LABEL.SANS_BON.label).toMatch(/bon de remise.*pas encore au centre de paiement/);
+    expect(ETAT_REMISE_LABEL.SANS_BON.label).toMatch(/bon de remise/);
+    expect(refusConfirmationRemise("SANS_BON")).toMatch(/pas encore partie au centre de paiement/);
   });
 });
 

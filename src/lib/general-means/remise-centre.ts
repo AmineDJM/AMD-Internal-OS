@@ -76,7 +76,7 @@ export function etatRemise(r: RemiseBrute): EtatRemise {
 }
 
 export const ETAT_REMISE_LABEL: Record<EtatRemise, { label: string; tone: "warning" | "success" | "neutral" | "danger" }> = {
-  SANS_BON: { label: "Attend son bon de remise — pas encore au centre de paiement", tone: "warning" },
+  SANS_BON: { label: "Attend son bon de remise", tone: "warning" },
   EN_ATTENTE: { label: "En attente du centre de paiement", tone: "warning" },
   A_VERSER: { label: "Autorisée — à payer par les Finances", tone: "warning" },
   VERSEE: { label: "Versée", tone: "success" },
