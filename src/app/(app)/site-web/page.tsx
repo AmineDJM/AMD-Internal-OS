@@ -75,7 +75,9 @@ export default async function SiteWebPage() {
       <ModuleTabs tabs={await visibleTabs(user, SITE_WEB_TABS)} />
 
       {/* ── 1. EST-CE QUE ÇA PART ? — une phrase, pas un geste (§118.160) ─────────────────── */}
-      {blocage ? (
+      {/* LA LIAISON EST L'AFFAIRE DU SUPER ADMIN (25/11/2026) : un employé n'y peut rien, il ne voit pas ces bandeaux. Ses
+          contenus partent en file comme d'habitude ; les compteurs « En file / En échec » restent visibles. */}
+      {!gere ? null : blocage ? (
         <div role="alert" className="flex gap-2 rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm">
           <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
           <div className="min-w-0">
@@ -83,9 +85,7 @@ export default async function SiteWebPage() {
             <p className="mt-1 text-muted-foreground">
               Le site refuse les envois de l&apos;ERP : la liaison est à corriger. Rien n&apos;est perdu — les envois attendent en file et
               repartiront d&apos;eux-mêmes dès qu&apos;elle le sera.{" "}
-              {gere
-                ? <Link href={ECRAN_LIAISON.href} className="font-medium text-primary underline">Rétablir la connexion</Link>
-                : `Un Super Admin la rétablit depuis ${ECRAN_LIAISON.nom}.`}
+              <Link href={ECRAN_LIAISON.href} className="font-medium text-primary underline">Rétablir la connexion</Link>
             </p>
           </div>
         </div>
@@ -94,9 +94,7 @@ export default async function SiteWebPage() {
           <p className="font-medium">Le site n&apos;est pas encore relié à l&apos;ERP.</p>
           <p className="mt-1 text-muted-foreground">
             Les contenus publiés d&apos;ici là attendent en file et partiront d&apos;eux-mêmes.{" "}
-            {gere
-              ? <Link href={ECRAN_LIAISON.href} className="font-medium text-primary underline">Relier le site (un clic)</Link>
-              : `Un Super Admin le relie depuis ${ECRAN_LIAISON.nom}.`}
+            <Link href={ECRAN_LIAISON.href} className="font-medium text-primary underline">Relier le site (un clic)</Link>
           </p>
         </div>
       ) : null}
